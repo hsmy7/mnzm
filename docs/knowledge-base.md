@@ -678,13 +678,13 @@ fun watchAdForNewFeature() {
 | 手段 | 现状 | 代码位置 |
 |------|------|---------|
 | 每日签到 | **已移除（2026-08-07）**——活动界面与每日签到整体移除；存档字段 `sign_in_state_json` 保留兼容旧档，禁止新代码读写 | — |
-| 存档 | 手动存档（5 槽位）+ TapTap 云存档（slot 0 入口）；退出自动保存；**自动存档已移除** | `TapCloudSaveManager.kt`、`SaveLoadSaveDelegate` |
+| 存档 | 手动存档（5 槽位）+ TapTap 云存档（slot 0 入口）+ 退出保存 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控；2026-09-27 §2.6 裁决，旧月变触发体系已删） | `SaveLoadViewModelAutoSaveOps.kt`、`TapCloudSaveManager.kt`、`SaveLoadSaveDelegate` |
 | 活动入口 | "历战"卡片轮转（`LizhanDialog`：天道试炼/远古秘境已迁入）；活动界面已移除（2026-08-07） | `dialogs/LizhanDialog.kt` |
 | 新手引导 | `GuideTask` 25 任务（12 种条件类型），计数器 12 处接入点 | `model/guide/`、`GameEngineGuideOps.kt` |
 | 推送通知 | **无** | 无代码 |
-| 离线收益 | **无**（后台纯暂停，无放置产出） | `GameEngineCore.kt`（后台暂停逻辑） |
+| 离线收益 | **已落地（2026-09-28 B7）**——读档时按现实离线时段折算注入（≤12h 全额 → 12–24h 段 50% → 24h 硬顶，floor 到旬，回拨按 0），连续积分项离线照常累积、判定/事件零次；「云游归来」面板提示 | `GameConfig.Time.offlineGameMs`、`GameEngineCoreOfflineOps.kt`、`OfflineReturnFormatter.kt` |
 | 回归奖励 | 无专用回归机制（仅白名单/节日邮件） | — |
-| 游戏时间流速 | 6 现实秒 = 1 游戏月（1 年 = 72 秒） | `GameEngineCore.kt` 循环常量 |
+| 游戏时间流速 | 权威时间轴 = 游戏毫秒 `elapsedGameMs`（现实时间 × speed 连续积分，未截断）；1 游戏月 = 6000 游戏毫秒（1x 下 6 现实秒，1 年 = 72 现实秒），日历年/月/旬是派生投影 | `GameConfig.Time` 常量栈、C++ `time_units.h`（双端守卫锁定）、`settlement.h` |
 
 ### 经济基线表（灵石源与汇初版）
 
@@ -692,7 +692,7 @@ fun watchAdForNewFeature() {
 
 | 方向 | 入口 | 说明 | 代码位置 |
 |------|------|------|---------|
-| **产（源）** | 灵矿场 | 槽位数×产出率×时间戳差分，政策/长老影响 | `SpiritMineService`、`GameConfig` |
+| **产（源）** | 灵矿场 | 槽位数×产出率×游戏毫秒差分（B5 起毫秒时间戳），政策/长老影响；离线期间按毫秒差分照常结算（B7 注入） | `SpiritMineService`、C++ `accrueMonthlyContinuous`（灵矿差分）、`GameConfig` |
 | 产（源） | 战斗掠夺 | 世界地图妖兽/洞府/秘境战利品 | `LootCalculator`、`BattleSystem` |
 | 产（源） | 任务奖励 | 4 难度任务结算 | `CultivationEventMissionOps.kt` |
 | 产（源） | 宗门交易/商人 | 出售物品/灵石商品 | `SectTradeDialog`、`MerchantAndRecruitService.kt` |
@@ -720,7 +720,7 @@ fun watchAdForNewFeature() {
 2. **消耗模式**（现存活参照：`GameEngineJadePurchaseOps` 商人刷新/购买系列）：`stateStore.updateAndReturn { 校验目标（先于扣费，达上限不扣玉符）→ deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
 3. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（启动时越界修正）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围
 
-**墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 10 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
+**墙钟豁免论证（`rules/expansion-playbook.md` 第 7 项"进度锚定唯一权威时间轴"，原 L22"禁止以现实时间为准"条款已随 2026-09 实时结算改造改写——玉符豁免论证同步换锚：新条款约束的是进度结算轨道，玉符本就不是进度系统）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 10 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
 
 **防作弊要点**（详见 `JadeSymbolService.kt` KDoc）：单调时钟差分累计（单 tick 裁剪 10s，OEM 挂起不补记）；墙钟 1s 节流采样 + 午夜锚点（回拨 `todayMidnight <= anchor` 不重置，回拨时跳过节流直接采样）；拿满冻结累计；旧档锚点 0 首次锚定无追溯发放；`SaveValidator` 的 `JadeSymbolNonNegativeRule`（order=23）钳制手改存档：accumMs 上限 `INTERVAL_MS - 1`（**严格小于发放阈值**，防"恰等于 10 分钟"读档首帧免费 +1 循环刷）、today 钳 `DAILY_CAP`、jadeSymbols 钳 `Int.MAX-DAILY_CAP`（防溢出回绕）。已知残余风险（书面接受）：快进-回拨循环可绕日上限，但时间产出率不可作弊；客户端本地货币持有量可被手改（无服务器权威校验，未来上商店须服务端校验）。
 

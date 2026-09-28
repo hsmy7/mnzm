@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
@@ -251,16 +252,20 @@ fun ProductionSlotItem(
     isPill: Boolean = false,
     isHerb: Boolean = false,
     successRate: Double = 0.0,
-    gamePhase: Int = 0,
+    monthProgressFraction: Float = 0f,
     onCancel: (() -> Unit)? = null,
     onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    // 进度 — 统一 100ms 递增动画
-    val targetProgress = if (isWorking && totalDuration > 0) {
-        val elapsedMonths = (totalDuration - remainingMonths).toFloat()
-        val phaseFraction = gamePhase.toFloat() / 3f
-        ((elapsedMonths + phaseFraction) / totalDuration).coerceIn(0f, 1f)
+    // 进度 — 统一 100ms 递增动画；目标值 = (已完成整月 + 月内时间进度)/总月数
+    //（B8 时间进度投影：旧 gamePhase/3f 三档量化退役——月内进度随旬内
+    // 时间连续逼近月界，不再出现「差一点不结算」刻度；月界收获判据不变）
+    val targetProgress = if (isWorking) {
+        TimeProgressUtil.slotProgressFraction(
+            completedMonths = totalDuration - remainingMonths,
+            monthProgressFraction = monthProgressFraction,
+            totalDuration = totalDuration
+        )
     } else 0f
     val progressState = rememberChasingProgress(target = targetProgress)
 

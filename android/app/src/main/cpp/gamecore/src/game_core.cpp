@@ -1,6 +1,7 @@
 #include "gamecore/game_core.h"
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -167,10 +168,10 @@ bool GameCore::initialize(const GameCoreConfig& config) {
         // R2.4：突破事件收割（列写点已在结算内逐一 markCol）
         harvestBreakthroughEvents();
     };
-    // 月变结算钩子——八步事务编排（政策/月效/七系统
-    // 扇出/血炼/排班/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
-    // 与 SYSTEM（收获 roll/伴侣配对），抽取顺序与 Kotlin processMonthYearChange
-    // 的 monthChanged 分支逐位一致（未下沉扇出见 month_settlement.h 文件头）
+    // 月变结算钩子——离散臂八步事务编排（政策灵石/月效/AI 兽袭预计算/
+    // 四系统扇出/排班/月衰减/月度事件/续炼启动），RNG 消耗 EXPLORATION（妖兽移动）
+    // 与 SYSTEM（收获 roll/购买 shuffled/附庸），抽取顺序与 Kotlin processMonthYearChange
+    // 的 monthChanged 分支逐位一致（B6 连续臂拆分见 month_settlement.h 文件头）
     settlement_.onMonthChange = [this](state::GameState& s, state::GameData&) {
         // 月结域全部弟子迭代经 ecsWorld_ 行序桥接
         system::runMonthSettlement(s, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
@@ -310,8 +311,11 @@ void GameCore::markMonthYearBoundaryColumns() {
 bool GameCore::advance(int64_t wallDeltaMs, int64_t nowMs) {
     if (!initialized_) return false;
     (void)nowMs;
-    // 墙钟毫秒 → GameTimeClock 等价推进 + 边界检测（结算钩子在 init 注册）
-    settlement_.advance(state_, wallDeltaMs);
+    // 墙钟毫秒 → 未截断权威轴推进 + 边界检测（结算钩子在 init 注册）。
+    // 「两套时基」修复（方案 §3.4，B9）：旧 phaseCap 丢弃式累积器退役，
+    // shadow/对拍臂与生产臂（PhaseClock + EngineLoop.iterate）统一走
+    // advanceByGameMs 同一语义（INV-2 时间零丢失 / INV-3 判定窗口整数差）。
+    settlement_.advanceByGameMs(state_, wallDeltaMs);
     return true;
 }
 
@@ -322,6 +326,8 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
 
 int GameCore::settleOnePhase() {
     if (!initialized_) return system::kSettleFlagNone;
+    // B6 臂甄别：离散旬事务活跃 → 月/年结算走完整版（积分项月结内承担）
+    settlement_.setAccrualMode(false);
     const int flags = settlement_.settleOnePhase(state_);
     // MR1-P1.5/B-6：旬结算边界账本 cap（与 import 同源 normalizeLedgers——
     // 原缺陷 = cap 只在 import 生效，生产路径跨会话无界）；同点消费 trim
@@ -330,10 +336,153 @@ int GameCore::settleOnePhase() {
     return flags;
 }
 
+// ── 连续积分 + 判定窗口（结算改造 2026-09-27 B4；B6 扩月度积分项）────
+// 灰度旗标 realtimeAccrual（默认 false=旧行为臂；开启时 Kotlin 每 tick 调用）。
+// ① 积分项 × 未截断 Δt（INV-2）：L1 项 accrueContinuous + L3 项
+//    accrueMonthlyContinuous（政策灵石/道德/丹药衰减/灵矿——月结在连续臂
+//    下跳过这四项防双计）；② 判定窗口 = 权威轴整数差（INV-3，cap 只防
+//    判定风暴不丢时间），逐窗「日历推进（零钩子）→ 判定轨 0/6/7」——与
+//    离散轨「advanceOnePhase → onPhaseSettle」的序逐位对应，突破
+//    BREAKTHROUGH 分区消耗序不变（RealtimeRng 序列守卫锁定）。
+int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
+    if (!initialized_ || !accrualEnabled || deltaGameMs <= 0) {
+        return system::kSettleFlagNone;
+    }
+    // B6 臂甄别：连续臂活跃 → 月/年结算走 runMonthEvents（判定入口）
+    settlement_.setAccrualMode(true);
+    // B8 积分段遥测：两段积分分别计时（判定窗口循环不属积分段），耗时求和
+    const auto seg0 = std::chrono::steady_clock::now();
+    system::accrueContinuous(state_, ecsWorld_, deltaGameMs, recoveryCarry_);
+    const auto seg1 = std::chrono::steady_clock::now();
+    const int64_t windows = settlement_.foldAndWindows(deltaGameMs);
+    const int cap = system::kMaxPhasesPerTick;
+    const int executed = static_cast<int>(
+        windows > static_cast<int64_t>(cap) ? static_cast<int64_t>(cap)
+                                            : windows);
+    // B8 Dev 不变量（方案 §9 监控盲区「不变量断言」）：权威轴与日历投影逐窗
+    // 锁步——轴增量 = 执行窗口数×旬长，日历增量 = 同窗数（INV-1 投影漂移
+    // 在此暴露；release 编译零成本消失）
+    const int64_t axisBefore = state_.gameData.elapsedGameMs;
+    const int64_t phasesBefore = system::totalPhases(state_.gameData);
+    int flags = system::kSettleFlagNone;
+    for (int i = 0; i < executed; ++i) {
+        flags |= settlement_.advanceOnePhaseAccrual(state_);
+        system::runPhaseJudgementTrack(state_, rng_, ecsWorld_);
+    }
+    const auto seg2 = std::chrono::steady_clock::now();
+    // L3 积分项（窗口循环后：权威轴旬投影已含本段推进——灵矿毫秒差分基准）
+    system::accrueMonthlyContinuous(state_, deltaGameMs, monthlyCarry_);
+    const auto seg3 = std::chrono::steady_clock::now();
+    {
+        const int64_t axisDelta = state_.gameData.elapsedGameMs - axisBefore;
+        const int64_t phasesDelta =
+            system::totalPhases(state_.gameData) - phasesBefore;
+        const bool lockstep = axisDelta == static_cast<int64_t>(executed) *
+                                                    system::kGameMsPerPhase &&
+                              phasesDelta == executed;
+        if (!lockstep) {
+            logger_->log(LogLevel::kError, "GameCore",
+                         "accrual invariant broken: axisDelta=" +
+                             std::to_string(axisDelta) + " phasesDelta=" +
+                             std::to_string(phasesDelta) + " executed=" +
+                             std::to_string(executed));
+        }
+        assert(lockstep);
+    }
+    const int64_t segmentUs =
+        std::chrono::duration_cast<std::chrono::microseconds>(seg1 - seg0)
+            .count() +
+        std::chrono::duration_cast<std::chrono::microseconds>(seg3 - seg2)
+            .count();
+    recordAccrualSegmentUs(segmentUs, deltaGameMs);
+    consumePendingMemoryTrim();
+    return flags;
+}
+
+// ── 积分段遥测入账（结算改造 2026-09-27 B8，方案 §9 监控盲区）──────────
+// 预算判据与 D1 债（方案 §7「真机 bench 积分段 > 1ms @5000 弟子」）同源；
+// 桌面硬门禁在 accrual_segment_bench_test，运行期此处只观测 + 超预算上报。
+void GameCore::recordAccrualSegmentUs(int64_t segmentUs, int64_t deltaGameMs) {
+    auto& t = accrualTelemetry_;
+    t.lastSegmentUs = segmentUs;
+    if (segmentUs > t.maxSegmentUs) t.maxSegmentUs = segmentUs;
+    ++t.samples;
+    if (segmentUs <= kAccrualSegmentBudgetUs) return;
+    ++t.overBudgetCount;
+    if (!telemetrySink_) return;
+    // 节流：首次必报，其后每 stride 次报一次（防 tick 级事件风暴；
+    // 峰值与计数全量随 props 携带，节流不丢观测面）
+    if (t.overBudgetCount != 1 && t.overBudgetCount % kAccrualOverBudgetEmitStride != 0) {
+        return;
+    }
+    telemetrySink_->event(
+        "engine_accrual_over_budget",
+        "{\"us\":" + std::to_string(segmentUs) +
+            ",\"maxUs\":" + std::to_string(t.maxSegmentUs) +
+            ",\"samples\":" + std::to_string(t.samples) +
+            ",\"overBudget\":" + std::to_string(t.overBudgetCount) +
+            ",\"deltaGameMs\":" + std::to_string(deltaGameMs) + "}");
+}
+
+// ── 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3 离线行）──────────
+// 读档冷启动一次性调用（引擎线程，importToNative 之后、循环首帧消费点）。
+// 编排序：① L1 积分（旧轴基准下结算，与在线 accrue ① 同款）→ ② 三轴推进 +
+// GameData 旬投影/日历 set + 月结幂等基准 → ③ L3 积分（灵矿毫秒差分消费
+// 新旬投影——同 accrue ③ 的调用点纪律）。判定轨 0 窗、月/年离散事件 0 次：
+// 突破/丹药 roll/AI 行动/任务刷新等需要玩家在场或消费 RNG 的判定不在离线
+// 期间发生（离线收益 = 资源连续积分，方案 §2.3 未赋予离线判定语义）。
+int64_t GameCore::injectOfflineGameMs(int64_t offlineGameMs) {
+    if (!initialized_) return state_.gameData.elapsedGameMs;
+    // 非正输入零副作用（Kotlin 折算已钳负；防御同口径）
+    if (offlineGameMs <= 0) return state_.gameData.elapsedGameMs;
+    // floor 到旬网格：Kotlin 折算已按整旬交付，此处防御非整旬残留——
+    // GameData 权威轴保持旬长整数倍（INV-1 投影互逆 calendarToGameMs∘project
+    // 恒等的前提），floor 损失 <1 旬（<2 游戏秒，对 12h 量级可忽略）
+    const int64_t gameMs =
+        offlineGameMs / system::kGameMsPerPhase * system::kGameMsPerPhase;
+    if (gameMs <= 0) return state_.gameData.elapsedGameMs;
+
+    auto& gd = state_.gameData;
+    // ① L1 连续积分（HP/MP 恢复/修炼/熟练度/孕养——零 RNG，整数分子制
+    //    对大 Δt 与分帧逐位等价）
+    system::accrueContinuous(state_, ecsWorld_, gameMs, recoveryCarry_);
+
+    // ② 三轴同步跳变 + 日历投影（先于 ③：灵矿差分消费旬投影）
+    loop_.time().advanceGameMs(gameMs);       // PhaseClock 纳秒真相轴（INV-2）
+    settlement_.advanceGameMs(gameMs);        // 已积分轴（shadow/对拍一致性）
+    const int64_t prevElapsed = gd.elapsedGameMs;
+    const int64_t newElapsed = prevElapsed + gameMs;
+    // X 为旬长整数倍 ⇒ projectCalendar(newElapsed) 与逐旬 advancePhase 推进
+    // 逐位等价（INV-1 纯函数投影）；此处 set 即"日历投影同步跳变"
+    system::projectCalendar(newElapsed, gd.gameYear, gd.gameMonth, gd.gamePhase);
+    gd.elapsedGameMs = newElapsed;
+    // 月结幂等基准同步推进（读档归一化钳制不变量 lastSettle ≤ elapsed 保持）
+    gd.lastSettleGameMs = newElapsed;
+
+    // ③ L3 月度连续积分（政策灵石/道德/丹药衰减 + 灵矿毫秒差分：
+    //    span = 新旬投影 − spiritMineLastSettledGameMs = X，全额结算）
+    system::accrueMonthlyContinuous(state_, gameMs, monthlyCarry_);
+    consumePendingMemoryTrim();
+    return newElapsed;
+}
+
 std::string GameCore::settleMonth() {
     if (!initialized_) return "{}";
-    const system::MonthSettlementResult result =
-        system::runMonthSettlement(state_, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
+    // B6 臂分流：连续臂走 runMonthEvents（判定入口——积分型四项由
+    // accrueMonthlyContinuous 连续承担，防双计）；离散臂走完整版
+    // runMonthSettlement（行为逐位不变）。
+    const bool accrualArm = settlement_.accrualMode();
+    system::MonthSettlementResult result =
+        accrualArm
+            ? system::runMonthEvents(state_, rng_, aiRng_, aiMonthBatch_,
+                                     monthlyCarry_, ecsWorld_)
+            : system::runMonthSettlement(state_, rng_, aiRng_, aiMonthBatch_,
+                                         ecsWorld_);
+    if (!accrualArm) {
+        // 离散臂毫秒孪生双写：灵矿毫秒差分基准与旧月字段同界推进——
+        // 双臂切换（realtimeAccrual 翻转）后连续轨不重复结算已入账月份
+        state_.gameData.spiritMineLastSettledGameMs = state_.gameData.elapsedGameMs;
+    }
     // R2/B09：月结边界粗粒度列标脏（列集 = 月/年路径审计写列的并集，
     // 全行标脏——宁多标不漏标；phase 路径为写点级精确标脏不经此）
     markMonthYearBoundaryColumns();
@@ -492,7 +641,10 @@ void GameCore::consumePendingMemoryTrim() {
 
 void GameCore::setPlatformProviders(const PlatformProviders& providers) {
     if (providers.monotonicClock) loop_.setMonotonicClock(providers.monotonicClock);
-    if (providers.telemetry) loop_.setTelemetry(providers.telemetry);
+    if (providers.telemetry) {
+        loop_.setTelemetry(providers.telemetry);
+        telemetrySink_ = providers.telemetry;  // B8 积分段超预算上报消费
+    }
     if (providers.thermal) loop_.setThermalProvider(providers.thermal);
     loop_.setLogger(logger_);
     batteryProvider_ = providers.battery;
@@ -621,6 +773,11 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
             // 读档后必须复位结算引擎累积——
             // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
             settlement_.reset();
+            // B4：恢复进位小数随档清零（运行态不入档，见成员注释）
+            recoveryCarry_.clear();
+            // B6：月度积分进位随档清零（政策禁用上报名单一并作废——
+            // 读档即回到存档时点的政策/钱包状态）
+            monthlyCarry_ = system::MonthlyAccrualCarry{};
             // 读档后从 GameData.rngStates 恢复 RNG 分区
             // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
             // AUTHORITATIVE 每旬回导走 restoreRng=false
@@ -655,6 +812,9 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
             // （跨版本冻结，不重算）。先于 resetBaseline ⇒ 生成段计入导入基线，
             // 前向/反向镜像零载荷（稳态每旬零增量）。
             ensureTerrainGenerated();
+            // 双轨时间权威轴回填（B3）：旧档权威轴零值按日历换算——
+            // 先于 resetBaseline ⇒ 回填计入导入基线，前向/反向镜像零载荷
+            ensureBaselineTimeAxis();
             dirtyTracker_.resetBaseline(state_);
             // R2.4/B09：导入整体替换 state_ ⇒ 新 DiscipleStore 的写屏障指针随
             // 对象归零，必须重挂；列级基线（位图/非弟子域块）同点重置，
@@ -704,6 +864,48 @@ void GameCore::ensureTerrainGenerated() {
         config_.terrainDecorationDensity, gd.mapSeed,
         config_.terrainBorderTreeRing, gate);
     gd.mapGenVersion = config_.terrainMapGenVersion;
+}
+
+// ── 双轨时间权威轴回填（结算改造 2026-09-27 B3）─────────────────────
+// 旧档只有日历字段（elapsedGameMs==0）⇒ 按 INV-1 派生关系反推权威轴：
+// elapsed = calendarToGameMs(year, month, phase)（time_system.h 唯一口径，
+// 与 Kotlin GameConfig.Time.calendarToGameMs / TimeAxisRule 同公式同值）。
+// 生产槽位同理按 startYear/startMonth（月初 phase=0）回填 startedAt，
+// completeAt = startedAt + duration × 月长毫秒。幂等（有值不覆盖）；
+// 读档不追补墙钟（方案 §4.1 盲区口径：一律以档内权威轴为准）。
+void GameCore::ensureBaselineTimeAxis() {
+    auto& gd = state_.gameData;
+    const bool calendarAtOrigin =
+        gd.gameYear <= 1 && gd.gameMonth <= 1 && gd.gamePhase <= 0;
+    if (gd.elapsedGameMs <= 0) {
+        if (calendarAtOrigin) {
+            gd.elapsedGameMs = 0;   // 新档初值态：权威轴与日历同在原点
+        } else {
+            gd.elapsedGameMs = system::calendarToGameMs(
+                gd.gameYear, gd.gameMonth, gd.gamePhase);
+        }
+        gd.lastSettleGameMs = gd.elapsedGameMs;
+    }
+    if (gd.lastSettleGameMs < 0) gd.lastSettleGameMs = 0;
+    if (gd.lastSettleGameMs > gd.elapsedGameMs) gd.lastSettleGameMs = gd.elapsedGameMs;
+    // 灵矿毫秒孪生：旧字段为绝对月（year*12+month 口径）⇒ 换算落 twin；
+    // B6 切换差分判据前不消费，仅保持双端可见面一致
+    if (gd.spiritMineLastSettledGameMs <= 0 && gd.spiritMineLastSettledMonth > 0) {
+        const int64_t absMonth = gd.spiritMineLastSettledMonth;
+        const int32_t y = static_cast<int32_t>((absMonth - 1) / 12);
+        const int32_t m = static_cast<int32_t>((absMonth - 1) % 12) + 1;
+        if (y >= 1 && m >= 1 && m <= 12) {
+            gd.spiritMineLastSettledGameMs = system::calendarToGameMs(y, m, 0);
+        }
+    }
+    for (auto& slot : gd.productionSlots) {
+        if (slot.startedAtGameMs <= 0 && slot.startYear >= 1 && slot.startMonth >= 1) {
+            slot.startedAtGameMs = system::calendarToGameMs(
+                slot.startYear, slot.startMonth, 0);
+            slot.completeAtGameMs = slot.startedAtGameMs +
+                static_cast<int64_t>(slot.duration) * system::kGameMsPerMonth;
+        }
+    }
 }
 
 std::string GameCore::exportDirtyJson() {

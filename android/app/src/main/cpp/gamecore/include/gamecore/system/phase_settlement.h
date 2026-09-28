@@ -182,11 +182,11 @@ inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
     const double multiplier = 1.0;   // phasesToSettle = 1
     if (curHp >= 0) {
         ds.currentHps[row] = std::min(curHp + recoveryAmount(maxHp, multiplier), maxHp);
-        ds.markCol(DiscipleColumn::CurrentHp, row);   // R2 列级写屏障（写点标脏）
+        ds.markCol(state::DiscipleColumn::CurrentHp, row);   // R2 列级写屏障（写点标脏）
     }
     if (curMp >= 0) {
         ds.currentMps[row] = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
-        ds.markCol(DiscipleColumn::CurrentMp, row);
+        ds.markCol(state::DiscipleColumn::CurrentMp, row);
     }
 }
 
@@ -311,7 +311,7 @@ inline void accumulateCultivation(
     if (rate <= 0.0) return;
     ds.cultivations[row] = gamecore::disciple::coerceAtMost(
         cultivation + rate, maxCultivation);
-    ds.markCol(DiscipleColumn::Cultivation, row);   // R2 列级写屏障（写点标脏）
+    ds.markCol(state::DiscipleColumn::Cultivation, row);   // R2 列级写屏障（写点标脏）
 }
 
 // ── 步骤 3：功法熟练度（批量暂存 + 单次提交） ────────────────────────
@@ -325,7 +325,7 @@ inline bool accumulateProficiencyForManual(
         const std::string& manualId, const ManualInstance& manual,
         double gain) {
     const auto it = std::find_if(profList.begin(), profList.end(),
-        [&](const ManualProficiencyData& p) { return p.manualId == manualId; });
+        [&](const detail::ManualProficiencyData& p) { return p.manualId == manualId; });
     const double cap = static_cast<double>(kMaxProficiency);
     if (it != profList.end()) {
         const double newProf =
@@ -383,7 +383,7 @@ inline void processManualProficiency(
     }
     // 清理已替换/遗忘功法的残留条目（防僵尸条目累积）
     const auto newEnd = std::remove_if(profList.begin(), profList.end(),
-        [&](const ManualProficiencyData& p) {
+        [&](const detail::ManualProficiencyData& p) {
             return !containsString(manualIds, p.manualId);
         });
     if (newEnd != profList.end()) {
@@ -919,7 +919,8 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
         (d.cultivation < maxCult) ? (maxCult - d.cultivation) : 0.0;
     d.cultivationCompletionMonth =
         currentMonth + estimateMonthsToNextBreakthrough(remaining, rate);
-    d.cultivationCompletionPhase = 1;
+    // cultivationCompletionPhase 死值退役（#10：原硬编码 1，Proto/Room/镜像
+    // 三重承载无语义——全链已除名）
 }
 
 /// 单弟子连续突破循环（performBreakthrough 核心）。
@@ -998,7 +999,6 @@ inline void performBreakthrough(
     live.storageBagItems = d.storageBagItems;
     live.statusData = d.statusData;
     live.cultivationCompletionMonth = d.cultivationCompletionMonth;
-    live.cultivationCompletionPhase = d.cultivationCompletionPhase;
 }
 
 /// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 大境界日志
@@ -1315,6 +1315,187 @@ inline void runPhaseSettlementCore(state::GameState& state,
     //    R1.3 dense 索引收尾，免每旬 O(D) map 重建）
     const std::map<int32_t, std::size_t>& idx =
         state.disciples.numericIdToRow;
+    detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
+                                 secretIds, world);
+}
+
+// ── 连续积分轨（结算改造 2026-09-27 B4，方案 §2.3/§2.5）──────────────
+//
+// 把每旬结算的积分型项（步骤 1 HP/MP 恢复 / 2 修炼 / 3 功法熟练度 /
+// 4 装备孕养）改为按游戏秒连续累积：速率 = 旧每旬量 ÷ 2（§2.2 换算），
+// 增量 = 速率 × Δ秒。判定轨（0 自动装备 / 6 丹药 / 7 突破）不在此——
+// 由权威轴窗口整数差（INV-3）继续按旬触发，RNG 序列与离散轨逐位一致。
+//
+// 取整模式（INV-6 登记项）：恢复的 "toInt 后至少 1" 退役 → 小数累积
+// （carry 由调用方持有，键 = 弟子数值 id，运行态不入档——崩溃丢失
+// ≤1 tick 的亚 1 点恢复量）；修炼/熟练度/孕养本就是 double 累积，
+// 离散↔连续在同口径下总量守恒（≤1e-9 相对误差，§5.2 第 2 类）。
+//
+// HP/MP 恢复速率：每游戏秒 = maxValue × kPhaseHpMpRecoveryRate(0.2) ÷
+// kGameSecondsPerPhase(2.0) = maxValue × 0.1。
+// 熟练度基数 kBaseProficiencyRate(6.0) 本就是每秒口径（nurture_constants.h
+// "6/s"），离散轨的 ×(kGameMsPerPhase/1000) 即 ×Δ秒——无需再除系数。
+// 孕养基数同理：kNurtureGainPerPhase(10.0)/2 = 5.0/秒。
+/// 连续积分一步（Δt = 本段未截断游戏毫秒，INV-2）。串行实现——
+/// 100ms tick 下 O(活跃实体) 与每旬批次同阶（性能标定与 D1 债见方案 §7）。
+inline void accrueContinuous(state::GameState& state, ecs::World& world,
+                             int64_t deltaGameMs,
+                             RecoveryCarry& carry) {
+    (void)world;   // 迭代域 == 行序（syncDiscipleEntities 契约）；串行直读行
+    if (deltaGameMs <= 0) return;
+    const double deltaSeconds = static_cast<double>(deltaGameMs) / 1000.0;
+    const auto secretIds = detail::secretRealmMemberIds(state.gameData);
+    // 非 const（孕养步 findMutable 原地列写；B8 前 eq 桶此处仅作空判后
+    // 转全量 O(I) 线性扫——167ms@5000 根因，见 instance_buckets.h findMutable 注）
+    auto eqBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.equipmentInstances);
+    const auto mnBuckets = detail::inst_bucket::makeInstanceBuckets(
+        state.disciples, state.manualInstances);
+    std::set<std::string> libraryIds;
+    for (const auto& slot : state.gameData.librarySlots) {
+        if (!slot.discipleId.empty()) libraryIds.insert(slot.discipleId);
+    }
+    const std::map<int32_t, std::size_t>& idx = state.disciples.numericIdToRow;
+
+    state::DiscipleStore& ds = state.disciples;
+    const std::size_t rowCount = ds.size();
+    for (std::size_t row = 0; row < rowCount; ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        const auto id = ds.numericIdAt(row);
+        if (!id.has_value() || secretIds.count(*id)) continue;
+
+        // 1) HP/MP 恢复（连续：小数累积 + 进位；满值钳制）
+        {
+            int32_t maxHp = 0, maxMp = 0;
+            detail::finalMaxHpMp(ds, row, state.gameData, eqBuckets,
+                                 mnBuckets, maxHp, maxMp);
+            const int32_t curHp = ds.currentHps[row];
+            const int32_t curMp = ds.currentMps[row];
+            if (!(curHp < 0 && curMp < 0)) {
+                auto& c = carry[*id];
+                if (curHp >= 0 && curHp < maxHp) {
+                    const double gain = static_cast<double>(maxHp) *
+                        stats::kPhaseHpMpRecoveryRate *
+                        (1.0 / kGameSecondsPerPhase) * deltaSeconds;
+                    c.first += gain;
+                    const int32_t whole = static_cast<int32_t>(c.first);
+                    if (whole > 0) {
+                        c.first -= whole;
+                        ds.currentHps[row] = std::min(curHp + whole, maxHp);
+                        ds.markCol(state::DiscipleColumn::CurrentHp, row);
+                    }
+                } else if (curHp >= maxHp) {
+                    c.first = 0.0;
+                }
+                if (curMp >= 0 && curMp < maxMp) {
+                    const double gain = static_cast<double>(maxMp) *
+                        stats::kPhaseHpMpRecoveryRate *
+                        (1.0 / kGameSecondsPerPhase) * deltaSeconds;
+                    c.second += gain;
+                    const int32_t whole = static_cast<int32_t>(c.second);
+                    if (whole > 0) {
+                        c.second -= whole;
+                        ds.currentMps[row] = std::min(curMp + whole, maxMp);
+                        ds.markCol(state::DiscipleColumn::CurrentMp, row);
+                    }
+                } else if (curMp >= maxMp) {
+                    c.second = 0.0;
+                }
+            }
+        }
+
+        // 2) 修炼累积（连续：rate × Δ秒；≥1e8 异常满值跳过；checkpoint
+        //    语义不变——只在速率变化点写，本函数不写）
+        if (ds.cultivations[row] < kCultivationSkipThreshold) {
+            const int32_t realm = ds.realms[row];
+            const double cultivation = ds.cultivations[row];
+            const double maxCultivation =
+                computeMaxCultivation(realm, ds.realmLayers[row], cultivation);
+            if (cultivation < maxCultivation) {
+                stats::CultivationRateInput extra;
+                extra.buildingBonus =
+                    detail::residenceBuildingBonus(state.gameData, *id);
+                double we = 0.0, wm = 0.0, qe = 0.0, qm = 0.0;
+                detail::preachingBonuses(state, idx, realm,
+                                         ds.discipleTypes[row], false, we, wm);
+                detail::preachingBonuses(state, idx, realm,
+                                         ds.discipleTypes[row], true, qe, qm);
+                extra.preachingElderBonus = we + qe;
+                extra.preachingMastersBonus = wm + qm;
+                const double ratePerPhase = stats::calculateCultivationPerPhaseColumn(
+                    ds, row, state.gameData, mnBuckets,
+                    state.gameData.manualProficiencies, extra);
+                if (ratePerPhase > 0.0) {
+                    ds.cultivations[row] = gamecore::disciple::coerceAtMost(
+                        cultivation + ratePerPhase *
+                            perPhaseToPerGameSecond(1.0) * deltaSeconds,
+                        maxCultivation);
+                    ds.markCol(state::DiscipleColumn::Cultivation, row);
+                }
+            }
+        }
+
+        // 3) 功法熟练度（连续：直写 manualProficiencies，无需旬级批量暂存）
+        {
+            const std::vector<std::string>& manualIds = ds.manualIds[row];
+            if (!manualIds.empty()) {
+                const bool inLibrary = libraryIds.count(ds.ids[row]) > 0;
+                const double gain = kBaseProficiencyRate *
+                    (1.0 + (inLibrary ? kLibraryProficiencyBonusRate : 0.0)) *
+                    deltaSeconds;
+                if (gain > 0.0) {
+                    auto git = state.gameData.manualProficiencies.find(ds.ids[row]);
+                    if (git != state.gameData.manualProficiencies.end()) {
+                        for (const std::string& manualId : manualIds) {
+                            const state::ManualInstance* manual =
+                                mnBuckets.find(row, manualId);
+                            if (manual == nullptr) continue;
+                            detail::accumulateProficiencyForManual(
+                                git->second, manualId, *manual, gain);
+                        }
+                        // 僵尸条目清理（同离散轨口径）
+                        const auto newEnd = std::remove_if(
+                            git->second.begin(), git->second.end(),
+                            [&](const detail::ManualProficiencyData& p) {
+                                return !detail::containsString(manualIds,
+                                                               p.manualId);
+                            });
+                        if (newEnd != git->second.end()) {
+                            git->second.erase(newEnd, git->second.end());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4) 装备孕养（连续：5.0/秒 × Δ秒 直写实例；写点走桶可变访问
+        //    O(1)——B8 前此处桶命中后再全量 O(I) 线性扫，100ms tick 下
+        //    O(D×4×I) 是积分段 167ms@5000 的根因，bench 实测）
+        for (const std::string& eqId :
+             {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row],
+              ds.accessoryIds[row]}) {
+            if (eqId.empty()) continue;
+            state::EquipmentInstance* eq = eqBuckets.findMutable(row, eqId);
+            if (eq == nullptr) continue;
+            detail::applyNurtureExp(
+                *eq, (kNurtureGainPerPhase / kGameSecondsPerPhase) *
+                         deltaSeconds);
+        }
+    }
+}
+
+/// 判定轨（B4 连续模式下的窗口执行体）：步骤 0 自动装备 → 6 自动丹药 →
+/// 7 突破检测。序与 [runPhaseSettlementCore] 一致，仅省去核心批次
+///（积分项已由 [accrueContinuous] 连续承担）。RNG 契约不变：
+/// 唯一消耗点 = 突破 BREAKTHROUGH 分区，按 ids 行序每次尝试恰 1 次。
+inline void runPhaseJudgementTrack(state::GameState& state,
+                                   rng::RngManager& rng, ecs::World& world) {
+    const auto committedElderComprehension =
+        detail::committedElderComprehensionOf(state);
+    const auto secretIds = detail::secretRealmMemberIds(state.gameData);
+    detail::processAutoFromWarehouse(state, world);
+    detail::processAutoPills(state, secretIds, world);
+    const std::map<int32_t, std::size_t>& idx = state.disciples.numericIdToRow;
     detail::processBreakthroughs(state, rng, idx, committedElderComprehension,
                                  secretIds, world);
 }

@@ -322,7 +322,6 @@ struct Disciple {
     int32_t cultivationSpeedDuration = 0;
     std::string discipleType = "outer";
     int32_t cultivationCompletionMonth = 0;
-    int32_t cultivationCompletionPhase = 1;
     int32_t manualCompletionMonth = 0;
     int32_t manualCompletionPhase = 1;
     int32_t equipmentNurturingCompletionMonth = 0;
@@ -586,6 +585,10 @@ struct ProductionSlot {
     bool autoRestartEnabled = false;
     int32_t completionMonth = 0;
     int32_t completionPhase = 1;  // Kotlin ProductionSlot 默认 1（S4 对拍对齐）
+    // 连续时长模型（结算改造 2026-09-27 B3/B5）：毫秒孪生，0=旧档未回填；
+    // B5 切换差分判据前不消费
+    int64_t startedAtGameMs = 0;
+    int64_t completeAtGameMs = 0;
 };
 
 /// GridBuildingData（已放置建筑）
@@ -1200,6 +1203,12 @@ struct GameData {
     int32_t gameYear = 1;
     int32_t gameMonth = 1;
     int32_t gamePhase = 0;
+    // ── 双轨时间权威轴（结算改造 2026-09-27 B3；协议键 = Kotlin 字段名）──
+    // INV-1：日历是 elapsedGameMs 的派生投影。旧档 0 值由 importStateInternal
+    // 的 ensureBaselineTimeAxis 按日历换算回填（与 Kotlin TimeAxisRule 同公式）。
+    int64_t elapsedGameMs = 0;
+    int64_t lastSettleGameMs = 0;
+    int64_t spiritMineLastSettledGameMs = 0;   // B6 切换判据前恒 0 不消费
     // 资源
     int64_t spiritStones = 1000;
     int64_t midGradeSpiritStones = 0;
@@ -1236,6 +1245,8 @@ struct GameData {
     std::vector<int32_t> usedTeamNumbers;
     bool battleTeamsInitialized = false;
     // 存档
+    // 最后保存时间（现实墙钟基）：显示 + 离线收益时段计量起点（B7，折算在
+    // Kotlin GameConfig.Time.offlineGameMs；C++ 引擎面不消费本字段）
     int64_t lastSaveTime = 0;
     int32_t saveVersion = 0;
     // 玩家保护
@@ -1271,9 +1282,9 @@ struct GameData {
     SecretRealmState secretRealmState;
     SecretRealmExplorationSession secretRealmSession;
     std::vector<SecretRealmAITeam> secretRealmAITeams;
-    // 附庸
+    // 附庸（上年收入快照 lastYearSpiritStoneIncome 已退役——缺陷 #3：
+    // 零写入点恒 0 致年贡恒早退；年贡改读 annualTotalIncome 年度流水）
     std::string suzerainSectId;
-    int64_t lastYearSpiritStoneIncome = 0;
     // 地图
     int32_t mapSeed = 0;
     // ── 地图冻结（WS-5b）：生成即数据 ──

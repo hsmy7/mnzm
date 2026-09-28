@@ -247,6 +247,16 @@ class BootSequenceController @Inject constructor(
             // ── Step 6.4: 仓库堆叠整理（旧档散落堆叠归并）──
             gameEngine.consolidateStacks()
 
+            // ── Step 6.5: 离线收益 staging（结算改造 2026-09-27 B7）──
+            // 以档内 lastSaveTime 为起点计量现实离线时段并折算挂起（本批只
+            // 计算，注入在引擎线程 ensureAuthoritativeNative 尾部消费点落地）。
+            // 新档（createNewGame 后 lastSaveTime=0）自然零注入；boot 是
+            // 新档/读档/重启/云档的统一入口，此判断即全部场景的正确分岔。
+            // 时序：状态已导入（loadData 完成）且循环未启动（Step 7 之前）。
+            gameEngineCore.stageOfflineProgress(
+                stateStore.gameData.value.lastSaveTime
+            )
+
             // ── Step 7: 启动游戏循环 ──
             onProgress(0.60f)
             startGameLoop()

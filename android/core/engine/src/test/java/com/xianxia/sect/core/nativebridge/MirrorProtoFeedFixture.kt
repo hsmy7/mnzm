@@ -83,7 +83,6 @@ internal object MirrorProtoFeedFixture {
         cultivationSpeedDuration = 6,
         discipleType = "inner",
         cultivationCompletionMonth = 3,
-        cultivationCompletionPhase = 2,
         manualCompletionMonth = 4,
         manualCompletionPhase = 1,
         equipmentNurturingCompletionMonth = 5,

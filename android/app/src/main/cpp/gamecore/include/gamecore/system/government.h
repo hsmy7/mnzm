@@ -110,7 +110,84 @@ struct PolicyCostResult {
 
 /// 灵矿增产政策无灵石消耗（SPIRIT_MINE_BOOST_MONTHLY = 0）——不参与扣除
 
-/// 政策月度成本结算（Kotlin processPolicyCosts 核心）
+// ── 政策月度成本表（B6 提炼：离散 processPolicyCosts 与连续
+//    accrueMonthlyContinuous 共用单一映射，防双份漂移）──────────────
+
+/// 成本模式：固定月费 / 按全弟子数月费 / 按化神下弟子数月费
+enum class PolicyCostMode { kFixed, kPerDisciple, kPerHuashenBelow };
+
+struct PolicyCostEntry {
+    const char* name;   // 政策名（deducted/disabledPolicies 记录键）
+    PolicyCostMode mode;
+    int64_t monthly;    // kFixed = 月费；其余 = 单价/弟子/月
+    bool (*enabled)(const state::SectPolicies&);
+    void (*disable)(state::SectPolicies&);
+};
+
+/// 表序 = Kotlin tryDeduct 调用序（扣减序 / disabledPolicies 序是对拍
+/// 命门，勿重排）。SPIRIT_MINE_BOOST/FRUGALITY（月费 0）与原版一致不列。
+inline const PolicyCostEntry* policyCostTable(std::size_t& count) {
+    static const PolicyCostEntry kTable[] = {
+        {"丹道激励", PolicyCostMode::kFixed, kAlchemyIncentiveMonthly,
+         [](const state::SectPolicies& p) { return p.alchemyIncentive; },
+         [](state::SectPolicies& p) { p.alchemyIncentive = false; }},
+        {"锻造激励", PolicyCostMode::kFixed, kForgeIncentiveMonthly,
+         [](const state::SectPolicies& p) { return p.forgeIncentive; },
+         [](state::SectPolicies& p) { p.forgeIncentive = false; }},
+        {"灵药培育", PolicyCostMode::kFixed, kHerbCultivationMonthly,
+         [](const state::SectPolicies& p) { return p.herbCultivation; },
+         [](state::SectPolicies& p) { p.herbCultivation = false; }},
+        {"功法研习", PolicyCostMode::kFixed, kManualResearchMonthly,
+         [](const state::SectPolicies& p) { return p.manualResearch; },
+         [](state::SectPolicies& p) { p.manualResearch = false; }},
+        {"增强治安", PolicyCostMode::kFixed, kEnhancedSecurityMonthly,
+         [](const state::SectPolicies& p) { return p.enhancedSecurity; },
+         [](state::SectPolicies& p) { p.enhancedSecurity = false; }},
+        {"宵禁", PolicyCostMode::kFixed, kCurfewMonthly,
+         [](const state::SectPolicies& p) { return p.curfew; },
+         [](state::SectPolicies& p) { p.curfew = false; }},
+        {"严苛训练", PolicyCostMode::kFixed, kStrictTrainingMonthly,
+         [](const state::SectPolicies& p) { return p.strictTraining; },
+         [](state::SectPolicies& p) { p.strictTraining = false; }},
+        {"松弛管理", PolicyCostMode::kFixed, kRelaxedMgmtMonthly,
+         [](const state::SectPolicies& p) { return p.relaxedMgmt; },
+         [](state::SectPolicies& p) { p.relaxedMgmt = false; }},
+        {"灵泉灌溉", PolicyCostMode::kFixed, kSpiritSpringMonthly,
+         [](const state::SectPolicies& p) { return p.spiritSpring; },
+         [](state::SectPolicies& p) { p.spiritSpring = false; }},
+        {"修行津贴", PolicyCostMode::kPerHuashenBelow, kCultivationSubsidyPerDisciple,
+         [](const state::SectPolicies& p) { return p.cultivationSubsidy; },
+         [](state::SectPolicies& p) { p.cultivationSubsidy = false; }},
+        {"苦修令", PolicyCostMode::kPerDisciple, kAsceticTrainingPerDisciple,
+         [](const state::SectPolicies& p) { return p.asceticTraining; },
+         [](state::SectPolicies& p) { p.asceticTraining = false; }},
+        {"教化之道", PolicyCostMode::kPerDisciple, kMoralEducationPerDisciple,
+         [](const state::SectPolicies& p) { return p.moralEducation; },
+         [](state::SectPolicies& p) { p.moralEducation = false; }},
+        {"仁政爱徒", PolicyCostMode::kPerDisciple, kBenevolentGovernancePerDisciple,
+         [](const state::SectPolicies& p) { return p.benevolentGovernance; },
+         [](state::SectPolicies& p) { p.benevolentGovernance = false; }},
+    };
+    count = sizeof(kTable) / sizeof(kTable[0]);
+    return kTable;
+}
+
+/// 单项政策成本（表驱动共享口径：离散版整月一次、连续版按费率积分共用）
+inline int64_t policyCostOf(const PolicyCostEntry& entry, int32_t discipleCount,
+                            int32_t huashenBelowCount) {
+    switch (entry.mode) {
+        case PolicyCostMode::kFixed:
+            return entry.monthly;
+        case PolicyCostMode::kPerDisciple:
+            return entry.monthly * discipleCount;
+        case PolicyCostMode::kPerHuashenBelow:
+            return entry.monthly * huashenBelowCount;
+    }
+    return 0;
+}
+
+/// 政策月度成本结算（Kotlin processPolicyCosts 核心；B6 起表驱动——
+/// 扣减序/禁用序经表序锁定，与原 tryDeduct 硬编码序逐项一致）
 /// @param discipleCount 全弟子数（isAlive==1）
 /// @param huashenBelowCount 化神下（realm > 5）弟子数
 inline PolicyCostResult processPolicyCosts(
@@ -118,60 +195,23 @@ inline PolicyCostResult processPolicyCosts(
     PolicyCostResult out;
     auto& policies = gd.sectPolicies;
 
-    // 固定月消耗政策（不足 → 自动关闭）
-    auto tryDeduct = [&](int64_t cost, const std::string& name, bool enabled,
-                         void (*disable)(state::SectPolicies&)) {
-        if (!enabled || cost <= 0) return;
+    // 逐项：开启 → 计费 → 扣款（不足 → 自动关闭）
+    std::size_t tableSize = 0;
+    const PolicyCostEntry* table = policyCostTable(tableSize);
+    for (std::size_t i = 0; i < tableSize; ++i) {
+        const PolicyCostEntry& entry = table[i];
+        if (!entry.enabled(policies)) continue;
+        const int64_t cost = policyCostOf(entry, discipleCount, huashenBelowCount);
+        if (cost <= 0) continue;
         const auto r = SpiritStoneWallet::deduct(gd, cost, SpiritStoneGrade::LOW,
                                                  "PolicyCost", "Internal", true);
         if (r.status == DeductStatus::kSuccess) {
-            out.deducted.emplace_back(name, cost);
+            out.deducted.emplace_back(entry.name, cost);
         } else {
-            disable(policies);
-            out.disabledPolicies.push_back(name);
+            entry.disable(policies);
+            out.disabledPolicies.push_back(entry.name);
             out.allPaid = false;
         }
-    };
-
-    tryDeduct(kAlchemyIncentiveMonthly, "丹道激励", policies.alchemyIncentive,
-              [](state::SectPolicies& p) { p.alchemyIncentive = false; });
-    tryDeduct(kForgeIncentiveMonthly, "锻造激励", policies.forgeIncentive,
-              [](state::SectPolicies& p) { p.forgeIncentive = false; });
-    tryDeduct(kHerbCultivationMonthly, "灵药培育", policies.herbCultivation,
-              [](state::SectPolicies& p) { p.herbCultivation = false; });
-    tryDeduct(kManualResearchMonthly, "功法研习", policies.manualResearch,
-              [](state::SectPolicies& p) { p.manualResearch = false; });
-    tryDeduct(kEnhancedSecurityMonthly, "增强治安", policies.enhancedSecurity,
-              [](state::SectPolicies& p) { p.enhancedSecurity = false; });
-    tryDeduct(kCurfewMonthly, "宵禁", policies.curfew,
-              [](state::SectPolicies& p) { p.curfew = false; });
-    tryDeduct(kStrictTrainingMonthly, "严苛训练", policies.strictTraining,
-              [](state::SectPolicies& p) { p.strictTraining = false; });
-    tryDeduct(kRelaxedMgmtMonthly, "松弛管理", policies.relaxedMgmt,
-              [](state::SectPolicies& p) { p.relaxedMgmt = false; });
-    tryDeduct(kSpiritSpringMonthly, "灵泉灌溉", policies.spiritSpring,
-              [](state::SectPolicies& p) { p.spiritSpring = false; });
-
-    // 按弟子数计费
-    if (policies.cultivationSubsidy) {
-        const int64_t cost = kCultivationSubsidyPerDisciple * huashenBelowCount;
-        tryDeduct(cost, "修行津贴", true,
-                  [](state::SectPolicies& p) { p.cultivationSubsidy = false; });
-    }
-    if (policies.asceticTraining) {
-        const int64_t cost = kAsceticTrainingPerDisciple * discipleCount;
-        tryDeduct(cost, "苦修令", true,
-                  [](state::SectPolicies& p) { p.asceticTraining = false; });
-    }
-    if (policies.moralEducation) {
-        const int64_t cost = kMoralEducationPerDisciple * discipleCount;
-        tryDeduct(cost, "教化之道", true,
-                  [](state::SectPolicies& p) { p.moralEducation = false; });
-    }
-    if (policies.benevolentGovernance) {
-        const int64_t cost = kBenevolentGovernancePerDisciple * discipleCount;
-        tryDeduct(cost, "仁政爱徒", true,
-                  [](state::SectPolicies& p) { p.benevolentGovernance = false; });
     }
     return out;
 }

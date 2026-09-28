@@ -79,7 +79,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
         discipleType = discipleTypes.getOrDefault(id, "outer"),
         cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
-        cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
         manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
         manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
         equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),

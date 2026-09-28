@@ -111,10 +111,9 @@ fun AlchemyDialog(
     var showWorkerSelection by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val state = rememberAlchemyDialogState(
-        buildingInstanceId = buildingInstanceId, alchemySlots = alchemySlots, gameData = gameData,
-        disciples = disciples, viewModel = viewModel
-    )
+    val state =
+        rememberAlchemyDialogState(buildingInstanceId, alchemySlots, gameData, disciples, viewModel)
+    val monthProgressFraction by viewModel.monthProgressFraction.collectAsStateWithLifecycle() // B8 月内连续进度（§6.5 订阅派生）
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss, title = "炼丹炉", mode = DialogMode.Half, scrollableContent = false
@@ -122,6 +121,7 @@ fun AlchemyDialog(
         Column(modifier = Modifier.fillMaxSize()) {
             AlchemyDialogBody(
                 state = state, viewModel = viewModel, disciples = disciples, alchemyViewModel = alchemyViewModel,
+                monthProgressFraction = monthProgressFraction,
                 actions = AlchemyDialogActions(
                     onWorkerSlotEmptyClick = { showWorkerSelection = true },
                     onWorkerDismiss = { alchemyViewModel.removeWorker(state.buildingIndex) },
@@ -241,6 +241,7 @@ private fun ColumnScope.AlchemyDialogBody(
     viewModel: GameViewModel,
     disciples: List<DiscipleAggregate>,
     alchemyViewModel: AlchemyViewModel,
+    monthProgressFraction: Float,
     actions: AlchemyDialogActions
 ) {
     Column(
@@ -284,6 +285,7 @@ private fun ColumnScope.AlchemyDialogBody(
         AlchemySlotSection(
             state = state,
             alchemyViewModel = alchemyViewModel,
+            monthProgressFraction = monthProgressFraction,
             onAutoToggle = actions.onAutoToggle,
             onReplace = actions.onReplace,
             onIdleClick = actions.onIdleClick
@@ -297,6 +299,7 @@ private fun ColumnScope.AlchemyDialogBody(
 private fun AlchemySlotSection(
     state: AlchemyDialogState,
     alchemyViewModel: AlchemyViewModel,
+    monthProgressFraction: Float,
     onAutoToggle: () -> Unit,
     onReplace: () -> Unit,
     onIdleClick: () -> Unit
@@ -345,7 +348,7 @@ private fun AlchemySlotSection(
         totalDuration = state.mySlot?.duration ?: 1,
         isPill = true,
         successRate = state.mySlot?.successRate ?: 0.0,
-        gamePhase = state.gameData?.gamePhase ?: 0,
+        monthProgressFraction = monthProgressFraction,
         onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(state.slotIndex) } } else null,
         onReplace = if (isWorking) { onReplace } else null,
         onClick = { if (isIdle) onIdleClick() }

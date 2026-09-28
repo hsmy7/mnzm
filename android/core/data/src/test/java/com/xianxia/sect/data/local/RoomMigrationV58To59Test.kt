@@ -91,9 +91,10 @@ class RoomMigrationV58To59Test {
                 "真实 Room 升级后 disciples 不应再有 social_masterId",
                 RoomMigrationSupport.columnExists(migrated, "disciples", "social_masterId")
             )
+            // 全链迁移到当前链尾（v60→v61 又删 cultivationCompletionPhase 1 列）
             assertEquals(
-                "真实 Room 升级后 disciples 列数应是 $V59_DISCIPLES_COLUMN_COUNT",
-                V59_DISCIPLES_COLUMN_COUNT,
+                "真实 Room 升级后 disciples 列数应是 ${V59_DISCIPLES_COLUMN_COUNT - 1}",
+                V59_DISCIPLES_COLUMN_COUNT - 1,
                 RoomMigrationSupport.tableColumns(migrated, "disciples").size
             )
             db.close()

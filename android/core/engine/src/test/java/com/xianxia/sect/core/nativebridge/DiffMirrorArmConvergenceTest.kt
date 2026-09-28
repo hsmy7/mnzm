@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -215,6 +216,10 @@ class DiffMirrorArmConvergenceTest {
                 gameMonth = 3
                 gamePhase = 0
                 sectName = "收敛宗"
+                // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+                // "轴零值+日历非初值"的导入回填；各臂取同一换算值保持一致）
+                elapsedGameMs = GameConfig.Time.calendarToGameMs(2, 3, 0)
+                lastSettleGameMs = elapsedGameMs
             },
             disciples = listOf(disciple("1", "玄真", 3), disciple("2", "李四", 5), disciple("3", "王五", 7)),
             pills = listOf(Pill(id = "p1", name = "聚气丹", rarity = 1, quantity = 4)),

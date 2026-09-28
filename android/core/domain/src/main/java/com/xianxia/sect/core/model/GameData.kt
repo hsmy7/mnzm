@@ -116,6 +116,33 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gamePhase: Int = 0,  // 0=上旬, 1=中旬, 2=下旬
 
+    // ── 双轨时间权威轴（结算改造 2026-09-27 B3；方案 §2.1/§4.1）─────────
+    // INV-1：游戏日历（年/月/旬）是 elapsedGameMs 的派生投影，任何结算逻辑
+    // 不得再以日历为积分单位。旧档 0 值经读档归一化回填（C++ importStateInternal
+    // ensureBaselineTimeAxis + Kotlin TimeAxisRule 双保险，同一换算公式）。
+
+    /** 权威游戏时间轴（单调累计游戏毫秒；不受追补上限影响，INV-2） */
+    @ProtoNumber(1003)
+    @ColumnInfo(name = "elapsedGameMs", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var elapsedGameMs: Long = 0L,
+
+    /** 连续积分差分基准（上次积分落点的绝对游戏毫秒；与权威轴同刻初始化） */
+    @ProtoNumber(1004)
+    @ColumnInfo(name = "lastSettleGameMs", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var lastSettleGameMs: Long = 0L,
+
+    /**
+     * 灵矿上次结算的绝对游戏毫秒（[spiritMineLastSettledMonth] 的毫秒孪生）。
+     * B3 仅落存储与协议；差分判据切换（÷6 连续积分）随 B6，切换前旧字段
+     * 仍为唯一判据，本字段恒 0 不消费。
+     */
+    @ProtoNumber(1005)
+    @ColumnInfo(name = "spiritMineLastSettledGameMs", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var spiritMineLastSettledGameMs: Long = 0L,
+
     // 游戏状态
     // 游戏启动状态由 GameLifecycle 枚举纯运行时管理，不在存档中持久化
 
@@ -324,7 +351,10 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var unlockedManuals: List<String> = emptyList(),
 
-    // 最后保存时间（仅用于存档列表显示，不用于离线时间差计算。游戏无离线进度机制）
+    // 最后保存时间（现实墙钟基 System.currentTimeMillis）。
+    // 消费面：① 存档列表显示；② 离线收益时段计量起点（结算改造 2026-09-27 B7——
+    // 读档时 lastSaveTime → 当前墙钟差经 GameConfig.Time.offlineGameMs 折算注入；
+    // 0 = 无保存记录即新档，不注入）。写点 = 保存链 buildLightGameData（= SaveData.timestamp）。
     @ProtoNumber(32)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lastSaveTime: Long = 0L,
@@ -643,9 +673,12 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var suzerainSectId: String = "",
 
-    // 上一年灵石总收入（用于附庸年贡计算）
+    // 已退役（缺陷 #3）：零写入点恒 0，附庸年贡改读 annualTotalIncome 年度流水。
+    // 字段与 Room 列/Proto 95 位保留（规范 7.1 不删列 + 旧包回滚兼容）——
+    // 存储面退役登记待办与 D2 同批清偿。
     @ProtoNumber(117)
     @SettlementStrategy(Strategy.USE_SHADOW)
+    @Deprecated("零写入点恒 0，年贡改读 annualTotalIncome；保留仅为存档 schema 稳定", ReplaceWith("annualTotalIncome"))
     var lastYearSpiritStoneIncome: Long = 0L,
 
     // 活跃的攻击预警列表

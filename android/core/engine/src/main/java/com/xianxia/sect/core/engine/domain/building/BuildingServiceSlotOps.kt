@@ -68,6 +68,8 @@ internal suspend fun BuildingService.updateSlotToWorkingStateAlchemy(
     val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
         data.gameYear, data.gameMonth
     )
+    // B5 毫秒孪生双写锚点：开工取月初 phase=0（与 C++ startSlotWorking/回填同口径）
+    val startedAtGameMs = GameConfig.Time.calendarToGameMs(data.gameYear, data.gameMonth, 0)
     withContext(ioDispatcher.dispatcher) {
         productionSlotRepository.updateSlotByBuildingId(
             BuildingNames.ALCHEMY, slotIndex
@@ -87,7 +89,10 @@ internal suspend fun BuildingService.updateSlotToWorkingStateAlchemy(
                 outputItemRarity = recipe.rarity,
                 completionMonth = currentAbsoluteMonth +
                     actualDuration.coerceAtLeast(1),
-                completionPhase = 2
+                completionPhase = 2,
+                startedAtGameMs = startedAtGameMs,
+                completeAtGameMs = startedAtGameMs +
+                    actualDuration.coerceAtLeast(1) * GameConfig.Time.GAME_MS_PER_MONTH
             )
         }
     }
@@ -106,6 +111,8 @@ internal suspend fun BuildingService.updateSlotToWorkingStateForging(
     val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
         data.gameYear, data.gameMonth
     )
+    // B5 毫秒孪生双写锚点：开工取月初 phase=0（与 C++ startSlotWorking/回填同口径）
+    val startedAtGameMs = GameConfig.Time.calendarToGameMs(data.gameYear, data.gameMonth, 0)
     withContext(ioDispatcher.dispatcher) {
         productionSlotRepository.updateSlotByBuildingId(
             BuildingNames.FORGE, slotIndex
@@ -125,7 +132,10 @@ internal suspend fun BuildingService.updateSlotToWorkingStateForging(
                 outputItemSlot = recipe.type.name,
                 completionMonth = currentAbsoluteMonth +
                     actualDuration.coerceAtLeast(1),
-                completionPhase = 2
+                completionPhase = 2,
+                startedAtGameMs = startedAtGameMs,
+                completeAtGameMs = startedAtGameMs +
+                    actualDuration.coerceAtLeast(1) * GameConfig.Time.GAME_MS_PER_MONTH
             )
         }
     }

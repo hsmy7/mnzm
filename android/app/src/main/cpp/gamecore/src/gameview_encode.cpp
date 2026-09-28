@@ -140,7 +140,6 @@ constexpr RowField kDiscipleRowFields[] = {
     {"cultivationSpeedDuration", 24, RowKind::kInt32},
     {"discipleType", 25, RowKind::kString},
     {"cultivationCompletionMonth", 27, RowKind::kInt32},
-    {"cultivationCompletionPhase", 28, RowKind::kInt32},
     {"manualCompletionMonth", 29, RowKind::kInt32},
     {"manualCompletionPhase", 30, RowKind::kInt32},
     {"equipmentNurturingCompletionMonth", 31, RowKind::kInt32},

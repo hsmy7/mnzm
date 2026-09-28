@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.LocalPortraitCache
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.GameButton
@@ -784,6 +785,27 @@ private fun rememberMainGameScreenData(
     )
 }
 
+/**
+ * 离线回归提示宿主（结算改造 2026-09-27 B7）：读档注入落地后报告流发布一次，
+ * 展示后 ack 清空防重复弹出。文案通俗、不泄数值细节（与游戏内 changelog 同口径）。
+ */
+@Composable
+private fun OfflineReturnDialogHost(viewModel: GameViewModel) {
+    val offlineReturnReport by viewModel.offlineReturnReport.collectAsStateWithLifecycle()
+    offlineReturnReport?.let { report ->
+        StandardPromptDialog(
+            onDismissRequest = { viewModel.acknowledgeOfflineReturnReport() },
+            title = "云游归来",
+            text = "您离开了${formatOfflineDuration(report.offlineWallMs)}。" +
+                "离开期间，宗门弟子仍在自行修炼与劳作。\n\n" +
+                "提醒：离线收益有上限——离开约半天后收益会逐渐减少，" +
+                "更长的离开不再累积额外收益。",
+            confirmLabel = "知道了",
+            onConfirm = { viewModel.acknowledgeOfflineReturnReport() }
+        )
+    }
+}
+
 /** MainGameScreen 数据副作用：导航/对话框重置/排行榜/相机视口 */
 @Composable
 private fun MainGameScreenEffects(
@@ -997,6 +1019,9 @@ private fun MainGameScreenContent(
                 onRestartGame = onRestartGame
             )
         )
+
+        // 离线回归提示 — extracted to OfflineReturnDialogHost（B7）
+        OfflineReturnDialogHost(viewModel = viewModel)
 
         // 奖励卡片动效 — 最顶层，覆盖所有界面元素
         val rewardCardQueue by viewModel.rewardCardQueue.collectAsStateWithLifecycle()
@@ -1356,15 +1381,18 @@ private fun MainGameScreenSectInfoSection(
         val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
         val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
         val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+        // B8：HUD 时间行改读块①「资源头部」窄流（R2.3 第二波迁移，
+        // spiritStoneTotals 同族；年/月/旬保留为镜像投影显示）
+        val sectClock by viewModel.sectClock.collectAsStateWithLifecycle()
         // 卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
         // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
         val activeSect = data.derived.gameData.worldMapSects
             .find { it.id == data.derived.gameData.activeSectId }
         SectInfoCard(
             sectName = activeSect?.name ?: data.derived.gameData.sectName,
-            gameYear = data.derived.gameData.gameYear,
-            gameMonth = data.derived.gameData.gameMonth,
-            gamePhase = data.derived.gameData.gamePhase,
+            gameYear = sectClock.year,
+            gameMonth = sectClock.month,
+            gamePhase = sectClock.phase,
             stones = SectStoneBalance(
                 low = data.derived.gameData.spiritStones,
                 mid = data.derived.gameData.midGradeSpiritStones,

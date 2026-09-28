@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.repository.SlotUpdate
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
@@ -99,6 +100,17 @@ internal fun ProductionProcessor.isSlotCompleteDynamic(slot: ProductionSlot, yea
         slot.duration  // 旧数据回退
     }
 
+    // B5 毫秒判据优先（与 C++ isSlotCompleteDynamic 同式；月界收割点两判据
+    // 同刻等价——startedAt 取月初、判定窗口对齐 2000ms 网格）：按开工毫秒
+    // 锚点 + 有效时长折算。哨兵 = completeAt（WORKING 槽位启动/回填恒 ≥ 1
+    // 月长，开局 (1,1,0) 的 startedAt=0 不构成歧义）；零值（IDLE/测试直构/
+    // 异常档）⇒ 回退年月整数判据。
+    if (slot.completeAtGameMs > 0L) {
+        val elapsedMs = TimeProgressUtil.calculateElapsedGameMs(
+            slot.startedAtGameMs, stateStore.gameData.value.elapsedGameMs)
+        return elapsedMs >= effectiveDuration * GameConfig.Time.GAME_MS_PER_MONTH
+    }
+
     return TimeProgressUtil.isTimeElapsed(
         slot.startYear, slot.startMonth, effectiveDuration, year, month)
 }
@@ -115,6 +127,7 @@ fun ProductionProcessor.recalculateAllCompletionMonths() {
     val currentMonth = data.gameYear * 12 + data.gameMonth
 
     val allSlots = productionSlotRepository.getSlots()
+    val updates = mutableListOf<SlotUpdate>()
     for (slot in allSlots) {
         // 旧存档兼容：baseDuration=0 的槽位用当前 duration 作为基础值，
         // 确保政策/长老变化也能影响这些槽位
@@ -141,17 +154,29 @@ fun ProductionProcessor.recalculateAllCompletionMonths() {
 
         val remainingMonths = ((1.0 - progressRatio) * newDuration)
             .roundToInt().coerceAtLeast(1)
-        scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-            productionSlotRepository.updateSlot(
-                slot.buildingType, slot.slotIndex
-            ) { s ->
+        // B5 毫秒孪生双写：completeAt 与 duration 同源折算（startedAt 锚点 +
+        // 新时长 × 月长——与 C++ isSlotCompleteDynamic 动态判据同刻）。
+        // 孪生零值（旧档未消费 checkpoint）按 startYear/startMonth 月初折算。
+        val startedAtMs = if (slot.startedAtGameMs > 0L) slot.startedAtGameMs
+        else GameConfig.Time.calendarToGameMs(slot.startYear, slot.startMonth, 0)
+        updates.add(
+            SlotUpdate(slot.buildingType, slot.slotIndex) { s ->
                 s.copy(
                     duration = newDuration,
                     completionMonth = currentMonth + remainingMonths,
+                    completeAtGameMs = startedAtMs +
+                        newDuration * GameConfig.Time.GAME_MS_PER_MONTH,
                     successRate = newSuccessRate
                 )
             }
-        }
+        )
+    }
+    if (updates.isEmpty()) return
+    // A 类缺陷 5 修复（方案 §9.1-5）：原逐槽 scope.launch 异步独立写（非事务，
+    // "政策切换瞬间 + 月结并发"存在缓存/DAO 分叉）→ 收敛为单次原子批量事务
+    //（batchUpdate：writeMutex + 单次 updateAll + 失败整体回滚）。
+    scopeProvider.scope.launch(ioDispatcher.dispatcher) {
+        productionSlotRepository.batchUpdate(updates)
     }
 }
 

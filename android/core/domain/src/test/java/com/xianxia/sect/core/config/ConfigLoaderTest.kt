@@ -45,7 +45,6 @@ class ConfigLoaderTest {
     fun discipleSection_defaultsAreCorrect() {
         val config = newLoader().load()
         assertEquals(5, config.disciple.minAge)
-        assertEquals(100, config.disciple.maxAge)
         assertEquals(12, config.disciple.protectionMonths)
     }
 

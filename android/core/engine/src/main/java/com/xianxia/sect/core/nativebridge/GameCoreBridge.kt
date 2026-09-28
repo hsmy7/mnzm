@@ -117,6 +117,31 @@ object GameCoreBridge {
     external fun nativeSettlePhase(): Int
 
     /**
+     * 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；[NativeEngineFlag.realtimeAccrual]
+     * 开启时的每 tick 标量通道——单 tick 单事务，方案 §2.4）。
+     *
+     * @param deltaGameMs 本段未截断游戏毫秒（帧计划 [NativeLoopPlan.elapsedGameMs]
+     *        差分；INV-2 权威轴全额积分，cap 只作用于判定窗口数）
+     * @param accrualEnabled 旗标镜像（C++ 侧据此分流 accrual 模式）
+     * @return settle 标志位（[FLAG_MONTH_CHANGED] / [FLAG_YEAR_CHANGED]）；引擎未初始化返回 0
+     */
+    external fun nativeAccrue(deltaGameMs: Long, accrualEnabled: Boolean): Int
+
+    /**
+     * 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3 离线行）：读档冷启动后
+     * 引擎线程一次性调用（消费点 = GameEngineCoreOfflineOps，importToNative 之后）。
+     * C++ 侧语义：L1+L3 积分轨按输入全额结算（上限/速率口径由 Kotlin
+     * `GameConfig.Time.offlineGameMs` 折算施加）+ 三轴同步跳变 + 日历投影 set
+     * + 判定轨/月年事件 0 次 + 月结幂等基准推进。
+     *
+     * @param offlineGameMs 折算后的离线游戏毫秒（旬长整数倍；非整旬由 C++
+     *        floor 防御）
+     * @return 注入后的权威游戏毫秒（镜像同步 + 连续臂差分基准更新输入）；
+     *         引擎未初始化返回 0
+     */
+    external fun nativeInjectOfflineGameMs(offlineGameMs: Long): Long
+
+    /**
      * 单月推进（月变真相源切换）：C++ 完整月变结算（八步事务编排 +
      * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
      * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（秘境
@@ -289,7 +314,7 @@ object GameCoreBridge {
      *
      * @param pausedOrLoading isPaused || isLoading（暂停分支：死区消费 + 累积清零）
      * @param isSaving 保存中（tick 级跳过：不推进计数、消费死区）
-     * @return 17 槽 LongArray（[NativeLoopPlan.unpack]；引擎未初始化返回空数组）
+     * @return 18 槽 LongArray（[NativeLoopPlan.unpack]；引擎未初始化返回空数组）
      */
     external fun nativeLoopFrame(pausedOrLoading: Boolean, isSaving: Boolean): LongArray
 
@@ -451,12 +476,16 @@ object GameCoreBridge {
 }
 
 /**
- * nativeLoopFrame 帧计划（C++ `system::LoopFramePlan` 17 槽 LongArray 解包；
+ * nativeLoopFrame 帧计划（C++ `system::LoopFramePlan` 18 槽 LongArray 解包；
  * 槽位协议与 engine_loop.h 注释同源）：
  * [0] paused · [1] tickCount · [2..6] tickKind(1=active/0=isSaving 跳过) ·
  * [7..11] tickPhases · [12] alpha 位模式 · [13] frameDeltaNs ·
- * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs
+ * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs ·
+ * [17] elapsedGameMs（未截断权威游戏时间轴，结算改造 2026-09-27 B2）
  */
+// C++ LoopFramePlan 的 18 槽 LongArray 协议展开面——参数数 = 协议槽数，
+// 分组会撕裂与 C++ 槽位的逐槽对应关系（B2 18 槽协议）
+@Suppress("LongParameterList")
 class NativeLoopPlan(
     val paused: Boolean,
     val tickCount: Int,
@@ -473,12 +502,14 @@ class NativeLoopPlan(
     /** 累计逻辑 tick 计数（Kotlin _tickCount 镜像真相源） */
     val tickTotal: Long,
     /** 当前旬内累积游戏毫秒（GameTimeClock 镜像推送源） */
-    val accumulatedGameMs: Long
+    val accumulatedGameMs: Long,
+    /** 未截断权威游戏时间轴毫秒（INV-2；B2 起随帧计划镜像，消费面随 B4 接入） */
+    val elapsedGameMs: Long
 ) {
     companion object {
-        /** 解包 17 槽 LongArray；长度不符（引擎未初始化等）返回 null */
+        /** 解包 18 槽 LongArray；长度不符（引擎未初始化等）返回 null */
         fun unpack(raw: LongArray): NativeLoopPlan? {
-            if (raw.size != 17) return null
+            if (raw.size != 18) return null
             return NativeLoopPlan(
                 paused = raw[0] != 0L,
                 tickCount = raw[1].toInt(),
@@ -488,7 +519,8 @@ class NativeLoopPlan(
                 frameDeltaNs = raw[13],
                 idleNs = raw[14],
                 tickTotal = raw[15],
-                accumulatedGameMs = raw[16]
+                accumulatedGameMs = raw[16],
+                elapsedGameMs = raw[17]
             )
         }
     }

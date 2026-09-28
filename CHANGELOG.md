@@ -1,5 +1,164 @@
 ## [4.01.16] - 2026-09-22
 
+### 实时结算线 B7 批（2026-09-28）——离线语义（12h 全额 + 50% 至 24h 硬顶 + 注入路径 + UI 回归提示）— `feat(engine)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B7 行 / §1.4 离线口径
+> + `docs/realtime-watch/batch-B7.md`（派发件）+ `docs/report-B7.md`（本批报告）。
+
+- **折算口径（§1.4 已拍板，不改口）**：离线时段 = `lastSaveTime`（现实墙钟基）→ 本次读档墙钟差；
+  ≤12h 全额（1x 速率，与在线速度档解耦——防「2x 挂机最优」）→ 12h–24h 段 50% → 24h 硬顶
+  （超出不再累积，注入总量上限 = 12h + 12h/2 = 18h 游戏时间）；结果 floor 到旬（2000 游戏毫秒
+  整旬交付——保持 GameData 权威轴旬网格对齐与 `calendarToGameMs∘projectCalendar` 互逆前提）。
+  落点 `GameConfig.Time.offlineGameMs`（core/domain，纯函数整数运算防浮点漂移）。
+- **C++ 注入入口 `GameCore::injectOfflineGameMs(int64_t)`**（`game_core.h/cpp`）——
+  ① L1 连续积分（`accrueContinuous`，整数分子制对大 Δt 与分帧逐位等价）→ ② 三轴同步跳变
+  （PhaseClock 纳秒真相轴 `advanceGameMs` / SettlementEngine 已积分轴 `advanceGameMs` /
+  GameData 旬投影 + `projectCalendar` 日历投影 set——X 整旬时与逐旬 `advancePhase` 逐位等价）
+  + `lastSettleGameMs` 月结幂等基准推进（防回在线后重复结算）→ ③ L3 月度连续积分
+  （`accrueMonthlyContinuous`，灵矿毫秒差分消费新旬投影）。**判定轨/月年离散事件 0 次**
+  （离线无判定无事件，RNG 零消耗——INV-2 时间不丢 / INV-3 判定域语义边界）；与
+  `realtimeAccrual` 灰度旗标正交（直调积分函数族，不经 accrue 窗口循环，旗标翻转不影响离线
+  语义）。非整旬输入 floor 防御、非正输入零副作用、未初始化返回当前轴值。
+- **注入路径（两段式；线程契约表四已登记）**：staging（`BootSequenceController` Step 6.5 →
+  `GameEngineCoreOfflineOps.stageOfflineProgress`，boot 为新档/读档/重启/云档统一入口——
+  新档 `lastSaveTime=0` 自然零注入；wallClock 计量现实时段）→ consume（`ensureAuthoritativeNative`
+  统一成功出口尾部 `consumePendingOfflineProgress`，消费即清零幂等——native 初始化重试不重复
+  注入；native 就绪走 `nativeInjectOfflineGameMs` + `applyDirtyFromNative` 镜像同步 +
+  `accruedElapsedGameMs` 差分基准重锚；不可用走回退臂 `GameTimeClock.addOfflineGameMs`，
+  单引擎终态下仅测试/降级触达）。时序约束：消费点在 `importToNative`（防注入被导入覆盖）与
+  `nativeLoopStart`（防 `start()` 清轴）之后，由 ensure 调用序结构保证。
+- **JNI**：`nativeInjectOfflineGameMs(Long): Long`（`GameCoreBridge.kt` + `GameCoreBridge.cpp`，
+  `jniRequireEngineThread` 守卫同 `nativeAccrue`）；jni-count 基线 87→88（豁免理由：折算口径在
+  Kotlin，引擎侧三轴推进/积分结算/日历投影无 Kotlin 等价实现面）。
+- **UI 回归提示**：`OfflineReturnReport` 流（引擎线程发布 → `GameEngine.offlineReturnReport` →
+  `GameViewModel` 转发）+ 主界面 `StandardPromptDialog`「云游归来」——显示现实离线时长
+  （`formatOfflineDuration` 通俗格式化：片刻/分钟/小时/天）+ 上限规则通俗说明（不泄数值细节）；
+  展示后 ack 清空防重复弹出。
+- **注释口径同步**：`GameData.lastSaveTime` / `models.h` 双端注释从「不用于离线时间差」改写为
+  「离线收益时段计量起点（B7）」——B7 落地后注释与代码一致。
+- **测试（新增 28 例）**：C++ `offline_injection_test.cpp` 8 例（三轴增量一致 / 日历 set ≡ 逐旬
+  advancePhase / 一次性注入 ≡ 分帧 accrue 积分逐位对拍（30 月 200ms 帧粒度，经济总量对拍在
+  逐位容差内）/ 零 RNG 消耗（突破/系统/AI 镜像三分区）/ 灵矿差分闭式 / 政策月扣闭式 /
+  边界 0·负·不足一旬·floor / 未初始化零副作用）；Kotlin `OfflineProgressPolicyTest` 10 例
+  （离线边界 7 档 + 负数回拨 + 旬网格对齐不变量 + 单调性）；`GameTimeClockOfflineInjectTest`
+  4 例（回退臂端口 / 超上限丢弃 / 零副作用 / 暂停恢复）；`GameEngineCoreOfflineOpsTest` 6 例
+  （staging 折算与硬顶 / 新档零注入 / consume 回退臂 / 幂等 / 报告发布 / ack 清空）。
+- **真机 pending-device（不阻塞本批验收，方案未确认项 D8）**：`START_STICKY` 后台重建是否
+  推进时间——影响离线计时起点可靠性，待真机验证批登记。
+- 门禁实测：ctest **1473/1473**（基线 1465 + 新增 8）；六模块 JVM 全量（含 feature:game）带
+  `-Dgamecore.jni.path` 绿（IN8 出厂门要求全量跑必须带参——派发件第 2 条命令的补正）；engine
+  Diff 家族定向复跑绿；detekt 六模块 0 新增；lintRelease 绿；jni-count **88/88**；
+  check-agent-instructions 绿；build-desktop-jni.ps1 已重跑（C++ 变更后 Diff 门依赖）。
+
+### 实时结算线 B9 批（2026-09-28）——测试基准重建 + 遗留清理（§9.1 A 类缺陷清偿 + 死值全链退役）— `feat(test)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B9 行 / §9.1 缺陷清单
+> + `docs/realtime-watch/batch-B9.md`（派发件）+ `docs/report-B9.md`（本批报告）。
+
+- **缺陷 #1 思过到期释放（reflectionRelease）生产路径补实现**：AUTHORITATIVE 下年变走
+  C++ `runYearSettlement`，但其 T1 组无该子项 → 思过弟子永不自动释放。本批于
+  `year_settlement.h` 新增 `detail::processReflectionRelease(state, year)`（Kotlin T1 序：
+  processYearlyAging 之后、年报快照之前；REFLECTING ∧ 存活 ∧ `year >= reflectionEndYear`
+  → IDLE + statusData 两键清 + 道德 +5 clamp SKILL_MAX=200，零 RNG；列标脏由
+  `markMonthYearBoundaryColumns` 并集兜住）。双端面：C++ GTest 3 用例
+  （到期释放/未到期·已死·缺键·非数字四类跳过/道德钳制）+ `DiffYearSettlementTest`
+  对拍快照新增思过双弟子（endYear=2 到期释放 / =3 未到期原状）+ 显式断言。
+- **两套时基统一（方案 §3.4「两套时基」缺陷）**：旧 phaseCap 丢弃式累积器
+  `SettlementEngine::advance(wallDeltaMs)` 退役（其唯一生产包装 `GameCore::advance`
+  JNI 零暴露、仅 C++ 测试消费）——`GameCore::advance` 内部改走 `advanceByGameMs`
+  （INV-2 时间零丢失 / INV-3 判定窗口整数差），shadow/对拍臂与生产臂
+  （PhaseClock + EngineLoop.iterate）同语义，时基不再漂移；
+  `accumulatedGameMs_` 成员与 reset 复位同步清除。`time_system_test.cpp` 4 用例按
+  INV-2/INV-3 重建 + 新增负增量钳制用例（advanceByGameMs 语义基准 5 用例）。
+- **缺陷 #3 附庸年贡恒早退根因修复**：`lastYearSpiritStoneIncome` 全仓零写入点恒 0
+  （唯一写点 `VassalService.recordYearlyIncome()` 零调用且实现语义错——写余额非收入）→
+  年贡 `max(income×0.5, 1)` 恒早退。双端 `processYearlyTribute` 改读 `annualTotalIncome`
+  年度流水（T1 首位执行时上一完整年收入尚未被年报快照清零——时序天然正确）；
+  `recordYearlyIncome()` 删除。字段退役：C++ `models.h` 字段 + `json_codec` 双向 +
+  `GameDataFieldPatch` 行删除；Kotlin 字段与 Room 列/Proto 95 位保留（规范 7.1 不删列
+  + 旧包回滚兼容，@Deprecated 标注，存储面退役入 D2 同批）。守卫同步：
+  `GameDataFieldPatchGuardTest` 双射断言引入 `intentionallyUnmirrored` 排除集（§9.5
+  三要素）；`BaselineFieldCoverageGuardTest` 排除表登记。
+- **缺陷 #4 worldLevelLastRefreshMonth 读档锚定**：字段加入前旧档恒 0，月度刷新门
+  `== 0` 分支致读档后首个月结整批额外生成关卡（C++ 双臂与 Kotlin 同型 `== 0` 门）。
+  `WorldLevelManager.anchorLastRefreshMonthForLegacySave` 纯函数（`==0 ∧ 绝对月>1 →
+  锚定当前绝对月`，initSpiritMineLastSettledMonth 同型补丁）+ `GameEngineLoadDataOps`
+  读档链注册（importToNative 之前——锚定值随导入进 C++，双臂单点覆盖）；
+  WorldLevelManagerTest 3 用例（锚定/新档与已锚定原样/幂等）。
+- **缺陷 #12 START_STICKY 后台重建不再自动启动循环**：系统重建（null intent）此前与
+  ACTION_START 共用分支 → OEM 杀进程后服务后台被无条件拉起推进游戏时间，绕过
+  「切后台 = 停循环」口径（离线收益上限设计依赖）。`GameForegroundService` 拆 null
+  分支（只恢复服务外壳：前台通知/闹钟链/绑定；循环恢复由 Activity onResume
+  `resumeFromBackground` + 显式 ACTION_START 与看门狗兜底承担——两者均为显式
+  ACTION_START，不受影响）；决策表抽 `shouldAutoStartLoop(action)` 纯函数 +
+  `GameForegroundServiceLoopStartDecisionTest` 4 用例锁定。B7 遗留 D8 真机项
+  （「START_STICKY 是否推进时间」）由代码口径保证收口，不再依赖真机验证。
+- **缺陷 #15 常量双端锚点守卫（C++ 校验面缺口闭合）**：`kSpiritMineBoostMultiplier` 等
+  七常量 C++ 硬编码副本无任何校验面。C++ 腿 `game_config_parity_test.cpp`（新）锁
+  七值（kElderSkillBaseline 三头文件互等锁定）；Kotlin 腿
+  `ConfigCppConstantsParityTest`（app，新）读 C++ 头文本正则抽值与 Kotlin 侧
+  （可达常量直断 + private 常量源码文本抽取）互断——改任一侧另一侧即红。
+- **缺陷 #17 月变/年变文档口径按 B6 后代码实数统一**：`month_settlement.h` 头
+  （七步 → 双臂口径：离散臂八步 / 连续臂五判定步）；「十四子事件」→ 15 项（实数
+  1/5/6/6b/6c/7/8/9/10/11/12/13/14/15/16，2/3/4 编号空洞）+ `autoRecruit` 引用清除；
+  `MonthSettlementExecutor`（七步/十六自相矛盾 → 七步 + 15 项 + 与 C++ 第 8 步差异注记）、
+  `MonthSettlementResidualExecutor`（已下沉 12 件 → 15 项全下沉）、
+  `GameEngineCoreMonthOps`（八步+十六 → 现状）、`GameEngineCorePausOps4`（七系统扇出/
+  血炼 → 六系统七步）、`game_core.cpp`（七系统扇出 → 四系统离散臂八步）、年变
+  「T1 11 项 + T2 11 项」→ 现状（Kotlin T1 8 项 / T2 8 项；C++ T1 七项——discipleAging
+  为 Kotlin 状态重推导幂等纯派生，C++ 列存储权威维护无需重推导 / T2 七项——aiAlliances
+  场景规避）双头 + `GameEngineCoreYearOps` + `DiffAuthoritativeTickTest` 同步。尾注三条
+  过期记录回改：`longrun-stability-audit-report.md` P2-16 已修标注（Kotlin 消费侧 cap 已
+  随速度缩放）+ `GameEngineCoreAuthoritativeOps` KDoc 时钟语义（Kotlin 独占 → C++
+  PhaseClock 状态机、Kotlin 降级镜像）+ 年变 11+11。
+- **缺陷 #10 cultivationCompletionPhase 死值全链退役 + Room v61**：C++ 硬编码恒写 1
+  （`phase_settlement.h` 完成时间预估段）、ProtoNumber(95) + Room 列 + C++ 镜像三重
+  承载零读取方。全链除名：C++（models.h 字段 / DiscipleColumn 枚举值 / 列存储六处 /
+  column_dirty 双 switch / gameview_encode 协议行 28 号退役不重排 / json_codec 双向 /
+  phase_settlement 写值与写回）+ Kotlin（Entity 字段 / Proto surrogate 3 处 /
+  DiscipleTables 列四件 / BreakthroughHandler 两处 / GameViewDiscipleRows 四处 /
+  GameViewMirrorCodec 行）；Room **v60→v61**（`GameDatabaseConfig.DATABASE_VERSION` 61）
+  `rebuildTableDroppingColumns` 删 disciples 单列（v55 先例模式；迁移前备份 +
+  旧档恒 1 值删除零信息损失）；`RoomMigrationV60To61Test` 三用例（真实 Room schema
+  校验 / 删列 + 数据逐格完整 + 索引主键重建 / 幂等）；历史迁移 SQL 与旧档兼容层
+  （OldSerializableSaveData field 95）原样保留。装备阶段 Room 版本顺延基线 v62 起
+  （台账 §8 规则「以合入时刻为准」天然消化）。
+- **缺陷 #11/#16 死值清理**：`RealmConfig.maxAge`（寿元系统 v54→v55 已删、十处命名
+  实参 + 属性 + RealmConfigTest 断言 + `GameConfigData.DiscipleSection.maxAge` +
+  `game_config.json` disciple.maxAge 键 + ConfigLoaderTest 断言）删除；
+  下线系统死常量 `ENHANCED_SECURITY_EFFECT`/`CURFEW_EVENT_REDUCTION`/
+  `CURFEW_DESERTION_REDUCTION`/`REWARD_PUNISH_EFFECT`（生产零消费、政策本体月费/
+  忠诚链保留）+ 两处测试引用删除。
+- **测试基准重定（§3.4 清单 / §5.2 三类口径）**：B1–B8 已将清单内测试按新轨重建
+  （ctest 1483 基线含 bench 10 项）；本批增量：time_system_test 时基 5 用例按
+  INV-2/INV-3 语义基准重建（判定轨 advancePhases/钩子序用例保持逐位口径；
+  投影/积分轨 advanceByGameMs 用例按整数差与闭式断言）；年变 Diff 对拍按
+  「判定轨逐位」扩思过双场景。途中发现（公约 §12 登记，不在派发清单未动）：
+  `ProductionProcessor.processAutoAlchemy`/`CultivationService.processAutoAlchemy`
+  生产零调用（仅 ProcessSlotDualWriteGuardTest 消费）——autoRestart 续炼启动仅
+  C++ 离散臂承担，Kotlin 侧为预留死代码，建议随 B10 或装备阶段裁决。
+
+
+### 实时结算线 B10 批（2026-09-29）——文档与规范收口（§3.6 全部条目，规范与代码零冲突）— `docs(realtime)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B10 行 / §3.6 文档与规范清单 / §4.6 既有规则冲突裁决表
+> + `docs/realtime-watch/batch-B10.md`（派发件）+ `docs/report-B10.md`（本批报告）。实时结算线末批。
+
+- **`rules/expansion-playbook.md`**：检查清单第 2 项四层名改双轨语义（L0 时间推进/L1 连续积分+判定窗口/L2 惰性差分/L3+L4 月年边界事件派发）；第 7 项「禁止以现实时间为准」改写为「进度锚定唯一权威时间轴 `elapsedGameMs`，日历为投影，禁第二套时间真相源」（§4.6 裁决——原约束防的三件事：两套真相源/循环走私/节奏脱钩，改写后全部仍被守住）；「离线收益预留」节转「已定稿」（口径/接入点/扩展纪律）。
+- **`rules/economy-design.md`**：§4 离线收益数学从「预留」转「定稿」——时段计量 lastSaveTime→读档墙钟差、≤12h 全额（1x 与速度档解耦）、12–24h 段 50%（整数分子制）、24h 硬顶（注入总量上限 18h 游戏时间）、floor 到旬、回拨按 0；收益内容边界（连续积分项重放/判定轨 0 次/RNG 零消耗）；接入点（GameEngineCoreOfflineOps 两段式 → `GameCore::injectOfflineGameMs`）；经济审计义务（折算改动必复跑注入≡分帧对拍、新产出项登记经济基线表）。
+- **`rules/ad-cooldown.md`**：预留节「离线收益」行精确化——当前已落地为读档自动注入式（无领取动作无频控面），频控预留仅适用未来领取式形态。
+- **`rules/pr-review-checklist.md`**：「进度锚定游戏时间」措辞同步为「进度锚定权威时间轴」。
+- **根 `AGENTS.md`**：§3「惰性结算四层」改「实时结算四层」双轨名；「存档为纯手动」改「存档入口纪律」——登记现实墙钟节拍自动存档例外（每 10 现实秒至多一次、三前置门控，§2.6 裁决；禁止的是复活旧月变触发式 `AutoSaveTrigger` 体系，命名统一 `realtimeAutoSave*`）；「扩展性预留」行标注离线收益已落地。
+- **`android/core/engine/AGENTS.md`**：结算层级节按 §4.6 裁决改写——四层结构保留、层内语义双轨化，补常量栈换算与离线注入指引。
+- **`android/core/data/AGENTS.md` + `CODE_WIKI.md`**：存档口径同步（手动 + 云存档 + 现实节拍自动存档；旧「纯手动/禁自动保存」表述按 §2.6 裁决修订）。
+- **`docs/architecture.md`**：惰性结算引擎章节改双轨时间模型（层级图 + INV-1/2/3 不变量 + 离线注入 + 灰度旗标）；核心原则两条按毫秒时间戳/判定轨窗口项更新；「离线收益引擎接入点」转已落地（口径/两段式注入/扩展纪律）；「存档为纯手动」节改「存档入口」并登记 §2.6 修订（显式标注非旧自动存档体系复活）。
+- **`docs/knowledge-base.md`**：留存手段清单三行更新（存档=现实节拍自动存档回归、离线收益=已落地口径、时间流速=权威轴+常量栈）；经济基线表灵矿场行补离线毫秒差分；玉符墙钟豁免论证引用换锚（L22 条款已改写，豁免理由不变仍成立）。
+- **`docs/cpp-engine.md`**：基线块新增「实时结算改造收官（B1–B10）」条目——**C++ 结算入口清单**八项（advanceByGameMs/accrue/settlePhase/settleMonth/settleYear/injectOfflineGameMs/time_units.h 常量栈/time_system.h 投影）与旧 `advance(wallDeltaMs)` 语义的取代关系；目录结构补 `time_units.h`；架构图 JNI 桥行补结算族入口；§7「保持不动」行离线收益措辞更新。
+- **`docs/ui-read-surface.md`**：§2.1 镜像合法面补权威轴双字段 `elapsedGameMs`/`lastSettleGameMs`；§3.2 派生 UI 流登记三行（`sectClock` 投影流 / `monthProgressFraction` 时间进度 / `offlineReturnReport` 云游归来，B7/B8 交付面的读数纪律收口）。
+- **`docs/threading-contract.md`**：头部更新日期补 B7 离线通道行登记说明（表四行本体 B7 已入库）。
+- **`docs/platform-abilities.md`**：时间源行扩为四端口登记（TimeSource/Clock 端口/单调时钟/现实墙钟）+ iOS 对等（CLOCK_MONOTONIC、NSDate）——离线计量与权威轴的时间端口跨平台面收口。
+- **门禁**：`node scripts/check-agent-instructions.mjs` 全绿（引用无死链 + 预算闸）；Kotlin/C++ 零改动（纯文档批），ctest/JVM/lint/detekt/jni-count 复跑基线全绿（实测数字见 `docs/report-B10.md` §三）。
+
 ### 删二倍速批（2026-09-27）——「速度」维度整维删除（单一时速 · 看门狗判据收敛 · 死字段清偿）— `refactor(engine)`
 
 > 批次依据：`docs/design/remove-2x-speed-implementation-plan.md`（v1.0）。
@@ -715,6 +874,62 @@
 - **门禁**：桌面 gtest 1554/1554（golden 按新层序重生成）；:core:engine/:feature:game/:app
   JVM 全量绿；六模块 detekt 双触碰模块零违规；JNI 计数 82/82 在册。
 
+### 实时结算线 B8 批（2026-09-28）——UI 时间进度投影 + 积分段遥测与 bench 门禁 — `feat(ui)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B8 行
+> + `docs/realtime-watch/batch-B8.md`（派发件）+ `docs/report-B8.md`（本批报告）。
+
+- **旬进度→时间进度（INV-1 派生投影）**：`TimeProgressUtil.monthProgressFraction`
+  （(日历旬序 + 旬内连续进度)/3，钳 [0,1]）与 `slotProgressFraction`（(已完成整月 +
+  月内进度)/总月数）纯函数族（core/domain）；`ProductionSlotItem` 参数
+  `gamePhase: Int` → `monthProgressFraction: Float`——旧 `gamePhase/3f` 三档量化
+  退役（旧口径月内进度一旬走一步，进度条长期停在 1/3、2/3 刻度读作「差一点不结算」）；
+  炼丹/锻造对话框经 `GameViewModel.monthProgressFraction`（combine 块① gamePhase +
+  `GameTimeClock.phaseProgressFlow`，§6.5 map+stateIn 订阅派生）驱动；**月界收获判据
+  不变**（B5 口径，进度只是投影）。
+- **GameTimeClock.phaseProgressFlow**：旬内连续进度流（AUTHORITATIVE=每帧
+  `mirrorFromNative` 推 native 帧计划 `accumulatedGameMs`——INV-2 未截断轴的旬内分量；
+  OFF 回退臂= tick 累积器刷新；暂停恒 0；setSpeed/start/forceConsume/refund/offline 注入
+  全部变更点同步刷新）；`phaseProgress` getter 改读同流（单一真源）；`GameEngine`
+  公开暴露（gameClock 为 engine 模块 internal，feature 层经此消费）。
+- **GameViewStore 块①消费迁移（HUD）**：`GameViewModel.sectClock`（块①「资源头部」
+  窄流 map，spiritStoneTotals 同族先例）+ 主界面 `SectInfoCard` 时间行改读块①投影
+  （MainGameScreen 不再直读整份快照的时间字段）；**年/月/旬显示保留不删**（方案
+  「旬概念保留」口径）；`GameData.displayTime`（方案时点 :831 锚点）零改动——日历
+  投影 getter 本就 INV-1 合规，无新镜像读面（ui-read-surface §2 零扩面）。
+- **积分段遥测（方案 §9 监控盲区闭合项）**：`GameCore::AccrualTelemetry`
+  （lastSegmentUs/maxSegmentUs/samples/overBudgetCount 只读观测面）+
+  `recordAccrualSegmentUs`（L1 `accrueContinuous` + L3 `accrueMonthlyContinuous`
+  两段 steady_clock 计时求和，判定窗口循环不属积分段；flag 关零采样零开销）+
+  超预算 TelemetrySink 事件 `engine_accrual_over_budget`（预算 1ms 与 D1 债触发判据
+  同源；节流：首次必报 + stride 600 防 tick 级事件风暴）；Dev 构建锁步不变量
+  （accrue 内 axis/calendar 逐窗锁步 assert + kError 日志，Release 消音）+
+  `GameCoreTest.AccrualTelemetryAndAxisCalendarLockstep` 在 Release 门（assert 消音态）
+  从外部复断不变量。引擎线程单写单读，无新跨线程面（threading-contract 零登记需求）。
+- **bench 门禁（§10 B8 验收项）**：新增 `test/bench/accrual_segment_bench_test.cpp`
+  入 `game-core-bench` 目标——**G1 同族 core 形态（5000 弟子无实例清单）积分段
+  < 1ms 硬断言**（生产同入口 accrue(100ms) 形态 = 0 判定窗口；3 预热 + min-of-15
+  采样抗抖）；全实例形态（每弟子 1 功法 + 2 装备）信息观测（打印无断言，沿
+  TimingPerPhase 先例）+ 小宗门（100 弟子）对照。`GAMECORE_BUILD_BENCH` 本地构建
+  翻开与 CI 对齐（本地默认 OFF→ON，本树 CMakeCache 变更）。
+- **🔴 途中缺陷修复（本批门禁实证的根因修复，非打补丁）**：`accrueContinuous`
+  孕养步「桶命中仅作空判 → 全量 O(I) 线性扫拿可变引用」——O(D×4×I)≈2 亿次字符串
+  比较，bench 实测积分段 **167ms@5000**（超预算 167×，若旗标翻开必触顶掉帧）。
+  修复 = `InstanceBuckets.findMutable`（桶本就存向量下标，生命周期契约明文允许
+  原地列写；find/findMutable 共用单一 locate 实现，末次匹配语义逐位一致）→
+  全实例形态 167ms→**5.91ms**（28×），core 形态 **667.5µs@5000** 门禁绿。
+  残余 >1ms 部分 = 桶视图按 tick 重建 + 逐弟子全速率链重算（方案 §7.2/D1 登记
+  形状；D1 触发判据自此有桌面数据点，真机项仍 pending-device）。
+- **测试**：C++ AccrualSegmentBench 3 例 + AccrualTelemetryAndAxisCalendarLockstep
+  1 例；Kotlin TimeProgressUtilTest +4（月进度连续爬升/越界钳制/槽位合成/边界）、
+  GameTimeClockTest +5（进度流连续爬升与回绕/暂停归零/2x 折算/镜像直设/getter
+  同源）。
+- **门禁实测**：ctest **1483/1483**（基线 1473 + bench 目标 10 项随 GAMECORE_BUILD_BENCH
+  翻开入库；首轮全量曾一次性假红——构建余载下 min-of-7 采样不足，加深为 3 预热 +
+  min-of-15 后两轮全量绿）+ 六模块 JVM 全量带 jni.path（含 feature:game）+
+  build-desktop-jni.ps1 重跑（.so 新鲜）+ detekt/lintRelease + jni-count 88/88 +
+  check-agent-instructions 绿。版本号不自增；realtimeAccrual 旗标未翻（默认 false）；
+  存档 schema 零变更。
 ### 通知通道后端管线整链退役（2026-09-27）— `refactor(state)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-NOTIFY-RETIRE.md`（派工真源）

@@ -9,7 +9,7 @@ import org.junit.Test
  * （GameTimeClock companion 单一来源）。符号面已无 maxPhasesPerTick(speed)
  * 参数化公式——速度维度整体删除后，追补上限与速度解耦为常量。
  * 双端行为等价由 DiffEngineLoopTest 对拍承接（3000/8000/60000ms 同输入同输出）；
- * C++ 侧常量锚：settlement.h kMaxPhasesPerTick / kMsPerPhase +
+ * C++ 侧常量锚：settlement.h kMaxPhasesPerTick / time_units.h kGameMsPerPhase +
  * engine_loop_test.cpp MultiPhaseInOneTickCappedAt3（8000ms → 3 旬）。
  * 改值须双端同步。
  */

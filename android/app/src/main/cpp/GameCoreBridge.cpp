@@ -218,9 +218,9 @@ AndroidTelemetrySink g_androidTelemetry;
 gamecore::SettableThermalStatusProvider g_thermalProvider;
 gamecore::SettableBatteryStatusProvider g_batteryProvider;
 
-/// LoopFramePlan → jlongArray（17 槽标量协议；见 engine_loop.h 注释）
+/// LoopFramePlan → jlongArray（18 槽标量协议；见 engine_loop.h 注释）
 jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan& p) {
-    constexpr int kLen = 17;
+    constexpr int kLen = 18;
     jlong buf[kLen] = {0};
     buf[0] = p.paused ? 1 : 0;
     buf[1] = p.tickCount;
@@ -234,6 +234,7 @@ jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan&
     buf[14] = p.idleNs;
     buf[15] = p.tickTotal;
     buf[16] = p.accumulatedGameMs;
+    buf[17] = p.elapsedGameMs;   // B2：未截断权威游戏时间轴（INV-2）
     jlongArray out = env->NewLongArray(kLen);
     if (out) env->SetLongArrayRegion(out, 0, kLen, buf);
     return out;
@@ -392,6 +393,32 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettlePhase(
     jniRequireEngineThread("nativeSettlePhase");
     if (!g_gameCore) return 0;
     return static_cast<jint>(g_gameCore->settleOnePhase());
+}
+
+// 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；灰度旗标 realtimeAccrual
+// 开启时的唯一每 tick 通道——单 tick 单事务，方案 §2.4。kEngineOnly 同
+// nativeSettlePhase：引擎线程串行调用）
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAccrue(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong deltaGameMs,
+    jboolean accrualEnabled) {
+    jniRequireEngineThread("nativeAccrue");
+    if (!g_gameCore) return 0;
+    return static_cast<jint>(
+        g_gameCore->accrue(static_cast<int64_t>(deltaGameMs),
+                           accrualEnabled == JNI_TRUE));
+}
+
+// 离线收益注入（结算改造 2026-09-27 B7）：读档冷启动后引擎线程一次性调用
+//（ensureAuthoritativeNative 消费点；jniRequireEngineThread 同 nativeAccrue）。
+// 返回注入后的权威游戏毫秒（Kotlin 镜像/连续臂差分基准同步输入）。
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInjectOfflineGameMs(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong offlineGameMs) {
+    jniRequireEngineThread("nativeInjectOfflineGameMs");
+    if (!g_gameCore) return 0;
+    return static_cast<jlong>(
+        g_gameCore->injectOfflineGameMs(static_cast<int64_t>(offlineGameMs)));
 }
 
 // AI 热控批量上界推送（Kotlin ThermalMonitor 平台决策——12/6/3；

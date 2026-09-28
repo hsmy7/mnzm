@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -35,6 +36,8 @@ import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
@@ -116,8 +119,8 @@ class DiffYearSettlementTest {
         /** realm=9 年俸额 */
         const val SALARY_REALM9 = 500L
 
-        /** 弟子数 */
-        const val DISCIPLE_COUNT = 2
+        /** 弟子数（2 年俸 + 2 思过对拍弟子——思过不排年俸适格，同样领取） */
+        const val DISCIPLE_COUNT = 4
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
@@ -176,7 +179,11 @@ class DiffYearSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            // 场景②：年俸配置（realm9 启用 500；字段为只读 Map 接口，整体替换赋值）
+            // 场景②：年俸配置（realm9 启用 500；字段为只读 Map 接口，整体替换赋值）            // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+            // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+            elapsedGameMs = GameConfig.Time.calendarToGameMs(1, 12, 2)
+            lastSettleGameMs = elapsedGameMs
+
             yearlySalary = mapOf(9 to SALARY_REALM9.toInt())
             yearlySalaryEnabled = mapOf(9 to true)
             // 场景规避：商人刷新机会首次授予（Kotlin 臂 mock 的
@@ -191,7 +198,13 @@ class DiffYearSettlementTest {
             gameData = gameData,
             disciples = listOf(
                 salaryDisciple("21", "岁一"),
-                salaryDisciple("22", "岁二")
+                salaryDisciple("22", "岁二"),
+                // 缺陷 #1 对拍（方案 §9.1）：思过到期释放双端语义——
+                // 年结 year=2：endYear=2 到期释放（IDLE + statusData 两键清 +
+                // morality +5）；endYear=3 未到期原状。全字段对拍覆盖
+                // status/statusData/morality 列。
+                reflectingDisciple("23", "思过满", endYear = 2),
+                reflectingDisciple("24", "思过未满", endYear = 3),
             )
         )
     }
@@ -201,6 +214,19 @@ class DiffYearSettlementTest {
         id = id, name = name, realm = 9, realmLayer = 1,
         cultivation = 10.0, spiritRootType = "metal",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
+    )
+
+    /** 思过弟子：REFLECTING + reflectionStart/EndYear + 道德 50（+5 后 55 可辨） */
+    private fun reflectingDisciple(id: String, name: String, endYear: Int) = Disciple(
+        id = id, name = name, realm = 9, realmLayer = 1,
+        cultivation = 10.0, spiritRootType = "metal",
+        combat = CombatAttributes(currentHp = -1, currentMp = -1),
+        status = DiscipleStatus.REFLECTING,
+        statusData = mapOf(
+            "reflectionStartYear" to "1",
+            "reflectionEndYear" to endYear.toString()
+        ),
+        skills = SkillStats(morality = 50)
     )
 
     private fun initialRngStates(seed: Long): MutableMap<Int, Long> {
@@ -462,7 +488,11 @@ class DiffYearSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
-            merchantLastRefreshChanceGrantYear = 6
+            merchantLastRefreshChanceGrantYear = 6            // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+            // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+            elapsedGameMs = GameConfig.Time.calendarToGameMs(6, 12, 2)
+            lastSettleGameMs = elapsedGameMs
+
             // 月变步骤 4e（关卡刷新生成）规避：玩家宗门在场会触发 C++ 侧
             // 关卡生成（Kotlin 臂 SystemManager 未装 WorldLevelSystem 零生成
             // 失配）——lastRefreshMonth 置远未来哨兵使 shouldRefresh 恒 false
@@ -687,6 +717,21 @@ class DiffYearSettlementTest {
                 d.skills.salaryPaidCount
             )
         }
+
+        // ②' 思过到期释放（缺陷 #1 对拍）：endYear=2 到期 → IDLE + 键清 +
+        // morality 50+5=55；endYear=3 未到期 → REFLECTING 原状、道德不变
+        val byId = actual.disciples.associateBy { it.id }
+        val released = byId.getValue("23")
+        assertEquals(DiscipleStatus.IDLE, released.status)
+        assertTrue(
+            "释放后 statusData 思过键未清: ${released.statusData}",
+            released.statusData.isEmpty()
+        )
+        assertEquals(55, released.skills.morality)
+        val pending = byId.getValue("24")
+        assertEquals(DiscipleStatus.REFLECTING, pending.status)
+        assertEquals("3", pending.statusData["reflectionEndYear"])
+        assertEquals(50, pending.skills.morality)
 
         // ③ RNG 审计：商人收购每年消费 SYSTEM
         // 分区（数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍

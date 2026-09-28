@@ -117,10 +117,10 @@ node scripts/check-agent-instructions.mjs
 子系统实现与关键类见 [`docs/knowledge-base.md`](docs/knowledge-base.md)。**动这些子系统之前先读对应文档**：
 
 - **C++ 是 AUTHORITATIVE 真相源** — `game-core` 承载模拟逻辑，Kotlin `GameStateStore` 是**只读镜像**；**反向同步通道已删除**：稳态下 Kotlin 对 C++ 只读，唯一合法写入是 `StateSyncService.importToNative` 全量导入。防复发守卫：`MirrorReadOnlyGuardTest`（符号面）+ `DiffAuthoritativeTickTest`（行为面）。**未完成**：真机验证批、WS-4 NPC 移动、WS-1 阶段 3 数据导向存储。总方案 `docs/adr/cpp-engine-migration.md`，进度 `docs/cpp-engine.md`，镜像合法面 `docs/ui-read-surface.md` §2
-- **惰性结算四层** — L0 时间推进 / L1 每旬检查 / L2 惰性生产 / L3 月变 / L4 年变（年变分帧，对标 Supercell + RimWorld）；新逻辑必须落既有层级，禁另起结算循环或新线程 tick
+- **实时结算四层** — L0 时间推进（权威毫秒轴 `elapsedGameMs` 未截断 + 日历投影）/ L1 连续积分 + 判定窗口（`phaseCap` 只限判定执行、时间零丢失）/ L2 惰性差分 / L3+L4 月年边界事件派发（年变分帧，对标 Supercell + RimWorld）；新逻辑必须落既有层级，禁另起结算循环或新线程 tick；现实时长换算一律走 `GameConfig.Time` 常量栈
 - **线程契约** — 唯一合法状态写入口是 GameEngine-Thread；白名单与禁止区见 [`docs/threading-contract.md`](docs/threading-contract.md)（新增跨线程交互须先登记再实现）
-- **存档为纯手动** — 禁止重新实现自动保存，禁止 `autoSave*` 命名；`SaveValidator` 规则引擎按 `order` 排序，`registerDefaults()` 加一行即注册
-- **扩展性预留与待办** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留；R 系列待办与偿还触发档案见 `docs/architecture.md`
+- **存档入口纪律** — 手动存档（5 槽位）+ 云存档 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次、三前置门控：旗标/有效槽位/引擎已加载；§2.6 裁决，命名统一 `realtimeAutoSave*`）；禁止复活旧月变触发式 `AutoSaveTrigger` 体系；`SaveValidator` 规则引擎按 `order` 排序，`registerDefaults()` 加一行即注册
+- **扩展性预留与待办** — RemoteConfig 未绑定状态与激活前置、商业化接入点、社交隔离层、iOS 迁移预留；离线收益已落地（口径 `rules/economy-design.md` §4）；R 系列待办与偿还触发档案见 `docs/architecture.md`
 
 模块源码路径：`:app`（应用壳 + JNI 桥）、`:core:domain`（数据类/接口/sealed/Registry）、`:core:data`（Room/序列化/Repository）、
 `:core:engine`（GameEngine/Service/System/游戏循环）、`:core:ui`（共享 Compose 组件）、`:feature:game`（ViewModel/Screen/对话框）。

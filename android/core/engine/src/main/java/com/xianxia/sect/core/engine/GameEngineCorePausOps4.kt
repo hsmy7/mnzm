@@ -119,7 +119,7 @@ internal suspend fun GameEngineCore.processMonthYearChange(monthChanged: Boolean
         }
         if (env == null) {
             // 回退：native 未就绪（C++ 状态未变更——回退安全）
-            // 八步月变编排（政策扣除/月效/AI 预计算/七系统扇出/血炼/排班/
+            // 七步月变编排（政策扣除/月效/AI 预计算/六系统扇出/排班/
             // 月衰减/月度事件）位于 MonthSettlementExecutor（
             // 生产 tick 与跨语言对拍测试共用同一入口）；本方法仅保留委托与
             // 事务外三件。

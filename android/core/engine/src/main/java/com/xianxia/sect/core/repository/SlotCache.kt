@@ -123,9 +123,6 @@ class SlotCache {
         return primaryIndex[buildingIdKey(buildingId, slotIndex)]
     }
 
-    fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> =
-        getWorkingSlots().filter { it.isFinished(currentYear, currentMonth) }
-
     fun getAll(): List<ProductionSlot> = synchronized(lock) { slots.toList() }
 
     fun getById(slotId: String): ProductionSlot? {

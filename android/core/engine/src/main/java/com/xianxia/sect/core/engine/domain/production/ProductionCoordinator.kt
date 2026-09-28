@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.repository.getCompletedSlots
-import com.xianxia.sect.core.repository.getFinishedSlots
 import com.xianxia.sect.core.repository.getSlotsByBuildingId
 import com.xianxia.sect.core.repository.getSlotsByType
 import com.xianxia.sect.core.repository.getWorkingSlots
@@ -474,9 +473,6 @@ class ProductionCoordinator @Inject constructor(
     
     fun getCompletedSlots(): List<ProductionSlot> = repository.getCompletedSlots()
     
-    fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> =
-        repository.getFinishedSlots(currentYear, currentMonth)
-
     /**
      * 清理弟子在 Room 生产槽 Repository 中的占用（同步挂起版，供死亡等
      * 必须立即生效的关键路径使用，在 IO 线程执行）。

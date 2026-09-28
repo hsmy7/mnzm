@@ -40,11 +40,14 @@
 // YearSettlementExecutor 提取同构编排。
 //
 // Kotlin processYearlyEvents(year) 为 L3b 分帧结构：
-//   T1 立即组 11 项（单事务保相对序）+ T2 延迟组 11 项（yearlyOpsQueue 由
+//   T1 立即组 8 项（单事务保相对序：yearlyTribute/yearlyVassalTribute/
+//   discipleAging/merchantRefreshChance/yearlyAging/reflectionRelease/
+//   garrisonAndReport/autoBuy）+ T2 延迟组 8 项（yearlyOpsQueue 由
 //   引擎 tick 30ms 预算 drain / 存档前 flush / 读档 clear——C++ 无对应分帧概念）。
-// C++ 编排（runYearSettlement）覆盖 T1 全部 11 项与 T2 的主要子项；
-// 个别子项经场景规避保持双端一致（测试惰性依赖 NPE 由 safelyRunInState
-// 捕获 ≡ no-op）。
+// C++ 编排（runYearSettlement）覆盖 T1 中 7 项（discipleAging 为 Kotlin 侧
+// 状态重推导 syncAllDiscipleStatuses——幂等纯派生，C++ 列存储权威维护状态
+// 无需重推导）与 T2 中 7 项（aiAlliances 经场景规避双端一致）；个别子项
+// 场景规避说明（测试惰性依赖 NPE 由 safelyRunInState 捕获 ≡ no-op）。
 //
 // RNG：T1 全程零随机抽取；T2 仅个别子项消费（收购 SYSTEM / 秘境
 // SECRET_REALM）——场景数据空（外交/秘境域数据空）
@@ -262,11 +265,13 @@ inline int32_t findRelationFavor(
 /// 附庸年贡（Kotlin VassalService.processYearlyTribute）：
 /// 玩家是附庸时按上年收入比例向上主宗缴纳年贡（钱包扣 LOW/VassalTribute/
 /// Internal，autoConvert=true 与 Kotlin 默认一致）；无主宗/贡额 0 → 早退。
-/// 零 RNG。
+/// 收入取 annualTotalIncome 年度流水（缺陷 #3 修复：原 lastYearSpiritStoneIncome
+/// 零写入点恒 0 → 年贡恒早退；本钩子在年报快照清零 annual* 之前执行，
+/// 读到的正是上一完整年收入）。零 RNG。
 inline void processYearlyTribute(GameState& state) {
     auto& gd = state.gameData;
     if (gd.suzerainSectId.empty()) return;
-    const int64_t income = gd.lastYearSpiritStoneIncome;
+    const int64_t income = gd.annualTotalIncome;
     // 统一 int64_t（NDK 下 int64_t=long，与 0LL 的 long long 三元推导冲突——
     // 全显式 int64_t 保证 libc++ 可移植）
     const int64_t minTribute = income > 0 ? kVassalTributeMin : static_cast<int64_t>(0);
@@ -372,6 +377,39 @@ inline void processYearlyAging(GameState& state, int32_t currentYear,
     }
     for (const auto& id : toRemove) {
         ds.removeById(id);
+    }
+}
+
+/// 思过到期释放（Kotlin DiscipleLifecycleProcessor.processReflectionRelease）：
+/// REFLECTING 且存活、reflectionEndYear 已到（year >= endYear）→ 回 IDLE +
+/// 清 reflectionStartYear/reflectionEndYear + 道德 +5（clamp SKILL_MAX=200）。
+/// statusData 键名与状态常量锚点：building_residual_tx.h 同名定义
+///（kReflectingStatusName/kReflectionEndYearKey——残余清扫事务共用）。
+/// 修复登记（结算改造方案 §9.1 缺陷 #1）：AUTHORITATIVE 生产路径年变此前
+/// 无本实现，思过弟子永不自动释放——B9 起双端同语义。零 RNG。
+inline constexpr int32_t kReflectionReleaseMoralityBonus = 5;   // Kotlin REFLECTION_RELEASE_MORALITY_BONUS
+
+inline void processReflectionRelease(GameState& state, int32_t year) {
+    state::DiscipleStore& ds = state.disciples;
+    static constexpr const char* kReflecting = "REFLECTING";
+    static constexpr const char* kIdle = "IDLE";
+    static constexpr const char* kStartKey = "reflectionStartYear";
+    static constexpr const char* kEndKey = "reflectionEndYear";
+    const std::size_t rows = ds.size();
+    for (std::size_t row = 0; row < rows; ++row) {
+        if (ds.statuses[row] != kReflecting) continue;
+        if (ds.isAlive[row] != 1) continue;
+        const auto& sd = ds.statusData[row];
+        const auto it = sd.find(kEndKey);
+        if (it == sd.end()) continue;               // Kotlin toIntOrNull ?: skip
+        const auto endYear = toIntOrNull(it->second);
+        if (!endYear.has_value() || year < *endYear) continue;
+        ds.statuses[row] = kIdle;
+        ds.statusData[row].erase(kStartKey);
+        ds.statusData[row].erase(kEndKey);
+        int32_t& morality = ds.moralities[row];
+        morality = std::min(morality + kReflectionReleaseMoralityBonus,
+                            gamecore::stats::kSkillMax);
     }
 }
 
@@ -1188,19 +1226,23 @@ inline void runYearSettlement(state::GameState& state,
     (void)aiRng;   // AI 独立分区流保留传输契约（年变无消费点）
 
     // ── processYearlyEvents(year)：T1 立即组（Kotlin 严格相对序
-    // #1→#2→#4→#5→#6→#7→#8→#10→#11）──
+    // #1→#2→#3→#4→#5→#6→#7→#8；#3 discipleAging 为 Kotlin 状态重推导
+    // 幂等纯派生，C++ 列存储权威维护无需重推导）──
     // #1 附庸年贡
     detail::processYearlyTribute(state);
     // #2 附属宗门年贡
     detail::processYearlyVassalTribute(state, state.gameData.gameYear);
-    // #6 商人赠予（手动刷新机会）
+    // #4 商人赠予（手动刷新机会）
     detail::processMerchantRefreshChance(state, state.gameData.gameYear);
-    // #7 年度老化清理（死亡弟子列清理）
+    // #5 年度老化清理（死亡弟子列清理）
     detail::processYearlyAging(state, state.gameData.gameYear, world);
-    // #10 garrisonAndReport：驻军轮换 + 年报快照 + annual* 清零
+    // #6 思过到期释放（缺陷 #1 修复：生产路径此前缺失——
+    // 思过弟子永不自动释放；Kotlin 序 = yearlyAging 之后、年报快照之前）
+    detail::processReflectionRelease(state, state.gameData.gameYear);
+    // #7 garrisonAndReport：驻军轮换 + 年报快照 + annual* 清零
     detail::processGarrisonRotation(state);
     detail::runYearlyReportSnapshot(state);
-    // #11 autoBuy（merchant_settlement.h；年变 T1 无条件调用
+    // #8 autoBuy（merchant_settlement.h；年变 T1 无条件调用
     // executeAutoBuy——与月变 12 月同函数，1 月执行新年购买）
     merchant_settle::executeAutoBuy(state);
 

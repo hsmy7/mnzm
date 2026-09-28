@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -204,7 +205,11 @@ class DiffMonthSettlementTest {
         ).apply {
             rngStates = initialRngStates(SEED)
             // 预置刷新月 == 月变时绝对月（12 月 = 24）→ 不刷新
-            worldLevelLastRefreshMonth = 1 * 12 + 12
+            worldLevelLastRefreshMonth = 1 * 12 + 12            // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+            // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+            elapsedGameMs = GameConfig.Time.calendarToGameMs(1, 11, 0)
+            lastSettleGameMs = elapsedGameMs
+
             autoBuyList = listOf(
                 AutoBuyEntry(itemName = "精铁剑", itemType = "equipment", rarity = 1),
                 AutoBuyEntry(itemName = "聚气丹", itemType = "pill", rarity = 1)

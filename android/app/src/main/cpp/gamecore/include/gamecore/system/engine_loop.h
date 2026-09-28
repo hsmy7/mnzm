@@ -8,17 +8,18 @@
 #include "gamecore/core/logger.h"
 #include "gamecore/core/platform.h"
 #include "gamecore/system/settlement.h"
+#include "gamecore/system/time_units.h"
 
 // ============================================================
 // 引擎循环（游戏循环入 C++）
 //
 // PhaseClock —— Kotlin core/engine/system/GameTimeClock 逐位移植：
-// 墙钟消费/暂停/refundPhases 状态机（单一时速，无倍率）。
-// 语义锚点（GameTimeClock.kt）：
+// 墙钟消费/暂停/refundPhases 状态机（单一时速，无倍率）。语义锚点（GameTimeClock.kt）：
 //   - accumulatedGameMs += wallDeltaMs（墙钟差值直接累加）
-//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = 2000ms）
-//   - phaseCap = kMaxPhasesPerTick(3)：单 tick 追补上限，
+//   - phases = accumulatedGameMs / msPerPhase（msPerPhase = kGameMsPerPhase = 2000ms）
+//   - phaseCap = MAX_PHASES_PER_TICK(3)：单 tick 追补上限，
 //     超限**丢弃余量**（防 OEM 挂起/看门狗重启的爆炸式跳变）
+//   - 暂停语义唯一载体 GameStateStore.isPaused（EngineLoop.iterate 暂停分支消费死区）
 //   - consumeDeadTime/forceConsumeOnePhase/refundPhases 原语义保留
 //
 // EngineLoop —— Kotlin GameEngineCore.gameLoopIteration 的帧迭代判据移植：
@@ -46,7 +47,8 @@ constexpr int kMaxStepsPerFrame = 5;
 /// LongArray 传输协议（GameCoreBridge.kt nativeLoopFrame 注释同源）：
 /// [0] paused · [1] tickCount · [2..6] tickKind(1=active/0=skipped) ·
 /// [7..11] tickPhases · [12] alpha 位模式 · [13] frameDeltaNs ·
-/// [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs
+/// [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs ·
+/// [17] elapsedGameMs（未截断权威游戏时间轴镜像，结算改造 2026-09-27 B2）
 struct LoopFramePlan {
     /// 暂停/加载分支（本帧已 consumeDeadTime + accumulator 清零）
     bool paused = false;
@@ -66,6 +68,9 @@ struct LoopFramePlan {
     int64_t tickTotal = 0;
     /// 当前旬内累积游戏毫秒（GameTimeClock.accumulatedGameMs 镜像）
     int64_t accumulatedGameMs = 0;
+    /// 未截断权威游戏时间轴（毫秒，INV-2：不受 phaseCap/帧钳制影响；
+    /// 暂停/保存/加载死区不累积。B2 起随帧计划镜像，消费面随 B4 接入）
+    int64_t elapsedGameMs = 0;
 };
 
 /// 游戏时间时钟状态机（GameTimeClock 逐位移植）
@@ -81,10 +86,13 @@ public:
     void start() {
         lastWallMs_ = mono()->nowMs();
         accumulatedGameMs_.store(0, std::memory_order_relaxed);
+        elapsedGameNs_.store(0, std::memory_order_relaxed);
     }
 
     /// 当前旬游戏时间毫秒（单一时速常量；UI 进度显示）
-    int64_t msPerPhase() const { return kMsPerPhase; }
+    int64_t msPerPhase() const {
+        return kGameMsPerPhase;
+    }
 
     /// 当前旬进度 0.0~1.0
     float phaseProgress() const {
@@ -99,9 +107,47 @@ public:
         return std::max<int64_t>(0, msPerPhase() - accumulatedGameMs_.load(std::memory_order_relaxed));
     }
 
-    /// 当旬已累积游戏毫秒（进度监控快照输入，单调增长至追补上限清零）
+    /// 当旬已累积游戏毫秒（进度监控快照输入；awake 帧单调增长）
     int64_t accumulatedGameMs() const {
         return accumulatedGameMs_.load(std::memory_order_relaxed);
+    }
+
+    // ── 未截断权威时间轴（结算改造 2026-09-27 B2，INV-2）──────────────
+    // 内部以纳秒累积（帧差逐次相加无逐帧毫秒截断漂移；墙钟 ms 源下
+    // 帧差遥缴求和 ⇒ 总量与分帧方式无关 = 帧率无关性）。
+
+    /// 未截断权威游戏时间轴（纳秒）。只被 awake（非暂停/非保存/非加载）
+    /// 帧推进；不受 phaseCap 与 500ms 帧钳制影响（INV-2）。
+    int64_t elapsedGameNs() const {
+        return elapsedGameNs_.load(std::memory_order_relaxed);
+    }
+
+    /// 未截断权威游戏时间轴（毫秒，向下取整；帧计划槽 [17] 与存档字段口径）
+    int64_t elapsedGameMs() const { return elapsedGameNs() / 1'000'000; }
+
+    /// 以原始帧差推进权威时间轴（engine_loop::iterate 在钳制**之前**调用。
+    /// 死区（暂停/保存/加载）由调用方跳过本入口）
+    void advanceElapsedNs(int64_t rawDeltaNs) {
+        if (rawDeltaNs > 0) {
+            elapsedGameNs_.fetch_add(rawDeltaNs, std::memory_order_relaxed);
+        }
+    }
+
+    /// 真相轴一次性推进已折算的游戏毫秒（结算改造 2026-09-27 B7 离线注入）。
+    /// 与 [advanceElapsedNs] 的区别：输入**已是游戏毫秒**（离线上限/速率口径
+    /// 由 Kotlin 折算施加，不区分 awake/死区）；旬内累积器
+    /// accumulatedGameMs_ 与墙钟基准 lastWallMs_ 不动——注入的时间已随
+    /// GameCore::injectOfflineGameMs 全额结算完毕，回在线后帧差分从新轴起算。
+    void advanceGameMs(int64_t gameMs) {
+        if (gameMs > 0) {
+            elapsedGameNs_.fetch_add(gameMs * 1'000'000, std::memory_order_relaxed);
+        }
+    }
+
+    /// 判定窗口计数（INV-3）：floor(权威游戏毫秒 / 旬长)。
+    /// 判定次数 = 该整数值的差分，与帧率/分帧方式无关（遥缴）。
+    static int64_t phaseWindowCount(int64_t elapsedGameMsValue) {
+        return elapsedGameMsValue < 0 ? 0 : elapsedGameMsValue / kGameMsPerPhase;
     }
 
     /// 单调时钟当前毫秒（租约/快照基准——与内部累积同一时钟源）
@@ -155,6 +201,7 @@ public:
     void resetForTest() {
         lastWallMs_ = 0;
         accumulatedGameMs_.store(0, std::memory_order_relaxed);
+        elapsedGameNs_.store(0, std::memory_order_relaxed);
     }
 
 private:
@@ -167,6 +214,8 @@ private:
     MonotonicClock* mono_ = nullptr;   // 注入（不持有）
     Logger* logger_ = nullptr;         // 注入（不持有；cap 丢弃告警）
     std::atomic<int64_t> accumulatedGameMs_{0};
+    /// 未截断权威游戏时间轴（纳秒；INV-2——引擎线程 iterate 写，看门狗/UI 镜像读）
+    std::atomic<int64_t> elapsedGameNs_{0};
     int64_t lastWallMs_ = 0;           // 引擎线程独占（Kotlin 同——非 volatile）
 };
 
@@ -209,16 +258,26 @@ public:
         }
         hasLastFrame_ = true;
         lastFrameNs_ = nowNs;
+        const int64_t rawDeltaNs = deltaNs;   // 未钳制帧差（INV-2 权威轴输入）
         deltaNs = std::min(deltaNs, kMaxAccumulatorNs);
         plan.frameDeltaNs = deltaNs;
         plan.idleNs = (lastUserActivityNs_ == 0) ? -1 : (nowNs - lastUserActivityNs_);
 
         if (pausedOrLoading) {
             // 暂停分支（handlePausedIteration）：死区消费 + accumulator 清零
+            // （权威时间轴死区不累积——暂停/加载不产生游戏时间）
             phaseClock_.consumeDeadTime();
             accumulatorNs_ = 0;
             plan.paused = true;
+            plan.elapsedGameMs = phaseClock_.elapsedGameMs();
             return plan;
+        }
+
+        // 权威时间轴：钳制**之前**按原始帧差推进（awake 帧；isSaving 帧的
+        // 时间仍属死区——下方步骤级 consumeDeadTime 语义保留，本帧不推进）。
+        // 500ms 帧钳制只约束逻辑步数，不得截断积分轨（INV-2）。
+        if (!isSaving) {
+            phaseClock_.advanceElapsedNs(rawDeltaNs);
         }
 
         accumulatorNs_ += deltaNs;
@@ -243,6 +302,7 @@ public:
                                                    static_cast<double>(kLogicDtNs)),
                                 0.f, 1.f);
         plan.accumulatedGameMs = phaseClock_.accumulatedGameMs();
+        plan.elapsedGameMs = phaseClock_.elapsedGameMs();
         reportThermalTelemetry();
         return plan;
     }

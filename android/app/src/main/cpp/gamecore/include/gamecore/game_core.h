@@ -18,6 +18,7 @@
 #include "gamecore/state/gameview_encode.h"
 #include "gamecore/system/ai_sect_ops.h"
 #include "gamecore/system/engine_loop.h"
+#include "gamecore/system/month_settlement.h"  // B6 连续月度积分轨（MonthlyAccrualCarry/runMonthEvents）
 #include "gamecore/system/settlement.h"
 #include "gamecore/system/watchdog.h"
 
@@ -116,6 +117,47 @@ public:
     /// （core 模式 = onCoreSettle），返回 kSettleFlag* 边界标志位组合；
     /// 月/年结算由 Kotlin 残留执行器按标志处理。未初始化返回 0。
     int settleOnePhase();
+    /// 连续积分 + 判定窗口一步（结算改造 2026-09-27 B4；灰度旗标
+    /// realtimeAccrual 开启时由 Kotlin 每 tick 调用，单 tick 单事务）：
+    /// ① accrueContinuous（积分项 × Δt，INV-2 未截断）；② 判定窗口 =
+    /// 权威轴整数差（INV-3，cap 防风暴），逐窗推进日历 + 判定轨（0/6/7，
+    /// RNG 契约与离散轨逐位一致）。@return settle 标志位（kSettleFlag*）。
+    int accrue(int64_t deltaGameMs, bool accrualEnabled);
+
+    // ── 积分段遥测（结算改造 2026-09-27 B8，方案 §9 监控盲区）──────────
+    /// 积分段 = accrueContinuous（L1）+ accrueMonthlyContinuous（L3），不含
+    /// 判定窗口循环（判定轨非积分段）。耗时在 [accrue] 内以 steady_clock
+    /// 采样，超预算（D1 债触发判据同源 1ms）时经 TelemetrySink 上报
+    /// `engine_accrual_over_budget`（节流防 tick 级事件风暴）。
+    struct AccrualTelemetry {
+        int64_t lastSegmentUs = 0;    // 最近一次积分段耗时（微秒）
+        int64_t maxSegmentUs = 0;     // 进程内峰值
+        int64_t samples = 0;          // 有效采样数（accrue 实际结算次数）
+        int64_t overBudgetCount = 0;  // 超预算次数（> kAccrualSegmentBudgetUs）
+    };
+
+    /// 积分段遥测只读观测（测试/诊断；引擎线程单写，读面 tolerable 撕裂——
+    /// 全 int64 标量、无指针，最坏读到旧值不读到坏值）
+    const AccrualTelemetry& accrualTelemetry() const { return accrualTelemetry_; }
+
+    /// 积分段耗时预算（微秒）——与方案 §7 D1 债触发判据（积分段 > 1ms
+    /// @5000 弟子）同源同值；桌面 bench 硬门禁（accrual_segment_bench_test）
+    /// 与运行期超预算遥测共用本判据。
+    static constexpr int64_t kAccrualSegmentBudgetUs = 1000;
+
+    /// 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3「离线时段 ∩ 上限
+    /// 注入连续积分轨；日历投影同步跳变」）：冷启动读档后一次性调用。
+    /// 上限/速率口径（12h 全额 + 50% 至 24h 硬顶，§1.4）由 Kotlin 折算施加，
+    /// 本入口收到的已是折算后游戏毫秒（内部再 floor 到旬网格防御）。
+    /// 语义：L1+L3 积分轨按 X 全额结算（INV-2，与分帧 accrue 闭式等价）；
+    /// 三轴（PhaseClock 真相轴 / SettlementEngine 已积分轴 / GameData 旬投影）
+    /// 同步跳变 + 日历投影 set（X 整旬时与逐旬 advancePhase 逐位等价）；
+    /// 判定轨与月/年离散事件 0 次（离线无判定/事件，RNG 零消耗）；
+    /// 月结幂等基准 lastSettleGameMs 推到新轴（防回在线后重复结算）。
+    /// 与 realtimeAccrual 灰度旗标正交（直调积分函数族，不经 accrue 窗口循环）。
+    /// @return 注入后的权威游戏毫秒（Kotlin 镜像同步输入；未初始化/非法输入
+    /// 返回当前轴值，零副作用）。
+    int64_t injectOfflineGameMs(int64_t offlineGameMs);
 
     /// 单月推进（月变真相源切换新增）：直接执行完整月变结算
     /// （runMonthSettlement——八步事务编排 + 十六子事件已下沉面），返回
@@ -300,6 +342,14 @@ private:
     system::EngineLoop loop_;              // 引擎循环（AUTHORITATIVE 真相源）
     system::ProgressMonitor progressMonitor_;  // 看门狗统一判据
     BatteryStatusProvider* batteryProvider_ = nullptr;  // 注入（不持有；访问器暴露）
+    TelemetrySink* telemetrySink_ = nullptr;  // 注入（不持有；setPlatformProviders 存）
+    AccrualTelemetry accrualTelemetry_;    // 积分段遥测（B8；引擎线程单写）
+
+    /// 积分段耗时采样入账 + 超预算遥测（节流：首次必报，其后每
+    /// kAccrualOverBudgetEmitStride 次报一次——防 tick 级事件风暴）
+    void recordAccrualSegmentUs(int64_t segmentUs, int64_t deltaGameMs);
+    /// 超预算遥测节流步长（≈60s @100ms tick 连续超预算）
+    static constexpr int64_t kAccrualOverBudgetEmitStride = 600;
     state::DirtyTracker dirtyTracker_;     // 变更集追踪
 
     /// 把 RNG 分区当前状态回写进 gameData.rngStates（导出/变更集前调用，
@@ -312,6 +362,13 @@ private:
     /// 生成零 RNG（seed+坐标纯函数），调用点位于 resetBaseline 之前 ⇒
     /// 生成段计入导入基线，前向/反向镜像零载荷。
     void ensureTerrainGenerated();
+    /// 双轨时间权威轴回填（结算改造 2026-09-27 B3）：旧档 elapsedGameMs==0
+    /// 且日历非初值 ⇒ 按日历换算回填权威轴（lastSettleGameMs 同刻）；
+    /// 生产槽位 startedAtGameMs==0 且 startYear>0 ⇒ 按 startYear/startMonth
+    /// 回填（completeAtGameMs 按 duration 折算；B5 起该孪生为毫秒判据
+    /// 消费面，启动/卸任/checkpoint 同点维护）。幂等（有值不覆盖）；
+    /// 调用点位于 resetBaseline 之前 ⇒ 回填计入导入基线，镜像零载荷。
+    void ensureBaselineTimeAxis();
     /// initialize(config) 的配置留存（ensureTerrainGenerated 消费地形参数）
     GameCoreConfig config_;
     /// 异构写入锁存（[noteNonSettlementMutation]；导出后消费清零）
@@ -319,6 +376,12 @@ private:
     /// 列级写屏障追踪器（R1.4 能力 + B09 挂载：与 dirtyTracker_ 同点
     /// resetBaseline、同点全量导出清位图）
     state::ColumnDirtyTracker columnTracker_;
+    /// HP/MP 恢复小数进位（B4 连续积分轨，INV-6 小数累积；键 = 弟子数值 id，
+    /// 运行态不入档——导入/读档清零，崩溃丢失 ≤1 tick 的亚 1 点恢复量）
+    system::RecoveryCarry recoveryCarry_;
+    /// 月度积分项连续进位（B6：政策灵石/道德/丹药衰减/灵矿产出——
+    /// 运行态不入档，导入/读档清零；disabledPolicies 累积至月界信封上报）
+    system::MonthlyAccrualCarry monthlyCarry_;
     /// proto eventFeed 待发队列（R2.4：月/年结算信封 + 突破事件入流；
     /// proto 传输开启时入队、exportDirtyProto 编码成功后清空——导出即消费；
     /// JSON 回滚臂不入队（信封 JSON 面零变更红线））

@@ -138,16 +138,10 @@ internal suspend fun GameEngineCore.authoritativeLoopIteration(): LoopIterationS
 
         // 固定步长执行（native 已完成累积/步进/时间消费；tick 计数镜像回推）
         publishNativeTickTotal(plan.tickTotal)
-        for (step in 0 until plan.tickCount) {
-            if (plan.tickKind[step] == 0) {
-                // isSaving 跳过 tick（skipTickIfNeeded 语义；死区已在 native 消费）
-                checkAndResetStuckStates(
-                    isSaving = stateStore.isSaving.value,
-                    isLoading = stateStore.isLoading.value
-                )
-                continue
-            }
-            tickAuthoritativeStep(plan.tickPhases[step])
+        if (NativeEngineFlag.realtimeAccrual) {
+            runAccrualArm(plan)
+        } else {
+            runDiscreteArm(plan)
         }
 
         // 插值因子（JitterSmoother 一阶滤波留渲染侧）+ 时钟镜像推送

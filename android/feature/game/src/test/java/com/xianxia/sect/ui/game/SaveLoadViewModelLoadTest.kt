@@ -154,6 +154,9 @@ class SaveLoadViewModelLoadTest {
             GameData(sectName = "青云宗", saveVersion = 2)
         )
 
+        // 单测不启动节拍循环：主线显式启动案下循环由 MainGameScreen
+        // LaunchedEffect 调 startRealtimeAutoSaveTicker 启动，构造不自启，
+        // 本类无需任何开关（§2.6 开关方案已随并网退役）
         viewModel = SaveLoadViewModel(
             gameEngine = gameEngine,
             gameEngineCore = gameEngineCore,

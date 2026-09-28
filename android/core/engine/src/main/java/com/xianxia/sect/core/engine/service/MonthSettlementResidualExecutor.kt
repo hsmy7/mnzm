@@ -15,10 +15,9 @@ import com.xianxia.sect.core.engine.annotation.GameService
  * JSON 解析）；执行器源零 JSON 解析由静态守卫固化（ResidualExecutorPurityGuardTest）。
  *
  * 与旬结算残留执行器同模式：
- * C++ 侧 `runMonthSettlement` 执行八步编排中已下沉面（政策扣除/月效/AI 预计算/
- * 炼丹锻造完成结算+自动排班/任务完成/灵田/生育/关卡/
- * 伴侣/血炼/排班/月衰减 + 十四子事件已下沉 12 件），本执行器承接未下沉
- * 扇出（相对序保持原 Kotlin 月变编排）：
+ * C++ 侧 `runMonthSettlement` 执行八步编排全量已下沉面（政策扣除/月效/AI 预计算/
+ * 四系统扇出（炼丹锻造完成结算/灵田/探索关卡）/排班/月衰减 + 15 项子事件全部入
+ * C++），本执行器承接纯平台效应扇出（相对序保持原 Kotlin 月变编排）：
  * （子事件 5 任务完成、子事件 6 洞天 AI、子事件 9 AI 兽战余量均在 C++ 侧执行——
  *   AI 独立 RNG 突破/补全与兽战组装入 C++，
  *   热控批量上界为平台效应经 nativeSetAiThermalBatchSize 推送）

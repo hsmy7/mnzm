@@ -717,4 +717,118 @@ TEST(ProductionSchedulingTest, StartTransactionNativeSuccessRate) {
     EXPECT_DOUBLE_EQ(st.gameData.productionSlots[0].successRate, 0.12);
 }
 
+// ── B5：槽位毫秒孪生判据（startedAt/completeAt + 权威轴差分） ─────────
+
+TEST(ProductionMsTwinTest, StartSlotWorkingWritesMsTwins) {
+    // 启动双写：startedAt = 开工月初 phase=0；completeAt = startedAt + 时长 × 6000
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s = idleAlchemySlot("cultivationSpeed_1_low", "1");
+    st.gameData.productionSlots.push_back(s);
+    addHerb(st, "spiritGrass1", 10);
+    addHerb(st, "spiritFlower1", 10);
+
+    st.gameData.gameYear = 3;
+    st.gameData.gameMonth = 5;
+    const auto r = production::startProductionTransaction(
+        st, "alchemy", 0, "cultivationSpeed_1_low", 1.0, 0.0, true);
+    ASSERT_TRUE(r.ok);
+    const auto& slot = st.gameData.productionSlots[0];
+    const int64_t startedAt = gamecore::system::calendarToGameMs(3, 5, 0);
+    EXPECT_EQ(slot.startedAtGameMs, startedAt);
+    EXPECT_EQ(slot.completeAtGameMs,
+              startedAt + static_cast<int64_t>(slot.duration) *
+                              gamecore::system::kGameMsPerMonth);
+}
+
+TEST(ProductionMsTwinTest, MsJudgementDueAtMonthBoundary) {
+    // 月界收割等价：elapsedGameMs 跨过 completeAt（startedAt + duration×6000）
+    // ⇒ 毫秒判据完成；与旧整数判据（elapsed_months >= duration）同刻
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s = workingAlchemySlot(0, "cultivationSpeed_1_low", 1.0, "1");
+    // start (1,1) duration 1 → completeAt = (1,2) 月初
+    s.startedAtGameMs = gamecore::system::calendarToGameMs(1, 1, 0);
+    s.completeAtGameMs = s.startedAtGameMs + 1 * gamecore::system::kGameMsPerMonth;
+    st.gameData.productionSlots.push_back(s);
+
+    st.gameData.gameMonth = 2;  // 日历拨到 (1,2)
+    st.gameData.elapsedGameMs = gamecore::system::calendarToGameMs(1, 2, 0);
+    production::processBuildingProductionStep(st, core->rng());
+    EXPECT_EQ(st.gameData.productionSlots[0].status, "IDLE");
+    EXPECT_EQ(st.gameData.annualAlchemyCount, 1);
+}
+
+TEST(ProductionMsTwinTest, MsJudgementNotDueWithinMonth) {
+    // 毫秒精度：同月内 elapsedGameMs 未到 completeAt ⇒ 不结算
+    //（旧整数判据同刻也不到期——month 未推进；本例锚中旬半程）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s = workingAlchemySlot(0, "cultivationSpeed_1_low", 1.0, "1");
+    s.startMonth = 2;  // start (1,2) duration 1 → completeAt = (1,3) 月初
+    s.startedAtGameMs = gamecore::system::calendarToGameMs(1, 2, 0);
+    s.completeAtGameMs = s.startedAtGameMs + 1 * gamecore::system::kGameMsPerMonth;
+    st.gameData.productionSlots.push_back(s);
+
+    st.gameData.gameMonth = 2;
+    st.gameData.gamePhase = 1;  // (1,2) 中旬
+    st.gameData.elapsedGameMs = gamecore::system::calendarToGameMs(1, 2, 1);
+    production::processBuildingProductionStep(st, core->rng());
+    EXPECT_EQ(st.gameData.productionSlots[0].status, "WORKING");
+    EXPECT_TRUE(st.pills.empty());
+}
+
+TEST(ProductionMsTwinTest, ZeroTwinFallsBackToCalendarJudgement) {
+    // 孪生零值（测试直构/异常档）⇒ 回退年月整数判据，既有行为零变化
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s = workingAlchemySlot(0, "cultivationSpeed_1_low", 1.0, "1");
+    EXPECT_EQ(s.startedAtGameMs, 0);  // helper 未设孪生
+    st.gameData.productionSlots.push_back(s);
+
+    st.gameData.gameMonth = 2;  // (1,2)：整数判据 elapsed=1 >= duration=1 → 到期
+    st.gameData.elapsedGameMs = 0;
+    production::processBuildingProductionStep(st, core->rng());
+    EXPECT_EQ(st.gameData.productionSlots[0].status, "IDLE");
+}
+
+TEST(ProductionMsTwinTest, MsJudgementOverridesStaleCalendarFields) {
+    // 毫秒判据优先于陈旧日历字段：日历已拨过界但权威轴未到 completeAt
+    // ⇒ 以权威轴为准不结算（INV-1：日历是投影不是推进源）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s = workingAlchemySlot(0, "cultivationSpeed_1_low", 1.0, "1");
+    // 槽位整数面已"到期"（start (1,1) duration 1），但开工孪生把真实锚点
+    // 定在 (1,5)——模拟 checkpoint 前移/后移场景
+    s.startMonth = 5;
+    s.startedAtGameMs = gamecore::system::calendarToGameMs(1, 5, 0);
+    s.completeAtGameMs = s.startedAtGameMs + 1 * gamecore::system::kGameMsPerMonth;
+    st.gameData.productionSlots.push_back(s);
+
+    st.gameData.gameMonth = 6;  // 整数面：elapsed=1 >= 1 → "到期"
+    st.gameData.elapsedGameMs = gamecore::system::calendarToGameMs(1, 6, 0);
+    EXPECT_GE(st.gameData.elapsedGameMs, s.completeAtGameMs);
+    production::processBuildingProductionStep(st, core->rng());
+    EXPECT_EQ(st.gameData.productionSlots[0].status, "IDLE");
+
+    // 反向：日历未到但权威轴已跨 completeAt ⇒ 毫秒判据完成（月内精度补齐）
+    auto core2 = makeCore(42);
+    auto& st2 = core2->state();
+    st2.disciples.appendDisciple(baseDisciple("1"));
+    ProductionSlot s2 = workingAlchemySlot(0, "cultivationSpeed_1_low", 1.0, "1");
+    s2.startedAtGameMs = gamecore::system::calendarToGameMs(1, 1, 0);
+    s2.completeAtGameMs = s2.startedAtGameMs + 1 * gamecore::system::kGameMsPerMonth;
+    st2.gameData.productionSlots.push_back(s2);
+    // 权威轴已跨 completeAt，但日历字段仍停在 (1,1)（旧整数判据 elapsed=0
+    // 不到期）——判据分歧时以权威轴为准（INV-1）
+    st2.gameData.elapsedGameMs = s2.completeAtGameMs + 1000;
+    production::processBuildingProductionStep(st2, core2->rng());
+    EXPECT_EQ(st2.gameData.productionSlots[0].status, "IDLE");
+}
+
 }  // namespace

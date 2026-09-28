@@ -132,6 +132,11 @@ internal object GameDataFieldPatch {
         f("gameYear", { gd, el, j -> gd.gameYear = j.decodeFromJsonElement<Int>(el) }),
         f("gameMonth", { gd, el, j -> gd.gameMonth = j.decodeFromJsonElement<Int>(el) }),
         f("gamePhase", { gd, el, j -> gd.gamePhase = j.decodeFromJsonElement<Int>(el) }),
+        f("elapsedGameMs", { gd, el, j -> gd.elapsedGameMs = j.decodeFromJsonElement<Long>(el) }),
+        f("lastSettleGameMs", { gd, el, j -> gd.lastSettleGameMs = j.decodeFromJsonElement<Long>(el) }),
+        f("spiritMineLastSettledGameMs", { gd, el, j ->
+            gd.spiritMineLastSettledGameMs = j.decodeFromJsonElement<Long>(el)
+        }),
         f("spiritStones", { gd, el, j -> gd.spiritStones = j.decodeFromJsonElement<Long>(el) }),
         f("midGradeSpiritStones", { gd, el, j -> gd.midGradeSpiritStones = j.decodeFromJsonElement<Long>(el) }),
         f("highGradeSpiritStones", { gd, el, j -> gd.highGradeSpiritStones = j.decodeFromJsonElement<Long>(el) }),
@@ -281,9 +286,7 @@ internal object GameDataFieldPatch {
             gd.aiSectPersonalities = j.decodeFromJsonElement<Map<String, AISectPersonality>>(el)
         }),
         f("suzerainSectId", { gd, el, j -> gd.suzerainSectId = j.decodeFromJsonElement<String>(el) }),
-        f("lastYearSpiritStoneIncome", { gd, el, j ->
-            gd.lastYearSpiritStoneIncome = j.decodeFromJsonElement<Long>(el)
-        }),
+        // lastYearSpiritStoneIncome 已退役（缺陷 #3）：C++ 导出不再含该键，字段保留仅存档 schema 稳定
         f("activeAttackWarnings", { gd, el, j ->
             gd.activeAttackWarnings = j.decodeFromJsonElement<List<AttackWarning>>(el)
         }),

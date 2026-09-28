@@ -14,6 +14,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.OfflineReturnReport
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.enterSect
 import com.xianxia.sect.core.engine.notifyUserInteraction
@@ -28,6 +29,7 @@ import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.AlchemySlotStatus
 import com.xianxia.sect.core.model.Alliance
@@ -206,6 +208,36 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, SpiritStoneTotals(0, 0, 0))
 
+    /**
+     * 宗门时间读数（主界面 HUD 时间行窄流数据；B8）。
+     *
+     * R2.3 第二波逐块迁移·块①「资源头部」：年/月/旬由 [GameEngine.resourcesHeader]
+     * 投影流窄化（spiritStoneTotals 同族先例），替代 MainGameScreen 对整份
+     * gameData 快照的时间字段直读。日历年/月/旬保留为镜像投影显示（INV-1，
+     * 方案「旬概念保留不删」口径），进度类读数走 [monthProgressFraction]。
+     */
+    val sectClock: StateFlow<SectClockView> = gameEngine.resourcesHeader
+        .map { SectClockView(it.gameYear, it.gameMonth, it.gamePhase) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, SectClockView(1, 1, 0))
+
+    /**
+     * 月内时间进度 [0,1]（B8；方案 §10 B8「旬进度→时间进度」）。
+     *
+     * 日历旬序（块①投影）+ 旬内连续进度（native 帧计划每帧推送的
+     * [GameEngine.phaseProgressFlow]，INV-2 轴旬内分量）按
+     * [TimeProgressUtil.monthProgressFraction] 合成——替代旧 `gamePhase/3f`
+     * 三档量化。§6.5：进度类数据纯订阅派生（combine+stateIn），UI 不驱动
+     * tick。合成瞬时值可在月界切换帧短暂配对旧旬内进度（≤1 帧自愈，
+     * 追赶动画 snap-down 语义覆盖），进度条终值与收获时点不受影响。
+     */
+    val monthProgressFraction: StateFlow<Float> = combine(
+        gameEngine.resourcesHeader.map { it.gamePhase }.distinctUntilChanged(),
+        gameEngine.phaseProgressFlow
+    ) { gamePhase, phaseProgress ->
+        TimeProgressUtil.monthProgressFraction(gamePhase, phaseProgress)
+    }.stateIn(viewModelScope, sharingStarted, 0f)
+
     companion object {
         private const val TAG = "GameViewModel"
     }
@@ -216,6 +248,14 @@ class GameViewModel @Inject constructor(
         val low: Long,
         val mid: Long,
         val high: Long
+    )
+
+    /** 宗门时间读数（年/月/旬），主界面 HUD 时间行窄流数据（B8） */
+    @Immutable
+    data class SectClockView(
+        val year: Int,
+        val month: Int,
+        val phase: Int
     )
 
     // ── Dialog 状态管理 ──
@@ -242,6 +282,18 @@ class GameViewModel @Inject constructor(
                 remainingMs = GameConfig.Jade.INTERVAL_MS, capped = false
             )
         )
+
+    /**
+     * 离线回归报告（结算改造 2026-09-27 B7）：读档注入落地后发布一次，
+     * 主界面弹「云游归来」提示；展示后 [acknowledgeOfflineReturnReport] 清空。
+     */
+    val offlineReturnReport: StateFlow<OfflineReturnReport?> =
+        gameEngine.offlineReturnReport
+
+    /** UI 展示完离线回归面板后确认（清报告，防重复弹出） */
+    fun acknowledgeOfflineReturnReport() {
+        gameEngine.acknowledgeOfflineReturnReport()
+    }
 
     fun navigateToDialog(type: DialogType) {
         if (type is DialogType.None) return

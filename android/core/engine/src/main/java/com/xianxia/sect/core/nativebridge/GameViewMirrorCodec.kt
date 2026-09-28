@@ -437,10 +437,6 @@ internal object GameViewMirrorCodec {
             "cultivationCompletionMonth", { it.hasCultivationCompletionMonth() },
             { it.cultivationCompletionMonth },
         ),
-        i32(
-            "cultivationCompletionPhase", { it.hasCultivationCompletionPhase() },
-            { it.cultivationCompletionPhase },
-        ),
         i32("manualCompletionMonth", { it.hasManualCompletionMonth() }, { it.manualCompletionMonth }),
         i32("manualCompletionPhase", { it.hasManualCompletionPhase() }, { it.manualCompletionPhase }),
         i32(

@@ -26,7 +26,7 @@ constexpr double kLibraryProficiencyBonusRate = 0.5;
 constexpr int32_t kMaxProficiency = 30000;
 
 /// 每旬装备孕养经验（EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE =
-/// 5.0 × MS_PER_PHASE_1X / 1000 = 10.0）
+/// 5.0 × kGameMsPerPhase / 1000 = 10.0）
 constexpr double kNurtureGainPerPhase = 10.0;
 
 namespace detail {

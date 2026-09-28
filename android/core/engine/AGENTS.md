@@ -18,9 +18,7 @@ UI / Compose 只能用 Kotlin。语言选择判定表、边界规则与审查清
 
 ## 结算层级
 
-新逻辑必须落既有四层（L0 时间推进 / L1 每旬检查 / L2 惰性生产 / L3 月变 / L4 年变），
-**禁止另起结算循环或新线程 tick**。生产系统同步点（政策/长老/速率因子/丹药）见 `rules/pr-review-checklist.md`；
-新增玩法系统的完整接入清单见 `rules/expansion-playbook.md`。
+新逻辑必须落既有四层（**L0 时间推进**——权威轴 `elapsedGameMs` 未截断 + 日历投影 / **L1 连续积分 + 判定窗口**——连续产出走 `accrueContinuous`/`accrueMonthlyContinuous` 积分函数族，离散判定按旬窗口整数差、`phaseCap` 只限判定执行 / **L2 惰性差分**——完成时间戳毫秒差分 / **L3+L4 月年边界事件派发**——判定/叙事事件，积分型已析出至 L1），**禁止另起结算循环或新线程 tick**；现实时长换算一律走 `GameConfig.Time` 常量栈（C++ 同源 `time_units.h`）；离线收益走读档注入（`GameEngineCoreOfflineOps`，`rules/economy-design.md` §4）。生产同步点与新玩法接入清单见 `rules/pr-review-checklist.md`、`rules/expansion-playbook.md`。
 
 ## 确定性 RNG
 

@@ -39,8 +39,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     IntTableRef(discipleSpiritStones, DiscipleTables::discipleSpiritStones, "discipleSpiritStones"),
     IntTableRef(cultivationCompletionMonths, DiscipleTables::cultivationCompletionMonths,
         "cultivationCompletionMonths"),
-    IntTableRef(cultivationCompletionPhases, DiscipleTables::cultivationCompletionPhases,
-        "cultivationCompletionPhases"),
     IntTableRef(manualCompletionMonths, DiscipleTables::manualCompletionMonths, "manualCompletionMonths"),
     IntTableRef(manualCompletionPhases, DiscipleTables::manualCompletionPhases, "manualCompletionPhases"),
     IntTableRef(equipmentNurturingCompletionMonths, DiscipleTables::equipmentNurturingCompletionMonths,

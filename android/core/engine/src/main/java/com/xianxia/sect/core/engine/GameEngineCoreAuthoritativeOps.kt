@@ -42,8 +42,10 @@ private const val TAG = "GameEngineCore"
  *    ——C++ 每旬突破判定不再经 Kotlin 处理器，埋点由镜像差分重建
  * ③ 月/年边界：完整编排（年变先于月变）
  *
- * 时钟语义：墙钟消费/速度/暂停/refundPhases 仍由 Kotlin GameTimeClock 独占
- * （C++ 侧不维护 speed/pause/refund 状态机，避免双语言两套状态机漂移）。
+ * 时钟语义：AUTHORITATIVE 下速度/暂停/refundPhases 状态机在 C++ PhaseClock
+ * （engine_loop.h；nativeCoreLoopSetSpeed/ConsumeDeadTime/RefundPhases 通道），
+ * Kotlin GameTimeClock 降级为 UI 镜像（B2 真相源切换后口径；本 KDoc 原记载的
+ * "Kotlin 独占"已过期——结算改造方案 §9.1 尾注过期记录回改，B9）。
  *
  * 失败语义：native 链路任何失败 → refundPhases 后重抛（与
  * GameEngineCore.processTickPhases 相同的看门狗处理路径），下个 tick 由
@@ -218,6 +220,11 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             }
             DomainLog.i(TAG, "AUTHORITATIVE native 引擎已初始化（seed=${stateStore.gameData.value.mapSeed}）")
         }
+        // B7 离线收益消费点：所有成功路径统一出口（初始化首帧 / 逐旬快路径）。
+        // 引擎线程串行保证；时序位于 importToNative 与 nativeLoopStart 之后
+        //（消费内部依赖此序——注入不被导入覆盖、不被 start() 清轴）；
+        // 消费即清零，幂等。
+        consumePendingOfflineProgress()
         true
     } catch (e: CancellationException) {
         throw e

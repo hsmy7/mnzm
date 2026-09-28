@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.BuildingTypeAsStringSerializer
 import com.xianxia.sect.core.model.NullableStringAsEmptySerializer
 import com.xianxia.sect.core.model.ProductionSlotStatusAsStringSerializer
@@ -101,26 +102,102 @@ data class ProductionSlot(
      */
     @ProtoNumber(21)
     @ColumnInfo(defaultValue = "")
-    val buildingInstanceId: String = ""
+    val buildingInstanceId: String = "",
+
+    /**
+     * 开工绝对游戏毫秒（结算改造 2026-09-27 B5 连续时长模型；方案 §2.3/§4.1）。
+     * 写入点四处同步：SlotStateMachine.startProduction / BuildingServiceSlotOps /
+     * Processor 启动段（均取月初 phase=0）+ 读档归一化回填（startYear/startMonth
+     * 月初换算）。>0 时完成判定走毫秒判据（[isFinishedMs]），零值回退年月整数。
+     */
+    @ProtoNumber(23)
+    @ColumnInfo(defaultValue = "0")
+    val startedAtGameMs: Long = 0,
+
+    /**
+     * 预期完工绝对游戏毫秒（毫秒精度替代 completionMonth/completionPhase
+     * 月+旬双编码；与 [startedAtGameMs] 同点维护，= startedAt + 时长 × 月长）。
+     */
+    @ProtoNumber(25)
+    @ColumnInfo(defaultValue = "0")
+    val completeAtGameMs: Long = 0
 ) {
     val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
     val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING
     val isCompleted: Boolean get() = status == ProductionSlotStatus.COMPLETED
     val slotType: SlotType get() = buildingType.toSlotType()
 
+    /** 旧年月整数判据（B5 起槽位判据以 *Ms 孪生为准；本组退役入债表 D2，勿新增消费点） */
+    @Deprecated(
+        message = "用 remainingTimeMs(nowGameMs)——毫秒孪生判据（结算改造 B5）",
+        replaceWith = ReplaceWith("remainingTimeMs(gameData.elapsedGameMs)")
+    )
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != ProductionSlotStatus.WORKING) return 0
         return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
+    @Deprecated(
+        message = "用 getProgressFractionMs(nowGameMs)——毫秒孪生判据（结算改造 B5）",
+        replaceWith = ReplaceWith("getProgressFractionMs(gameData.elapsedGameMs)")
+    )
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (status != ProductionSlotStatus.WORKING || duration <= 0) return 0
         return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
+    @Deprecated(
+        message = "用 isFinishedMs(nowGameMs)——毫秒孪生判据（结算改造 B5）",
+        replaceWith = ReplaceWith("isFinishedMs(gameData.elapsedGameMs)")
+    )
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != ProductionSlotStatus.WORKING) return status == ProductionSlotStatus.COMPLETED
         return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
+    }
+
+    /**
+     * 剩余时长（游戏毫秒；结算改造 2026-09-27 B5 毫秒孪生判据，方案 §3.4.4）。
+     * completeAt 孪生有值（槽位启动/checkpoint/卸任归一/读档回填四处同步维护）
+     * ⇒ 毫秒判据；零值（测试直构/异常档）⇒ 回退旧年月整数 × 月长折算。
+     * [nowGameMs] 取权威轴 GameData.elapsedGameMs 镜像。
+     */
+    fun remainingTimeMs(nowGameMs: Long): Long {
+        if (status != ProductionSlotStatus.WORKING) return 0L
+        if (completeAtGameMs > 0L) {
+            return TimeProgressUtil.calculateRemainingGameMs(completeAtGameMs, nowGameMs)
+        }
+        val remainingMonths = TimeProgressUtil.calculateRemainingMonths(
+            startYear, startMonth, duration,
+            GameConfig.Time.projectCalendar(nowGameMs).year,
+            GameConfig.Time.projectCalendar(nowGameMs).month
+        )
+        return remainingMonths * GameConfig.Time.GAME_MS_PER_MONTH
+    }
+
+    /** 进度比例 [0,1]（毫秒孪生口径；语义同 [getProgressPercent] 的连续版） */
+    fun getProgressFractionMs(nowGameMs: Long): Float {
+        if (status != ProductionSlotStatus.WORKING || duration <= 0) return 0f
+        if (completeAtGameMs > 0L) {
+            return TimeProgressUtil.calculateProgressFractionByGameMs(
+                startedAtGameMs, completeAtGameMs, nowGameMs)
+        }
+        val calendar = GameConfig.Time.projectCalendar(nowGameMs)
+        return TimeProgressUtil.calculateProgressFraction(
+            startYear, startMonth, duration, calendar.year, calendar.month)
+    }
+
+    /**
+     * 完成判定（毫秒孪生口径；与 C++ isSlotCompleteDynamic 毫秒臂同式——
+     * 回退臂同刻等价：startedAt 取月初、判定窗口对齐 2000ms 网格）。
+     */
+    fun isFinishedMs(nowGameMs: Long): Boolean {
+        if (status != ProductionSlotStatus.WORKING) return status == ProductionSlotStatus.COMPLETED
+        if (completeAtGameMs > 0L) {
+            return TimeProgressUtil.isElapsedByGameMs(completeAtGameMs, nowGameMs)
+        }
+        val calendar = GameConfig.Time.projectCalendar(nowGameMs)
+        return TimeProgressUtil.isTimeElapsed(
+            startYear, startMonth, duration, calendar.year, calendar.month)
     }
 
     companion object {

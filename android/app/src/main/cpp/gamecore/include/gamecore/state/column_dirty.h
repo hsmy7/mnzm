@@ -100,7 +100,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::CultivationSpeedDuration: return "cultivationSpeedDuration";
         case DiscipleColumn::DiscipleType: return "discipleType";
         case DiscipleColumn::CultivationCompletionMonth: return "cultivationCompletionMonth";
-        case DiscipleColumn::CultivationCompletionPhase: return "cultivationCompletionPhase";
         case DiscipleColumn::ManualCompletionMonth: return "manualCompletionMonth";
         case DiscipleColumn::ManualCompletionPhase: return "manualCompletionPhase";
         case DiscipleColumn::EquipmentNurturingCompletionMonth: return "equipmentNurturingCompletionMonth";
@@ -214,9 +213,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::DiscipleType: row["discipleType"] = ds.discipleTypes[r]; break;
         case DiscipleColumn::CultivationCompletionMonth:
             row["cultivationCompletionMonth"] = ds.cultivationCompletionMonths[r];
-            break;
-        case DiscipleColumn::CultivationCompletionPhase:
-            row["cultivationCompletionPhase"] = ds.cultivationCompletionPhases[r];
             break;
         case DiscipleColumn::ManualCompletionMonth:
             row["manualCompletionMonth"] = ds.manualCompletionMonths[r];

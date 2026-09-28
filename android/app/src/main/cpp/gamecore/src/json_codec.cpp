@@ -246,7 +246,7 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, status); GC_TO(v, j, statusData);
     GC_TO(v, j, cultivationSpeedBonus); GC_TO(v, j, cultivationSpeedDuration);
     GC_TO(v, j, discipleType);
-    GC_TO(v, j, cultivationCompletionMonth); GC_TO(v, j, cultivationCompletionPhase);
+    GC_TO(v, j, cultivationCompletionMonth);   // cultivationCompletionPhase 已退役（#10 死值 1，旧档键宽松忽略）
     GC_TO(v, j, manualCompletionMonth); GC_TO(v, j, manualCompletionPhase);
     GC_TO(v, j, equipmentNurturingCompletionMonth);
     GC_TO(v, j, equipmentNurturingCompletionPhase);
@@ -303,7 +303,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, status); GC_FROM(j, v, statusData);
     GC_FROM(j, v, cultivationSpeedBonus); GC_FROM(j, v, cultivationSpeedDuration);
     GC_FROM(j, v, discipleType);
-    GC_FROM(j, v, cultivationCompletionMonth); GC_FROM(j, v, cultivationCompletionPhase);
+    GC_FROM(j, v, cultivationCompletionMonth);   // cultivationCompletionPhase 已退役（#10）
     GC_FROM(j, v, manualCompletionMonth); GC_FROM(j, v, manualCompletionPhase);
     GC_FROM(j, v, equipmentNurturingCompletionMonth);
     GC_FROM(j, v, equipmentNurturingCompletionPhase);
@@ -431,6 +431,7 @@ void to_json(nlohmann::json& j, const ProductionSlot& v) {
     GC_TO(v, j, outputItemRarity); GC_TO(v, j, outputItemSlot);
     GC_TO(v, j, expectedYield); GC_TO(v, j, autoRestartEnabled);
     GC_TO(v, j, completionMonth); GC_TO(v, j, completionPhase);
+    GC_TO(v, j, startedAtGameMs); GC_TO(v, j, completeAtGameMs);
 }
 void from_json(const nlohmann::json& j, ProductionSlot& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, slotIndex);
@@ -444,6 +445,8 @@ void from_json(const nlohmann::json& j, ProductionSlot& v) {
     GC_FROM(j, v, outputItemRarity); GC_FROM(j, v, outputItemSlot);
     GC_FROM(j, v, expectedYield); GC_FROM(j, v, autoRestartEnabled);
     GC_FROM(j, v, completionMonth); GC_FROM(j, v, completionPhase);
+    // 连续时长模型（B3；缺键宽松=旧档默认 0，读档归一化按旧字段换算）
+    GC_FROM(j, v, startedAtGameMs); GC_FROM(j, v, completeAtGameMs);
 }
 
 void to_json(nlohmann::json& j, const GridBuildingData& v) {
@@ -1170,6 +1173,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, sectName); GC_TO(v, j, currentSlot);
     GC_TO(v, j, gameYear); GC_TO(v, j, gameMonth); GC_TO(v, j, gamePhase);
+    // 双轨时间权威轴（B3；导出键 = Kotlin 字段名）
+    GC_TO(v, j, elapsedGameMs); GC_TO(v, j, lastSettleGameMs);
+    GC_TO(v, j, spiritMineLastSettledGameMs);
     GC_TO(v, j, spiritStones); GC_TO(v, j, midGradeSpiritStones);
     GC_TO(v, j, highGradeSpiritStones); GC_TO(v, j, spiritHerbs);
     GC_TO(v, j, sectCultivation);
@@ -1207,7 +1213,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     // 远古秘境状态机
     GC_TO(v, j, secretRealmState); GC_TO(v, j, secretRealmSession);
     GC_TO(v, j, secretRealmAITeams);
-    GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
+    GC_TO(v, j, suzerainSectId);   // lastYearSpiritStoneIncome 已退役（缺陷 #3，旧档键宽松忽略）
     GC_TO(v, j, mapSeed);
     // 地图冻结（WS-5b）：非空/非零才导出键——与 Kotlin encodeDefaults=false
     // 的缺省语义对称（0 版本/空段 = 旧档无段，镜像空表不覆盖，aiSectDisciples 先例）
@@ -1261,6 +1267,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
     GC_FROM(j, v, gameYear); GC_FROM(j, v, gameMonth); GC_FROM(j, v, gamePhase);
+    // 双轨时间权威轴（B3；缺键宽松=旧档默认 0，读档归一化按日历回填）
+    GC_FROM(j, v, elapsedGameMs); GC_FROM(j, v, lastSettleGameMs);
+    GC_FROM(j, v, spiritMineLastSettledGameMs);
     GC_FROM(j, v, spiritStones); GC_FROM(j, v, midGradeSpiritStones);
     GC_FROM(j, v, highGradeSpiritStones); GC_FROM(j, v, spiritHerbs);
     GC_FROM(j, v, sectCultivation);
@@ -1298,7 +1307,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     // 远古秘境状态机
     GC_FROM(j, v, secretRealmState); GC_FROM(j, v, secretRealmSession);
     GC_FROM(j, v, secretRealmAITeams);
-    GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
+    GC_FROM(j, v, suzerainSectId);   // lastYearSpiritStoneIncome 已退役（缺陷 #3，旧档键宽松忽略）
     GC_FROM(j, v, mapSeed);
     // 地图冻结（WS-5b）：宽松导入（旧快照无键 → 保持默认空段/0 版本）
     GC_FROM(j, v, mapGenVersion);

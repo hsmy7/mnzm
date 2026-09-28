@@ -72,7 +72,7 @@ assertEquals("sect_master", service.getSuzerainSectId())
         stateStore.update {
             gameData = gameData.copy(
                 suzerainSectId = "",
-                lastYearSpiritStoneIncome = 10_000L,
+                annualTotalIncome = 10_000L,
                 spiritStones = 50_000L
             )
         }
@@ -87,7 +87,7 @@ assertEquals(50_000L, stateStore.gameData.value.spiritStones)
         stateStore.update {
             gameData = gameData.copy(
                 suzerainSectId = "sect_master",
-                lastYearSpiritStoneIncome = 10_000L,
+                annualTotalIncome = 10_000L,
                 spiritStones = 50_000L
             )
         }
@@ -103,7 +103,7 @@ val expectedTribute = (10_000L * 0.5).toLong()
         stateStore.update {
             gameData = gameData.copy(
                 suzerainSectId = "sect_master",
-                lastYearSpiritStoneIncome = 0L,
+                annualTotalIncome = 0L,
                 spiritStones = 50_000L
             )
         }
@@ -118,7 +118,7 @@ assertEquals(50_000L, stateStore.gameData.value.spiritStones)
         stateStore.update {
             gameData = gameData.copy(
                 suzerainSectId = "sect_master",
-                lastYearSpiritStoneIncome = 1L,
+                annualTotalIncome = 1L,
                 spiritStones = 10L
             )
         }

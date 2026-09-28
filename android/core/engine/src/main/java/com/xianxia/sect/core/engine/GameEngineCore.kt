@@ -179,6 +179,37 @@ class GameEngineCore @Inject constructor(
     internal var nativeLoopPipelineActive: Boolean = false
 
     /**
+     * 连续臂（结算改造 B4）已积分到的权威轴毫秒——帧计划 elapsedGameMs 的
+     * 差分基准（每帧 nativeAccrue 消费差分后同步更新；负差分（时钟重锚）
+     * 钳 0 不倒积分）。
+     */
+    @Volatile
+    internal var accruedElapsedGameMs: Long = 0L
+
+    /**
+     * B7 离线收益：待注入游戏毫秒（结算改造 2026-09-27 §10 B7）。
+     * boot staging（BootSequenceController，引擎线程）折算写入 → 引擎线程
+     * [ensureAuthoritativeNative] 尾部消费（消费即清零，天然幂等——native
+     * 初始化重试不重复注入）。0 = 无待注入。
+     */
+    @Volatile
+    internal var pendingOfflineGameMs: Long = 0L
+
+    /**
+     * B7 离线收益：staging 计量的现实离线时长毫秒（UI 报告展示输入；
+     * 与 [pendingOfflineGameMs] 同点写/同点清）。
+     */
+    @Volatile
+    internal var pendingOfflineWallMs: Long = 0L
+
+    /** B7 离线回归报告后备（引擎线程发布 → UI 收集展示，展示后 ack 清空） */
+    internal val offlineReturnReportMutable = MutableStateFlow<OfflineReturnReport?>(null)
+
+    /** 离线回归报告流（[OfflineReturnReport] 仅含展示面，不含注入数值） */
+    val offlineReturnReport: StateFlow<OfflineReturnReport?> =
+        offlineReturnReportMutable.asStateFlow()
+
+    /**
      * 任务完成检测回调，由 GameEngine 在构造后注入。
      * 每月结算时被调用，确保空闲期间任务完成也能被及时检测。
      */

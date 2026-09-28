@@ -539,7 +539,7 @@ extern "C" JNIEXPORT jlongArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopFrame(
     JNIEnv* env, jobject /*thiz*/,
     jboolean pausedOrLoading, jboolean isSaving) {
-    constexpr int kLen = 17;
+    constexpr int kLen = 18;
     jlong buf[kLen] = {0};
     if (g_core) {
         const auto plan = g_core->loop().iterate(
@@ -556,6 +556,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopFrame(
         buf[14] = plan.idleNs;
         buf[15] = plan.tickTotal;
         buf[16] = plan.accumulatedGameMs;
+        buf[17] = plan.elapsedGameMs;   // B2：未截断权威游戏时间轴（INV-2）
     }
     jlongArray out = env->NewLongArray(kLen);
     if (out) env->SetLongArrayRegion(out, 0, kLen, buf);

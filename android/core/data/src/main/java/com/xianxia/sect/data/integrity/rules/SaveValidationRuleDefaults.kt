@@ -36,6 +36,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）
             // order=24（执法堂/监牢下线：残留建筑与关联槽位清理 + 思过/执法弟子状态归一化）
             LawEnforcementPrisonCleanupRule,
+            TimeAxisRule,              // order=25（双轨时间权威轴：旧档回填 + 投影一致性，结算改造 B3）
         )
     )
 }

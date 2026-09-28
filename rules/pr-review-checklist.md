@@ -63,7 +63,7 @@
 | 🔴 | 新增代码已遵循 `rules/code-quality.md`（命名规范/坏味道清单/设计原则/可测试性/扩展友好性/量化指标） | code-quality.md |
 | 🔴 | 新增代码已检查 iOS 跨平台可移植性（core 层无 Android 独占 API、平台能力走接口抽象、新平台依赖有 iOS 对等方案——游戏未来做 iOS 端） | code-quality.md 跨平台章节 |
 | 🔴 | 修改代码后已做注释一致性检查：注释只描述最终状态，无"之前/原来/新增/删除/迁移"等历史性表述、无已解决 TODO、无旧架构描述、无 AI 工作汇报式注释（详见 `rules/code-comment.md` 七项检查清单） | code-comment.md |
-| 🔴 | 新增玩法系统已遵循 `rules/expansion-playbook.md` 全流程（引擎注册/惰性结算层级/EventBus/RNG 分区/DialogType/Migration/存档兼容/进度锚定游戏时间/引导接入/配置开关/守卫测试） | expansion-playbook.md |
+| 🔴 | 新增玩法系统已遵循 `rules/expansion-playbook.md` 全流程（引擎注册/结算层级/EventBus/RNG 分区/DialogType/Migration/存档兼容/进度锚定权威时间轴/引导接入/配置开关/守卫测试） | expansion-playbook.md |
 | 🔴 | 新增玩法 UI 已优先复用现有组件（`GameButton`/`UnifiedGameDialog`/`ItemCard`/`SpriteImage`/`CircularCheckbox` 等，组件清单见 `rules/expansion-playbook.md` UI 组件复用优先），禁止自建重复组件；确需新建的通用组件放 core/ui 并登记回清单 | expansion-playbook.md UI 组件复用优先 |
 | 🔴 | 新增货币/经济资源已遵循 `rules/economy-design.md`（必要性论证/持有上限/源汇闭环/通胀防控/奖励价值审计） | economy-design.md |
 | 🔴 | 新增付费点位（广告/IAP/月卡/战令/活动）已遵循 `rules/commercialization.md`（冷却或领取窗口/慷慨原则/隐私合规双入口） | commercialization.md |

@@ -150,6 +150,115 @@ object GameConfig {
         const val MAX_EXPLORE_TIME = 12
         const val HIGH_FREQUENCY_UPDATE_INTERVAL = 1000L
         const val LOW_FREQUENCY_UPDATE_INTERVAL = 2000L
+
+        // ── 时间单位常量栈（结算改造方案 2026-09-27 §2.2 —— 全仓唯一口径）──
+        // C++ 同源锚点：gamecore/system/time_units.h（同名常量同值同公式，
+        // GameTimeUnitsParityTest / time_units_test.cpp 双端各自锁定，改值须双端同步）。
+        // B7 起离线收益折算（offlineGameMs）为首个生产消费面；其余成员仍零
+        // 生产消费（仅测试锁定）。
+
+        /** 游戏秒定义：1 游戏秒 = 1000 游戏毫秒 */
+        const val MS_PER_GAME_SECOND = 1000
+
+        /** 1 旬 = 2 游戏秒（1x 下 2000 现实毫秒） */
+        const val GAME_SECONDS_PER_PHASE = 2.0
+
+        /** 1 月 = 3 旬 = 6 游戏秒 */
+        const val GAME_SECONDS_PER_MONTH = 6.0
+
+        /** 1 年 = 12 月 = 72 游戏秒 */
+        const val GAME_SECONDS_PER_YEAR = 72.0
+
+        /**
+         * 1 旬的游戏毫秒数（日历投影 ↔ 游戏毫秒互换的整数换算基数）。
+         * 与 GameTimeClock.MS_PER_PHASE 同值：单一时速下游戏毫秒与现实毫秒恒等；
+         * 常量栈内由 GAME_SECONDS_PER_PHASE × MS_PER_GAME_SECOND 换算而来（守卫锁定）。
+         */
+        const val GAME_MS_PER_PHASE = 2000L
+
+        /**
+         * 1 月的游戏毫秒数（B5 槽位毫秒判据/回填的时长换算基数：
+         * startedAt/completeAt 孪生、checkpoint 重算共用；整数形态防浮点漂移）。
+         * C++ 同源锚点：time_units.h kGameMsPerMonth（双端守卫锁定，改值须双端同步）。
+         */
+        const val GAME_MS_PER_MONTH = 6000L
+
+        // ── 离线收益口径（结算改造方案 2026-09-27 §1.4 已拍板，B7 落地）──
+        // 离线时段按现实墙钟差（lastSaveTime → 本次读档）计量；速率与在线
+        // 速度档解耦（离线恒按 1x 换算），避免"杀进程挂机"成为最优策略。
+
+        /** 离线收益全额段窗口：12 现实小时（1x 速率 = 1 现实 ms → 1 游戏 ms） */
+        const val OFFLINE_FULL_RATE_WINDOW_MS: Long = 12L * 60L * 60L * 1000L
+
+        /** 离线收益硬顶窗口：24 现实小时（离线时长超出后不再累积任何收益） */
+        const val OFFLINE_HARD_CAP_WINDOW_MS: Long = 24L * 60L * 60L * 1000L
+
+        /** 全额段之后的折算速率分子（50% = 1/2；整数运算防浮点漂移） */
+        const val OFFLINE_REDUCED_RATE_NUMERATOR: Long = 1L
+
+        /** 全额段之后的折算速率分母 */
+        const val OFFLINE_REDUCED_RATE_DENOMINATOR: Long = 2L
+
+        /**
+         * 离线时段（现实墙钟毫秒）→ 注入游戏毫秒（B7 折算唯一口径）。
+         *
+         * 分段：≤12h 全额；12h–24h 段按 [OFFLINE_REDUCED_RATE_NUMERATOR]/[OFFLINE_REDUCED_RATE_DENOMINATOR]
+         * 折算；>24h 封顶（注入总量上限 = 12h + 12h/2 = 18h 游戏时间）。
+         * 结果 floor 到旬（[GAME_MS_PER_PHASE] 整数倍）——保持 GameData 权威轴
+         * 旬网格对齐（INV-1 投影互逆 calendarToGameMs∘projectCalendar 恒等的
+         * 前提），floor 损失 <1 旬（<2 游戏秒）可忽略。
+         * 负输入/零按 0 处理（时钟回拨防御）。
+         */
+        fun offlineGameMs(offlineWallMs: Long): Long {
+            if (offlineWallMs <= 0L) return 0L
+            val fullSegment = minOf(offlineWallMs, OFFLINE_FULL_RATE_WINDOW_MS)
+            val reducedSegment = (offlineWallMs - OFFLINE_FULL_RATE_WINDOW_MS)
+                .coerceIn(0L, OFFLINE_HARD_CAP_WINDOW_MS - OFFLINE_FULL_RATE_WINDOW_MS)
+            val gameMs = fullSegment + reducedSegment *
+                OFFLINE_REDUCED_RATE_NUMERATOR / OFFLINE_REDUCED_RATE_DENOMINATOR
+            return gameMs / GAME_MS_PER_PHASE * GAME_MS_PER_PHASE
+        }
+
+        /** 每旬量 → 每游戏秒量（÷2.0） */
+        fun perPhaseToPerGameSecond(perPhase: Double): Double =
+            perPhase / GAME_SECONDS_PER_PHASE
+
+        /** 每月量 → 每游戏秒量（÷6.0） */
+        fun perMonthToPerGameSecond(perMonth: Double): Double =
+            perMonth / GAME_SECONDS_PER_MONTH
+
+        /** 每年量 → 每游戏秒量（÷72.0） */
+        fun perYearToPerGameSecond(perYear: Double): Double =
+            perYear / GAME_SECONDS_PER_YEAR
+
+        /** 日历三元组（年/月/旬；月 1-based，旬 0..2）——投影纯函数返回载体 */
+        data class GameCalendar(val year: Int, val month: Int, val phase: Int)
+
+        /**
+         * 绝对游戏毫秒 → 日历投影（INV-1：日历是权威时间轴 elapsedGameMs 的
+         * 派生投影；负输入按 0 处理）。C++ 同源：time_system.h projectCalendar。
+         */
+        fun projectCalendar(gameMs: Long): GameCalendar {
+            val safeMs = if (gameMs < 0) 0L else gameMs
+            val totalPhaseCount = safeMs / GAME_MS_PER_PHASE
+            val phasesPerYear = PHASES_PER_MONTH.toLong() * MONTHS_PER_YEAR
+            val year = (totalPhaseCount / phasesPerYear).toInt() + 1
+            val withinYear = (totalPhaseCount % phasesPerYear).toInt()
+            return GameCalendar(
+                year = year,
+                month = withinYear / PHASES_PER_MONTH + 1,
+                phase = withinYear % PHASES_PER_MONTH
+            )
+        }
+
+        /**
+         * 日历 → 绝对游戏毫秒（读档归一化换算：旧档只有日历字段时回填
+         * elapsedGameMs 的唯一口径；与 [projectCalendar] 精确互逆）。
+         * C++ 同源：time_system.h calendarToGameMs。
+         */
+        fun calendarToGameMs(year: Int, month: Int, phase: Int): Long =
+            ((year - 1).toLong() * MONTHS_PER_YEAR * PHASES_PER_MONTH +
+                (month - 1).toLong() * PHASES_PER_MONTH + phase) * GAME_MS_PER_PHASE
     }
 
     /**
@@ -324,44 +433,39 @@ object GameConfig {
         const val MAX_REALM_INDEX = 9
 
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 490, 10,
-                maxAge = 80, maxLayers = 9,
+            9 to RealmConfig(9, "炼气", 490, 10, maxLayers = 9,
                 baseHp = 203, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
                 basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
-            8 to RealmConfig(8, "筑基", 1950, 30,
-                maxAge = 120, maxLayers = 9,
+            8 to RealmConfig(8, "筑基", 1950, 30, maxLayers = 9,
                 baseHp = 507, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
                 basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
-            7 to RealmConfig(7, "金丹", 7800, 50,
-                maxAge = 200, maxLayers = 9,
+            7 to RealmConfig(7, "金丹", 7800, 50, maxLayers = 9,
                 baseHp = 1318, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
                 basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
-            6 to RealmConfig(6, "元婴", 29250, 80,
-                maxAge = 300, maxLayers = 9,
+            6 to RealmConfig(6, "元婴", 29250, 80, maxLayers = 9,
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
-            5 to RealmConfig(5, "化神", 97500, 110,
-                maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702,
+            5 to RealmConfig(5, "化神", 97500, 110, maxLayers = 9,
+                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702,
                     baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
-            4 to RealmConfig(4, "炼虚", 292500, 180,
-                maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716,
+            4 to RealmConfig(4, "炼虚", 292500, 180, maxLayers = 9,
+                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716,
                     baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
-            3 to RealmConfig(3, "合体", 975000, 220,
-                maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056,
+            3 to RealmConfig(3, "合体", 975000, 220, maxLayers = 9,
+                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056,
                     baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
-            2 to RealmConfig(2, "大乘", 2925000, 280,
-                maxAge = 2500, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048,
+            2 to RealmConfig(2, "大乘", 2925000, 280, maxLayers = 9,
+                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048,
                     baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
-            1 to RealmConfig(1, "渡劫", 9750000, 360,
-                maxAge = 4000, maxLayers = 9,                baseHp = 243360, baseMp = 93600,
+            1 to RealmConfig(1, "渡劫", 9750000, 360, maxLayers = 9,
+                baseHp = 243360, baseMp = 93600,
                     basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
-            0 to RealmConfig(0, "仙人", 29250000, 500,
-                maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000,
+            0 to RealmConfig(0, "仙人", 29250000, 500, maxLayers = 9,                baseHp = 507000, baseMp = 195000,
                     basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
@@ -423,7 +527,8 @@ object GameConfig {
 
         /**
          * 各境界最小合理年龄（AI 弟子生成时年龄-境界匹配，防"38岁炼虚"类数据）。
-         * 所有值均低于对应境界 [RealmConfig.maxAge]，无寿元冲突。
+         * （寿元系统已随 DB v54→v55 删除，RealmConfig.maxAge 死配置随 B9 清理——
+         * 方案 §9.1 缺陷 #11；本表为纯下界约束。）
          */
         val REALM_MIN_REASONABLE_AGE: Map<Int, Int> = mapOf(
             9 to 10, 8 to 30, 7 to 60, 6 to 100, 5 to 200,
@@ -800,8 +905,10 @@ object GameConfig {
         // ═══════════════════════════════════════════════════
         // 政策基础效果
         // ═══════════════════════════════════════════════════
+        // 已下线系统死常量清理（方案 §9.1 缺陷 #16）：ENHANCED_SECURITY_EFFECT /
+        // CURFEW_EVENT_REDUCTION / CURFEW_DESERTION_REDUCTION / REWARD_PUNISH_EFFECT
+        // 零生产消费点，随 B9 删除（政策本体月费/忠诚链保留）。
         const val SPIRIT_MINE_BOOST_EFFECT = 0.20            // 灵石产出+20%
-        const val ENHANCED_SECURITY_EFFECT = 0.20            // 抓捕率+20%
         const val ALCHEMY_INCENTIVE_EFFECT = 0.10            // 炼丹成功率+10%
         const val ALCHEMY_TIME_PENALTY = 0.10                // 炼丹时间+10%
         const val FORGE_INCENTIVE_EFFECT = 0.10              // 锻造成功率+10%
@@ -810,8 +917,6 @@ object GameConfig {
         const val CULTIVATION_SUBSIDY_EFFECT = 0.15          // 化神下修炼+15%
         const val MANUAL_RESEARCH_EFFECT = 0.20              // 功法速度+20%
         const val ASCETIC_TRAINING_EFFECT = 0.25             // 修炼速度+25%
-        const val CURFEW_EVENT_REDUCTION = 0.30              // 治安事件-30%
-        const val CURFEW_DESERTION_REDUCTION = 0.20          // 叛逃-20%
         const val STRICT_TRAINING_DAMAGE = 0.05              // 战斗伤害+5%
         const val RELAXED_MGMT_CULTIVATION_PENALTY = 0.10    // 修炼速度-10%
         const val SPIRIT_SPRING_YIELD = 0.15                 // 灵草生长速度+15%（与灵药培育同属加速乘区，非产量）
@@ -867,7 +972,6 @@ object GameConfig {
         val name: String,
         val cultivationBase: Int,
         val salary: Int,
-        val maxAge: Int = 100,
         val maxLayers: Int = 9,
         val baseHp: Int = 156,
         val baseMp: Int = 78,

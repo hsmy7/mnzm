@@ -99,8 +99,6 @@ data class Disciple(
 
     @ColumnInfo(defaultValue = "0")
     var cultivationCompletionMonth: Int = 0,
-    @ColumnInfo(defaultValue = "1")
-    var cultivationCompletionPhase: Int = 1,
     @ColumnInfo(defaultValue = "0")
     var manualCompletionMonth: Int = 0,
     @ColumnInfo(defaultValue = "1")

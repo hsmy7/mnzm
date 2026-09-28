@@ -12,6 +12,7 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/ecs/disciple_component.h"  // syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
+#include "gamecore/system/time_units.h"  // B6 连续轨换算常量（kGameSecondsPer*）
 #include "gamecore/system/disciple_purchase.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
@@ -38,17 +39,20 @@
 // 单事务编排（Kotlin 侧由 MonthSettlementExecutor 提取同构），注册进
 // SettlementEngine::onMonthChange 钩子。
 //
-// 七步事务序（语义权威 = 各被调方法源码）：
-//   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
-//   2. 政策月度道德效果           ← CultivationSettlement.processPolicyMonthlyEffects
-//   3. AI 兽袭目标预计算        ← precomputeTargets（EXPLORATION；
-//      消费方巡视楼/子事件 9 保留 Kotlin）
-//   4. systemManager.onMonthlyEvent 四系统扇出（@SystemPriority 升序）：
-//      Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
-//      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
-//   5. 月度自动排班              ← processAutoAssign（排班未下沉）
-//   6. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
-//   7. processMonthlyEventsOnState 十四子事件（全部入 C++，相对序与 Kotlin 一致）
+// 月变双臂（B6 拆分后现状；语义权威 = 各被调方法源码）：
+//   - runMonthSettlement（离散臂，shadow/回滚基准）：八步全量——
+//     1. 政策月度灵石扣除      ← government.h::processPolicyCosts（原语接线）
+//     2. 政策月度道德效果      ← CultivationSettlement.processPolicyMonthlyEffects
+//     3. AI 兽袭目标预计算     ← precomputeTargets（EXPLORATION）
+//     4. 四系统扇出（@SystemPriority 升序）：
+//        Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
+//        （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
+//     5. 月度自动排班          ← processAutoAssign
+//     6. 丹药持续效果月度衰减  ← HpMpRecoveryService.applyMonthlyDurationDecay
+//     7. processMonthlyEvents 15 项子事件（全部入 C++，相对序与 Kotlin 一致）
+//     8. 自动续炼启动          ← production.h autoRestart
+//   - runMonthEvents（连续臂，生产 AUTHORITATIVE）：= 离散臂去积分型四项，
+//     仅判定步 3/4/5/7/8（政策灵石/道德/丹药衰减/灵矿由连续轨承担）。
 //
 // RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
 //   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
@@ -78,6 +82,12 @@
 //     scoutExpiry / 附庸脱离检查 /
 //     秘境到期关闭+AI 队伍派遣 / 12 月自动购买 /
 //     弟子智能购买 / 任务刷新均已入 C++
+//
+// B6 拆分（结算改造 2026-09-27 §10）：连续臂（realtimeAccrual）下本编排的
+// **积分型四项**（步骤 1 政策灵石 / 步骤 2 道德 / 步骤 6 丹药衰减 /
+// 子事件 11 灵矿）由 accrueMonthlyContinuous 按游戏秒连续承担，月界走
+// runMonthEvents（判定入口，跳过四项防双计）——见文件尾「B6 月度连续
+// 积分轨」段；离散臂（旧行为/对拍基准）本编排逐位不变。
 // ============================================================
 namespace gamecore::system {
 
@@ -571,26 +581,32 @@ inline void applyMonthlyDurationDecay(Disciple& d) {
     }
 }
 
+/// 丹药加成全清（applyMonthlyDurationDecay 清零分支提炼——离散月衰减与
+/// B6 连续衰减共用同一清零面，防双份漂移）
+inline void clearPillEffectBonuses(DiscipleStore& ds, std::size_t row) {
+    ds.pillHpBonuses[row] = 0;
+    ds.pillMpBonuses[row] = 0;
+    ds.pillPhysicalAttackBonuses[row] = 0;
+    ds.pillMagicAttackBonuses[row] = 0;
+    ds.pillPhysicalDefenseBonuses[row] = 0;
+    ds.pillMagicDefenseBonuses[row] = 0;
+    ds.pillSpeedBonuses[row] = 0;
+    ds.pillCritRateBonuses[row] = 0.0;
+    ds.pillCritEffectBonuses[row] = 0.0;
+    ds.pillCultivationSpeedBonuses[row] = 0.0;
+    ds.pillSkillExpSpeedBonuses[row] = 0.0;
+    ds.pillNurtureSpeedBonuses[row] = 0.0;
+    ds.activePillCategories[row].clear();
+    ds.activePillTypes[row].clear();
+    ds.pillEffectDurations[row] = 0;
+}
+
 /// 单弟子月衰减（DiscipleStore 行版，列直写；语义与 Disciple& 版一致）
 inline void applyMonthlyDurationDecay(DiscipleStore& ds, std::size_t row) {
     if (ds.pillEffectDurations[row] <= 0) return;
     const int32_t newDuration = ds.pillEffectDurations[row] - kMonthlyDecayPhases;
     if (newDuration <= 0) {
-        ds.pillHpBonuses[row] = 0;
-        ds.pillMpBonuses[row] = 0;
-        ds.pillPhysicalAttackBonuses[row] = 0;
-        ds.pillMagicAttackBonuses[row] = 0;
-        ds.pillPhysicalDefenseBonuses[row] = 0;
-        ds.pillMagicDefenseBonuses[row] = 0;
-        ds.pillSpeedBonuses[row] = 0;
-        ds.pillCritRateBonuses[row] = 0.0;
-        ds.pillCritEffectBonuses[row] = 0.0;
-        ds.pillCultivationSpeedBonuses[row] = 0.0;
-        ds.pillSkillExpSpeedBonuses[row] = 0.0;
-        ds.pillNurtureSpeedBonuses[row] = 0.0;
-        ds.activePillCategories[row].clear();
-        ds.activePillTypes[row].clear();
-        ds.pillEffectDurations[row] = 0;
+        clearPillEffectBonuses(ds, row);
     } else {
         ds.pillEffectDurations[row] = newDuration;
     }
@@ -711,11 +727,13 @@ inline void checkGameOverCondition(GameState& state) {
 }
 
 // ── 步骤 8：processMonthlyEventsOnState 可下沉子集 ────────────────
-// Kotlin 十四子事件全序：recruitReset → autoRecruit →
-// completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
-// aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
-// vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 十四件子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
+// Kotlin 月度子事件全序（15 项，实现编号 1/5/6/6b/6c/7/8/9/10/11/12/13/14/15/16
+// ——2/3/4 为历史编号空洞；autoRecruit 已随招募链下线不在其列）：
+// recruitReset → completedMissions → aiSectOperations → aiConquest(6b) →
+// aiPlayerDefense(6c) → gameOverCheck → scoutExpiry → aiBeastRemaining →
+// [12月 autoBuy] → spiritMine → disciplePurchase → vassalBreakaway →
+// missionRefresh → secretRealmExpiry → secretRealmAiTeams。
+// 15 项子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
 
 // 草稿结构 SecretRealmCloseDraft 定义于 secret_realm_settlement.h
 //（属主文件——closeSecretRealmByExpiry 内部填充）；
@@ -968,7 +986,8 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  ai_ops::AiMonthBatchState& aiBatch,
                                  const std::map<int32_t, std::size_t>& idx,
                                  MonthSettlementResult& out,
-                                 ecs::World& world) {
+                                 ecs::World& world,
+                                 bool settleSpiritMineMonthly = true) {
     // 子事件 1：招募月度计数归零
     state.gameData.recruitCountThisMonth = 0;
     // 子事件 5：任务完成（MissionSystem.processMissionCompletion +
@@ -1017,8 +1036,16 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     if (state.gameData.gameMonth == 12) {
         merchant_settle::executeAutoBuy(state);
     }
-    // 子事件 11：灵矿月度产出结算
-    detail::processSpiritMineProductionMonthly(state, idx);
+    // 子事件 11：灵矿月度产出结算（零 RNG 差分入账）。B6 连续臂
+    //（settleSpiritMineMonthly=false）由 accrueMonthlyContinuous 按毫秒差分
+    // 连续承担——此处仅同步旧月字段投影，保双臂切换差分基准新鲜
+    //（离散臂回滚时不重复结算已入账月份）。
+    if (settleSpiritMineMonthly) {
+        detail::processSpiritMineProductionMonthly(state, idx);
+    } else {
+        state.gameData.spiritMineLastSettledMonth =
+            toAbsoluteMonth(state.gameData.gameYear, state.gameData.gameMonth);
+    }
     // 子事件 12：弟子智能购买（DisciplePurchaseService.executePurchase
     //   等价移植；SYSTEM 分区 shuffled——位于灵矿后、附庸前，与 Kotlin 月变
     //   编排相对序一致；购买日志草稿收集）
@@ -1363,13 +1390,286 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 步骤 6：丹药持续效果月度衰减
     detail::applyMonthlyDurationDecayAll(state, world);
 
-    // 步骤 7：月度事件（十四子事件 + 草稿收集）
+    // 步骤 7：月度事件（15 项子事件 + 草稿收集）
     detail::processMonthlyEvents(state, rng, aiRng, aiBatch, idx, out, world);
 
     // 步骤 8：自动排班（autoRestart 续炼启动；Kotlin processAutoAlchemy/
     // processAutoForge 为月结事务提交后异步独立事务——读取月结最终状态，C++ 置
     // 编排末尾等价对齐；零 RNG 不扰动抽取序）
     production::processAutoProductionStep(state);
+
+    return out;
+}
+
+// ════════════════════════════════════════════════════════════════
+// B6 月度连续积分轨（结算改造 2026-09-27 §10：积分型析出至 B4 连续轨）
+// ════════════════════════════════════════════════════════════════
+//
+// 连续臂（NativeEngineFlag.realtimeAccrual，默认 false）下，月结八步中的
+// **积分型四项**改由 [accrueMonthlyContinuous] 按游戏秒连续承担：
+//   1. 政策月度灵石扣除（费率 = 月费 ÷ 6.0 灵石/游戏秒，INV-6 小数累积进位）
+//   2. 政策月度道德效果（教化之道 +1/月 → 1/6 点/游戏秒，clamp 70）
+//   6. 丹药持续效果衰减（−3 旬/月 → 0.5 旬/游戏秒，≤0 清零）
+//   子事件 11 灵矿月产（月差分 → spiritMineLastSettledGameMs 毫秒差分）
+// 四项全部零 RNG → [runMonthEvents]（连续臂月界判定入口）与
+// [runMonthSettlement]（离散臂）的判定项次数与 RNG 消耗序逐位一致。
+//
+// carry 均为运行态（GameCore 成员，不入档）：重载后损失 ≤1 tick 的累积量，
+// 数值可忽略；语义与 B4 RecoveryCarry 同型。
+
+/// 连续月度积分轨运行态累积器。
+/// 进位口径（B6 整数分子制——零浮点，总量逐位守恒）：
+/// 分子 += 月速率 × Δms；整除月长（kGameMsPerMonth=6000，丹药旬为
+/// kGameMsPerPhase=2000）即进位，余数保留——与 INV-6 小数累积进位同义，
+/// 乘除全程整数无 ulp 漂移。
+struct MonthlyAccrualCarry {
+    /// 政策名 → 分子累积（Δms × 月费，毫秒·灵石）
+    std::map<std::string, int64_t> policyCosts;
+    /// 弟子数值 id → Δms 累积（道德；进位点 = 月长）
+    std::map<int32_t, int64_t> morality;
+    /// 弟子数值 id → Δms 累积（丹药衰减；进位点 = 旬长）
+    std::map<int32_t, int64_t> pillDecay;
+    /// 灵矿产出分子累积（Δms × 月产，毫秒·灵石）
+    int64_t spiritMine = 0;
+    /// 连续轨禁用政策累积（月界经 runMonthEvents 信封回传 Kotlin
+    /// checkpointAllProduction——离散臂为月结内即时禁用，连续臂延迟至月界上报）
+    std::vector<std::string> disabledPolicies;
+};
+
+/// 单弟子连续道德累积（教化之道：kMoralEducationPerMonth 点/月长；
+/// clamp kMoralEducationMax）
+inline void accrueContinuousMorality(state::DiscipleStore& ds, std::size_t row,
+                                     int32_t numericId, int64_t deltaGameMs,
+                                     MonthlyAccrualCarry& carry) {
+    if (ds.moralities[row] >= kMoralEducationMax) {
+        carry.morality[numericId] = 0;   // 满值清残留（满后新空间从零起）
+        return;
+    }
+    int64_t& c = carry.morality[numericId];
+    c += deltaGameMs * kMoralEducationPerMonth;
+    const int64_t whole = c / kGameMsPerMonth;
+    if (whole > 0) {
+        c %= kGameMsPerMonth;
+        ds.moralities[row] = std::min(
+            kMoralEducationMax,
+            ds.moralities[row] + static_cast<int32_t>(whole));
+        ds.markCol(state::DiscipleColumn::Morality, row);
+        if (ds.moralities[row] >= kMoralEducationMax) c = 0;
+    }
+}
+
+/// 单弟子连续丹药衰减（1 旬/旬长 = 0.5 旬/游戏秒；≤0 清零全部加成）
+inline void accrueContinuousPillDecay(state::DiscipleStore& ds, std::size_t row,
+                                      int32_t numericId, int64_t deltaGameMs,
+                                      MonthlyAccrualCarry& carry) {
+    if (ds.pillEffectDurations[row] <= 0) {
+        carry.pillDecay[numericId] = 0;   // 清残留——新服丹药从满时长起算
+        return;
+    }
+    int64_t& c = carry.pillDecay[numericId];
+    c += deltaGameMs;
+    const int64_t whole = c / kGameMsPerPhase;
+    if (whole <= 0) return;
+    c %= kGameMsPerPhase;
+    const int32_t newDuration =
+        ds.pillEffectDurations[row] - static_cast<int32_t>(whole);
+    if (newDuration <= 0) {
+        detail::clearPillEffectBonuses(ds, row);
+        c = 0;
+    } else {
+        ds.pillEffectDurations[row] = newDuration;
+        ds.markCol(state::DiscipleColumn::PillEffectDuration, row);
+    }
+}
+
+/// 月度积分项连续承担体（连续臂每 tick 调用；方案 §2.4「积分型析出至
+/// accrueContinuous」的 L3 执行面）。
+///
+/// 迭代域 = DiscipleStore 行序（与 accrueContinuous 契约一致，不用 ECS View）；
+/// 弟子计数（政策按弟子数费率）与道德/丹药衰减共享单次遍历。
+/// 灵矿差分用 GameData.elapsedGameMs（旬粒度权威轴投影，advancePhase 单点
+/// 回写）——调用点须位于判定窗口循环**之后**（本 tick 旬推进已入投影）。
+inline void accrueMonthlyContinuous(state::GameState& state, int64_t deltaGameMs,
+                                    MonthlyAccrualCarry& carry) {
+    if (deltaGameMs <= 0) return;
+    auto& gd = state.gameData;
+    auto& policies = gd.sectPolicies;
+    state::DiscipleStore& ds = state.disciples;
+
+    // ── 弟子域单次遍历：计数（政策费率）+ 道德 + 丹药衰减 ──────────
+    int32_t discipleCount = 0;
+    int32_t huashenBelowCount = 0;
+    const std::size_t rowCount = ds.size();
+    for (std::size_t row = 0; row < rowCount; ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        ++discipleCount;
+        if (ds.realms[row] > 5) ++huashenBelowCount;   // realm 5=化神，>5=化神下
+        const auto id = ds.numericIdAt(row);
+        if (!id.has_value()) continue;
+        if (policies.moralEducation) {
+            accrueContinuousMorality(ds, row, *id, deltaGameMs, carry);
+        }
+        accrueContinuousPillDecay(ds, row, *id, deltaGameMs, carry);
+    }
+
+    // ── 政策月度灵石连续扣（费率 = 月费/月长，整数分子制；不足 → 关政策 +
+    //    清 carry，禁用名单累积至月界信封上报）────────────────────────
+    std::size_t tableSize = 0;
+    const PolicyCostEntry* table = policyCostTable(tableSize);
+    for (std::size_t i = 0; i < tableSize; ++i) {
+        const PolicyCostEntry& entry = table[i];
+        if (!entry.enabled(policies)) {
+            carry.policyCosts[entry.name] = 0;   // 关闭期不积累（重开从零起）
+            continue;
+        }
+        const int64_t monthlyCost =
+            policyCostOf(entry, discipleCount, huashenBelowCount);
+        if (monthlyCost <= 0) continue;
+        int64_t& c = carry.policyCosts[entry.name];
+        c += deltaGameMs * monthlyCost;
+        const int64_t whole = c / kGameMsPerMonth;      // 应扣灵石数
+        if (whole <= 0) continue;
+        c %= kGameMsPerMonth;
+        const auto r = SpiritStoneWallet::deduct(gd, whole, SpiritStoneGrade::LOW,
+                                                 "PolicyCost", "Internal", true);
+        if (r.status == DeductStatus::kSuccess) {
+            // 已扣成功——carry 保留余数即可
+        } else {
+            entry.disable(policies);
+            c = 0;
+            carry.disabledPolicies.push_back(entry.name);
+        }
+    }
+
+    // ── 灵矿月产连续差分（spiritMineLastSettledGameMs 毫秒差分，INV-2
+    //    未截断；乘区实时构建——矿工/执事/政策变化即时反映产出）────────
+    const int64_t nowGameMs = gd.elapsedGameMs;
+    int64_t lastMs = gd.spiritMineLastSettledGameMs;
+    if (lastMs < 0) lastMs = 0;
+    const int64_t spanMs = nowGameMs - lastMs;
+    if (spanMs > 0) {
+        const SpiritMineZones zones =
+            detail::buildMonthSpiritMineZones(state, ds.numericIdToRow);
+        const int64_t monthlyRate = calculateSpiritMineMonthly(
+            zones, kSpiritMineBaseOutputPerMiner);
+        if (monthlyRate > 0) {
+            carry.spiritMine += spanMs * monthlyRate;
+            const int64_t whole = carry.spiritMine / kGameMsPerMonth;
+            if (whole > 0) {
+                carry.spiritMine %= kGameMsPerMonth;
+                SpiritStoneWallet::add(gd, whole, SpiritStoneGrade::LOW, "Mine");
+                int64_t& counter = gd.guideCounters["miningOutput"];
+                counter += whole;
+            }
+        }
+        gd.spiritMineLastSettledGameMs = nowGameMs;
+    }
+}
+
+/// 月变判定入口（B6 连续臂专用：= [runMonthSettlement] 去积分型四项）。
+/// 步骤 1（政策灵石）/2（道德）/6（丹药衰减）删除（连续轨承担）；
+/// 子事件 11 灵矿改旧月字段投影同步（settleSpiritMineMonthly=false）。
+/// 判定项（3/4/5/7/8）相对序与 [runMonthSettlement] 逐位一致——四项均为
+/// 零 RNG，月判定 RNG 消耗序不变（B6 验收）。
+/// 政策禁用上报：连续轨累积的 disabledPolicies（carry 由 GameCore 传入）
+/// 填入信封 policyCosts——Kotlin 侧 checkpointAllProduction 触发口径不变。
+inline MonthSettlementResult runMonthEvents(state::GameState& state,
+                                            rng::RngManager& rng,
+                                            rng::DeterministicRng& aiRng,
+                                            ai_ops::AiMonthBatchState& aiBatch,
+                                            MonthlyAccrualCarry& carry,
+                                            ecs::World& world) {
+    MonthSettlementResult out;
+    const auto idx = detail::indexById(state.disciples);
+
+    // 步骤 3：AI 兽袭目标预计算（同离散臂）
+    detail::precomputeTargets(state, rng);
+
+    // 步骤 4：四系统扇出（4a/4b 炼丹锻造完成结算 → 4c 灵田收获 → 4d/4e 探索）
+    production::processBuildingProductionStep(state, rng);
+    detail::processSpiritFieldHarvestStep(state, rng);
+    {
+        auto& wl = state.gameData.worldLevels;
+        const int32_t absMonth = state.gameData.gameYear * 12 +
+                                 state.gameData.gameMonth;
+        const bool shouldRefresh =
+            state.gameData.worldLevelLastRefreshMonth == 0 ||
+            (absMonth - state.gameData.worldLevelLastRefreshMonth) >=
+                kLevelRefreshIntervalMonths;
+        if (shouldRefresh) {
+            bool hasPlayerSect = false;
+            for (const auto& sect : state.gameData.worldMapSects) {
+                if (sect.isPlayerSect) {
+                    hasPlayerSect = true;
+                    break;
+                }
+            }
+            if (hasPlayerSect) {
+                auto remaining =
+                    filterExpiredLevels(wl, state.gameData.gameYear,
+                                        state.gameData.gameMonth);
+                int32_t avgRealm = 0;
+                int32_t aliveCount = 0;
+                double realmSum = 0.0;
+                {
+                    const state::DiscipleStore& dsw = state.disciples;
+                    ecs::syncDiscipleEntities(world, dsw.size());
+                    ecs::View<ecs::DiscipleRef> viewAvg(world.registry());
+                    viewAvg.forEach([&](ecs::EntityId, ecs::DiscipleRef& ref) {
+                        const std::size_t row = ref.row;   // 行地址取自组件（桥接规范 3）
+                        if (dsw.isAlive[row] != 1) return;
+                        realmSum += static_cast<double>(dsw.realms[row]);
+                        ++aliveCount;
+                    });
+                }
+                const int32_t* avgRealmPtr =
+                    aliveCount > 0 ? &avgRealm : nullptr;
+                if (avgRealmPtr) {
+                    avgRealm = static_cast<int32_t>(realmSum / aliveCount);
+                }
+                const auto generated = generateWorldLevels(
+                    rng, state.gameData.worldMapSects,
+                    state.gameData.gameYear, state.gameData.gameMonth,
+                    remaining, kMaxNewLevelsDefault, avgRealmPtr);
+                auto merged = remaining;
+                for (auto& l : generated.levels) merged.push_back(std::move(l));
+                state.gameData.worldLevels =
+                    moveBeasts(merged, state.gameData.gameYear,
+                               state.gameData.gameMonth, rng);
+                state.gameData.worldLevelLastRefreshMonth = absMonth;
+            } else {
+                auto remaining =
+                    filterExpiredLevels(wl, state.gameData.gameYear,
+                                        state.gameData.gameMonth);
+                state.gameData.worldLevels =
+                    moveBeasts(remaining, state.gameData.gameYear,
+                               state.gameData.gameMonth, rng);
+            }
+        } else {
+            const auto monthly = processWorldLevelsMonthly(
+                wl, state.gameData.worldLevelLastRefreshMonth,
+                state.gameData.gameYear, state.gameData.gameMonth,
+                rng, /*allowRefresh=*/false);
+            state.gameData.worldLevels = std::move(monthly.levels);
+        }
+    }
+
+    // 步骤 5：月度自动排班（同离散臂）
+    detail::processAutoAssign(state, world);
+
+    // 步骤 6（政策灵石/道德/丹药衰减）：连续轨承担——连续臂跳过（防双计）
+
+    // 步骤 7：月度事件（灵矿子事件仅同步旧月字段投影）
+    detail::processMonthlyEvents(state, rng, aiRng, aiBatch, idx, out, world,
+                                 /*settleSpiritMineMonthly=*/false);
+
+    // 步骤 8：自动续炼启动（同离散臂）
+    production::processAutoProductionStep(state);
+
+    // 连续轨禁用政策上报（月界信封 → Kotlin checkpointAllProduction）
+    out.policyCosts.disabledPolicies = std::move(carry.disabledPolicies);
+    carry.disabledPolicies.clear();
+    if (!out.policyCosts.disabledPolicies.empty()) out.policyCosts.allPaid = false;
 
     return out;
 }

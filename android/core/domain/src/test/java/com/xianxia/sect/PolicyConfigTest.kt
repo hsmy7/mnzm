@@ -85,11 +85,6 @@ class PolicyConfigTest {
     }
 
     @Test
-    fun `增强治安效果应为20百分比`() {
-        assertEquals(0.20, GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT, 0.001)
-    }
-
-    @Test
     fun `丹道激励效果应为10百分比`() {
         assertEquals(0.10, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT, 0.001)
     }

@@ -1,9 +1,9 @@
 {
-  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。MR4-P4.4：+1 nativeGetMemoryStats。",
+  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。MR4-P4.4：+1 nativeGetMemoryStats。B7：+1 nativeInjectOfflineGameMs（离线收益注入唯一通道——折算口径在 Kotlin，引擎侧三轴推进/积分结算/日历投影无 Kotlin 等价实现面，豁免理由见 docs/report-B7.md）。实时线并网（2026-09-29）：分支基线 88 与主线删二倍速基线 85 合流——nativeLoopSetSpeed 随速度维度删除不再存在，GameCoreBridge 40→39、total 88→87（check 实测收缩合法）。",
   "perFile": {
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 37,
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 39,
     "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 48
   },
-  "total": 85,
-  "updatedAt": "2026-09-26"
+  "total": 87,
+  "updatedAt": "2026-09-29"
 }

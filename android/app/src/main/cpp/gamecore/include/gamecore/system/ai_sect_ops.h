@@ -268,7 +268,7 @@ inline Disciple aiSettleMonthlyCultivation(Disciple disciple, int32_t sectLevel,
 inline Disciple aiApplyMonthlyProficiencyGain(Disciple disciple) {
     if (disciple.manualIds.empty()) return disciple;
     // calculateProficiencyGainPerPhase(libraryBonus=0) × 3 =
-    // BASE_PROFICIENCY_RATE(6.0) × (1+0) × MS_PER_PHASE_1X(2000)/1000 × 3 = 36.0
+    // BASE_PROFICIENCY_RATE(6.0) × (1+0) × kGameMsPerPhase(2000)/1000 × 3 = 36.0
     const double perMonthGain =
         gamecore::system::kBaseProficiencyRate * 1.0 * 2.0 *
         static_cast<double>(kAiPhasesPerMonth);

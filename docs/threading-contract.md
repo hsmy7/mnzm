@@ -2,7 +2,7 @@
 
 > 对标 Godot 官方 [Thread-safe APIs](https://docs.godotengine.org/en/4.0/tutorials/performance/thread_safe_apis.html) 文档。
 > 本文档是本项目"哪些 API 从哪条线程可调"的**唯一成文权威**，审查清单 13.3 引用本文。
-> 更新日期：2026-09-23——**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
+> 更新日期：2026-09-28——**表四新增「离线收益」通道行**（实时结算线 B7：boot 折算 staging → ensure 尾部 consume → `nativeInjectOfflineGameMs`，报告流 `offlineReturnReport`；先登记再实现纪律履行）。前次 2026-09-23：**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
 
 ---
 
@@ -66,6 +66,7 @@
 | **内存子系统**`textureRelease(key)` | 同 `textureAcquire` | refCount--；==0 且非 pinned 入退役队列，帧边界物理销毁（沿 `m_retiredTextures` 延迟释放）；物理销毁完成前同 key 再 acquire 按 miss 重传（`pendingDestroy` 不命中）（2026-09-23 登记，实现随 MR3） |
 | `tryExecuteNative`（ActionId 事务） | 引擎线程 → C++ `GameCore::execute` → 回执脏段 `applyDirtyFromNative` 回镜像 | 唯一稳态写入路径。**2026-09-25 新增在册动作**：`GACHA_FRAGMENT_GRANT_TX = 1870`（角色碎片入账 + 满 100 升星，零 RNG、零校验盲写；落点 `gamecore/src/dispatch_gacha.cpp` → `system/gacha_fragment.h::addFragment`）。Kotlin 侧 `GachaNativeTx` 走 `NativeEngineFlag.authoritative` 门控，门控关闭/桥未加载/信封失败时回退逐字同式的 `GachaFragmentLedger`（双实现契约，由 `DiffGachaFragmentTest` 与 C++ `gacha_fragment_test` 双向看护） |
 | **内存子系统**MemoryStats 读通道（`GpuAllocator.stats` / cache 条目数） | RenderThread 帧边界发布 → 任意线程只读 | 渲染线程发布不可变快照（原子引用替换）；读方（Debug UI / 引擎线程 / gamecore）只读快照，禁止同步回读渲染后端（表三红线不变）、禁止持活引用跨帧（2026-09-23 登记，实现随 MR2/MR4） |
+| **离线收益**`pendingOfflineGameMs`/`pendingOfflineWallMs`（结算改造 B7） | boot 编排（引擎线程 withEngineContext，`BootSequenceController` Step 6.5 `stageOfflineProgress` 折算写入）→ 引擎线程 `ensureAuthoritativeNative` 尾部 `consumePendingOfflineProgress` 消费（消费即清零，幂等） | 生产者与消费者实际同在引擎线程（boot 与游戏循环均引擎上下文串行）；`@Volatile` 仅为安全发布兜底。消费点调 `nativeInjectOfflineGameMs`（引擎线程，`jniRequireEngineThread` 守卫同 `nativeAccrue`）→ `applyDirtyFromNative` 镜像同步 + `accruedElapsedGameMs` 差分基准重锚。报告流 `offlineReturnReport`（StateFlow）引擎线程发布 → UI 收集展示后 ack 清空（2026-09-28 登记，实现随实时结算线 B7） |
 
 ## 五、新增代码的必查项
 

@@ -200,9 +200,10 @@ feature:game  ──→  core:ui  ──→  core:domain
 | `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
 | `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
 
-> 📌 **存档为纯手动（产品决策，2026-09-04 确认）**：仅设置页手动触发存档，无自动存档。
-> 禁止重新实现自动保存、禁止引用 `autoSave*` 命名（残留字段已 v50 清理）。
-> 历史依据：docs/report-移除自动存档-接入云存档.md。
+> 📌 **存档入口（2026-09-27 §2.6 裁决修订）**：手动存档（5 槽位）+ 云存档 + 现实墙钟节拍自动存档
+> （每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控，与游戏速度/暂停/日历解耦）。
+> 禁止复活旧月变触发式 `AutoSaveTrigger` 体系；命名统一 `realtimeAutoSave*` 前缀
+> （旧 `autoSave*` 残留字段已 v50 清理；历史依据 docs/report-移除自动存档-接入云存档.md）。
 
 ### Hilt DI 桥接层
 
@@ -983,11 +984,17 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 
 ### 核心思想
 
-每种耗时操作存储 `completionMonth` + `completionPhase`，仅在 `currentMonth >= completionMonth && currentPhase >= completionPhase` 时才结算。**焦点域强制立即结算**，保证玩家体验。
+> ⚠️ **B5 收敛（结算改造 2026-09-27）**：本节描述的"惰性调度器"机制已退役——
+> `LazyEvaluationDispatcher` 原实例方法 `shouldSettle()`/`shouldSettleWithThermal()`
+> 全仓零调用（实例从未注入），已删除；现存仅两个静态助手
+> `toAbsoluteMonth`/`estimateMonthsToNextBreakthrough`。
+> 生产结算驱动 = 旬 tick（C++ 真相源，`production.h` 月结完成结算段）；
+> `isInFocusDomain()` 从未存在。`ProductionSlot` 完成判据已切毫秒孪生
+> `startedAtGameMs/completeAtGameMs`（B5）。
 
-### 关键文件
+### 关键文件（历史记录）
 
-- `LazyEvaluationDispatcher` — 统一调度器：`shouldSettle()` / `shouldSettleWithThermal()` / `isInFocusDomain()`
+- ~~`LazyEvaluationDispatcher` — 统一调度器~~ — 已收敛为静态助手（见上）
 - `GameSystem.settlementPhase` — 每个系统声明自己属于哪个结算旬（1=上旬/2=中旬/3=下旬/0=每旬）
 - `SystemManager.onPhaseTickWithDomainFilter()` — 分旬过滤 + 热状态联动
 

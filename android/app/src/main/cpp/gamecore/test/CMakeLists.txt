@@ -97,6 +97,11 @@ add_executable(game-core-tests
     # ③注入纪律（仅初始化期一次 + 重复注入被拒 + 指针稳定性）
     data_store_test.cpp
     time_system_test.cpp
+    # 结算改造 2026-09-27 B9（方案 §9.1 缺陷 #15）：治理/结算常量 C++ 侧锚点
+    #（Kotlin 腿 = app ConfigCppConstantsParityTest 读 C++ 头文本互断）
+    game_config_parity_test.cpp
+    # 结算改造 2026-09-27 B1：时间单位常量栈 + 日历投影纯函数（双端守卫的 C++ 腿）
+    time_units_test.cpp
     settle_phase_test.cpp
     # R0.2 FP 确定性对拍探针（桌面腿：x86-64 golden 位锁定；真机腿走 JNI）
     determinism_probe_test.cpp
@@ -119,6 +124,10 @@ add_executable(game-core-tests
     cultivation_test.cpp
     phase_settlement_test.cpp
     month_settlement_test.cpp
+    month_accrual_test.cpp
+    # 结算改造 2026-09-27 B7：离线收益注入——三轴跳变/日历投影/积分闭式
+    # 对拍/判定轨零发生/边界防御
+    offline_injection_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
     production_test.cpp

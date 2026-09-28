@@ -73,7 +73,7 @@ class DiffEngineLoopTest {
 
         DiffRngBridge.nativeCoreLoopSetMonoMs(fakeTime.now)
         val plan = DiffRngBridge.nativeCoreLoopFrame(false, false)
-        assertEquals("帧计划应为 17 槽", 17, plan.size)
+        assertEquals("帧计划应为 18 槽", 18, plan.size)
         val cppPhases = (7..11).sumOf { plan[it].toInt() }
         // 100ms 帧恰 1 个逻辑 tick
         assertEquals("100ms 帧应恰 1 个逻辑 tick", 1L, plan[1])

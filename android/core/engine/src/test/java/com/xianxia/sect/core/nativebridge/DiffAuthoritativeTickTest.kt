@@ -198,6 +198,10 @@ class DiffAuthoritativeTickTest {
                 // 年俸配置（realm9）
                 yearlySalary = mapOf(9 to SALARY_REALM9.toInt())
                 yearlySalaryEnabled = mapOf(9 to true)
+                // 结算改造 B3：预置已归一化权威轴（C++ ensureBaselineTimeAxis 对
+                // "轴零值+日历非初值"的导入回填；期望侧与实际侧取同一换算值）
+                elapsedGameMs = GameConfig.Time.calendarToGameMs(1, 10, 0)
+                lastSettleGameMs = elapsedGameMs
             }
         )
         return NativeGameState(
@@ -563,7 +567,7 @@ class DiffAuthoritativeTickTest {
     ) {        if (yearChanged) {
             val gd = store.gameDataValue
             ex.year.execute(gd.gameYear, gd.gameMonth == 1)
-            // 年变 T2 延迟组（收购/交易/AI 招募等 11 项）forceDrain 全量执行
+            // 年变 T2 延迟组（收购/交易/AI 招募等 8 项）forceDrain 全量执行
             //——对齐生产引擎 tick drain 语义与 C++ T2 内联执行（对齐
             // DiffYearSettlementTest 同款；mock 缺席 ≡ 场景恒零的步骤除外）
             ex.service.flushYearlyOpsQueue()
@@ -639,6 +643,11 @@ class DiffAuthoritativeTickTest {
      */
     private fun isSkippedDiffField(key: String, path: String): Boolean =
         key == "timestamp" || key == "deathYear" ||
+            // spiritMineLastSettledGameMs：B6 离散臂毫秒孪生双写（settleMonth 后
+            // 差分基准 = 权威轴）——legacy Kotlin 基准臂不写该字段（B6 连续轨
+            // 概念），结构对拍容忍 C++ 协议超集；行为面由 MonthAccrualTest
+            // 臂分流组（ArmSwitchSyncAndDiscreteMsTwinWrite）守护
+            (key == "spiritMineLastSettledGameMs" && path.startsWith("$.gameData")) ||
             (key == "id" && path.contains("availableMissions")) ||
             // 商人收购 id/itemId：Kotlin UUID vs C++ 确定性自增（gc-trade-N），
             // 语义等价仅保证唯一（DiffYearSettlementTest 同口径）；收购内容

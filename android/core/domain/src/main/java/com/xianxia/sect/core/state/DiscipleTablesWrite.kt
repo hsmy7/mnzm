@@ -143,7 +143,6 @@ internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
     storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
     discipleSpiritStones[id] = e.spiritStones
     cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
-    cultivationCompletionPhases[id] = disciple.cultivationCompletionPhase
     manualCompletionMonths[id] = disciple.manualCompletionMonth
     manualCompletionPhases[id] = disciple.manualCompletionPhase
     equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth

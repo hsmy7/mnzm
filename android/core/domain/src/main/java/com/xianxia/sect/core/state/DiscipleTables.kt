@@ -184,7 +184,6 @@ class DiscipleTables {
     val storageBagSpiritStones = ComponentTable<Long>()
     val discipleSpiritStones = IntComponentTable()
     val cultivationCompletionMonths = IntComponentTable()
-    val cultivationCompletionPhases = IntComponentTable()
     val manualCompletionMonths = IntComponentTable()
     val manualCompletionPhases = IntComponentTable()
     val equipmentNurturingCompletionMonths = IntComponentTable()

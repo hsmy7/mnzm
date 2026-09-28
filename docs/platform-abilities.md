@@ -2,7 +2,7 @@
 
 > 对标 Godot `platform/` 目录 + DisplayServer 抽象（OS/窗口/渲染/音频/输入按平台实现，引擎核心不感知）。
 > 本文档是 **iOS 跨平台可移植性**的唯一事实基线，替代 knowledge-base.md「iOS 跨平台可移植性基线」一节并扩展接口缺口分析。
-> 更新日期：2026-08（债务根治批次：G1/G3/G7/G8 已闭环，G2 已抽象确认，G4/G5/G6 评估 ADR 落地）。
+> 更新日期：2026-09（实时结算线 B10 登记：时间端口四件套入表——见一、能力盘点「时间源」行）。前次 2026-08（债务根治批次：G1/G3/G7/G8 已闭环，G2 已抽象确认，G4/G5/G6 评估 ADR 落地）。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 能力 | 现状实现 | Android 耦合点 | iOS 对等方案 | 接口抽象状态 |
 |------|---------|---------------|-------------|-------------|
-| 时间源 | `TimeSource` 接口（可注入时钟） | 无（纯 JVM） | 直接复用 | ✅ 已抽象 |
+| 时间源 | 四端口：① `TimeSource` 接口（可注入时钟，动画/引擎计时）；② C++ `Clock` 端口（`gamecore/core/clock.h`，引擎内禁直接取系统时间，对拍 FixedClock）；③ 单调时钟 `SystemClock.elapsedRealtime`（权威轴计量基，`GameTimeClock` 防改墙钟加速）；④ 现实墙钟 `System.currentTimeMillis`（仅离线时段计量与显示，与 `lastSaveTime` 同基） | ③④ 为 Android API 调用点（`PlatformTimeModule` 绑定 / `GameEngineCoreOfflineOps`） | ①② 直接复用；③ iOS 对等 `clock_gettime(CLOCK_MONOTONIC)`/`mach_absolute_time`；④ iOS 对等 `NSDate.timeIntervalSince1970`/`time(nullptr)`——均平台标准 API，换绑定即可 | ✅ 已抽象（①②接口 + ③④单点绑定） |
 | 游戏渲染 | `RenderBackend` 接口 + RenderFrame 契约（零 Android 依赖）；GPU 内存 `GpuAllocator`（C++，iOS 后续 MTLHeap 对等） | Vulkan C++（JNI）/ SoftwareCanvasBackend | Metal 实现 RenderBackend + MTLHeap 实现 GpuAllocator 接口 / 软件渲染直接复用 | ✅ 已抽象（Metal 实现未建） |
 | 触控手势 | `SectMapTouchEngine` 纯 Kotlin 状态机（core/engine/touch/） | `SurfaceView.onTouchEvent` 适配（TouchData 转换） | UITouch → TouchData 转换 | ✅ 已抽象 |
 | 相机数学 | BaseCameraState/SectCameraState/WorldCameraState | 无（纯 JVM） | 直接复用 | ✅ 已抽象 |
