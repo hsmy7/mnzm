@@ -136,6 +136,23 @@
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
 
+- **2026-09-29（B10 实施会话）**：① **B10 已收官提交 `efb8fc990`**（17 文件 +196/−71，纯文档批：
+  16 文件 .md/.json 文档面 + 报告 `docs/report-B10.md`；树净，atlas 幽灵 diff 已还原未混入），
+  **实时结算线末批交付完毕，待看护核验**（核验通过即可启动 §7 合并手术）。② 门禁实测原数字在
+  报告 §三：ctest **1494/1494**（首跑即绿 49.74s，安静窗口无 bench 噪声）、六模块 JVM
+  **7550/0/18 skipped**（与 B9 基线逐位一致；零代码改动故五模块 UP-TO-DATE 复用 B9 实跑结果、
+  feature:game 重执行绿——诚实登记非全部重执行）、Diff 家族定向 `--rerun-tasks` 实跑
+  **52 类 271 用例 0 skip**（打 B9 `.so` mtime 22:51，本批未触 C++）、lint/detekt 六模块绿、
+  jni-count **88/88**、agent-instructions 全绿（规则③死链两起途中自愈：报告落盘前 cpp-engine
+  反链扑空；规则⑤链路 32913 超预算 → engine AGENTS.md 压缩至 3174 字节回绿 32744/32768）。
+  ③ **交付面摘要**：§3.6 十项 + §4.6 规范侧八处全部落地——playbook 第 7 项换锚/economy §4
+  定稿/双 AGENTS+CODE_WIKI 存档例外登记（现实墙钟节拍自动存档，§2.6）/architecture 双轨
+  时间模型（INV-1/2/3）/knowledge-base 五处/cpp-engine 结算入口清单八项/ui-read-surface
+  镜像面补权威轴双字段+派生流三行/platform-abilities 时间端口四件套 iOS 对等/双 changelog
+  收口（版本号 4.01.14 未动）。④ **合并手术预警**（报告 §五）：本批触及根 `AGENTS.md`
+  §3 四行 + `docs/knowledge-base.md` + `docs/architecture.md`——主树若在并网前有他线改动
+  这三件，按 §4.6 裁决语义手工合流；`SaveLoadViewModel*` 三冲突文件本批未触碰，§7 预期不变。
+  ⑤ 途中发现三项（B9 移交）维持原状未顺手处置，无新增发现。
 - **2026-09-28（B9 实施会话）**：① **B9 已收官提交 `17161f5fc`**（64 文件 +5917/−245，
   含代码+测试+双 changelog+报告 `docs/report-B9.md`；树净，atlas 已还原），待看护核验。
   门禁实测原数字在报告 §二：ctest **1494/1494**（基线 1483+11）、六模块 JVM **7550/0**、
