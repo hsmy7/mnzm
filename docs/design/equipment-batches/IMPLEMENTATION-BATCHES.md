@@ -37,7 +37,7 @@
 
 | # | 铁律 |
 |---|---|
-| E1 | **存档编号一次规划、分批落地**：编号分配表在 **B0 冻结**；后续批只允许**使用**已分配编号，禁止临时新增。`DiscipleSurrogate` 新增段：`headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)/innateDamageType(117)`；复用 `accessoryId(20)`；退役 `weaponId(17)/armorId(18)/bootsId(19)/weaponNurture(24..27)/pillNurtureSpeedBonus(47)/equipmentNurturingCompletionMonth·Phase(98,99)`、`basePhysicalAttack(69)/baseMagicAttack(70)/basePhysicalDefense(71)/baseMagicDefense(72)`、属性方差(62–66 中两项)、`ItemEffect(3,8)`、`SaveData.equipmentStacks(53)`、`EquipmentInstance(3,4,7,10,13,14,15,50–56)`、`EquipmentSlot` 枚举 0–3（`EquipStat` 无退役：新枚举）。 |
+| E1 | **存档编号一次规划、分批落地**：编号分配表在 **B0 冻结**；后续批只允许**使用**已分配编号，禁止临时新增。`DiscipleSurrogate` 新增段：`headId(112)/bodyId(113)/handsId(114)/feetId(115)/innateDamageType(116)`；复用 `weaponId(17)` → 武器部位 与 `accessoryId(20)` → 饰品部位；退役 `armorId(18)/bootsId(19)/weaponNurture(24..27)/pillNurtureSpeedBonus(47)/equipmentNurturingCompletionMonth·Phase(98,99)`、`basePhysicalAttack(69)/baseMagicAttack(70)/basePhysicalDefense(71)/baseMagicDefense(72)`、属性方差(62–66 中两项)、`ItemEffect(3,8)`、`SaveData.equipmentStacks(53)`、`EquipmentInstance(3,4,7,10,13,14,15,50–56)`、`EquipmentSlot` 枚举 0–3（`EquipStat` 无退役：新枚举）。 |
 | E2 | **`DiscipleSerializer` 是弟子存档装备面**：`EquipmentSet` 不直接进存档 proto（被扁平代理摊平）。任何"改装备字段"的批**只改 `DiscipleSurrogate` + `buildSurrogate`/`withEquipmentUsage*`**；改 `EquipmentSet` 自身不产生存档效果。 |
 | E3 | **C++ AUTHORITATIVE + 双守护**：装备/属性的写入（穿卸、升级、分解、词条 roll）走 native 事务 + `applyDirtyFromNative`；**每个 C++ 业务实现必须同时具备 GTest 黄金序列与 JUnit 跨语言对拍**（`DiffEquipmentGenerationTest` / `DiffEquipmentUpgradeTest` / `DiffEquipmentSetBonusTest` / `DiffBattle*`），缺一即该批未完成。 |
 | E4 | **静态数据只走 codegen**：装备/套装/词条池/角色模板/配方一律"改 `scripts/data/*_sample.json` → 跑生成器 → 提交产物"；**禁手改** `equipment_db.h` / `equip_set_db.h` / `equip_main_stat_db.h` / `equip_affix_db.h` / `game-data.json`。 |
@@ -144,7 +144,7 @@ B0 存档编号规划与冻结 ──► B1 属性机制重构 ──► B2 孕�
 |---|---|
 | **目标** | 把全部编号分配**一次冻结**，后续批只能使用，不得临时新增（E1）。本批**不改任何业务语义**。 |
 | **前置** | 无（首批）。`git status` 干净。 |
-| **写入面** | ① `core/model/DiscipleSerializer.kt`（新增 `headId(112)…legsId(116)/innateDamageType(117)` 声明与搬运；`17/18/19/24..27/47/69–72/98/99` 就地注释 `reserved`）② `core/data/.../model/SaveData.kt`（`equipmentStacks(53)` 注释 `reserved`）③ **新增** `EquipmentProtoNumberFrozenTest.kt` ④ **新增** 报告目录骨架 |
+| **写入面** | ① `core/model/DiscipleSerializer.kt`（新增 `headId(112)…feetId(115)/innateDamageType(116)` 声明与搬运；**复用** `weaponId(17)`/`accessoryId(20)`；`18/19/24..27/47/69–72/98/99` 就地注释 `reserved`）② `core/data/.../model/SaveData.kt`（`equipmentStacks(53)` 注释 `reserved`）③ **新增** `EquipmentProtoNumberFrozenTest.kt` ④ **新增** 报告目录骨架 |
 | **影响面** | 存储：**新增字段声明但不写入/不读取**（旧档读到空值即默认）⇒ 二进制**向后兼容**；UI/C++/经济：无影响。 |
 | **兼容性** | 旧档可读（新字段默认值）；新档被旧客户端读时未知字段被 proto 忽略 ⇒ 双向兼容。`EquipmentInstance` 的 `reserved` 注释本批不落地（B3 落）。 |
 | **验收判据** | ① `EquipmentProtoNumberFrozenTest` 绿（断言 `DiscipleSurrogate` 装备段/新增段/`reserved` 集合/`SaveData` 的属性→编号映射与冻结表逐条一致，错误消息含操作指引）；② `compileReleaseKotlin` 绿；③ `testReleaseUnitTest --max-workers=1` 全绿（无行为变化）；④ Room schema **零变更**。 |
@@ -270,7 +270,7 @@ commit：<sha> <标题>
 
 | 方案条目 | 落在 | 门禁/判据 |
 |---|---|---|
-| R1 六部位（不设武器位，顺序头/身/手/脚/腿/饰） | B3-A/E | `EquipmentSlotOrderGuardTest` |
+| R1 六部位（顺序头/身/手/脚/**武器**/饰） | B3-A/E | `EquipmentSlotOrderGuardTest` |
 | R2 删除全部旧装备 + 补偿 | B3-A/B/F | `RoomMigrationV61ToV62Test` + `EquipmentLegacyCompensationTest` |
 | R3 套装 2/4/6 | B3-A/C/D | `EquipmentSetBonusTest` + `equip_set_bonus_test.cpp` + 对拍 |
 | R4 升级 1–30 替换孕养 | B3-A/C/D | `EquipmentLevelSystemTest` + `equipment_tx_test.cpp` |
