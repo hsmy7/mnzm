@@ -59,6 +59,7 @@ data class SaveData(
     @ProtoNumber(2) val timestamp: Long = System.currentTimeMillis(),
     @ProtoNumber(3) val gameData: GameData,
     @ProtoNumber(4) val disciples: List<Disciple>,
+    // 🔴 E1 冻结表（B0）：equipmentStacks(53) 已划入退役清单（B3 删堆叠批退役）——禁改指向，退役后号禁复用
     @ProtoNumber(53) val equipmentStacks: List<EquipmentStack> = emptyList(),
     @ProtoNumber(5) val equipmentInstances: List<EquipmentInstance> = emptyList(),
     @ProtoNumber(54) val manualStacks: List<ManualStack> = emptyList(),

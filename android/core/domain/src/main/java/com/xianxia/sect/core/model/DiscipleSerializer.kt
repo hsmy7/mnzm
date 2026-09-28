@@ -12,7 +12,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * ## 为什么需要自定义序列化器
  * Disciple 域类型使用 Room @Embedded 将字段分散在 5 个子类中，但 Protobuf 要求
- * 所有 91 个字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
+ * 全部字段平铺在同一层（与旧 SerializableDisciple 兼容）。直接在每个
  * @Embedded 子类上加 @ProtoNumber 会导致 Protobuf 产生嵌套消息，破坏向后兼容。
  *
  * ## 实现方式
@@ -330,6 +330,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         // ProtoNumber(95) 已退役（#10 死值 1）：旧档 field 95 宽松忽略
         @ProtoNumber(96) val manualCompletionMonth: Int = 0,
         @ProtoNumber(97) val manualCompletionPhase: Int = 1,
+        // E1 退役清单在册（装备孕养完成月/旬，B3 装备体系替换批退役）：禁改指向，退役后号禁复用
         @ProtoNumber(98) val equipmentNurturingCompletionMonth: Int = 0,
         @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 1,
 
@@ -366,12 +367,16 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(44) val pillCritEffectBonus: Double = 0.0,
         @ProtoNumber(45) val pillCultivationSpeedBonus: Double = 0.0,
         @ProtoNumber(46) val pillSkillExpSpeedBonus: Double = 0.0,
+        // E1 退役清单在册（孕养丹速度加成，B2 孕养丹退役批退役）：禁改指向，退役后号禁复用
         @ProtoNumber(47) val pillNurtureSpeedBonus: Double = 0.0,
         @ProtoNumber(48) val pillEffectDuration: Int = 0,
         @ProtoNumber(49) val activePillCategory: String = "",
         @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),
 
         // ===== EquipmentSet @Embedded =====
+        // 🔴 E1 冻结表（equipment-batches §1 / 方案 §四 WP0，B0 定稿）：
+        // weaponId(17) 复用为六部位的武器部位列（唯一复用号，禁再映射其他语义）；
+        // 18/19/20 与 24..27 已划入退役清单（B3 装备体系替换批退役）：退役前禁改指向，退役后禁复用。
         @ProtoNumber(17) val weaponId: String = "",
         @ProtoNumber(18) val armorId: String = "",
         @ProtoNumber(19) val bootsId: String = "",
@@ -383,6 +388,16 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(30) val storageBagItems: List<StorageBagItem> = emptyList(),
         @ProtoNumber(31) val storageBagSpiritStones: Long = 0,
         @ProtoNumber(28) val spiritStones: Int = 0,
+
+        // ===== 六部位新增段（E1 冻结表，B0 占号定稿：112..116 部位列按显示序 头/身/手/脚/武/腿，117 固有伤害属性） =====
+        // 本段只声明占号，不写入/不读取（旧档读到默认值，二进制向后兼容）；接线分属 B1(117)/B3(112..116)，
+        // 后续批只允许使用已冻结编号，禁临时新增、禁改号（守卫 EquipmentProtoNumberFrozenTest）。
+        @ProtoNumber(112) val headId: String = "",
+        @ProtoNumber(113) val bodyId: String = "",
+        @ProtoNumber(114) val handsId: String = "",
+        @ProtoNumber(115) val feetId: String = "",
+        @ProtoNumber(116) val legsId: String = "",
+        @ProtoNumber(117) val innateDamageType: String = "",
 
         // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
         // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）
