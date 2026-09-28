@@ -1,0 +1,102 @@
+# 实时结算线批次看护台账（DISPATCH-LEDGER）
+
+> **唯一权威状态源**。看护自动化每轮先读本文件再行动；实施会话只读（§9 留言区可写留言）。
+> `accepted` 只能由看护亲跑核验后设置；实施会话自设无效（G 线 B11-B15 历史教训）。
+> 看护只写本目录与台账；绝不代实施会话改代码。
+
+## 0. 当前状态（事件倒序，最新在上）
+
+- **2026-09-28 16:35** 看护自动化建立（节奏 30 分钟/轮，收尾期自动切 10 分钟/轮）+ 本台账与 B7–B10 派发件入库。**用户已停止全部在途会话**（含此前直派的「在对应工作区继续实施realtime-settlement-plan-2026-09-27.md」实施会话——该会话仅勘察未落盘，看护派发前核实树净）。看护接管：**B7 由看护按 §4 桌面 GUI 派发**（结果见下一条回填）。
+- 锚点：B1–B6 已交付（最新收官笔 `d01fdfb91` B6；ctest 1465/1465 + 六模块 JVM + detekt/lint + jni-count 87/87 全绿，工作树净）。
+
+## 1. 固定事实
+
+| 项 | 值 |
+|---|---|
+| 方案真源 | `docs/realtime-settlement-plan-2026-09-27.md`（批次编排 = §10，B1–B10） |
+| 工作区 | `C:\Mnzm\XianxiaSectNative-realtime`（git worktree），分支 `feat/realtime-settlement`（基线 175bf2ff1） |
+| 报告路径约定 | `docs/report-B7.md` … `docs/report-B10.md`（实施会话写，随收官笔入库） |
+| 派发件 | 本目录 `batch-B7.md` … `batch-B10.md`；派发时若附录为占位，则由看护从前批报告提取 6–8 条《前批交付事实附录》追加于文末后全文粘贴 |
+| 桌面渠道 | ZCode 桌面 app（模型默认 GLM-5.3-Flash）；无头 `--prompt` 不可用（选路写死，勿走） |
+| 门禁基线（B6 后） | ctest **1465**/1465；jni-count **87/87**；六模块 JVM 全量含 feature:game（**B 批门禁必须含 feature:game**——B5 教训）；detekt 六模块 0/0；lintRelease 绿；engine Diff 门必带 `-Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so` |
+
+## 2. 批次状态表
+
+| 批 | 内容（§10） | 状态 | 收官笔 | 报告 | 看护核验 |
+|---|---|---|---|---|---|
+| §2.6 | 自动存档现实时间化 | ✅ 已交付 | e555b9964 | 随笔 | 随线自证（开关方案；并回时与主线显式启动案冲突→§7） |
+| B1 | 时间语义基座 | ✅ 已交付 | f939c6063 | —（早期批） | 随线自证 |
+| B2 | 时间推进层 | ✅ 已交付 | 06f2e7be1 | — | 随线自证 |
+| B3 | 存储底座 v60 | ✅ 已交付 | 9eeca9df9 | — | 随线自证 |
+| B4 | L1 连续积分轨 | ✅ 已交付 | 9a00b2ded | — | 随线自证 |
+| B5 | L2 差分轨 | ✅ 已交付 | 3762b14ab | — | 随线自证 |
+| B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
+| B7 | 离线语义 | 🔄 看护派发在途 | — | — | 待交付 |
+| B8 | UI 与遥测 | ⏳ 待派 | | | |
+| B9 | 测试基准重建+遗留清理 | ⏳ 待派 | | | |
+| B10 | 文档与规范 | ⏳ 待派 | | | |
+
+> B1–B6 交付于自动化建立之前，门禁数字见 git log 各笔提交说明；本表只回溯登记。
+
+## 3. 看护轮操作规程（每轮 fire 按此执行）
+
+1. **先读本台账全文** + **完整读 fire 文本**（末尾可能有用户追加指令，以最新指示为准；说「暂停」= 删看护自动化、完全停手，子会话不受影响照常跑）。
+2. **轻量 CLI 探测**（Git Bash 原生命令，勿 pwsh 启动开销）：`git -C <worktree> log --oneline -5`、`git status --porcelain | wc -l`、报告文件存在性与 mtime、构建产物计数 `find android/app android/core/domain android/core/data android/core/engine android/core/ui android/feature/game -maxdepth 4 -path "*build*" -newermt "-12 minutes" -type f 2>/dev/null | wc -l`（**全树扫描禁用**——曾超 2 分钟不可用）。
+3. **GUI 只读判活**：`Snapshot` 看 ZCode 窗口（会话「工作中」计时/思考/工具详情）；**禁止盲发**；写操作只在派发与记账时做。
+4. **状态分类**：
+   - **实施期**：无报告文件、代码面渐增、构建偶发 → 只观察，不记账不提交。
+   - **收尾期**：报告已落盘未收官 / 近 20 分钟构建产物数百（全量门在跑）/ 双 changelog 在改 → 高频观察（切 10 分钟轮，§6），准备核验。**文件面静默 ≠ 停滞：先跑 build 计数再考虑截图**（G 线两次实证：报告落盘到收官间隔 25–30 分钟，中间必有第二波全量门）。
+   - **交付**：收官笔落 + 报告在 + 树净（§5）→ 走 §5 核验。
+   - **停滞**：三重静默判停（报告缺 + build 近 20 分钟 0 + 改动面不增长）⇒ 被动截图核活性；连续 2 轮无进展 ⇒ 台账登记 + 决定重派（重派前先保全现场：未提交成果勿动勿删，续作指令写 §9 留言区）。
+5. **记账纪律**：无事件不写不提交；有事件才倒序追加 §0 + 更新 §2；台账提交 `docs(realtime-watch): ...` 笔，只 `git add docs/realtime-watch`（绝不代实施会话 add 其文件）。
+6. **间隔调整**见 §6；**饱和自保**：git 等命令 4.5 分钟不归 = 机器被他线构建饱和，本轮弃权观察、不带病下验收结论。
+
+## 4. 派发操作法（桌面 GUI，全流程截屏验证）
+
+1. `Snapshot` 确认前台窗口身份（ZCode 主窗）。
+2. 点侧栏「新建任务」→ `Snapshot` 确认进入新会话输入页（**首点偶尔不生效仅激活窗口**：若粘贴落进旧会话输入框，Ctrl+A+Delete 清空——未发送零副作用——重开新任务重试）。
+3. 派发文本 = `batch-Bx.md` 全文（含附录），经剪贴板粘贴（大文本折叠成「粘贴文本 · N 行」芯片属正常）。
+4. **发送前回读**：核对输入区开头/结尾与派发文本一致。
+5. 点发送 → `Snapshot` 确认开跑（「工作中」计时出现）。
+6. 台账登记派发时间与会话名。
+- 焦点红线：用户正在用键鼠时暂停写操作等其停下；任一步特征不符即中止重试，禁止盲发。
+- 派发文本内已含工作区自检（分支/树况），实施会话开工先自证。
+
+## 5. 交付核验口径
+
+**三要素**：① `git log` 出现本批收官笔（含代码+测试+双 changelog+报告；feat/refactor/docs 前缀皆可，偏差登记）；② `docs/report-Bx.md` 有门禁实测原数字（禁「应该通过」措辞、禁 `{{...}}` 占位符残留——G10 先例判 needs-fix）；③ 树净——实施 footprint 全入库，构建副产物（`atlas-rgba-manifest.json`/`sprite-uid-map.json`/`scene_uv_tables.h` 等 codegen 幽灵 diff）已还原；他线产物不计违规不碰。
+**看护抽验**（亲跑）：收官笔 diff 面与批次 footprint 对应；报告关键数字抽 2–3 项复跑（ctest 全量或定向、detekt、check-jni-count 87/87）；触碰 C++ 的批验证 build-desktop-jni.ps1 已重跑（否则 Diff 门假红）；feature:game 全量证据在报告。
+**通过 ⇒ §2 置 accepted（看护亲设）+ §0 登记**；不通过 ⇒ needs-fix（派发修复轮或在 §9 留言区通知实施会话自修）。
+**连交多批处置**：逐笔收官笔逐批核验；若单笔混多批，按方案 §10 各批验收标准全量核验后整线登记（偏差入 §0）。
+
+## 6. 看护间隔动态调整（用户规则）
+
+- 常态 **30 分钟/轮**。
+- 进入**收尾期**（跑测试/门禁/报告落盘未收官/收官组装）→ 切 **10 分钟/轮**：CronUpdate 本自动化 `intervalUnit=minute, interval=10, cron='* * * * *'`，title 同步改「…每10分钟一轮」。
+- 新批派发回到**实施期** → 调回 30 分钟（同法，title「…每30分钟一轮」）。
+- 只在状态翻转时调整一次，不每轮重复调用。
+
+## 7. 合并手术计划（B10 accepted 后，看护亲自操刀）
+
+1. 前置：主树 `C:\Mnzm\XianxiaSectNative` 在 main 且干净（`git status` 核实；他线会话在途则等下一轮重试）。
+2. `git -C C:/Mnzm/XianxiaSectNative merge --no-ff feat/realtime-settlement`。
+3. **预期冲突三文件**（§2.6 两案同题不同解）：`SaveLoadViewModel.kt` / `SaveLoadViewModelAutoSaveOps.kt` / `SaveLoadViewModelAutoSaveTest.kt`——**以主线显式启动案为基**（`startRealtimeAutoSaveTicker` + MainGameScreen LaunchedEffect + 60 虚拟秒守卫测试，无全局可变状态），核对 B 线「现实墙钟每 10 秒一存」语义已被主线案覆盖；`realtimeAutoSaveTickLoopEnabled` 开关方案弃用并清残留引用。
+4. 并后全门禁：ctest 全量（llvm-mingw PATH）+ build-desktop-jni.ps1（若 C++ 有变）+ engine Diff 门（-Dgamecore.jni.path 指主树桥）+ 六模块 JVM（含 feature:game）+ detekt + lint + check-agent-instructions + check-jni-count。
+5. push：`git -c http.proxy=http://127.0.0.1:7897 push origin main`（直连会 reset/超时；失效先 `netstat -ano | findstr 7897` 查 Clash 端口）。
+6. 台账记终态笔；`git worktree remove C:/Mnzm/XianxiaSectNative-realtime` + `git branch -d feat/realtime-settlement`（台账已随合并笔在主树同路径）。
+7. §0 登记「实时结算线 completed」→ 转 §8 装备阶段。
+
+## 8. 装备系统阶段（实时线并网删支后启动，同看护模型）
+
+- 方案：`docs/design/equipment-set-system-refactor-plan.md`；批次真源：`docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md`（§3 总览、§4 批次详述 TASKBOOK 级、§8 开工检查清单）。
+- 批次：**B0 存档编号规划与冻结守卫 → B1 属性机制重构（大，Room 迁移）→ B2 孕养丹退役+补偿 → B3 装备体系原子替换（最大，原子、合并且仅合一次）→ B4 数值对齐与验收 → B5 文档/ADR/双日志/债登记**，**全串行**（§3.3 共享写入面必须串行，禁止并行）。
+- 🔴 **Room 版本号**：方案表 v59→v60 系**计划映射**；实际**以合入时刻 `GameDatabaseConfig.DATABASE_VERSION` 为基准 +1**（实时线已占 v60 ⇒ 装备 B1 起应为 v61/v62/v63 顺延，不得预占）。派发件必须写明此规则。
+- 工作区：新建 worktree `C:\Mnzm\XianxiaSectNative-equipment`（分支 `feat/equipment-set` 自最新 main）；拷 gitignored 本机件（`android/local.properties`、`keystore.properties`、`api.properties`、`scripts/node_modules`、desktop-jni `.so`）。
+- 报告路径：`docs/design/equipment-batches/reports/report-Bx.md`（方案既定）。
+- **开工前置（§3.4）**：每批开工第一件事查共享文件是否被他线占用（models.h、CHANGELOG.md、knowledge-base、architecture、存档管线等），命中即**停手报告**。
+- 派发件：现场从 IMPLEMENTATION-BATCHES.md §4 对应节装配（纪律前言复用本目录 batch 模板 + §2 门禁命令 + 前批事实附录），存本目录 `batch-EQ-Bx.md`。
+- 收官/核验/间隔调整/最终合并删支：同 §4–§7 模型。
+
+## 9. 留言区（实施会话可写；看护会读）
+
+（实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
