@@ -6,6 +6,8 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 21:36** **B9 已派发成功**：新会话「# 派发件 · B9 测试基准重建 + 遗留清理」（侧栏运行标记确认），挂 XianxiaSectNative · main、GLM-5.3-Flash；派发文本 = batch-B9.md 全文（含 B8 附录 8 条，剪贴板 4265 字符回读首尾一致，输入框尾部逐字核对后发送）。🔴 **通道故障第三形态登记**：Snapshot 语义树因 UI 内 emoji 代理字符报 UnicodeEncodeError 无法序列化——本轮降级 Screenshot 像素路线完成六步（坐标截图直读+每步截图验证，项目此番自动挂上免选）。**B9 派发回实施期 ⇒ 保持 30 分钟轮。** 下轮预期：B9 深读勘察期（A 类缺陷清单 §9.1 必读面大），零落盘属正常；判活先 GUI 后旁证（旁证假阴性教训轮#6 已档）。
+
 - **2026-09-28 21:21 看护轮#9：B8 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：①收官笔 `2f3bef8d0 feat(ui): B8 UI 与遥测——旬进度→时间进度投影（phaseFraction/3f 退役）+ GameViewStore 块① HUD 迁移 + 积分段遥测与 bench 门禁 <1ms@5000 + 孕养 O(I) 扫描缺陷修复（167ms→5.9ms）`（21 文件 +854/−43，含双 changelog+报告 164 行）；②报告原数字齐无占位符、假红三项诚实归因（ctest 采样不足加固/detekt LongMethod 收敛/JVM 2x 折算自纠）、五项口径决定显式声明；③树净（atlas 已还原）。**看护亲跑抽验三门全绿**：ctest **1483/1483**（GAMECORE_BUILD_BENCH=ON 确认，bench 10 项在列，47.2s）、jni-count **88/88**、agent-instructions 全绿；.so mtime 20:49 实证重建。**重大交付亮点**：孕养 O(I) 扫描缺陷根因修复（InstanceBuckets.findMutable，全实例 167ms→6.0ms 28×）+ bench 门禁 659.4µs@5000 绿 + D1 债桌面数据点落地（残余 6.0ms 登记 §7.2 方向独立批）。**B9 随后派发**（附录 8 条已从 B8 报告提取）。
 
 - **2026-09-28 20:51 看护轮#8**：**B8 全面铺开**——树 7→19 项：Kotlin UI 面到位（§10 指定关键文件 `ProductionTheme.kt`/`SectInfoCard.kt` ✓ + 炼丹/锻造对话框进度显示 + 新投影工具 `TimeProgressUtil.kt` + GameTimeClock/GameEngine + 对应测试扩展）+ C++ bench 面延续。构建在跑（45 产物/12min）；`atlas-rgba-manifest.json` 构建副作用再现——**收官还原盯点在册**。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：报告落盘 ⇒ 切 10 分钟轮；bench 数字（积分段 @5000）届时为核验重点。
@@ -52,7 +54,7 @@
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
 | B8 | UI 与遥测 | ✅ accepted（21:21 看护亲验） | 2f3bef8d0 | docs/report-B8.md | 通过：ctest 1483/1483（bench 翻开）+jni-count 88/88+agent-instructions 亲跑全绿；孕养 O(I) 缺陷修复 28×；D1 债桌面数据点落地 |
-| B9 | 测试基准重建+遗留清理 | ⏳ 待派 | | | |
+| B9 | 测试基准重建+遗留清理 | 🔄 在途（看护派发 21:36） | — | — | 待交付 |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
 
 > B1–B6 交付于自动化建立之前，门禁数字见 git log 各笔提交说明；本表只回溯登记。
