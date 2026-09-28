@@ -6,6 +6,8 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 19:19** **B8 已派发成功（看护桌面 GUI 六步全过，同轮内完成）**：新会话「# 派发件 · B8 UI 与遥测（实时结算线）」，挂 XianxiaSectNative 项目（主树 main 不动）、GLM-5.3-Flash；派发文本 = batch-B8.md 全文（含 B7 附录 8 条 + 门禁第 2 条 jni.path 补正，剪贴板 4291 字符回读首尾一致），发送后「工作中」确认。**B8 派发回实施期 ⇒ 保持 30 分钟轮（间隔无翻转，未动自动化）**。下轮预期：B8 深读规划期（树零落盘属正常，参照 B7 节奏 30+ 分钟才首批落盘）；判活用日志旁证（GUI 通道轮#4 已恢复但仍须防误发，控制调用密度）。
+
 - **2026-09-28 19:13 看护轮#4：B7 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：①收官笔 `568c01921 feat(engine): B7 离线语义——12h 全额+50% 至 24h 硬顶折算 + GameCore::injectOfflineGameMs 注入路径 + 云游归来 UI 提示`（29 文件 +1270/−7，单笔含双 changelog+报告 175 行+threading-contract 登记+jni-count 基线同步）；②报告 `docs/report-B7.md` 门禁原数字齐、无占位符、假红诚实归因（IN8 跑法/detekt 4 自引违规/C++ 测试 2 断言自纠）；③树净——atlas 副产物未混入收官笔。**看护亲跑抽验三门全绿**：ctest **1473/1473**（=1465+8，47.6s）、check-jni-count **88/88**、check-agent-instructions 全绿；.so mtime 17:59 实证 build-desktop-jni.ps1 已重跑。预载盯点双销：jni-count 豁免理由在报告 §1.4；边界决定遵守（未顺手实施未采纳项、schema 零变更、旗标未翻、版本号未动）。§9 留言建议已采纳：batch-B8/9/10 门禁第 2 条补 `-Dgamecore.jni.path` 参数（本轮改）。遗留移交：D8 真机项 pending-device。**B8 随后派发（回实施期，保持 30 分钟轮）。**
 - **2026-09-28 18:21 看护轮#3**：**B7 进入收尾组装期**——树 23→28 项：**双 changelog 同轮在改**（CHANGELOG.md + changelog_entries.json，G/MR 线实证的收官材料准备期信号）+ 测试面铺齐（新增 engine 侧 `GameEngineCoreOfflineOpsTest`/`GameTimeClockOfflineInjectTest` + UI 件 `OfflineReturnFormatter.kt`）+ `docs/threading-contract.md` 跨线程登记义务履行 + `models.h`/`GameData.kt` 加入。无报告无收官笔，构建 28 产物/12min 在跑；agent 流走低（18:1x=7/18:2x=5）与门禁执行期吻合。⇒ 判收尾期，**应切 10 分钟轮但未成**：CronUpdate 连续 4 次误发为 CronList（🔴 工具通道故障第二起，轮#1 曾 Snapshot×7 误发；处置同轮#1=停止重试不硬闯），本轮保持 30 分钟轮，下轮 fire（~18:51）仍处收尾期则重试切换。下轮预期：收官笔落 ⇒ 直接走 §5 核验（盯点：jni-count baseline 豁免理由 + atlas 副产物还原 + 报告原数字）；若报告落盘未收官 ⇒ 重试切 10 分钟轮。
 
@@ -41,7 +43,7 @@
 | B5 | L2 差分轨 | ✅ 已交付 | 3762b14ab | — | 随线自证 |
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
-| B8 | UI 与遥测 | ⏳ 待派 | | | |
+| B8 | UI 与遥测 | 🔄 在途（看护派发 19:19） | — | — | 待交付 |
 | B9 | 测试基准重建+遗留清理 | ⏳ 待派 | | | |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
 
