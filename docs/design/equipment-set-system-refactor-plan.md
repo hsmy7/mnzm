@@ -85,7 +85,7 @@
 
 | # | 用户原话 | 工程口径 |
 |---|---|---|
-| R1 | 改为头部、身体、**手部**、脚部、**武器**、饰品装备系统（**顺序照此**；武器位由"腿部"转换而来） | `EquipmentSlot` 4 值 → 6 值，**声明序 = UI 显示序**：`HEAD / BODY / HANDS / FEET / WEAPON / ACCESSORY`；`WEAPON` 承接原 `LEGS` 的槽位位置（第 5 位），`HANDS` 保留为"手部（护手）" |
+| R1 | 改为头部、身体、**手部**、脚部、**武器**、**腿部**装备系统（**顺序照此**；**移除饰品位**） | `EquipmentSlot` 4 值 → 6 值，**声明序 = UI 显示序**：`HEAD / BODY / HANDS / FEET / WEAPON / LEGS`；`WEAPON` 第 5 位（由原"腿部"转换）、`LEGS` 第 6 位（原饰品位置）；`ACCESSORY` 从枚举移除 |
 | R2 | 删除现有所有装备 | `EquipmentDatabase` 72 条 + `EquipmentRegistry` 第二份 72 条 + 73 条锻造配方 + 71 张装备美术全部作废；旧档装备实例/堆叠/槽位引用/储物袋装备条目按 §5.4 折算补偿后清空 |
 | R3 | 装备改为套装形式上线，要有套装效果（2/4/6 件套） | 套装注册表 + 套装效果结算（2/4/6 三档），每档 1 条效果 |
 | R4 | 孕养系统改为升级系统（初始 1 级最高 30 级） | 删 `EquipmentNurtureSystem` 与 `EquipmentNurtureData`；等级 1–30 + 主词条随等级成长 + 每 3 级强化一条副词条 |
@@ -93,7 +93,7 @@
 | R6 | 移除装备堆叠功能 | 删 `EquipmentStack` 实体 + Proto 字段 + 双轨查找 + 堆叠键 + 分块/溢出邮件路径；仓库改实例网格（数量恒 1） |
 | R7 | 装备加成改为主词条 + 三副词条 | 主词条**按部位池随机**（§3.4.2）；3 副词条从 **7 项池**按权重不放回抽取（去重），每 3 级强化一条 |
 | R8 | 要求包含两件装备套装，物理套 + 法术套 | 首期 2 套（§3.7）：物理套「裂天罡煞」/ 法术套「紫府玄冥」，各 6 部位 |
-| R9 | 主词条：头部随机（血量/防御力）；身体随机（防御力/攻击力/暴击率/暴击伤害）；手部随机（攻击力/暴击率/暴击伤害）；脚部与**武器**随机（防御力/攻击力/暴击率/暴击伤害/血量）；饰品随机（攻击力/暴击率/暴击伤害） | 部位 → 主词条候选池（§3.4.2）；武器位由原"腿部"转换，主词条池**沿用原腿部池**（已拍板）；配合 §15 单列重构，`攻击力`/`防御力` **即统一单列属性本身**，无需按流派固化 |
+| R9 | 主词条：头部随机（血量/防御力）；身体随机（防御力/攻击力/暴击率/暴击伤害）；手部随机（攻击力/暴击率/暴击伤害）；脚部与**武器**随机（防御力/攻击力/暴击率/暴击伤害/血量）；腿部随机（防御力/攻击力/暴击率/暴击伤害/血量）；~~饰品~~（**该位移除**） | 部位 → 主词条候选池（§3.4.2）；配合 §15 单列重构，`攻击力`/`防御力` **即统一单列属性本身**，无需按流派固化 |
 | R10 | 副词条池（经单列重构后定稿为 7 项） | **攻击力、防御力、血量、暴击率、暴击伤害、物理伤害加成、法术伤害加成**；权重 **13/13/14/15/15/15/15（合计 100 = 直接概率）**；全局池、与流派无关；3 条按权重**不放回**抽取 |
 | R11 | 删除孕养类加成丹药 | 删 `nurtureAdd` / `nurtureSpeedPercent` 两类丹药**全部定义与效果链**（配方、`ItemEffect` 字段、`PillEffects` 字段、列式存储列、C++ 配方与分类分支）；已持有按 §5.7 折算补偿 |
 | **R12** | **属性机制重构：采用单列** | 统一 `attack`/`defense` 两列，替换物攻/法攻 + 物防/法防四列；伤害类型由**普攻（角色模板固定的固有属性）+ 技能（自带 `damageType`）**决定；类型差异走**类型伤害加成**与**类型减伤分桶**（§15） |
@@ -324,28 +324,30 @@ enum class EquipmentSlot {
     @ProtoNumber(12) HANDS,     // 手部
     @ProtoNumber(13) FEET,      // 脚部
     @ProtoNumber(14) WEAPON,    // 武器
-    @ProtoNumber(15) ACCESSORY; // 饰品
+    @ProtoNumber(15) LEGS;      // 腿部
 
     val displayName: String get() = when (this) {
         HEAD -> "头部"; BODY -> "身体"; HANDS -> "手部"
-        FEET -> "脚部"; WEAPON -> "武器"; ACCESSORY -> "饰品"
+        FEET -> "脚部"; WEAPON -> "武器"; LEGS -> "腿部"
     }
     /** UI 六宫格顺序（单一真源；声明序 = 显示序 = R1 指定序） */
     companion object {
         val displayOrder: List<EquipmentSlot> =
-            listOf(HEAD, BODY, HANDS, FEET, WEAPON, ACCESSORY)
+            listOf(HEAD, BODY, HANDS, FEET, WEAPON, LEGS)
     }
 }
 ```
 
 - 编号取 **10..15** 而非 0..5：ProtoBuf 枚举按编号落盘，旧档 `2` 表示 `BOOTS`，若新 `2` 是别的部位会产生"能解码但语义错误"的静默错位。取新段使"语义断裂"显式化，并由迁移清空旧行双保险。
-- **武器位由"腿部"转换而来（`LEGS → WEAPON`）**，不是把"手部"改名 ⇒ **手部（护手）与武器两个部位并存**：
-  - `HANDS` 保留 R9 指定的主词条池「攻击力/暴击率/暴击伤害」；
-  - `WEAPON` 承接原 `LEGS` 的槽位位置（显示序第 5 位）与主词条池；其主词条池**沿用原腿部池**（防御力/攻击力/暴击率/暴击伤害/血量，系数 0.95）——**已拍板（2026-09-29）**；`WEAPON` 同时确认**保持显示序第 5 位**。
-- **同名冲突风险回归（必须靠迁移兜底）**：旧枚举有 `WEAPON(0)` 与 `ACCESSORY(3)`，新枚举有 `WEAPON(14)` 与 `ACCESSORY(15)` ⇒ **两个名字在新旧之间重合**。Room 按枚举 **name** 落列（`JsonConverters.kt:31`），若迁移不清空旧行，旧 `slot="WEAPON"` 行会被当作新武器部位读出（数值字段已全部退役 ⇒ 幽灵件）。⇒ **迁移必须清空两张装备表与六个部位列**（§6.5 A1 / §13-10）。
-- **Proto 编号上的对应处理**：`weaponId(17)` **被复用**为武器部位列（与 `accessoryId(20)` 同法）——旧值由迁移清空，故复用无歧义；这样 6 个槽位 = 复用 2 个（`weaponId`/`accessoryId`）+ 新增 4 个（`headId/bodyId/handsId/feetId`），既避免"删了旧 `weaponId` 列又新增同名列"的迁移绕路，也少一次列搬迁。
+- **六部位的最终构成（`ACCESSORY` 移除 + `WEAPON`/`LEGS` 并存）**：
+  - `HANDS`（手部/护手）保留 R9 指定的主词条池「攻击力/暴击率/暴击伤害」；
+  - `WEAPON`（武器）占**第 5 位**，由原"腿部"槽位转换而来；
+  - `LEGS`（腿部）**回归占第 6 位**（原饰品位置），`ACCESSORY` 从枚举**移除**；
+  - ⇒ 显示序 = **头 / 身 / 手 / 脚 / 武 / 腿**（3×2 宫格：上行 头·身·手，下行 脚·武·腿）。
+- **主词条池**：`WEAPON` 与 `LEGS` 的池需要重新分配（原"武器字面继承腿部池"的前提已随腿部回归而失效）⇒ 见 §3.4.2 的 ⚠️ 待确认说明。
+- **同名冲突（必须靠迁移兜底）**：只有 **`WEAPON` 一处**新旧同名（旧 `WEAPON(0)` / 新 `WEAPON(14)`）。已退役的 `ARMOR/BOOTS/ACCESSORY` 在旧行里也存在，其中 `ACCESSORY` 在**新枚举中已不存在** ⇒ 解码走 `JsonConverters` 回退分支（`?: HEAD` + `Log.w`）。Room 按枚举 **name** 落列（`JsonConverters.kt:31`），若迁移不清空旧行，旧 `slot="WEAPON"` 行会被当作新武器部位读出（数值字段已全部退役 ⇒ 幽灵件）。⇒ **迁移必须清空两张装备表与六个部位列**（§6.5 A1 / §13-10）。
+- **Proto 编号上的对应处理**：`weaponId(17)` **被复用**为武器部位列——旧值由迁移清空，故复用无歧义；其余 5 个部位走**新增列**（`headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)`）。旧 `accessoryId(20)` 转为**退役**（随饰品位移除）。这样 6 个槽位 = 复用 1 个 + 新增 5 个，既避免"删了旧 `weaponId` 列又新增同名列"的迁移绕路，也少一次列搬迁。
 - Room 侧以 **name** 落列，迁移清空旧行 + 回退目标改 `HEAD` 并记 `Log.w`（D6）。
-- `EquipmentSlot.displayOrder` 为 UI 顺序单一真源，`EquipmentSlotOrderGuardTest` 同时断言它与枚举**声明序**一致。
 - `EquipmentSlot.displayOrder` 为 UI 顺序单一真源，`EquipmentSlotOrderGuardTest` 同时断言它与枚举**声明序**一致。
 
 ### 3.2 装备定义：套装部件模板（单源 codegen）
@@ -454,11 +456,14 @@ atk = (baseAtk + Σ 装备flatAtk) × (1 + Σ 装备atkPct) + Σ 功法flat + Σ
 | **手部 HANDS** | 攻击力、暴击率、暴击伤害 | 3 | 1.15（输出向） |
 | 脚部 FEET | 防御力、攻击力、暴击率、暴击伤害、血量 | 5 | 0.95（均衡） |
 | **武器 WEAPON** | 防御力、攻击力、暴击率、暴击伤害、血量 | 5 | 0.95（均衡） |
-| 饰品 ACCESSORY | 攻击力、暴击率、暴击伤害 | 3 | 1.10（输出向） |
+| **腿部 LEGS** | 防御力、攻击力、暴击率、暴击伤害、血量 | 5 | 0.95（均衡） |
 
-> ✅ **武器部位的主词条池已拍板（2026-09-29）：字面继承原腿部池**——`防御力/攻击力/暴击率/暴击伤害/血量`，系数 **0.95**；手部（护手）保持 R9 原话的 `攻击力/暴击率/暴击伤害`，系数 `1.15`。
-> ⇒ 本表即**最终口径**，无需再改。
-> **备选口径（未采纳，登记 §14.3）**：武器转输出向（`攻击力/暴击率/暴击伤害`，1.15）+ 手部转防御向（`防御力/血量`，0.95）。若未来觉得"武器能抽出血量"违和，**切换只改本表 + `EquipMainStatPool` 数据行 + C++ 对偶表**，架构/存档/编号/套装效果均不受影响。
+> ⚠️ **武器（第 5 位）与腿部（第 6 位）的主词条池需要你重新确认**：原"武器字面继承腿部池"的拍板前提（腿部不存在）已随**腿部回归 + 饰品移除**失效——若两者都用原腿部池（5 项 / 0.95），会出现**两个完全相同的池**（冗余）。当前表按**字面**填写（两者都取原腿部池）。候选口径见 §14.3：
+> - **口径 A（字面，当前填写）**：武器 = 腿部 = 防御力/攻击力/暴击率/暴击伤害/血量（0.95）；手部 = 攻击力/暴击率/暴击伤害（1.15）。
+> - **口径 B（推荐）**：**武器改为输出向** = 攻击力/暴击率/暴击伤害，系数 **1.15**；**腿部恢复 R9 原池** = 防御力/攻击力/暴击率/暴击伤害/血量（0.95）；手部保持 R9 原样（1.15）。⇒ 饰品位移除后，其"输出向"生态位由武器接手。
+> - **口径 C**：武器 = 攻击力/暴击率/暴击伤害（1.15）；腿部 = 防御力/血量（0.95，纯防御向）；手部保持 R9 原样。
+>
+> 切换成本：**只改本表 + `EquipMainStatPool` 数据行 + C++ 对偶表**，架构、存档、编号、套装效果均不受影响。
 
 **候选词条口径（单列重构后已简化）**：
 - ✅ §15 单列重构已拍板 ⇒ `攻击力` = 统一 `attack`、`防御力` = 统一 `defense`，**无需按流派固化**（原"物理套→物攻/物防、法术套→法攻/法防"的固化口径作废，§13-11 关闭）；
@@ -597,7 +602,7 @@ data class EquipmentInstance(
 | **手部** | 裂天罡煞·战手 | 攻击力 / 暴击率 / 暴击伤害 |
 | 脚部 | 裂天罡煞·战靴 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
 | **武器** | 裂天罡煞·战刃 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
-| 饰品 | 裂天罡煞·战符 | 攻击力 / 暴击率 / 暴击伤害 |
+| **腿部** | 裂天罡煞·胫甲 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
 
 | 档位 | 效果 |
 |---|---|
@@ -614,7 +619,7 @@ data class EquipmentInstance(
 | **手部** | 紫府玄冥·灵手 | 攻击力 / 暴击率 / 暴击伤害 |
 | 脚部 | 紫府玄冥·云履 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
 | **武器** | 紫府玄冥·灵剑 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
-| 饰品 | 紫府玄冥·灵枢 | 攻击力 / 暴击率 / 暴击伤害 |
+| **腿部** | 紫府玄冥·灵甲 | 防御力 / 攻击力 / 暴击率 / 暴击伤害 / 血量 |
 
 | 档位 | 效果 |
 |---|---|
@@ -726,7 +731,7 @@ data class EquipmentInstance(
 
 | 子系统 | 落点 | 关键接口 |
 |---|---|---|
-| 部位/实例模型 | `state/models.h`、`state/disciple_store.h:221`（`headIds/bodyIds/handsIds/feetIds/weaponIds/accessoryIds` 六列，按显示序） | 列式存储，与 Kotlin `DiscipleTables` 六列一一对应 |
+| 部位/实例模型 | `state/models.h`、`state/disciple_store.h:221`（`headIds/bodyIds/handsIds/feetIds/weaponIds/legsIds` 六列，按显示序） | 列式存储，与 Kotlin `DiscipleTables` 六列一一对应 |
 | 词条 | **新增** `data/equip_affix_db.h`（codegen）+ `system/equip_affix.h`（权重不放回抽取 + 强化） | 禁 `unordered_map` 参与迭代（`std::vector` + 权重前缀和） |
 | 套装效果 | **新增** `system/equip_set_bonus.h` | `resolveSetBonus(instances) -> EquipBonus` |
 | 部位主词条池 | **新增** `system/equip_main_stat.h` + `data/equip_main_stat_db.h` | 与 Kotlin `EquipMainStatPool` 逐位对拍（单列后无固化逻辑） |
@@ -766,7 +771,7 @@ data class EquipmentInstance(
 | 批量分解弹窗（**新增**） | 多选 + 返还预览 + 二次确认（遮罩统一 `Color(0x99000000)`） |
 | 锻造 | 73 配方 → 12 套装部件配方 |
 | 商店/自动购买/秘境背包/邮件 | 装备条目显示为「套装·部件」，无数量 |
-| 精灵图 | 首期 **12 张**（2 套 × 6 部位）命名 `lietian_head`/`lietian_body`/`lietian_hands`/`lietian_feet`/`lietian_weapon`/`lietian_accessory` + `zifu_*`；旧 71 张归档。**零美术产能可先上线**：程序化占位（品阶色边框 + 部位字形，I6） |
+| 精灵图 | 首期 **12 张**（2 套 × 6 部位）命名 `lietian_head`/`lietian_body`/`lietian_hands`/`lietian_feet`/`lietian_weapon`/`lietian_legs` + `zifu_*`；旧 71 张归档。**零美术产能可先上线**：程序化占位（品阶色边框 + 部位字形，I6） |
 | 对话框规范 | 新增 3 个对话框按 `rules/new-dialog-checklist.md` 注册 `DialogType` + `GameOverlayHost` 穷举分支；**无输入框** |
 | 流派提示 | 套装面板对"固有属性与套装流派不匹配"给出非阻断提示 |
 
@@ -832,7 +837,7 @@ data class EquipmentInstance(
 
 | 文件 | 变更 | 说明 |
 |---|---|---|
-| `DiscipleSerializer.kt` | 改 | `DiscipleSurrogate`：新增 `headId(112)/bodyId(113)/handsId(114)/feetId(115)`（按显示序）+ `innateDamageType(116)`；**复用** `weaponId(17)` → 武器部位 与 `accessoryId(20)` → 饰品部位；退役 `armorId(18)/bootsId(19)`、`weaponNurture(24..27)`、`equipmentNurturingCompletion*`(98/99)、`pillNurtureSpeedBonus(47)` 就地注释 `reserved` |
+| `DiscipleSerializer.kt` | 改 | `DiscipleSurrogate`：新增 `headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)`（按显示序）+ `innateDamageType(117)`；**复用** `weaponId(17)` → 武器部位；退役 `accessoryId(20)/armorId(18)/bootsId(19)`、`weaponNurture(24..27)`、`equipmentNurturingCompletion*`(98/99)、`pillNurtureSpeedBonus(47)` 就地注释 `reserved` |
 | `SaveData.kt` | 改 | `equipmentStacks(53)` 删除 → 注释 `reserved` |
 | `EquipmentProtoNumberFrozenTest.kt` | **新增** | 冻结表守卫：属性→编号 与冻结表一致；新增须登记、退役不得复活、`reserved` 不得被占用；错误消息带操作指引 |
 | 隐式编号的 ~20 个子消息类 | **不改** | 独立债 I8 |
@@ -844,7 +849,7 @@ data class EquipmentInstance(
 | `core/model/Items.kt` | 改 | `EquipmentSlot` 4→6 值（编号 10..15）；删 `EquipmentStack`；重写 `EquipmentInstance`（setId/part/growth/meta，9 构造参数） |
 | `core/model/EquipStat.kt` | **新增** | `EquipStat`（8 维度）+ `EquipStatValue` |
 | `core/model/EquipAffix.kt` | **新增** | `EquipAffixSet` / `EquipInstanceMeta` / `EquipGrowth` / `EquipLevelCurve` |
-| `core/model/DiscipleComponents.kt` | 改 | `EquipmentSet`：4 id → 6 id（`headId/bodyId/handsId/feetId/weaponId/accessoryId`），删 4 个 nurture 字段；`PillEffects.pillNurtureSpeedBonus` 退役 |
+| `core/model/DiscipleComponents.kt` | 改 | `EquipmentSet`：4 id → 6 id（`headId/bodyId/handsId/feetId/weaponId/legsId`），删 4 个 nurture 字段；`PillEffects.pillNurtureSpeedBonus` 退役 |
 | `core/model/Disciple.kt` | 改 | 删 `EquipmentNurtureData`；删 `equipmentNurturingCompletion*`；`ItemEffect` 3/8 退役 |
 | `core/registry/EquipmentDatabase.kt` | **重写** | 12 条套装部件模板（含 §3.4.2 部位主词条池）+ 品阶展开 |
 | `core/registry/EquipmentRegistry.kt` | **降级为纯转发层** | D1：数据面清零 |
@@ -1026,16 +1031,18 @@ CREATE TABLE IF NOT EXISTS `equipment_instances` (
   `meta` TEXT NOT NULL, `ownerId` TEXT, `isEquipped` INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(`id`, `slot_id`)
 );
--- 弟子：装备部位 4 → 6
--- 复用既有列：`weaponId` → 武器部位、`accessoryId` → 饰品部位（旧档两列存旧体系 id，迁移期清空 ⇒ 复用无歧义）
+-- 弟子：装备部位 4 → 6（旧 WEAPON/ARMOR/BOOTS/ACCESSORY → 新 HEAD/BODY/HANDS/FEET/WEAPON/LEGS）
+-- 复用既有列：`weaponId` → 武器部位（旧档该列存旧体系 id，迁移期清空 ⇒ 复用无歧义）
+-- 其余 5 个部位为新增列；旧 `accessoryId` 随"饰品位 → 腿部"的调整一并退役
 ALTER TABLE `disciples` ADD COLUMN `headId` TEXT NOT NULL DEFAULT '';
 ALTER TABLE `disciples` ADD COLUMN `bodyId` TEXT NOT NULL DEFAULT '';
 ALTER TABLE `disciples` ADD COLUMN `handsId` TEXT NOT NULL DEFAULT '';
 ALTER TABLE `disciples` ADD COLUMN `feetId` TEXT NOT NULL DEFAULT '';
--- 清空六个部位列（含复用的 weaponId/accessoryId 与旧 id 列）
-UPDATE `disciples` SET `weaponId`='', `accessoryId`='', `headId`='', `bodyId`='', `handsId`='', `feetId`='';
+ALTER TABLE `disciples` ADD COLUMN `legsId` TEXT NOT NULL DEFAULT '';
+-- 清空六个部位列（含复用的 weaponId 与旧 id 列）
+UPDATE `disciples` SET `weaponId`='', `headId`='', `bodyId`='', `handsId`='', `feetId`='', `legsId`='';
 db.safeDropColumns("disciples",
-  "armorId","bootsId","weaponNurture","armorNurture","bootsNurture","accessoryNurture",
+  "accessoryId","armorId","bootsId","weaponNurture","armorNurture","bootsNurture","accessoryNurture",
   "equipmentNurturingCompletionMonth","equipmentNurturingCompletionPhase");
 ```
 
@@ -1063,7 +1070,7 @@ db.safeDropColumns("disciples",
 | 项 | 处置 |
 |---|---|
 | 编号占用实况（实测） | `DiscipleSurrogate` 已用 `1–6,9,10,17–21,23–28,30–49,51–75,77–87,89–91,94–109,111`；已 `reserved` `7,8,11–16,22,29,50,76,88,93,102,104,105,110`。**新增取 112–117** |
-| `DiscipleSurrogate` 装备段 | **新增** `headId(112)/bodyId(113)/handsId(114)/feetId(115)` + `innateDamageType(116)`；**复用** `weaponId(17)` → 武器部位 与 `accessoryId(20)` → 饰品部位（旧值由迁移清空）；**退役** `armorId(18)/bootsId(19)` + `weaponNurture(24..27)` + `equipmentNurturingCompletion*(98,99)` + `pillNurtureSpeedBonus(47)` ⇒ 就地 `reserved`（保留声明维持旧档可读，值由迁移清空） |
+| `DiscipleSurrogate` 装备段 | **新增** `headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)` + `innateDamageType(117)`；**复用** `weaponId(17)` → 武器部位（旧值由迁移清空）；**退役** `accessoryId(20)/armorId(18)/bootsId(19)` + `weaponNurture(24..27)` + `equipmentNurturingCompletion*(98,99)` + `pillNurtureSpeedBonus(47)` ⇒ 就地 `reserved`（保留声明维持旧档可读，值由迁移清空） |
 | `DiscipleSurrogate` 属性段 | 新增 `baseAttack/baseDefense/innateDamageType(117)`；退役 `basePhysicalAttack(69)/baseMagicAttack(70)/basePhysicalDefense(71)/baseMagicDefense(72)` 与 4 个 variance(62–66) 中的两个属性方差 ⇒ `reserved` |
 | `SaveData.equipmentStacks`(53) | 删除字段，编号 **reserved** |
 | `SaveData.equipmentInstances`(5) | 编号不变，类型换为新 `EquipmentInstance`；旧档该列表在迁移期清空 ⇒ 无需旧结构反序列化 |
@@ -1072,7 +1079,7 @@ db.safeDropColumns("disciples",
 | 新消息类型 | `EquipGrowth`/`EquipAffixSet`/`EquipInstanceMeta`/`EquipStatValue` 全新，编号自 1 起 |
 | `EquipmentNurtureData` 类型 | 保留定义并标 `@Deprecated`（`DiscipleSurrogate` 旧 nurture 字段仍引用以保证旧档可反序列化），不参与新逻辑 |
 | `ItemEffect` 的 `nurtureSpeedPercent(3)`/`nurtureAdd(8)` | **退役**（R11）：`reserved` 禁复用；类型保留声明但**不再有读取点** |
-| 退役编号登记（汇总） | `DiscipleSurrogate` **18/19**（armorId/bootsId）24–27/47/69–72/98/99（+ 属性方差 62–66 中两项）；`EquipmentInstance` 3/4/7/10/13/14/15/50–56；`ItemEffect` 3/8；`SaveData` 53；`EquipmentSlot` 枚举 0–3。**复用（非退役）**：`weaponId(17)` → 武器部位、`accessoryId(20)` → 饰品部位（旧值由迁移清空，故复用无歧义） |
+| 退役编号登记（汇总） | `DiscipleSurrogate` **18/19/20**（armorId/bootsId/accessoryId）24–27/47/69–72/98/99（+ 属性方差 62–66 中两项）；`EquipmentInstance` 3/4/7/10/13/14/15/50–56；`ItemEffect` 3/8；`SaveData` 53；`EquipmentSlot` 枚举 0–3。**复用（非退役）**：`weaponId(17)` → 武器部位（旧值由迁移清空，故复用无歧义） |
 | 隐式编号的 ~20 个子消息类 | 本方案不动；独立债 I8 |
 
 ### 5.4 旧装备折算补偿（**已拍板：默认口径**）
@@ -1192,7 +1199,7 @@ db.safeDropColumns("disciples",
 
 | # | 对抗点 | 期望结论 |
 |---|---|---|
-| A1 | **Room 按枚举 name 落列**：`WEAPON`（旧 0 / 新 14）与 `ACCESSORY`（旧 3 / 新 15）**两处新旧同名**；已退役 `ARMOR/BOOTS` 也在旧行里 ⇒ 迁移若漏清行会被当作新部位读出（幽灵件） | 迁移**清空两张装备表 + 六个部位列**（不是仅改列）；`RoomMigrationV61ToV62Test` 断言旧行不存在 |
+| A1 | **Room 按枚举 name 落列**：只有 `WEAPON`（旧 0 / 新 14）新旧同名；已退役 `ARMOR/BOOTS/ACCESSORY` 也在旧行里（`ACCESSORY` 在新枚举中已不存在 ⇒ 解码走 `JsonConverters` 回退分支）⇒ 迁移若漏清行会被当作新部位读出（幽灵件） | 迁移**清空两张装备表 + 六个部位列**（不是仅改列）；`RoomMigrationV61ToV62Test` 断言旧行不存在 |
 | A2 | 存档编号：`DiscipleSerializer` 代理是**唯一**进档面（`EquipmentSet` 自身不进档）——改错地方等于没改 | 已实测（§2.8/§5.3）；`EquipmentProtoNumberFrozenTest` 在册 |
 | A3 | 百分比乘区插入位置会改变既有对拍基线 | 乘区**只作用于 (base + 装备 flat)**，功法/丹药加法序逐位不变；`DiffPhaseSettlementTest` 全绿 |
 | A4 | 词条列表进实例 → 云存档体积放大 | `CloudPayloadSizeBenchTest` 复核；≈250 字节/件，纳入 I10 监控 |
@@ -1430,11 +1437,11 @@ WP8 属性机制重构（与装备同批交付）─────┤ ├─► WP
 - *盲点*：**未跟踪文档会被并行实施流的 `git clean` 清除**（本方案 v1.x 已实际发生一次，无 git 历史可恢复）。
 - *建议（已回写）*：方案与批次文档**必须入库提交**，不得长期停留在未跟踪状态；每批开工前用 `git status` 确认文档在库。
 
-**13-10 枚举 name 在新旧体系间重合（本轮由"腿部→武器"重新引入）**
-- *盲点*：新枚举与旧枚举有**两个**同名项——`WEAPON`（旧 0 / 新 14）与 `ACCESSORY`（旧 3 / 新 15）。旧行里的 `"WEAPON"`/`"ACCESSORY"` 均能被新代码**成功解码**，只是含义已变且数值字段全部退役。
-- *影响*：迁移若只改列不清行，旧装备行会以"数值全 0 的幽灵武器/饰品"形态复活。
-- *建议（已回写）*：迁移**必须清空两张装备表与六个部位列**（不是仅改列）；`RoomMigrationV61ToV62Test` 断言旧行不存在；§6.5 A1 列为对抗点；`EquipmentProtoNumberFrozenTest` 同时冻结**枚举 name → 编号**映射，禁止未来把 `WEAPON` 的编号"回收"成 0 或把 `ACCESSORY` 回收成 3。
-- *决策轨迹*：此项风险曾因"撤销手部改名"而**一度消除**（当时只余 `ACCESSORY` 一处）；本轮按用户指示把"腿部"改为"武器"，风险**重新出现且为两处**，已由上述迁移硬约束覆盖。
+**13-10 枚举 name 在新旧体系间重合（随部位集反复调整）**
+- *盲点*：当前新枚举 = `HEAD/BODY/HANDS/FEET/WEAPON/LEGS`，与旧枚举的**同名项只有 `WEAPON`**（旧 0 / 新 14）。旧行里的 `"WEAPON"` 能被新代码**成功解码**，只是含义已变且数值字段全部退役。已退役的 `ARMOR/BOOTS/ACCESSORY` 在旧行里也存在，其中 `ACCESSORY` **在新枚举中已不存在** ⇒ 解码走 `JsonConverters` 回退分支（`?: HEAD` + `Log.w`）。
+- *影响*：迁移若只改列不清行，旧装备行会以"数值全 0 的幽灵武器"形态复活；`ACCESSORY` 行则被静默回退成 `HEAD`。
+- *建议（已回写）*：迁移**必须清空两张装备表与六个部位列**（不是仅改列）；`RoomMigrationV61ToV62Test` 断言旧行不存在；§6.5 A1 列为对抗点；`EquipmentProtoNumberFrozenTest` 同时冻结**枚举 name → 编号**映射，禁止把 `WEAPON` 的编号"回收"成 0。
+- *决策轨迹（留档，避免后来者误读）*：部位集在本轮之间经历了「头身手脚腿饰（无武器）→ 头身手脚武饰（腿部→武器）→ **头身手脚武腿（移除饰品、腿部回归）**」三次调整。冲突面也随之变化：一处（`ACCESSORY`）→ 两处（`WEAPON`+`ACCESSORY`）→ **一处（`WEAPON`）**。无论取哪一版，**兜底手段都不变**：迁移清空旧行 + 枚举 name→编号冻结。
 
 **13-11 主词条"逻辑词条"的固化口径** —— **❌ 已作废**
 - 原盲点：R9 的"攻击力/防御力"若按双列理解会与 R10 的"物攻/法攻/物防/法防"冲突。
@@ -1502,8 +1509,8 @@ WP8 属性机制重构（与装备同批交付）─────┤ ├─► WP
 
 | 编号 | 选项 | 结论 | 备选（已关闭） |
 |---|---|---|---|
-| **§3.4.2** | **武器（原腿部）部位的主词条池与系数** | ✅ **已拍板（2026-09-29）**：字面继承原腿部池（防御力/攻击力/暴击率/暴击伤害/血量，系数 0.95） | 武器转输出向（攻击力/暴击率/暴击伤害，1.15）+ 手部转防御向（防御力/血量，0.95）；切换只改 §3.4.2 表 + `EquipMainStatPool` 数据行 + C++ 对偶表 |
-| **§3.1** | **六部位显示序（含武器第 5 位）** | ✅ **已拍板（2026-09-29）**：头 / 身 / 手 / 脚 / **武** / 饰（3×2 宫格：上行 头·身·手，下行 脚·武·饰） | 武器移到第 4 位（脚部之前）或第 1 位；改 `EquipmentSlot.displayOrder` 一行即可，架构与存档不受影响 |
+| **§3.1** | **六部位构成与显示序** | ✅ **已拍板（2026-09-29）**：头 / 身 / 手 / 脚 / **武** / **腿**（**移除饰品位**、腿部回归；3×2 宫格：上行 头·身·手，下行 脚·武·腿） | 武器与腿部位置互换；改 `EquipmentSlot.displayOrder` 一行即可，架构与存档不受影响 |
+| **§3.4.2** | **武器（第 5 位）与腿部（第 6 位）的主词条池与系数** | ⬜ **待确认**：当前字面填写（**两者都取原腿部池**：防御力/攻击力/暴击率/暴击伤害/血量，系数 0.95 ⇒ 池冗余） | **口径 B（推荐）**：武器转输出向（攻击力/暴击率/暴击伤害，1.15）+ 腿部恢复 R9 原池（5 项，0.95）；**口径 C**：武器输出向 + 腿部纯防御向（防御力/血量，0.95）。切换只改 §3.4.2 表 + `EquipMainStatPool` 数据行 + C++ 对偶表 |
 | §13-11 | 主词条"攻击力/防御力"如何落物/法 | ❌ **已作废**（单列后即属性本身） | — |
 | §13-12 | 副词条池是否按流派过滤 | ✅ 全局池（不按流派过滤） | 按流派过滤（I9 缓解手段之一） |
 | §13-13 | 速度/灵力塌陷是否补偿 | ✅ 先不补偿，上线前看拆分对比 | B1 脚部池加回速度 / B2 提升基础速度成长 |
