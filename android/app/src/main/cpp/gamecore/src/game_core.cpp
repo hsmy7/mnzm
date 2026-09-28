@@ -322,6 +322,8 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
 
 int GameCore::settleOnePhase() {
     if (!initialized_) return system::kSettleFlagNone;
+    // B6 臂甄别：离散旬事务活跃 → 月/年结算走完整版（积分项月结内承担）
+    settlement_.setAccrualMode(false);
     const int flags = settlement_.settleOnePhase(state_);
     // MR1-P1.5/B-6：旬结算边界账本 cap（与 import 同源 normalizeLedgers——
     // 原缺陷 = cap 只在 import 生效，生产路径跨会话无界）；同点消费 trim
@@ -330,16 +332,20 @@ int GameCore::settleOnePhase() {
     return flags;
 }
 
-// ── 连续积分 + 判定窗口（结算改造 2026-09-27 B4）────────────────────
+// ── 连续积分 + 判定窗口（结算改造 2026-09-27 B4；B6 扩月度积分项）────
 // 灰度旗标 realtimeAccrual（默认 false=旧行为臂；开启时 Kotlin 每 tick 调用）。
-// ① 积分项 × 未截断 Δt（INV-2）；② 判定窗口 = 权威轴整数差（INV-3，
-// cap 只防判定风暴不丢时间），逐窗「日历推进（零钩子）→ 判定轨 0/6/7」
-// ——与离散轨「advanceOnePhase → onPhaseSettle」的序逐位对应，突破
-// BREAKTHROUGH 分区消耗序不变（RealtimeRng 序列守卫锁定）。
+// ① 积分项 × 未截断 Δt（INV-2）：L1 项 accrueContinuous + L3 项
+//    accrueMonthlyContinuous（政策灵石/道德/丹药衰减/灵矿——月结在连续臂
+//    下跳过这四项防双计）；② 判定窗口 = 权威轴整数差（INV-3，cap 只防
+//    判定风暴不丢时间），逐窗「日历推进（零钩子）→ 判定轨 0/6/7」——与
+//    离散轨「advanceOnePhase → onPhaseSettle」的序逐位对应，突破
+//    BREAKTHROUGH 分区消耗序不变（RealtimeRng 序列守卫锁定）。
 int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
     if (!initialized_ || !accrualEnabled || deltaGameMs <= 0) {
         return system::kSettleFlagNone;
     }
+    // B6 臂甄别：连续臂活跃 → 月/年结算走 runMonthEvents（判定入口）
+    settlement_.setAccrualMode(true);
     system::accrueContinuous(state_, ecsWorld_, deltaGameMs, recoveryCarry_);
     const int64_t windows = settlement_.foldAndWindows(deltaGameMs);
     const int cap = system::maxPhasesPerTick(settlement_.speed());
@@ -351,14 +357,29 @@ int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
         flags |= settlement_.advanceOnePhaseAccrual(state_);
         system::runPhaseJudgementTrack(state_, rng_, ecsWorld_);
     }
+    // L3 积分项（窗口循环后：权威轴旬投影已含本段推进——灵矿毫秒差分基准）
+    system::accrueMonthlyContinuous(state_, deltaGameMs, monthlyCarry_);
     consumePendingMemoryTrim();
     return flags;
 }
 
 std::string GameCore::settleMonth() {
     if (!initialized_) return "{}";
-    const system::MonthSettlementResult result =
-        system::runMonthSettlement(state_, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
+    // B6 臂分流：连续臂走 runMonthEvents（判定入口——积分型四项由
+    // accrueMonthlyContinuous 连续承担，防双计）；离散臂走完整版
+    // runMonthSettlement（行为逐位不变）。
+    const bool accrualArm = settlement_.accrualMode();
+    system::MonthSettlementResult result =
+        accrualArm
+            ? system::runMonthEvents(state_, rng_, aiRng_, aiMonthBatch_,
+                                     monthlyCarry_, ecsWorld_)
+            : system::runMonthSettlement(state_, rng_, aiRng_, aiMonthBatch_,
+                                         ecsWorld_);
+    if (!accrualArm) {
+        // 离散臂毫秒孪生双写：灵矿毫秒差分基准与旧月字段同界推进——
+        // 双臂切换（realtimeAccrual 翻转）后连续轨不重复结算已入账月份
+        state_.gameData.spiritMineLastSettledGameMs = state_.gameData.elapsedGameMs;
+    }
     // R2/B09：月结边界粗粒度列标脏（列集 = 月/年路径审计写列的并集，
     // 全行标脏——宁多标不漏标；phase 路径为写点级精确标脏不经此）
     markMonthYearBoundaryColumns();
@@ -649,6 +670,9 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
             settlement_.reset();
             // B4：恢复进位小数随档清零（运行态不入档，见成员注释）
             recoveryCarry_.clear();
+            // B6：月度积分进位随档清零（政策禁用上报名单一并作废——
+            // 读档即回到存档时点的政策/钱包状态）
+            monthlyCarry_ = system::MonthlyAccrualCarry{};
             // 读档后从 GameData.rngStates 恢复 RNG 分区
             // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
             // AUTHORITATIVE 每旬回导走 restoreRng=false

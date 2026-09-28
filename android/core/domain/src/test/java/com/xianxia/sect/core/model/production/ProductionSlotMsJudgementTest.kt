@@ -64,8 +64,9 @@ class ProductionSlotMsJudgementTest {
             expectedStart + 3 * GameConfig.Time.GAME_MS_PER_MONTH,
             result.completeAtGameMs
         )
-        // 旧月+旬编码保持原语义（双轨并行）
-        assertEquals((2 - 1) * 12 + 7 + 3, result.completionMonth)
+        // 旧月+旬编码保持原语义（双轨并行）；绝对月口径 = y*12+m
+        //（B6 §9.1-14 统一，与 checkpoint/C++ startSlotWorking 同源）
+        assertEquals(2 * 12 + 7 + 3, result.completionMonth)
     }
 
     @Test

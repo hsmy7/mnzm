@@ -643,6 +643,11 @@ class DiffAuthoritativeTickTest {
      */
     private fun isSkippedDiffField(key: String, path: String): Boolean =
         key == "timestamp" || key == "deathYear" ||
+            // spiritMineLastSettledGameMs：B6 离散臂毫秒孪生双写（settleMonth 后
+            // 差分基准 = 权威轴）——legacy Kotlin 基准臂不写该字段（B6 连续轨
+            // 概念），结构对拍容忍 C++ 协议超集；行为面由 MonthAccrualTest
+            // 臂分流组（ArmSwitchSyncAndDiscreteMsTwinWrite）守护
+            (key == "spiritMineLastSettledGameMs" && path.startsWith("$.gameData")) ||
             (key == "id" && path.contains("availableMissions")) ||
             // 商人收购 id/itemId：Kotlin UUID vs C++ 确定性自增（gc-trade-N），
             // 语义等价仅保证唯一（DiffYearSettlementTest 同口径）；收购内容

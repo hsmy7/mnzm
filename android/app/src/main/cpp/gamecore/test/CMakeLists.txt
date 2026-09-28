@@ -121,6 +121,7 @@ add_executable(game-core-tests
     cultivation_test.cpp
     phase_settlement_test.cpp
     month_settlement_test.cpp
+    month_accrual_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
     production_test.cpp

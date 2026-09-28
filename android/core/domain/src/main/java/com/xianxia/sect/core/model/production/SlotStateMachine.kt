@@ -47,7 +47,11 @@ object SlotStateMachine {
         spec: ProductionStartSpec
     ): Result<ProductionSlot> {
         return validateTransition(slot.status, ProductionSlotStatus.WORKING).mapCatching {
-            val absoluteMonth = (spec.currentYear - 1) * 12 + spec.currentMonth
+            // 绝对月口径 = year*12+month（B6 §9.1-14 口径统一：与
+        // LazyEvaluationDispatcher.toAbsoluteMonth / checkpoint 重写
+        // （FindOps5）/C++ startSlotWorking 同一主口径——旧 (y-1)*12 写点
+        // 与 checkpoint 重写跨口径漂移 12，此处归一）
+        val absoluteMonth = spec.currentYear * 12 + spec.currentMonth
             val completionPhase = when (slot.buildingType) {
                 BuildingType.FORGE, BuildingType.ALCHEMY -> 2  // 锻造/炼丹中旬
                 BuildingType.HERB_GARDEN, BuildingType.MINING -> 3  // 种植/灵矿下旬

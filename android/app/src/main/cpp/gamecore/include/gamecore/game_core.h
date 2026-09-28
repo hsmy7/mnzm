@@ -18,6 +18,7 @@
 #include "gamecore/state/gameview_encode.h"
 #include "gamecore/system/ai_sect_ops.h"
 #include "gamecore/system/engine_loop.h"
+#include "gamecore/system/month_settlement.h"  // B6 连续月度积分轨（MonthlyAccrualCarry/runMonthEvents）
 #include "gamecore/system/settlement.h"
 #include "gamecore/system/watchdog.h"
 
@@ -335,6 +336,9 @@ private:
     /// HP/MP 恢复小数进位（B4 连续积分轨，INV-6 小数累积；键 = 弟子数值 id，
     /// 运行态不入档——导入/读档清零，崩溃丢失 ≤1 tick 的亚 1 点恢复量）
     system::RecoveryCarry recoveryCarry_;
+    /// 月度积分项连续进位（B6：政策灵石/道德/丹药衰减/灵矿产出——
+    /// 运行态不入档，导入/读档清零；disabledPolicies 累积至月界信封上报）
+    system::MonthlyAccrualCarry monthlyCarry_;
     /// proto eventFeed 待发队列（R2.4：月/年结算信封 + 突破事件入流；
     /// proto 传输开启时入队、exportDirtyProto 编码成功后清空——导出即消费；
     /// JSON 回滚臂不入队（信封 JSON 面零变更红线））
