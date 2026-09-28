@@ -6,6 +6,7 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 23:1x 看护轮#11（新看护首轮）**：**B9 中断已自愈，无需干预**——GUI 判活实证 B9 会话活跃运行中（终端命令执行中+思考块接连，模型 chip=GLM-5.3-Flash ✓，未发「继续」）。树 57 项深落盘，footprint 与 B9 对应：A 类缺陷 #10 `cultivationCompletionPhase` 死值退役⇒**Room v60→v61 迁移合法连锁**（rebuild-table create-copy-drop-rename+`.pre_migrate_backup.v60` 备份+C++/Proto/Room/镜像全链除名，`DATABASE_VERSION=61`，读 migration KDoc 确认合规）；**双 changelog 在改**；任务面板 **5/10**（compileReleaseKotlin+build-desktop-jni 已过，余六模块全量/lint+detekt 待跑）。**bench 假红深勘中**：安静环境仍 5/6 红→排除负载归因，正做决定性 A/B 实验（stash 暂回 C++ 主源码改动跑 B8 原版 bench 同环境对照）——方法论正确，不干预。🔴 **装备阶段 Room 版本顺延修正：实时线 B9 已合法占 v61 ⇒ 装备 B1 起 v62/v63/v64 顺延**（§8 已同步改）。**切 10 分钟轮**（双 changelog+门禁期信号）。下轮：报告落盘/收官笔 ⇒ 直接走 §5 核验（盯点：bench 假红归因链、v61 迁移测试 RoomMigrationV60To61Test、migration schema 61.json 与 Entity 一致性）。
 - **2026-09-28 22:1x** **看护交接**：原看护会话与自动化 `automation-3800a2a7` 已退役（用户指令：移除切换套餐要求、新开会话重建看护）。**B9 现状：约 22:0x 因「exceed quota limit」中断（TraceID: hydrate-trace），中断时树净零落盘（尚处深勘察期，A 类缺陷 #12/#15 已定案、#17 勘察中）**——新看护首轮应：定位 B9 会话（「# 派发件 · B9 测试基准重建 + 遗留清理」）→ 确认模型为 GLM-5.3-Flash → 输入「继续」令其续跑（模型切换动作已按用户指令移除出看护职责）。
 - **2026-09-28 21:52 看护轮#10**：**模型锁死规则首次核验通过**——B9 会话右下角 chip = GLM-5.3-Flash ✓（无需切换）。B9 深勘察活跃实证：A 类缺陷清单逐条定案中（#12 后台纯暂停口径定案、#15 补 C++ 侧 GTest 校验面、#17 死值勘察），终端与思考接连执行；树 0 项属勘察期正常（B7 32min/B8 63min 首盘先例）。无异常不干预，保持 30 分钟轮。
 
@@ -59,7 +60,7 @@
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
 | B8 | UI 与遥测 | ✅ accepted（21:21 看护亲验） | 2f3bef8d0 | docs/report-B8.md | 通过：ctest 1483/1483（bench 翻开）+jni-count 88/88+agent-instructions 亲跑全绿；孕养 O(I) 缺陷修复 28×；D1 债桌面数据点落地 |
-| B9 | 测试基准重建+遗留清理 | 🔄 在途（看护派发 21:36） | — | — | 待交付 |
+| B9 | 测试基准重建+遗留清理 | 🔄 在途（23:1x 活跃：门禁 5/10，bench 假红 A/B 勘察中） | — | — | 待交付 |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
 
 > B1–B6 交付于自动化建立之前，门禁数字见 git log 各笔提交说明；本表只回溯登记。
@@ -121,7 +122,7 @@
 
 - 方案：`docs/design/equipment-set-system-refactor-plan.md`；批次真源：`docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md`（§3 总览、§4 批次详述 TASKBOOK 级、§8 开工检查清单）。
 - 批次：**B0 存档编号规划与冻结守卫 → B1 属性机制重构（大，Room 迁移）→ B2 孕养丹退役+补偿 → B3 装备体系原子替换（最大，原子、合并且仅合一次）→ B4 数值对齐与验收 → B5 文档/ADR/双日志/债登记**，**全串行**（§3.3 共享写入面必须串行，禁止并行）。
-- 🔴 **Room 版本号**：方案表 v59→v60 系**计划映射**；实际**以合入时刻 `GameDatabaseConfig.DATABASE_VERSION` 为基准 +1**（实时线已占 v60 ⇒ 装备 B1 起应为 v61/v62/v63 顺延，不得预占）。派发件必须写明此规则。
+- 🔴 **Room 版本号**：方案表 v59→v60 系**计划映射**；实际**以合入时刻 `GameDatabaseConfig.DATABASE_VERSION` 为基准 +1**（实时线已占 v60，**B9 死值退役又合法占 v61** ⇒ 装备 B1 起应为 **v62/v63/v64** 顺延，不得预占）。派发件必须写明此规则。
 - 工作区：新建 worktree `C:\Mnzm\XianxiaSectNative-equipment`（分支 `feat/equipment-set` 自最新 main）；拷 gitignored 本机件（`android/local.properties`、`keystore.properties`、`api.properties`、`scripts/node_modules`、desktop-jni `.so`）。
 - 报告路径：`docs/design/equipment-batches/reports/report-Bx.md`（方案既定）。
 - **开工前置（§3.4）**：每批开工第一件事查共享文件是否被他线占用（models.h、CHANGELOG.md、knowledge-base、architecture、存档管线等），命中即**停手报告**。
