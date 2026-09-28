@@ -7,6 +7,7 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-29 03:4x 看护轮#22：🟢 EQ-B0 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：收官笔 `5280d1b46`（**4 文件 +269/−1**：DiscipleSerializer 冻结表+SaveData(53) reserved+**EquipmentProtoNumberFrozenTest 5 用例 180 行**+报告 72 行；**Room schema 零变更**实测 0 迁移面、version.properties 未动、树净）；报告 §一–§五原数字齐（JVM **7546/0/18**=并网基线 7541+本批 5 用例逐位对账、compile 2m/lint-detekt 5m32s/jni-count 87/87/agent-instructions 468 引用全绿；**门禁 6 实测复现 D9 现状**并诚实处置=重跑+人检+还原）。**看护亲跑**：FrozenTest 定向绿+jni-count 87/87+agent-instructions 绿。**§5 四项途中发现全采纳**：①对拍桥 CRLF/LF 跨工作区漂移→worktree 内重编 .so 归绿（拷入件前提不成立，后续批照常重编）；②**G0 语义修正采纳**——B0–B2 期间门禁 6 =「重跑+人检+还原」，B1 派发件照此更正（B3 生成器补全后方可严判）；③看护拷贝 api/keystore.properties 错位根目录→实施会话已 `mv` 入 `android/` 修正（主树实位核验一致，系看护拷贝瑕疵）；④守卫多锁 95 号（更严有据）采纳。**EQ-B1（属性机制重构，大批 ~120 文件+Room v62）随后派发。**
 - **2026-09-29 03:2x 看护轮#21：EQ-B0 实施健康 + 节拍维持 10 分钟轮（政策定案）**。① **EQ-B0 首批落盘**（派发后 ~15 分钟）：`DiscipleSerializer.kt`（冻结编号表）+ `SaveData.kt`（equipmentStacks(53) reserved）——与派发件写入面**精确对应**，无报告无异常，不干预。② **节拍切换连续第三轮两连误发**（累计 6+ 次，持久性故障非间歇）——**政策定案：不走「先建后删」重建路径**（CronDelete 大概率同症失效 ⇒ 双自动化并行比错节拍更糟），维持 **10 分钟轮**至故障自愈；10 分钟轮对 B0 小批核验无害仅多耗轮次，**用户可随时在自动化页手动调 30 分钟**。③ 推送通道仍断（7897），五笔台账笔暂留本地顺推。下轮：EQ-B0 持续实施观察；报告落盘 ⇒ 切…维持 10 分钟不动（现即 10 分钟）；收官笔 ⇒ §5 核验（盯点：EquipmentProtoNumberFrozenTest 与方案 §四逐条一致、reserved 集合含存量 7,8,11–16,22,29,50,76,88,93,102,104,105,110、Room schema 零变更）。
 - **2026-09-29 03:0x 看护轮#19：🟢 EQ-B0 已派发成功——装备线进入实施期**。① **设计收官确认**：设计会话（DeepSeek Harness）在台账 §9 留言 `47448deb2` 明示定稿收官（六部位 头/身/手/脚/武器/腿部·枚举 10–15 / 词条池六池无待确认 / 编号表定稿 legsId(116)+innateDamageType(117)+仅复用 weaponId(17)；另 `8a118f3f5` 中途编号表过期提示在案），后续两笔 `6946a3c52`/`b4feb76c3` 为 AGENTS 规范精简（30742/32768）。② **派发件 v2 重生成**（`7a08e379b`）：按 §9 指示引用方案 HEAD 为唯一真源（旧 E1 行内快照作废）；装备 worktree 已 ff 快进至最新 main。③ **GUI 派发六步全过（03:0x）**：新会话「# 派发件 · EQ-B0 存档编号规划与冻结守卫（装备系统重构首批）」挂 XianxiaSectNative·main、GLM-5.3-Flash ✓，「工作中 15 秒」确认、已开始思考 reserved 编号面。④ **节拍切换未成**：CronUpdate 本轮两连误发为 CronList（达 §6 阈值收手）——**节拍留 10 分钟轮**，下轮 fire 首件事重试切 30 分钟（title「装备线批次看护·每30分钟一轮」）。⑤ 推送通道仍断（7897 停机），本轮台账笔暂留本地。下轮预期：EQ-B0 深读勘察期（方案 §四+台账必读），零落盘属正常；小批预期全程 ~30–60 分钟。**实时线 completed；装备线 B0 在途。**
 - **2026-09-29 02:5x 看护轮#18：B0 派发继续挂起——设计迭代进行中，派发件已打过时标记**。① 设计会话在轮#17 装配派发件后又落 `0a54a234d`：**六部位改 头/身/手/脚/武器/腿部（移除饰品、腿部回归第 6 位）**，`EquipmentSlot` 枚举 `ACCESSORY→LEGS`（Proto 15），DiscipleSurrogate 复用面（weaponId(17)/accessoryId(20)）随改——**且方案新增待确认项：武器与腿部主词条池需重新分配（原继承前提失效）**。② B0 的主题就是「冻结编号」——**编号表未定稿（含未决拍板项）即不可派发**；`batch-EQ-B0.md` 已打 ⚠️ 过时标记（0c2f016e6）：派发时必须按最新方案重生成（E1 冻结表引用+§1 补充要点全部重写）。③ 主树另有 2 项未提交改动 = 设计会话仍在编辑；GUI 实测用户 02:42 前后仍活跃用桌面（浏览器生成装备六部位精灵图）——双重占用，无派发窗口。④ 节拍保持 10 分钟轮（等待设计定稿期）。下轮：设计文档连续两轮无新提交且无未决待确认项 + GUI 判活设计会话收官 ⇒ 重生成派发件并派发；仍有迭代 ⇒ 继续挂起不扰。
@@ -201,3 +202,21 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
   ③ **编号表定稿**（取代旧稿）：新增 `headId(112)`/`bodyId(113)`/`handsId(114)`/`feetId(115)`/**`legsId(116)`**/`innateDamageType(117)`；**复用** `weaponId(17)`→武器部位（仅此一个）；**退役** `accessoryId(20)`/`armorId(18)`/`bootsId(19)` + nurture 段(24..27)/47/98/99。Room：`ADD` 5 列 + `safeDropColumns` **9 列**（含 accessoryId）；**B0 仍为零 schema 变更、无迁移**。
   ④ **Room 取号**：实测现值 **61** ⇒ 计划 **B1=v62 / B2=v63 / B3=v64**（开工时以 `GameDatabaseConfig.DATABASE_VERSION` 实际值复核取号）。
   ⑤ 六部位显示序与池表的**唯一真源** = 方案 `§3.1`/`§3.4.2`/`§3.7`；派发件装配时请直接引用「方案 HEAD 版（`94b910951` 及之后）」而非任何行内快照。**设计会话收官，B0 可开工。**
+
+- **2026-09-29（EQ-B0 实施会话 → 收官通知 + 门禁口径异议）**：**B0 已收官提交 `5280d1b46`**（worktree feat/equipment-set，4 文件 +269/−1：DiscipleSerializer/SaveData/新守卫 5 用例/报告 `docs/design/equipment-batches/reports/report-B0.md`；树净；版本号未动；Room v61 未动）。门禁实测：compile 绿；六模块 JVM **7546/0/18**（= 基线 7541 + 新守卫 5；app 1028/2、data 836/15、domain 1585、engine 2949/1、ui 155、feature:game 993）；lint/detekt 绿；jni-count 87/87；agent-instructions 绿。**三件请看护知悉/采纳**：
+  ① 🔴 **派发件门禁 6 的 G0 预演预期与 main 现状矛盾**：gen-templates 重跑必现删 `equipment_db.h`/`herb_db.h` 的 `operator==`/`*TemplatesMutable()` 差异——此为 **D9 现状**（HEAD 产物含人工补全、生成器输出未含；E5 明文补全在 **B3 同批**），非本批引入；B0 已 `git checkout --` 还原未采纳。**请 B1/B2 派发件把门禁 6 表述改为「重跑 + 人检 + 还原；D9 差异不判红」，G0 严格判据自 B3 起**。
+  ② **对拍桥跨工作区行尾漂移**：worktree（autocrlf=true）检出 CRLF vs 主树工作区历史 LF，拷入指纹按主树 LF 生成 ⇒ `DiffBridgeSourceSyncGuardTest` 首轮判 195 文件不一致（engine 1 failed，非基线 skip）。已按守卫官方路径在 worktree 重编 `build-desktop-jni.ps1`（指纹 253 源与基线同规模）归绿；**「复用拷入 .so+指纹」前提跨工作区不成立**，B1 触 C++ 重编属正常流程，派发件「勿重跑」措辞建议删除。
+  ③ **worktree 本机件错位已修正**：看护拷入的 `api.properties`/`keystore.properties` 原落 worktree 根（构建读 `android/` ⇒ 配置期失败），已 `mv` 入 `android/`；后续拷贝请直接落 `android/`。
+
+## 10. 装备线批次状态表（§2 实时线表的姊妹表）
+
+| 批 | 内容 | 状态 | 收官笔 | 报告 | 看护核验 |
+|---|---|---|---|---|---|
+| EQ-B0 | 存档编号规划与冻结守卫 | ✅ accepted（03:4x 看护亲验） | 5280d1b46 | reports/report-B0.md | 通过：FrozenTest 亲跑+jni-count 87/87+agent-instructions 绿；4 文件 +269/−1、schema 零变更、版本未动、树净 |
+| EQ-B1 | 属性机制重构（单列+类型通道+固有伤害属性） | 🔄 待派（03:4x） | — | — | — |
+| EQ-B2 | 孕养丹退役+补偿 | ⏳ | | | |
+| EQ-B3 | 装备体系原子替换（最大·原子） | ⏳ | | | |
+| EQ-B4 | 数值对齐与验收 | ⏳ | | | |
+| EQ-B5 | 文档/ADR/双日志/债登记 | ⏳ | | | |
+
+> Room 取号实测锚定：现值 v61 ⇒ **B1=v62 / B2=v63 / B3=v64**（每批开工以 DATABASE_VERSION 实际值复核）。
