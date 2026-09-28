@@ -29,7 +29,7 @@ UI 操作事务）。本清单回答两个问题：
 镜像内容的唯一来源是 C++ `GameCore::exportStateJson`（`json_codec.cpp` 编解码面）：
 
 ### 2.1 gameData（`json_codec.cpp to_json/json GameData`，与 kotlinx 双向对齐）
-- 标量/时间：`id, sectName, currentSlot, gameYear, gameMonth, gamePhase, spiritStones,
+- 标量/时间：`id, sectName, currentSlot, gameYear, gameMonth, gamePhase, elapsedGameMs, lastSettleGameMs, spiritStones,
   midGradeSpiritStones, highGradeSpiritStones, spiritHerbs, sectCultivation, activeSectId,
   mapSeed, lastSaveTime, saveVersion, isGameOver, …`
 - 运营开关/筛选：`playerProtectionEnabled, playerHasAttackedAI, autoRecruitSpiritRootFilter,
@@ -101,6 +101,9 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 | GachaViewModel.pityCounters / starMap / fragmentCounts / history（经 `GachaFacade` 只读流，G11） | `gachaPityCounters` / `gachaStarMap` / `gachaFragmentCounts` / `gachaHistory` |
 | playerSectId/activeSectId、sectName、currentSlot/slotId、mapSeed（存档链路） | 同名字段 |
 | prisonerSpiritRootFilter、autoRecruit/autoRejectSpiritRootFilter | 同名字段 |
+| `sectClock`（year/month/phase 投影流，B8——HUD 时间行读数）| 块① gameData 时间三件（HighFreqState 窄化 map，不直读整份 gameData） |
+| `monthProgressFraction`（月内时间进度 [0,1]，B8——炼丹/锻造/生产槽进度条）| `gamePhase` + `GameEngine.phaseProgressFlow`（旬内连续分量，INV-2 派生；`TimeProgressUtil` 纯函数合成，禁止 UI 自算第二份） |
+| `offlineReturnReport`（云游归来报告，B7——仅展示面，不含注入数值）| 非镜像运行态：引擎线程 StateFlow（threading-contract 表四离线行），展示后 ack 清空 |
 | disciples / aliveDisciples / discipleAggregates / sectCombatPower / aiSectCombatPowers | `disciples` 表 + 镜像 `aiSectDisciples` |
 
 ### 3.3 个体 Field StateFlow

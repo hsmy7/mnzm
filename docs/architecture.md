@@ -74,26 +74,27 @@ while (isActive) {
 
 ## Settlement Architecture: Lazy Settlement Engine
 
-结算系统从 v4.0.43 起从 **四轨制（实时轨/批量轨/月事件/年事件）** 重构为 **惰性结算引擎（Lazy Settlement Engine）**，对标 Supercell Clash of Clans 的时间戳差分模式 + VoidForge Checkpoint 快照法。
+结算系统从 v4.0.43 起从 **四轨制（实时轨/批量轨/月事件/年事件）** 重构为 **惰性结算引擎（Lazy Settlement Engine）**，对标 Supercell Clash of Clans 的时间戳差分模式 + VoidForge Checkpoint 快照法；
+**2026-09 实时结算改造（方案 `docs/realtime-settlement-plan-2026-09-27.md`，批次 B1–B10）后升级为双轨时间模型**：
+唯一权威时间轴 = 游戏毫秒 `elapsedGameMs`（现实时间连续积分，未截断不丢弃），游戏日历（年/月/旬）是它的派生投影（INV-1）。
 
-```
+```text
 tickInternal():
-  Level 0 — 时间推进 (每旬)         ← GameTimeClock 驱动
-    └─ TimeSystem.onPhaseTick → 更新 gamePhase
+  Level 0 — 时间推进（权威轴）      ← 现实墙钟 × speed 未截断累积（INV-2：时间零丢失）
+    └─ PhaseClock/EngineLoop 推进 elapsedGameMs → projectCalendar 派生年/月/旬投影
 
-  Level 1 — 每旬最小检查 (每旬)      ← RimWorld Rare Tick 模式
-    ├─ HP/MP 恢复
-    ├─ 自动装备/学习
-    ├─ 修炼累积（速率×1旬）
-    ├─ 自动丹药到期补服
-    └─ 突破检测
+  Level 1 — 连续积分 + 判定窗口     ← 双轨：积分连续、判定离散（INV-3：窗口数 = 轴整数差，帧率无关）
+    ├─ 连续积分轨（每帧连续，`accrueContinuous`）：HP/MP 恢复、修炼累积、熟练度、孕养
+    ├─ 判定轨（每旬窗口，phaseCap = 3×speed 只限判定执行次数）：HP/MP 恢复触发检查、
+    │   自动装备/学习、自动丹药到期补服、突破检测
+    └─ 月度连续积分（`accrueMonthlyContinuous`）：政策月费、丹药衰减、灵矿毫秒差分
 
-  Level 2 — 惰性生产结算 (UI打开时)  ← Supercell 时间戳模式
-    ├─ 灵矿场: rate × (currentMonth - lastSettledMonth)
-    ├─ 炼丹/锻造: 动态重算 duration → 完成检查
+  Level 2 — 惰性差分结算 (UI打开时)  ← Supercell 时间戳模式（毫秒时间戳，B5 起）
+    ├─ 灵矿场: 毫秒差分（lastSettledGameMs → 当前轴）
+    ├─ 炼丹/锻造: 动态重算 duration → completeAtGameMs 到期检查
     └─ 灵田/灵植: 动态重算 growTime → 成熟检查
 
-  Level 3 — 月变事件 (月变时)       ← 定时事件模式
+  Level 3 — 月变事件 (月变时)       ← 定时事件模式（判定/叙事类，积分型已析出至 L1）
     ├─ 外交/任务（盗窃/执法/叛逃已删）
     ├─ 月度系统事件 (Alchemy/Forge/HerbGarden/Planting)
     └─ 丹药衰减/灵矿产出/游戏结束检查（伴侣配对/忠诚度衰减已删）
@@ -102,6 +103,14 @@ tickInternal():
     ├─ T1 立即组 (11 项, 单事务)    ← 年龄不变量/驻军报告（招募三件套已删）
     └─ T2 延迟组 (11 项, 入队)      ← YearlyOpsQueue 逐 tick 预算 drain (30ms)
 ```
+
+**时间语义不变量（实时结算改造后）**：
+
+- **INV-1 单轴投影** — `projectCalendar(elapsedGameMs)` 是年/月/旬的唯一来源，`calendarToGameMs∘projectCalendar` 恒等（双端纯函数：Kotlin `GameConfig.Time` ↔ C++ `time_system.h`，`GameTimeUnitsParityTest` 锁定）
+- **INV-2 时间零丢失** — 权威轴按墙钟差 × speed 未截断累积；追补上限 `phaseCap` 只限制单段**判定执行次数**，超限窗口的时间仍全额入轴（B9 起 shadow/生产两臂统一 `advanceByGameMs` 语义，`settlement.h` 头注释为语义基准）
+- **INV-3 判定帧率无关** — 判定窗口数 = `elapsedGameMs / 2000` 的整数差，与帧率/分帧方式无关（`RealtimeRngSequenceGuardTest` 锁 RNG 消耗序）
+- **离线注入** — 读档时按现实离线时段折算（12h 全额 + 50% 至 24h 硬顶，`GameConfig.Time.offlineGameMs`）经 `GameCore::injectOfflineGameMs` 一次性推进同一权威轴，积分项一次性重放 ≡ 分帧累积（`OfflineInjectionTest` 逐位对拍）；口径见 `rules/economy-design.md` §4
+- **灰度旗标** — `NativeEngineFlag.realtimeAccrual`（默认 false）切换 L1 积分轨双臂（ON = C++ `accrue` 窗口循环 / OFF = Kotlin 回退臂）；离线注入与日历投影不受旗标影响
 
 ### 年变分帧（2026-08-09 引入）
 
@@ -135,13 +144,13 @@ AI 修炼，年均总量不变（`repeat(batchMonths)` 语义）；热控降级�
 
 ### 核心原则
 
-- **时间戳懒惰计算** — 不跑后台循环，仅存 `lastSettledTime`，按需计算：`产出 = rate × (currentTime - lastSettledTime)`
+- **时间戳懒惰计算** — 不跑后台循环，仅存时间戳，按需计算：连续量按权威轴积分（B4 起），完成类按毫秒差分 `产出/到期 = f(nowGameMs - startAtGameMs)`（B5 起毫秒时间戳）
 - **Checkpoint 快照法** — 修炼/炼丹/锻造在速率变化因子（政策/长老/装备/丹药）改变时，通过 `checkpointAllProduction()` 重算有效 duration 和 completionMonth，保留已完成的进度比例
 - **修炼 VoidForge 模式** — `cultivationCheckpoints` + `cultivationCheckpointGameMonths` 双字段存储检查点，`getEffectiveCultivation(checkpoint + rate × delta)` 实时投影
 - **生产系统动态 duration** — 每月完成检查时用当前政策/长老状态重算有效 duration（`baseDuration` 存储配方基础值，加成每月算），政策切换立即生效
 - **无焦点域** — FocusDomain + InterfaceDomainMap 已移除，UI 不再驱动系统 tick
 - **无 SettlementCoordinator** — 指纹检测、批量轨调度、年结编排全部移除
-- **每旬 5 项最小检查** — 对标 RimWorld Rare Tick：HP/MP 恢复、自动装备/学习、修炼累积、丹药、突破
+- **判定轨窗口项** — 对标 RimWorld Rare Tick：每旬窗口整数差执行 HP/MP 恢复检查、自动装备/学习、自动丹药、突破检测（修炼累积已析出至连续积分轨，B4）
 
 ---
 
@@ -327,11 +336,11 @@ RunState（运行时状态 — 可循环回退）
 - **推荐独立通道**：新建 `AnalyticsService`（接口，core/engine）→ `AnalyticsServiceImpl`（app 层）+ 异步批量上报队列——**不复用 GameEventBus**（EventBus 是游戏内事件审计，语义不同；埋点带 PII 风险需独立隔离）
 - 事件字典登记 `docs/knowledge-base.md`；约束见 `rules/data-analytics.md`
 
-### 4. 离线收益引擎接入点
+### 4. 离线收益引擎（✅ 已落地，2026-09-28 实时结算线 B7）
 
-- **现状基线**：后台纯暂停，无放置产出（`GameEngineCore.kt` 后台暂停逻辑）——**不改基线**
-- 接入点：收益结算挂 L0 时间推进（惰性结算引擎四层中的时间推进层），禁止另起结算循环；12h 挂机收益上限强制每日 2 次回访
-- 约束：`rules/expansion-playbook.md` 离线收益预留 + `rules/economy-design.md` 第 4 节（收益数学）
+- **口径（已定稿）**：离线时段 = `lastSaveTime` → 读档墙钟差；≤12h 全额（1x，与在线速度档解耦）→ 12–24h 段 50% → 24h 硬顶（注入总量上限 18h 游戏时间）；floor 到旬；时钟回拨按 0——折算唯一入口 `GameConfig.Time.offlineGameMs`（core/domain）
+- **接入点（已建成）**：读档两段式注入——staging（boot Step 6.5 `GameEngineCoreOfflineOps.stageOfflineProgress` 折算写入 `pendingOfflineGameMs`）→ consume（`ensureAuthoritativeNative` 尾部 `consumePendingOfflineProgress`，消费即清零幂等）→ C++ `GameCore::injectOfflineGameMs`（L1 连续积分 + 月度连续积分 + 三轴同步跳变；判定轨 0 次/RNG 零消耗）；线程契约登记见 `docs/threading-contract.md` 表四
+- **扩展纪律**：仍禁止另起结算循环——新离线产出项挂进 `accrueContinuous`/`accrueMonthlyContinuous` 积分函数族即自动被离线复算；经济审计与登记义务见 `rules/economy-design.md` §4 + `rules/expansion-playbook.md` 离线收益节
 
 ### 5. 社交隔离层
 
@@ -454,14 +463,17 @@ SaveValidator.validate(SaveData)
 - `SaveValidationRuleRegistry.registerDefaults()` 注册全部内置规则（惰性初始化，首次 `validate()` 时调用）
 - 测试中 `SaveValidationRuleRegistry.clear()` 后只注册目标规则，实现细粒度单规则测试
 
-### 存档为纯手动（产品决策，2026-09-04 确认）
+### 存档入口（手动 + 云存档 + 现实节拍自动存档；2026-09-27 §2.6 裁决修订）
 
-**存档为纯手动**（仅在设置页手动触发，无自动存档）。此为产品决策（历史依据
-`docs/report-移除自动存档-接入云存档.md`，changelog_entries.json:813"移除自动存档机制"）。
-**禁止重新实现自动保存、禁止引用 `autoSave*` 命名。** `autoSaveIntervalMonths` 等
-自动存档残留字段已全部清理（v50 Room 迁移删列；GameData/SectPolicyState 字段改
-`@Ignore`+`@Transient`）。如需改造（接入云存档、新增存档入口），走
-rules/database-migration.md 规则并同步更新此处。
+**存档三入口**：① 设置页手动存档（5 槽位）；② TapTap 云存档（slot 0）；③ **现实墙钟节拍自动存档**——
+每 10 现实秒至多一次（`REALTIME_AUTO_SAVE_INTERVAL_MS = 10_000`，轮询步长 1 秒、不补足错过周期），
+与游戏速度/暂停/日历完全解耦（时间基 = 现实墙钟，非游戏月）。③ 是对 2026-09-04"存档为纯手动"
+产品决策的**显式修订**（实时结算改造方案 §2.6：时间基现实化后游戏月仅 6 游戏秒，月变节拍失去意义，
+改现实节拍兜底防丢进度），**不是旧自动存档体系的复活**：旧 `AutoSaveTrigger.MONTHLY`（月变触发）
+已删除，三前置门控（`SaveTriggerFlag.realtimeTick` 旗标 / 有效槽位 / 引擎已加载）+ 合并窗（500ms）
++ 失败走消息栏持久一行的口径全部沿用；关闭旗标 = 回到"仅手动保存"。命名统一 `realtimeAutoSave*` 前缀
+（历史禁用名 `autoSave*` 指旧月变体系残留，`autoSaveIntervalMonths` 等已随 v50 迁移删列）。
+如需改造存档入口，走 rules/database-migration.md 规则并同步更新此处。
 - 新规则只需：新建 Rule 文件 + 在 `registerDefaults()` 加一行
 
 ### 调用方兼容

@@ -2,7 +2,7 @@
 
 > 对标 Godot 官方 [Thread-safe APIs](https://docs.godotengine.org/en/4.0/tutorials/performance/thread_safe_apis.html) 文档。
 > 本文档是本项目"哪些 API 从哪条线程可调"的**唯一成文权威**，审查清单 13.3 引用本文。
-> 更新日期：2026-09-23——**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
+> 更新日期：2026-09-28——**表四新增「离线收益」通道行**（实时结算线 B7：boot 折算 staging → ensure 尾部 consume → `nativeInjectOfflineGameMs`，报告流 `offlineReturnReport`；先登记再实现纪律履行）。前次 2026-09-23：**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
 
 ---
 

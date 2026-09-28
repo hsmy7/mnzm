@@ -200,9 +200,10 @@ feature:game  ──→  core:ui  ──→  core:domain
 | `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
 | `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
 
-> 📌 **存档为纯手动（产品决策，2026-09-04 确认）**：仅设置页手动触发存档，无自动存档。
-> 禁止重新实现自动保存、禁止引用 `autoSave*` 命名（残留字段已 v50 清理）。
-> 历史依据：docs/report-移除自动存档-接入云存档.md。
+> 📌 **存档入口（2026-09-27 §2.6 裁决修订）**：手动存档（5 槽位）+ 云存档 + 现实墙钟节拍自动存档
+> （每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控，与游戏速度/暂停/日历解耦）。
+> 禁止复活旧月变触发式 `AutoSaveTrigger` 体系；命名统一 `realtimeAutoSave*` 前缀
+> （旧 `autoSave*` 残留字段已 v50 清理；历史依据 docs/report-移除自动存档-接入云存档.md）。
 
 ### Hilt DI 桥接层
 

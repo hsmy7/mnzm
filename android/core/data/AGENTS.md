@@ -25,7 +25,7 @@
 
 ## 存档
 
-- **存档为纯手动** —— 禁止重新实现自动保存，禁止 `autoSave*` 命名
+- **存档入口** —— 手动存档（5 槽位）+ 云存档 + 现实墙钟节拍自动存档（每 10 现实秒至多一次、`SaveTriggerFlag.realtimeTick` 门控；2026-09-27 §2.6 裁决，命名统一 `realtimeAutoSave*`）；禁止复活旧月变触发式 `AutoSaveTrigger` 体系
 - 槽位隔离：`(id, slot_id)` 复合主键 + `resetForSlot` + 强制 slotId 赋值
 - 新增 `SaveValidator` 规则：`registerDefaults()` 加一行即注册（规则按 `order` 排序）
 - 云存档读档管线三步：版本迁移 → 完整性校验 → 堆叠重建

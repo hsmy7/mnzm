@@ -138,6 +138,27 @@
   生产零调用（仅 ProcessSlotDualWriteGuardTest 消费）——autoRestart 续炼启动仅
   C++ 离散臂承担，Kotlin 侧为预留死代码，建议随 B10 或装备阶段裁决。
 
+
+### 实时结算线 B10 批（2026-09-29）——文档与规范收口（§3.6 全部条目，规范与代码零冲突）— `docs(realtime)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B10 行 / §3.6 文档与规范清单 / §4.6 既有规则冲突裁决表
+> + `docs/realtime-watch/batch-B10.md`（派发件）+ `docs/report-B10.md`（本批报告）。实时结算线末批。
+
+- **`rules/expansion-playbook.md`**：检查清单第 2 项四层名改双轨语义（L0 时间推进/L1 连续积分+判定窗口/L2 惰性差分/L3+L4 月年边界事件派发）；第 7 项「禁止以现实时间为准」改写为「进度锚定唯一权威时间轴 `elapsedGameMs`，日历为投影，禁第二套时间真相源」（§4.6 裁决——原约束防的三件事：两套真相源/循环走私/节奏脱钩，改写后全部仍被守住）；「离线收益预留」节转「已定稿」（口径/接入点/扩展纪律）。
+- **`rules/economy-design.md`**：§4 离线收益数学从「预留」转「定稿」——时段计量 lastSaveTime→读档墙钟差、≤12h 全额（1x 与速度档解耦）、12–24h 段 50%（整数分子制）、24h 硬顶（注入总量上限 18h 游戏时间）、floor 到旬、回拨按 0；收益内容边界（连续积分项重放/判定轨 0 次/RNG 零消耗）；接入点（GameEngineCoreOfflineOps 两段式 → `GameCore::injectOfflineGameMs`）；经济审计义务（折算改动必复跑注入≡分帧对拍、新产出项登记经济基线表）。
+- **`rules/ad-cooldown.md`**：预留节「离线收益」行精确化——当前已落地为读档自动注入式（无领取动作无频控面），频控预留仅适用未来领取式形态。
+- **`rules/pr-review-checklist.md`**：「进度锚定游戏时间」措辞同步为「进度锚定权威时间轴」。
+- **根 `AGENTS.md`**：§3「惰性结算四层」改「实时结算四层」双轨名；「存档为纯手动」改「存档入口纪律」——登记现实墙钟节拍自动存档例外（每 10 现实秒至多一次、三前置门控，§2.6 裁决；禁止的是复活旧月变触发式 `AutoSaveTrigger` 体系，命名统一 `realtimeAutoSave*`）；「扩展性预留」行标注离线收益已落地。
+- **`android/core/engine/AGENTS.md`**：结算层级节按 §4.6 裁决改写——四层结构保留、层内语义双轨化，补常量栈换算与离线注入指引。
+- **`android/core/data/AGENTS.md` + `CODE_WIKI.md`**：存档口径同步（手动 + 云存档 + 现实节拍自动存档；旧「纯手动/禁自动保存」表述按 §2.6 裁决修订）。
+- **`docs/architecture.md`**：惰性结算引擎章节改双轨时间模型（层级图 + INV-1/2/3 不变量 + 离线注入 + 灰度旗标）；核心原则两条按毫秒时间戳/判定轨窗口项更新；「离线收益引擎接入点」转已落地（口径/两段式注入/扩展纪律）；「存档为纯手动」节改「存档入口」并登记 §2.6 修订（显式标注非旧自动存档体系复活）。
+- **`docs/knowledge-base.md`**：留存手段清单三行更新（存档=现实节拍自动存档回归、离线收益=已落地口径、时间流速=权威轴+常量栈）；经济基线表灵矿场行补离线毫秒差分；玉符墙钟豁免论证引用换锚（L22 条款已改写，豁免理由不变仍成立）。
+- **`docs/cpp-engine.md`**：基线块新增「实时结算改造收官（B1–B10）」条目——**C++ 结算入口清单**八项（advanceByGameMs/accrue/settlePhase/settleMonth/settleYear/injectOfflineGameMs/time_units.h 常量栈/time_system.h 投影）与旧 `advance(wallDeltaMs)` 语义的取代关系；目录结构补 `time_units.h`；架构图 JNI 桥行补结算族入口；§7「保持不动」行离线收益措辞更新。
+- **`docs/ui-read-surface.md`**：§2.1 镜像合法面补权威轴双字段 `elapsedGameMs`/`lastSettleGameMs`；§3.2 派生 UI 流登记三行（`sectClock` 投影流 / `monthProgressFraction` 时间进度 / `offlineReturnReport` 云游归来，B7/B8 交付面的读数纪律收口）。
+- **`docs/threading-contract.md`**：头部更新日期补 B7 离线通道行登记说明（表四行本体 B7 已入库）。
+- **`docs/platform-abilities.md`**：时间源行扩为四端口登记（TimeSource/Clock 端口/单调时钟/现实墙钟）+ iOS 对等（CLOCK_MONOTONIC、NSDate）——离线计量与权威轴的时间端口跨平台面收口。
+- **门禁**：`node scripts/check-agent-instructions.mjs` 全绿（引用无死链 + 预算闸）；Kotlin/C++ 零改动（纯文档批），ctest/JVM/lint/detekt/jni-count 复跑基线全绿（实测数字见 `docs/report-B10.md` §三）。
+
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G12.md`（派工真源，含上位失真 6 条与 D-1…D-7 决策）
