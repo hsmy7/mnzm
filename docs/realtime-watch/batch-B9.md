@@ -44,6 +44,13 @@
 - lintRelease/构建触碰 `atlas-rgba-manifest.json` 属构建副作用，checkout 还原勿混入提交。
 - 不新增结算循环/新线程 tick；诚实纪律：门禁失败须归因入报告。
 
-## 4. 前批交付事实附录
+## 4. 前批交付事实附录（B8，看护填）
 
-（看护派发时从前批报告提取 6–8 条追加于此）
+1. B8 收官笔 `2f3bef8d0 feat(ui): B8 UI 与遥测——旬进度→时间进度投影（phaseFraction/3f 退役）+ GameViewStore 块① HUD 迁移 + 积分段遥测与 bench 门禁 <1ms@5000 + 孕养 O(I) 扫描缺陷修复（167ms→5.9ms）`（21 文件 +854/−43）；工作树当前净。
+2. **门禁基线更新**：ctest **1483**/1483（GAMECORE_BUILD_BENCH 本树 CMakeCache=ON 翻开，bench 目标 10 项在列；仓库 option 默认不动、CI 同 ON）；六模块 JVM **7536/0/18**（app 1019/0/2、data 818/0/15、domain 1590/0/0、engine 2961/0/1、ui 155/0/0、feature:game 993/0/0；45 个 Diff*Test 全实跑）；jni-count **88/88**；detekt 六模块 0（baseline 全 0 守卫）；lint 存量警告（app 37/data 5/domain 1/engine 1/ui 3/feature:game 52）。
+3. **投影族与判据族勿混**：`TimeProgressUtil`（monthProgressFraction/slotProgressFraction）为 INV-1 派生投影族；`GameTimeClock.phaseProgressFlow` 为旬内进度单一真源（AUTHORITATIVE 每帧镜像刷新/OFF 臂 tick 刷新/暂停恒 0）——B9 重定基准按 §3.4 清单逐项归类，投影族对拍口径用容差类，判定轨仍逐位。
+4. **月界收获判据不变**：槽位剩余月仍按月界收割（B5 口径），进度只是投影——B9 基准重写时判定轨口径严禁顺手连续化（方案未采纳项）。
+5. **孕养扫描缺陷已修**（`InstanceBuckets.findMutable`，全实例 167ms→6.0ms）；**残余 D1 债登记不修**：全实例形态积分段 6.0ms@5000 > 1ms（桶按 tick 重建+全速率链重算），偿付方向 = 方案 §7.2（只积分活跃实体+列级脏导出+速率缓存）独立批——B9 勿顺手清偿。
+6. **bench 门禁已立且机器余载敏感**：`SegmentUnderBudgetAt5000` 硬断言 <1000µs（3 预热+min-of-15）；B8 曾遇构建余载下一次性假红后加固——B9 跑 ctest 遇 bench 假红先看采样深度与负载再归因。GAMECORE_BUILD_BENCH 本树已 ON 勿关。
+7. **AccrualTelemetry 遥测面已建**（lastSegmentUs/maxSegmentUs/samples/overBudgetCount；超预算经 TelemetrySink 节流上报 `engine_accrual_over_budget`）；Dev 构建轴-日历锁步断言在 accrue 内（Release 门由 `GameCoreTest.AccrualTelemetryAndAxisCalendarLockstep` 外部复断）——B9 清理死值时此断言与遥测面属新增活性面勿删。
+8. **D2 债既有勿混入**：AlchemySlot/ForgeSlot/CultivatorCave/灵田年月整数模型为 D2 登记项（方案明确不动）；真机 pending-device 仅 D8（B7 遗留），B8 零新增。

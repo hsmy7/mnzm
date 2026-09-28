@@ -6,6 +6,8 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 21:21 看护轮#9：B8 交付核验通过 → ✅ accepted（看护亲验）**。三要素全过：①收官笔 `2f3bef8d0 feat(ui): B8 UI 与遥测——旬进度→时间进度投影（phaseFraction/3f 退役）+ GameViewStore 块① HUD 迁移 + 积分段遥测与 bench 门禁 <1ms@5000 + 孕养 O(I) 扫描缺陷修复（167ms→5.9ms）`（21 文件 +854/−43，含双 changelog+报告 164 行）；②报告原数字齐无占位符、假红三项诚实归因（ctest 采样不足加固/detekt LongMethod 收敛/JVM 2x 折算自纠）、五项口径决定显式声明；③树净（atlas 已还原）。**看护亲跑抽验三门全绿**：ctest **1483/1483**（GAMECORE_BUILD_BENCH=ON 确认，bench 10 项在列，47.2s）、jni-count **88/88**、agent-instructions 全绿；.so mtime 20:49 实证重建。**重大交付亮点**：孕养 O(I) 扫描缺陷根因修复（InstanceBuckets.findMutable，全实例 167ms→6.0ms 28×）+ bench 门禁 659.4µs@5000 绿 + D1 债桌面数据点落地（残余 6.0ms 登记 §7.2 方向独立批）。**B9 随后派发**（附录 8 条已从 B8 报告提取）。
+
 - **2026-09-28 20:51 看护轮#8**：**B8 全面铺开**——树 7→19 项：Kotlin UI 面到位（§10 指定关键文件 `ProductionTheme.kt`/`SectInfoCard.kt` ✓ + 炼丹/锻造对话框进度显示 + 新投影工具 `TimeProgressUtil.kt` + GameTimeClock/GameEngine + 对应测试扩展）+ C++ bench 面延续。构建在跑（45 产物/12min）；`atlas-rgba-manifest.json` 构建副作用再现——**收官还原盯点在册**。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：报告落盘 ⇒ 切 10 分钟轮；bench 数字（积分段 @5000）届时为核验重点。
 
 - **2026-09-28 20:22 看护轮#7**：**B8 首批落盘**（派发后 63 分钟，含勘察+设计期比 B7 慢属正常）——树 7 项 C++ 面先行：`game_core.h/.cpp`/`phase_settlement.h`/`instance_buckets.h` + `game_core_test.cpp` + **新 `test/bench/accrual_segment_bench_test.cpp`**（bench 门禁底座 = 验收「积分段 < 1ms@5000」的落点）+ bench CMakeLists 同步。实施顺序合理（先立 bench 门禁再改 UI 投影）。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：预期 Kotlin UI 面（ProductionTheme/SectInfoCard）与 GameViewStore 镜像面加入；报告落盘 ⇒ 切 10 分钟轮。
@@ -49,7 +51,7 @@
 | B5 | L2 差分轨 | ✅ 已交付 | 3762b14ab | — | 随线自证 |
 | B6 | L3+L4 边界层拆分 | ✅ 已交付 | d01fdfb91 | — | 随线自证（ctest 1465 全绿） |
 | B7 | 离线语义 | ✅ accepted（19:13 看护亲验） | 568c01921 | docs/report-B7.md | 通过：ctest 1473/1473+jni-count 88/88+agent-instructions 亲跑全绿；atlas 未混入；豁免理由在 §1.4 |
-| B8 | UI 与遥测 | 🔄 在途（看护派发 19:19） | — | — | 待交付 |
+| B8 | UI 与遥测 | ✅ accepted（21:21 看护亲验） | 2f3bef8d0 | docs/report-B8.md | 通过：ctest 1483/1483（bench 翻开）+jni-count 88/88+agent-instructions 亲跑全绿；孕养 O(I) 缺陷修复 28×；D1 债桌面数据点落地 |
 | B9 | 测试基准重建+遗留清理 | ⏳ 待派 | | | |
 | B10 | 文档与规范 | ⏳ 待派 | | | |
 
