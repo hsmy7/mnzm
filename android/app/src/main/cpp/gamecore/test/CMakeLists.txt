@@ -122,6 +122,9 @@ add_executable(game-core-tests
     phase_settlement_test.cpp
     month_settlement_test.cpp
     month_accrual_test.cpp
+    # 结算改造 2026-09-27 B7：离线收益注入——三轴跳变/日历投影/积分闭式
+    # 对拍/判定轨零发生/边界防御
+    offline_injection_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
     production_test.cpp

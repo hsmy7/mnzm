@@ -351,7 +351,10 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var unlockedManuals: List<String> = emptyList(),
 
-    // 最后保存时间（仅用于存档列表显示，不用于离线时间差计算。游戏无离线进度机制）
+    // 最后保存时间（现实墙钟基 System.currentTimeMillis）。
+    // 消费面：① 存档列表显示；② 离线收益时段计量起点（结算改造 2026-09-27 B7——
+    // 读档时 lastSaveTime → 当前墙钟差经 GameConfig.Time.offlineGameMs 折算注入；
+    // 0 = 无保存记录即新档，不注入）。写点 = 保存链 buildLightGameData（= SaveData.timestamp）。
     @ProtoNumber(32)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lastSaveTime: Long = 0L,

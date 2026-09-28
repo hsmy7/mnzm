@@ -410,6 +410,18 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAccrue(
                            accrualEnabled == JNI_TRUE));
 }
 
+// 离线收益注入（结算改造 2026-09-27 B7）：读档冷启动后引擎线程一次性调用
+//（ensureAuthoritativeNative 消费点；jniRequireEngineThread 同 nativeAccrue）。
+// 返回注入后的权威游戏毫秒（Kotlin 镜像/连续臂差分基准同步输入）。
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInjectOfflineGameMs(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong offlineGameMs) {
+    jniRequireEngineThread("nativeInjectOfflineGameMs");
+    if (!g_gameCore) return 0;
+    return static_cast<jlong>(
+        g_gameCore->injectOfflineGameMs(static_cast<int64_t>(offlineGameMs)));
+}
+
 // AI 热控批量上界推送（Kotlin ThermalMonitor 平台决策——12/6/3；
 // kEngineOnly——月结前引擎线程调用）
 extern "C" JNIEXPORT void JNICALL

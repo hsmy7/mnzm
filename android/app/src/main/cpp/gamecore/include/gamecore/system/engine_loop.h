@@ -156,6 +156,17 @@ public:
         }
     }
 
+    /// 真相轴一次性推进已折算的游戏毫秒（结算改造 2026-09-27 B7 离线注入）。
+    /// 与 [advanceElapsedNs] 的区别：输入**已是游戏毫秒**（离线上限/速率口径
+    /// 由 Kotlin 折算施加，不再乘 speed、不区分 awake/死区）；旬内累积器
+    /// accumulatedGameMs_ 与墙钟基准 lastWallMs_ 不动——注入的时间已随
+    /// GameCore::injectOfflineGameMs 全额结算完毕，回在线后帧差分从新轴起算。
+    void advanceGameMs(int64_t gameMs) {
+        if (gameMs > 0) {
+            elapsedGameNs_.fetch_add(gameMs * 1'000'000, std::memory_order_relaxed);
+        }
+    }
+
     /// 判定窗口计数（INV-3）：floor(权威游戏毫秒 / 旬长)。
     /// 判定次数 = 该整数值的差分，与帧率/分帧方式无关（遥缴）。
     static int64_t phaseWindowCount(int64_t elapsedGameMsValue) {

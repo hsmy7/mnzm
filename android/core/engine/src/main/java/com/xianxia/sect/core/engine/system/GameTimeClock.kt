@@ -130,6 +130,24 @@ class GameTimeClock @Inject constructor(
     }
 
     /**
+     * 离线收益注入端口（结算改造 2026-09-27 B7，方案 §2.4）：
+     * 把 Kotlin 折算好的离线游戏毫秒一次性交给时钟。
+     *
+     * 回退臂语义：直接加进当旬累积器——回退臂的 [tick] 按追补上限消化，
+     * 超限余量丢弃（现状"追补超限丢弃"语义延续；单引擎终态下本分支仅
+     * 测试/降级触达）。AUTHORITATIVE 生产路径不消费本端口——离线注入由
+     * GameEngineCoreOfflineOps 分流到 `GameCoreBridge.nativeInjectOfflineGameMs`
+     * （C++ 三轴推进 + 积分全额结算），见该文件线程契约登记。
+     *
+     * @param gameMs 折算后的离线游戏毫秒（GameConfig.Time.offlineGameMs 产物，
+     *   旬长整数倍）
+     */
+    fun addOfflineGameMs(gameMs: Long) {
+        if (gameMs <= 0) return
+        accumulatedGameMsInternal += gameMs
+    }
+
+    /**
      * 当前墙钟毫秒（单调时钟）。
      * 供暂停租约、进度监控快照等外部时间基准使用（与内部累积同一时钟源）。
      */

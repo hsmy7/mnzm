@@ -219,6 +219,11 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             }
             DomainLog.i(TAG, "AUTHORITATIVE native 引擎已初始化（seed=${stateStore.gameData.value.mapSeed}）")
         }
+        // B7 离线收益消费点：所有成功路径统一出口（初始化首帧 / 逐旬快路径）。
+        // 引擎线程串行保证；时序位于 importToNative 与 nativeLoopStart 之后
+        //（消费内部依赖此序——注入不被导入覆盖、不被 start() 清轴）；
+        // 消费即清零，幂等。
+        consumePendingOfflineProgress()
         true
     } catch (e: CancellationException) {
         throw e

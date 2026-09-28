@@ -155,7 +155,8 @@ object GameConfig {
         // ── 时间单位常量栈（结算改造方案 2026-09-27 §2.2 —— 全仓唯一口径）──
         // C++ 同源锚点：gamecore/system/time_units.h（同名常量同值同公式，
         // GameTimeUnitsParityTest / time_units_test.cpp 双端各自锁定，改值须双端同步）。
-        // B1 批次为纯加性：以下成员当前零生产消费者（仅测试锁定）。
+        // B7 起离线收益折算（offlineGameMs）为首个生产消费面；其余成员仍零
+        // 生产消费（仅测试锁定）。
 
         /** 游戏秒定义：1 游戏秒 = 1000 游戏毫秒 */
         const val MS_PER_GAME_SECOND = 1000
@@ -182,6 +183,42 @@ object GameConfig {
          * C++ 同源锚点：time_units.h kGameMsPerMonth（双端守卫锁定，改值须双端同步）。
          */
         const val GAME_MS_PER_MONTH = 6000L
+
+        // ── 离线收益口径（结算改造方案 2026-09-27 §1.4 已拍板，B7 落地）──
+        // 离线时段按现实墙钟差（lastSaveTime → 本次读档）计量；速率与在线
+        // 速度档解耦（离线恒按 1x 换算），避免"杀进程挂机"成为最优策略。
+
+        /** 离线收益全额段窗口：12 现实小时（1x 速率 = 1 现实 ms → 1 游戏 ms） */
+        const val OFFLINE_FULL_RATE_WINDOW_MS: Long = 12L * 60L * 60L * 1000L
+
+        /** 离线收益硬顶窗口：24 现实小时（离线时长超出后不再累积任何收益） */
+        const val OFFLINE_HARD_CAP_WINDOW_MS: Long = 24L * 60L * 60L * 1000L
+
+        /** 全额段之后的折算速率分子（50% = 1/2；整数运算防浮点漂移） */
+        const val OFFLINE_REDUCED_RATE_NUMERATOR: Long = 1L
+
+        /** 全额段之后的折算速率分母 */
+        const val OFFLINE_REDUCED_RATE_DENOMINATOR: Long = 2L
+
+        /**
+         * 离线时段（现实墙钟毫秒）→ 注入游戏毫秒（B7 折算唯一口径）。
+         *
+         * 分段：≤12h 全额；12h–24h 段按 [OFFLINE_REDUCED_RATE_NUMERATOR]/[OFFLINE_REDUCED_RATE_DENOMINATOR]
+         * 折算；>24h 封顶（注入总量上限 = 12h + 12h/2 = 18h 游戏时间）。
+         * 结果 floor 到旬（[GAME_MS_PER_PHASE] 整数倍）——保持 GameData 权威轴
+         * 旬网格对齐（INV-1 投影互逆 calendarToGameMs∘projectCalendar 恒等的
+         * 前提），floor 损失 <1 旬（<2 游戏秒）可忽略。
+         * 负输入/零按 0 处理（时钟回拨防御）。
+         */
+        fun offlineGameMs(offlineWallMs: Long): Long {
+            if (offlineWallMs <= 0L) return 0L
+            val fullSegment = minOf(offlineWallMs, OFFLINE_FULL_RATE_WINDOW_MS)
+            val reducedSegment = (offlineWallMs - OFFLINE_FULL_RATE_WINDOW_MS)
+                .coerceIn(0L, OFFLINE_HARD_CAP_WINDOW_MS - OFFLINE_FULL_RATE_WINDOW_MS)
+            val gameMs = fullSegment + reducedSegment *
+                OFFLINE_REDUCED_RATE_NUMERATOR / OFFLINE_REDUCED_RATE_DENOMINATOR
+            return gameMs / GAME_MS_PER_PHASE * GAME_MS_PER_PHASE
+        }
 
         /** 每旬量 → 每游戏秒量（÷2.0） */
         fun perPhaseToPerGameSecond(perPhase: Double): Double =

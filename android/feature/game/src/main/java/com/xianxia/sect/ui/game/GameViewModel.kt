@@ -14,6 +14,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.OfflineReturnReport
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.enterSect
 import com.xianxia.sect.core.engine.notifyUserInteraction
@@ -242,6 +243,18 @@ class GameViewModel @Inject constructor(
                 remainingMs = GameConfig.Jade.INTERVAL_MS, capped = false
             )
         )
+
+    /**
+     * 离线回归报告（结算改造 2026-09-27 B7）：读档注入落地后发布一次，
+     * 主界面弹「云游归来」提示；展示后 [acknowledgeOfflineReturnReport] 清空。
+     */
+    val offlineReturnReport: StateFlow<OfflineReturnReport?> =
+        gameEngine.offlineReturnReport
+
+    /** UI 展示完离线回归面板后确认（清报告，防重复弹出） */
+    fun acknowledgeOfflineReturnReport() {
+        gameEngine.acknowledgeOfflineReturnReport()
+    }
 
     fun navigateToDialog(type: DialogType) {
         if (type is DialogType.None) return

@@ -1,9 +1,9 @@
 {
-  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。MR4-P4.4：+1 nativeGetMemoryStats。",
+  "_doc": "JNI 面计数基线（check-jni-count.mjs 比对）。MR4-P4.4：+1 nativeGetMemoryStats。B7：+1 nativeInjectOfflineGameMs（离线收益注入唯一通道——折算口径在 Kotlin，引擎侧三轴推进/积分结算/日历投影无 Kotlin 等价实现面，豁免理由见 docs/report-B7.md）。",
   "perFile": {
-    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 39,
+    "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\GameCoreBridge.kt": 40,
     "android\\core\\engine\\src\\main\\java\\com\\xianxia\\sect\\core\\nativebridge\\NativeBridge.kt": 48
   },
-  "total": 87,
-  "updatedAt": "2026-09-27"
+  "total": 88,
+  "updatedAt": "2026-09-28"
 }

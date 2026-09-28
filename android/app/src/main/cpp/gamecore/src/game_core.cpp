@@ -363,6 +363,48 @@ int GameCore::accrue(int64_t deltaGameMs, bool accrualEnabled) {
     return flags;
 }
 
+// ── 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3 离线行）──────────
+// 读档冷启动一次性调用（引擎线程，importToNative 之后、循环首帧消费点）。
+// 编排序：① L1 积分（旧轴基准下结算，与在线 accrue ① 同款）→ ② 三轴推进 +
+// GameData 旬投影/日历 set + 月结幂等基准 → ③ L3 积分（灵矿毫秒差分消费
+// 新旬投影——同 accrue ③ 的调用点纪律）。判定轨 0 窗、月/年离散事件 0 次：
+// 突破/丹药 roll/AI 行动/任务刷新等需要玩家在场或消费 RNG 的判定不在离线
+// 期间发生（离线收益 = 资源连续积分，方案 §2.3 未赋予离线判定语义）。
+int64_t GameCore::injectOfflineGameMs(int64_t offlineGameMs) {
+    if (!initialized_) return state_.gameData.elapsedGameMs;
+    // 非正输入零副作用（Kotlin 折算已钳负；防御同口径）
+    if (offlineGameMs <= 0) return state_.gameData.elapsedGameMs;
+    // floor 到旬网格：Kotlin 折算已按整旬交付，此处防御非整旬残留——
+    // GameData 权威轴保持旬长整数倍（INV-1 投影互逆 calendarToGameMs∘project
+    // 恒等的前提），floor 损失 <1 旬（<2 游戏秒，对 12h 量级可忽略）
+    const int64_t gameMs =
+        offlineGameMs / system::kGameMsPerPhase * system::kGameMsPerPhase;
+    if (gameMs <= 0) return state_.gameData.elapsedGameMs;
+
+    auto& gd = state_.gameData;
+    // ① L1 连续积分（HP/MP 恢复/修炼/熟练度/孕养——零 RNG，整数分子制
+    //    对大 Δt 与分帧逐位等价）
+    system::accrueContinuous(state_, ecsWorld_, gameMs, recoveryCarry_);
+
+    // ② 三轴同步跳变 + 日历投影（先于 ③：灵矿差分消费旬投影）
+    loop_.time().advanceGameMs(gameMs);       // PhaseClock 纳秒真相轴（INV-2）
+    settlement_.advanceGameMs(gameMs);        // 已积分轴（shadow/对拍一致性）
+    const int64_t prevElapsed = gd.elapsedGameMs;
+    const int64_t newElapsed = prevElapsed + gameMs;
+    // X 为旬长整数倍 ⇒ projectCalendar(newElapsed) 与逐旬 advancePhase 推进
+    // 逐位等价（INV-1 纯函数投影）；此处 set 即"日历投影同步跳变"
+    system::projectCalendar(newElapsed, gd.gameYear, gd.gameMonth, gd.gamePhase);
+    gd.elapsedGameMs = newElapsed;
+    // 月结幂等基准同步推进（读档归一化钳制不变量 lastSettle ≤ elapsed 保持）
+    gd.lastSettleGameMs = newElapsed;
+
+    // ③ L3 月度连续积分（政策灵石/道德/丹药衰减 + 灵矿毫秒差分：
+    //    span = 新旬投影 − spiritMineLastSettledGameMs = X，全额结算）
+    system::accrueMonthlyContinuous(state_, gameMs, monthlyCarry_);
+    consumePendingMemoryTrim();
+    return newElapsed;
+}
+
 std::string GameCore::settleMonth() {
     if (!initialized_) return "{}";
     // B6 臂分流：连续臂走 runMonthEvents（判定入口——积分型四项由

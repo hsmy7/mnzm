@@ -1,5 +1,55 @@
 ## [4.01.16] - 2026-09-22
 
+### 实时结算线 B7 批（2026-09-28）——离线语义（12h 全额 + 50% 至 24h 硬顶 + 注入路径 + UI 回归提示）— `feat(engine)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B7 行 / §1.4 离线口径
+> + `docs/realtime-watch/batch-B7.md`（派发件）+ `docs/report-B7.md`（本批报告）。
+
+- **折算口径（§1.4 已拍板，不改口）**：离线时段 = `lastSaveTime`（现实墙钟基）→ 本次读档墙钟差；
+  ≤12h 全额（1x 速率，与在线速度档解耦——防「2x 挂机最优」）→ 12h–24h 段 50% → 24h 硬顶
+  （超出不再累积，注入总量上限 = 12h + 12h/2 = 18h 游戏时间）；结果 floor 到旬（2000 游戏毫秒
+  整旬交付——保持 GameData 权威轴旬网格对齐与 `calendarToGameMs∘projectCalendar` 互逆前提）。
+  落点 `GameConfig.Time.offlineGameMs`（core/domain，纯函数整数运算防浮点漂移）。
+- **C++ 注入入口 `GameCore::injectOfflineGameMs(int64_t)`**（`game_core.h/cpp`）——
+  ① L1 连续积分（`accrueContinuous`，整数分子制对大 Δt 与分帧逐位等价）→ ② 三轴同步跳变
+  （PhaseClock 纳秒真相轴 `advanceGameMs` / SettlementEngine 已积分轴 `advanceGameMs` /
+  GameData 旬投影 + `projectCalendar` 日历投影 set——X 整旬时与逐旬 `advancePhase` 逐位等价）
+  + `lastSettleGameMs` 月结幂等基准推进（防回在线后重复结算）→ ③ L3 月度连续积分
+  （`accrueMonthlyContinuous`，灵矿毫秒差分消费新旬投影）。**判定轨/月年离散事件 0 次**
+  （离线无判定无事件，RNG 零消耗——INV-2 时间不丢 / INV-3 判定域语义边界）；与
+  `realtimeAccrual` 灰度旗标正交（直调积分函数族，不经 accrue 窗口循环，旗标翻转不影响离线
+  语义）。非整旬输入 floor 防御、非正输入零副作用、未初始化返回当前轴值。
+- **注入路径（两段式；线程契约表四已登记）**：staging（`BootSequenceController` Step 6.5 →
+  `GameEngineCoreOfflineOps.stageOfflineProgress`，boot 为新档/读档/重启/云档统一入口——
+  新档 `lastSaveTime=0` 自然零注入；wallClock 计量现实时段）→ consume（`ensureAuthoritativeNative`
+  统一成功出口尾部 `consumePendingOfflineProgress`，消费即清零幂等——native 初始化重试不重复
+  注入；native 就绪走 `nativeInjectOfflineGameMs` + `applyDirtyFromNative` 镜像同步 +
+  `accruedElapsedGameMs` 差分基准重锚；不可用走回退臂 `GameTimeClock.addOfflineGameMs`，
+  单引擎终态下仅测试/降级触达）。时序约束：消费点在 `importToNative`（防注入被导入覆盖）与
+  `nativeLoopStart`（防 `start()` 清轴）之后，由 ensure 调用序结构保证。
+- **JNI**：`nativeInjectOfflineGameMs(Long): Long`（`GameCoreBridge.kt` + `GameCoreBridge.cpp`，
+  `jniRequireEngineThread` 守卫同 `nativeAccrue`）；jni-count 基线 87→88（豁免理由：折算口径在
+  Kotlin，引擎侧三轴推进/积分结算/日历投影无 Kotlin 等价实现面）。
+- **UI 回归提示**：`OfflineReturnReport` 流（引擎线程发布 → `GameEngine.offlineReturnReport` →
+  `GameViewModel` 转发）+ 主界面 `StandardPromptDialog`「云游归来」——显示现实离线时长
+  （`formatOfflineDuration` 通俗格式化：片刻/分钟/小时/天）+ 上限规则通俗说明（不泄数值细节）；
+  展示后 ack 清空防重复弹出。
+- **注释口径同步**：`GameData.lastSaveTime` / `models.h` 双端注释从「不用于离线时间差」改写为
+  「离线收益时段计量起点（B7）」——B7 落地后注释与代码一致。
+- **测试（新增 28 例）**：C++ `offline_injection_test.cpp` 8 例（三轴增量一致 / 日历 set ≡ 逐旬
+  advancePhase / 一次性注入 ≡ 分帧 accrue 积分逐位对拍（30 月 200ms 帧粒度，经济总量对拍在
+  逐位容差内）/ 零 RNG 消耗（突破/系统/AI 镜像三分区）/ 灵矿差分闭式 / 政策月扣闭式 /
+  边界 0·负·不足一旬·floor / 未初始化零副作用）；Kotlin `OfflineProgressPolicyTest` 10 例
+  （离线边界 7 档 + 负数回拨 + 旬网格对齐不变量 + 单调性）；`GameTimeClockOfflineInjectTest`
+  4 例（回退臂端口 / 超上限丢弃 / 零副作用 / 暂停恢复）；`GameEngineCoreOfflineOpsTest` 6 例
+  （staging 折算与硬顶 / 新档零注入 / consume 回退臂 / 幂等 / 报告发布 / ack 清空）。
+- **真机 pending-device（不阻塞本批验收，方案未确认项 D8）**：`START_STICKY` 后台重建是否
+  推进时间——影响离线计时起点可靠性，待真机验证批登记。
+- 门禁实测：ctest **1473/1473**（基线 1465 + 新增 8）；六模块 JVM 全量（含 feature:game）带
+  `-Dgamecore.jni.path` 绿（IN8 出厂门要求全量跑必须带参——派发件第 2 条命令的补正）；engine
+  Diff 家族定向复跑绿；detekt 六模块 0 新增；lintRelease 绿；jni-count **88/88**；
+  check-agent-instructions 绿；build-desktop-jni.ps1 已重跑（C++ 变更后 Diff 门依赖）。
+
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G12.md`（派工真源，含上位失真 6 条与 D-1…D-7 决策）

@@ -1249,6 +1249,8 @@ struct GameData {
     std::vector<int32_t> usedTeamNumbers;
     bool battleTeamsInitialized = false;
     // 存档
+    // 最后保存时间（现实墙钟基）：显示 + 离线收益时段计量起点（B7，折算在
+    // Kotlin GameConfig.Time.offlineGameMs；C++ 引擎面不消费本字段）
     int64_t lastSaveTime = 0;
     int32_t saveVersion = 0;
     // 玩家保护

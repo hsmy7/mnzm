@@ -152,6 +152,15 @@ public:
     /// 权威游戏毫秒（advanceByGameMs 累积；shadow 臂观测用）
     int64_t elapsedGameMs() const { return elapsedGameMs_; }
 
+    /// 已积分轴一次性推进（结算改造 2026-09-27 B7 离线注入）：
+    /// 离线收益的积分由 GameCore::injectOfflineGameMs 显式结算，本方法只把
+    /// 已积分轴同步跳到注入后位置——保证 shadow/对拍口径的
+    /// elapsedGameMs_ 与 PhaseClock 真相轴、GameData 旬投影三轴一致。
+    /// 不触发任何钩子/日历推进（那由注入编排显式承担）。
+    void advanceGameMs(int64_t gameMs) {
+        if (gameMs > 0) elapsedGameMs_ += gameMs;
+    }
+
     /// 单旬推进（AUTHORITATIVE tick 标量通道）：恰好一次
     /// advanceOnePhase，返回本旬边界标志位（kSettleFlag* 位组合）。
     int settleOnePhase(state::GameState& state) {

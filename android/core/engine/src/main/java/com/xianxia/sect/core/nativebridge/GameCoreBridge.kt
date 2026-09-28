@@ -128,6 +128,20 @@ object GameCoreBridge {
     external fun nativeAccrue(deltaGameMs: Long, accrualEnabled: Boolean): Int
 
     /**
+     * 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3 离线行）：读档冷启动后
+     * 引擎线程一次性调用（消费点 = GameEngineCoreOfflineOps，importToNative 之后）。
+     * C++ 侧语义：L1+L3 积分轨按输入全额结算（上限/速率口径由 Kotlin
+     * `GameConfig.Time.offlineGameMs` 折算施加）+ 三轴同步跳变 + 日历投影 set
+     * + 判定轨/月年事件 0 次 + 月结幂等基准推进。
+     *
+     * @param offlineGameMs 折算后的离线游戏毫秒（旬长整数倍；非整旬由 C++
+     *        floor 防御）
+     * @return 注入后的权威游戏毫秒（镜像同步 + 连续臂差分基准更新输入）；
+     *         引擎未初始化返回 0
+     */
+    external fun nativeInjectOfflineGameMs(offlineGameMs: Long): Long
+
+    /**
      * 单月推进（月变真相源切换）：C++ 完整月变结算（八步事务编排 +
      * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
      * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（秘境

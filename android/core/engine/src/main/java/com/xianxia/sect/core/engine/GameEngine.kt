@@ -235,6 +235,19 @@ class GameEngine @Inject constructor(
     val gameDataSnapshot: GameData get() = stateStore.gameDataSnapshot
     /** 玉符运行时状态（1Hz 节流，UI 徽章/倒计时订阅入口） */
     val jadeSymbolState: StateFlow<JadeSymbolRuntimeState> get() = gameEngineCore.jadeSymbolState
+
+    /**
+     * 离线回归报告（结算改造 2026-09-27 B7）：注入落地后发布一次，
+     * UI 展示后调 [acknowledgeOfflineReturnReport] 清空。
+     */
+    val offlineReturnReport: StateFlow<OfflineReturnReport?>
+        get() = gameEngineCore.offlineReturnReport
+
+    /** UI 展示完离线回归面板后确认（清报告，防重复弹出） */
+    fun acknowledgeOfflineReturnReport() {
+        gameEngineCore.offlineReturnReportMutable.value = null
+    }
+
     val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = stateStore.discipleAggregatesSnapshot
     val discipleTables: DiscipleTables get() = stateStore.discipleTables
     val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples

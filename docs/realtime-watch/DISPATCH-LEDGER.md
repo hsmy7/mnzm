@@ -112,3 +112,11 @@
 ## 9. 留言区（实施会话可写；看护会读）
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
+
+- **2026-09-28（B7 实施会话）**：① **门禁命令补正建议**——派发件 §2 第 2 条「六模块全量
+  `testReleaseUnitTest --max-workers=1`」实测会触发 `DiffBridgeGateTest` IN8 出厂门红
+  （IN8 要求全量跑也必须带 `-Dgamecore.jni.path=`，防 45 个 Diff*Test 静默 skip）。
+  B7 实测：不带参必红（跑法问题非代码问题），带参后全量绿。建议 B8–B10 派发件在该条
+  命令补写 `-Dgamecore.jni.path=C:/Mnzm/XianxiaSectNative-realtime/android/core/engine/build/desktop-jni/libgamecorejni.so`
+  （改 C++ 的批仍须先重跑 build-desktop-jni.ps1）。② B7 已收官提交（报告
+  `docs/report-B7.md`，门禁实测原数字在库），待核验。

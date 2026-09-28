@@ -124,6 +124,20 @@ public:
     /// RNG 契约与离散轨逐位一致）。@return settle 标志位（kSettleFlag*）。
     int accrue(int64_t deltaGameMs, bool accrualEnabled);
 
+    /// 离线收益注入（结算改造 2026-09-27 B7，方案 §2.3「离线时段 ∩ 上限
+    /// 注入连续积分轨；日历投影同步跳变」）：冷启动读档后一次性调用。
+    /// 上限/速率口径（12h 全额 + 50% 至 24h 硬顶，§1.4）由 Kotlin 折算施加，
+    /// 本入口收到的已是折算后游戏毫秒（内部再 floor 到旬网格防御）。
+    /// 语义：L1+L3 积分轨按 X 全额结算（INV-2，与分帧 accrue 闭式等价）；
+    /// 三轴（PhaseClock 真相轴 / SettlementEngine 已积分轴 / GameData 旬投影）
+    /// 同步跳变 + 日历投影 set（X 整旬时与逐旬 advancePhase 逐位等价）；
+    /// 判定轨与月/年离散事件 0 次（离线无判定/事件，RNG 零消耗）；
+    /// 月结幂等基准 lastSettleGameMs 推到新轴（防回在线后重复结算）。
+    /// 与 realtimeAccrual 灰度旗标正交（直调积分函数族，不经 accrue 窗口循环）。
+    /// @return 注入后的权威游戏毫秒（Kotlin 镜像同步输入；未初始化/非法输入
+    /// 返回当前轴值，零副作用）。
+    int64_t injectOfflineGameMs(int64_t offlineGameMs);
+
     /// 单月推进（月变真相源切换新增）：直接执行完整月变结算
     /// （runMonthSettlement——八步事务编排 + 十六子事件已下沉面），返回
     /// JSON 信封（MonthSettlementResult：policyCosts.disabledPolicies +
