@@ -6,6 +6,8 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 17:52 看护轮#2**：**B7 实施期健康铺开**——树 23 项与批次任务面精确对应：C++ 离线注入面（`GameCoreBridge.cpp`/`game_core.h`/`engine_loop.h`/`settlement.h`/`game_core.cpp` + 新 `test/offline_injection_test.cpp`）+ Kotlin 面（`GameTimeClock.kt`/新 `GameEngineCoreOfflineOps.kt`/`GameEngineCoreAuthoritativeOps.kt`/`GameConfig.kt`/GameEngine 双件 + UI 面 GameViewModel/MainGameScreen + 新 `OfflineProgressPolicyTest.kt`）。**核验盯点预载**：①`scripts/jni-count.baseline.json` 已被改——核验时必须见报告豁免理由；②`atlas-rgba-manifest.json` 在树——收官前必须还原。构建在跑（近 12 分钟 48 产物）、agent 流 17:2x–17:5x 持续（46/34/37 次）。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：报告落盘 ⇒ 切 10 分钟轮准备核验。
+
 - **2026-09-28 17:22 看护轮#1（自动化 fire）**：CLI 探测 = 收官笔未落、树 0 项、无报告、build 近 12 分钟 0（派发起累计零落盘 32 分钟）。🔴 **本轮 GUI 快照通道故障**（连续 7 次工具误选，遵守纪律未盲试未盲发）——改用 ZCode 日志旁证（`~/.zcode/v2/logs/2026-09-28.log`，注意 captcha 噪音须用 `zcode-agent.respond` 精确标签）：17:0x/17:1x（看护会话空窗期）agent 响应 19/11 次、**17:19:27 trace 515e389b 模型流式交互在途** ⇒ 判定 B7 会话活性有实证、处于深读/规划期（B 线方案 1200+ 行 + 台账必读），未达判停，**不干预不发「继续」**；保持 30 分钟轮。下轮规则：若仍零落盘且 17:2x 后 agent 流停止 ⇒ 恢复 GUI 通道判活后按 §3.4.5 发「继续」；GUI 仍故障则继续日志旁证并顺延干预；连续 2 轮零落盘+零 agent 流 ⇒ 台账登记后重派。
 
 - **2026-09-28 16:5x** 用户指示（已固化 §3 第 4.5 条 + 看护自动化提示词 4.5）：桌面渠道当前用**体验套餐**——实施会话模型中断 ⇒ 输入「继续」令其续跑；体验套餐**额度归零** ⇒ 点击会话右下角模型名称按钮选 **BigModel 的 GLM-5.3-Flash** 继续实施。
