@@ -6,6 +6,8 @@
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-28 20:51 看护轮#8**：**B8 全面铺开**——树 7→19 项：Kotlin UI 面到位（§10 指定关键文件 `ProductionTheme.kt`/`SectInfoCard.kt` ✓ + 炼丹/锻造对话框进度显示 + 新投影工具 `TimeProgressUtil.kt` + GameTimeClock/GameEngine + 对应测试扩展）+ C++ bench 面延续。构建在跑（45 产物/12min）；`atlas-rgba-manifest.json` 构建副作用再现——**收官还原盯点在册**。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：报告落盘 ⇒ 切 10 分钟轮；bench 数字（积分段 @5000）届时为核验重点。
+
 - **2026-09-28 20:22 看护轮#7**：**B8 首批落盘**（派发后 63 分钟，含勘察+设计期比 B7 慢属正常）——树 7 项 C++ 面先行：`game_core.h/.cpp`/`phase_settlement.h`/`instance_buckets.h` + `game_core_test.cpp` + **新 `test/bench/accrual_segment_bench_test.cpp`**（bench 门禁底座 = 验收「积分段 < 1ms@5000」的落点）+ bench CMakeLists 同步。实施顺序合理（先立 bench 门禁再改 UI 投影）。无报告无收官笔 → 实施期，不干预，保持 30 分钟轮。下轮：预期 Kotlin UI 面（ProductionTheme/SectInfoCard）与 GameViewStore 镜像面加入；报告落盘 ⇒ 切 10 分钟轮。
 
 - **2026-09-28 19:51 看护轮#6**：三重静默三要素表面齐（派发 32 分钟树 0 项/无报告/build 0 + agent 流 19:3x-19:4x 为零）⇒ GUI 判活，**活性实证推翻判停**——B8 会话视图中：双长思考块进行中（79s/59s）、「2/8 项已完成」任务清单推进、勘察面 = accrue 积分段现状/GameViewStore 镜像面/GameData 时间进度投影（恰为 B8 任务面）、正核对派发件原文与 B7 报告格式、**实施设计已定随即开工**。判定：实施期深勘察尾部，不干预，保持 30 分钟轮。**旁证法修正入档：zcode-agent.respond 计数在长思考/长命令勘察期会假阴性（B8 19:3x-19:4x 实证）——停滞判读必须先 GUI 判活再定，日志旁证仅辅助。**下轮：B8 预期已落盘（首批文件随时出现）；若 GUI 仍活性而树持续 0 到派发后 60 分钟，再评估。
