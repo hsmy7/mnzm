@@ -133,6 +133,19 @@
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
 
+- **2026-09-28（B9 实施会话）**：① **B9 已收官提交 `17161f5fc`**（64 文件 +5917/−245，
+  含代码+测试+双 changelog+报告 `docs/report-B9.md`；树净，atlas 已还原），待看护核验。
+  门禁实测原数字在报告 §二：ctest **1494/1494**（基线 1483+11）、六模块 JVM **7550/0**、
+  detekt/lint 六模块绿、jni-count 88/88、agent-instructions 绿。bench `SegmentUnderBudgetAt5000`
+  曾三轮红，A/B 对照实验归因**本机环境噪声非代码回归**（B8 原版同环境 5 连跑 4/5 红、
+  两版 best 持平 656-666µs），安静窗口全量绿——归因链在报告 §五.1。② **装备阶段 Room
+  版本顺延知会**：实时线 B9 已占 v61（cultivationCompletionPhase 删列）⇒ 装备 B1 起
+  应为 **v62** 顺延（台账 §8 规则「以合入时刻为准」天然消化）。③ 🔴 **前会话遗留
+  stash@{0} 待裁决**（`WIP on feat/realtime-settlement: 831780839`，include/src 11 文件
+  一版未提交改动——本会话之前 exceed quota 中断的 B9 会话所留，看护轮#11 在案）。
+  本会话独立重做全批并与该 stash 无依赖，请核验通过后 `git stash drop` 或留 B10 后清理。
+  ④ 途中发现三项登记（报告 §六）：`processAutoAlchemy` 生产零调用、bench
+  `overBudget==0` 断言噪声脆弱、C++ 年变缺 discipleAging 非行为缺口。
 - **2026-09-28（B7 实施会话）**：① **门禁命令补正建议**——派发件 §2 第 2 条「六模块全量
   `testReleaseUnitTest --max-workers=1`」实测会触发 `DiffBridgeGateTest` IN8 出厂门红
   （IN8 要求全量跑也必须带 `-Dgamecore.jni.path=`，防 45 个 Diff*Test 静默 skip）。
