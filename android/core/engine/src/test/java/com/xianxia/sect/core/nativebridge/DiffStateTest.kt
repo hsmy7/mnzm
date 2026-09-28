@@ -158,7 +158,7 @@ class DiffStateTest {
         shownWarningStageIds = listOf("w1:WAR_DECLARATION")
         secretRealmCooldownYear = 30
         suzerainSectId = ""
-        lastYearSpiritStoneIncome = 5000
+        annualTotalIncome = 5000
         mapSeed = 42
         sectAttackCooldowns = mapOf("sect-a" to 120)
         guideCounters = mapOf("build_first" to 1L)

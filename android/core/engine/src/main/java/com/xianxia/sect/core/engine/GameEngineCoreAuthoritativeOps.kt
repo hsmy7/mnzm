@@ -42,8 +42,10 @@ private const val TAG = "GameEngineCore"
  *    ——C++ 每旬突破判定不再经 Kotlin 处理器，埋点由镜像差分重建
  * ③ 月/年边界：完整编排（年变先于月变）
  *
- * 时钟语义：墙钟消费/速度/暂停/refundPhases 仍由 Kotlin GameTimeClock 独占
- * （C++ 侧不维护 speed/pause/refund 状态机，避免双语言两套状态机漂移）。
+ * 时钟语义：AUTHORITATIVE 下速度/暂停/refundPhases 状态机在 C++ PhaseClock
+ * （engine_loop.h；nativeCoreLoopSetSpeed/ConsumeDeadTime/RefundPhases 通道），
+ * Kotlin GameTimeClock 降级为 UI 镜像（B2 真相源切换后口径；本 KDoc 原记载的
+ * "Kotlin 独占"已过期——结算改造方案 §9.1 尾注过期记录回改，B9）。
  *
  * 失败语义：native 链路任何失败 → refundPhases 后重抛（与
  * GameEngineCore.processTickPhases 相同的看门狗处理路径），下个 tick 由

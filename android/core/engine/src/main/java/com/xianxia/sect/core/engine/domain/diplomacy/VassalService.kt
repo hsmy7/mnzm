@@ -85,12 +85,18 @@ class VassalService @Inject constructor(
     fun getSuzerainSectId(): String =
         stateStore.gameData.value.suzerainSectId
 
-    /** 处理年贡（每年一月调用） */
+    /**
+     * 处理年贡（每年一月调用）。
+     *
+     * 收入取 [com.xianxia.sect.core.model.GameData.annualTotalIncome] 年度流水
+     * （缺陷 #3 修复：原 lastYearSpiritStoneIncome 零写入点恒 0 → 年贡恒早退；
+     * 本方法在年报快照清零 annual* 之前执行，读到的正是上一完整年收入）。
+     */
     fun processYearlyTribute() {
         val data = stateStore.gameData.value
         val suzerainId = data.suzerainSectId
         if (suzerainId.isEmpty()) return
-        val income = data.lastYearSpiritStoneIncome
+        val income = data.annualTotalIncome
         val tribute = max(
             (income * GameConfig.AIAttack.VASSAL_TRIBUTE_RATIO).toLong(),
             if (income > 0) GameConfig.AIAttack.VASSAL_TRIBUTE_MIN else 0L
@@ -103,15 +109,6 @@ class VassalService @Inject constructor(
                 DomainLog.w(TAG, "processYearlyTribute: 年贡扣除失败(tribute=$tribute, " +
                     "balance=${(result as? DeductResult.Insufficient)?.balance})")
             }
-        }
-    }
-
-    /** 记录年收入供年贡计算 */
-    suspend fun recordYearlyIncome() {
-        stateStore.update {
-            gameData = gameData.copy(
-                lastYearSpiritStoneIncome = gameData.spiritStones
-            )
         }
     }
 

@@ -286,9 +286,7 @@ internal object GameDataFieldPatch {
             gd.aiSectPersonalities = j.decodeFromJsonElement<Map<String, AISectPersonality>>(el)
         }),
         f("suzerainSectId", { gd, el, j -> gd.suzerainSectId = j.decodeFromJsonElement<String>(el) }),
-        f("lastYearSpiritStoneIncome", { gd, el, j ->
-            gd.lastYearSpiritStoneIncome = j.decodeFromJsonElement<Long>(el)
-        }),
+        // lastYearSpiritStoneIncome 已退役（缺陷 #3）：C++ 导出不再含该键，字段保留仅存档 schema 稳定
         f("activeAttackWarnings", { gd, el, j ->
             gd.activeAttackWarnings = j.decodeFromJsonElement<List<AttackWarning>>(el)
         }),

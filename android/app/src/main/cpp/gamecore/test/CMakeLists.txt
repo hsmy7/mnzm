@@ -97,6 +97,9 @@ add_executable(game-core-tests
     # ③注入纪律（仅初始化期一次 + 重复注入被拒 + 指针稳定性）
     data_store_test.cpp
     time_system_test.cpp
+    # 结算改造 2026-09-27 B9（方案 §9.1 缺陷 #15）：治理/结算常量 C++ 侧锚点
+    #（Kotlin 腿 = app ConfigCppConstantsParityTest 读 C++ 头文本互断）
+    game_config_parity_test.cpp
     # 结算改造 2026-09-27 B1：时间单位常量栈 + 日历投影纯函数（双端守卫的 C++ 腿）
     time_units_test.cpp
     settle_phase_test.cpp

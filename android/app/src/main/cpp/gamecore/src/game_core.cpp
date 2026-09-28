@@ -168,10 +168,10 @@ bool GameCore::initialize(const GameCoreConfig& config) {
         // R2.4：突破事件收割（列写点已在结算内逐一 markCol）
         harvestBreakthroughEvents();
     };
-    // 月变结算钩子——八步事务编排（政策/月效/七系统
-    // 扇出/血炼/排班/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
-    // 与 SYSTEM（收获 roll/伴侣配对），抽取顺序与 Kotlin processMonthYearChange
-    // 的 monthChanged 分支逐位一致（未下沉扇出见 month_settlement.h 文件头）
+    // 月变结算钩子——离散臂八步事务编排（政策灵石/月效/AI 兽袭预计算/
+    // 四系统扇出/排班/月衰减/月度事件/续炼启动），RNG 消耗 EXPLORATION（妖兽移动）
+    // 与 SYSTEM（收获 roll/购买 shuffled/附庸），抽取顺序与 Kotlin processMonthYearChange
+    // 的 monthChanged 分支逐位一致（B6 连续臂拆分见 month_settlement.h 文件头）
     settlement_.onMonthChange = [this](state::GameState& s, state::GameData&) {
         // 月结域全部弟子迭代经 ecsWorld_ 行序桥接
         system::runMonthSettlement(s, rng_, aiRng_, aiMonthBatch_, ecsWorld_);
@@ -311,8 +311,11 @@ void GameCore::markMonthYearBoundaryColumns() {
 bool GameCore::advance(int64_t wallDeltaMs, int64_t nowMs) {
     if (!initialized_) return false;
     (void)nowMs;
-    // 墙钟毫秒 → GameTimeClock 等价推进 + 边界检测（结算钩子在 init 注册）
-    settlement_.advance(state_, wallDeltaMs);
+    // 墙钟毫秒 → 未截断权威轴推进 + 边界检测（结算钩子在 init 注册）。
+    // 「两套时基」修复（方案 §3.4，B9）：旧 phaseCap 丢弃式累积器退役，
+    // shadow/对拍臂与生产臂（PhaseClock + EngineLoop.iterate）统一走
+    // advanceByGameMs 同一语义（INV-2 时间零丢失 / INV-3 判定窗口整数差）。
+    settlement_.advanceByGameMs(state_, wallDeltaMs);
     return true;
 }
 

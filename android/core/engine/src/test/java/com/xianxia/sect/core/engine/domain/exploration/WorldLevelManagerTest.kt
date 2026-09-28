@@ -144,6 +144,46 @@ class WorldLevelManagerTest {
         assertEquals("cave position should stay same", 500f, result.worldLevels[0].x, 0.01f)
     }
 
+    // ── 缺陷 #4 修复（方案 §9.1）：旧档 worldLevelLastRefreshMonth=0 读档锚定 ──
+
+    @Test
+    fun `anchorLastRefreshMonthForLegacySave anchors zero month with progress`() {
+        // 字段加入前的旧档：=0 且已有进度 → 锚定当前绝对月（year*12+month）
+        val gd = GameData(gameYear = 3, gameMonth = 7, worldLevelLastRefreshMonth = 0)
+        val anchored = WorldLevelManager.anchorLastRefreshMonthForLegacySave(gd)
+        assertEquals(3 * 12 + 7, anchored.worldLevelLastRefreshMonth)
+        // 其余字段不动
+        assertEquals(gd.gameYear, anchored.gameYear)
+        assertEquals(gd.gameMonth, anchored.gameMonth)
+    }
+
+    @Test
+    fun `anchorLastRefreshMonthForLegacySave keeps new save and anchored save`() {
+        // 新档（1 年 1 月 = 绝对月 13，进度未推进）原样返回——首月结「== 0 即刷新」语义保留
+        val newSave = GameData(gameYear = 1, gameMonth = 1, worldLevelLastRefreshMonth = 0)
+        assertSame(newSave, WorldLevelManager.anchorLastRefreshMonthForLegacySave(newSave))
+        // 已锚定/正常档原样返回（幂等）
+        val normal = GameData(gameYear = 2, gameMonth = 4, worldLevelLastRefreshMonth = 28)
+        assertSame(normal, WorldLevelManager.anchorLastRefreshMonthForLegacySave(normal))
+    }
+
+    @Test
+    fun `anchorLastRefreshMonthForLegacySave anchors once progress advanced`() {
+        // 进度已推进的最小档（1 年 2 月 = 绝对月 14）：旧档字段恒 0 → 锚定
+        val early = GameData(gameYear = 1, gameMonth = 2, worldLevelLastRefreshMonth = 0)
+        val anchored = WorldLevelManager.anchorLastRefreshMonthForLegacySave(early)
+        assertEquals(14, anchored.worldLevelLastRefreshMonth)
+    }
+
+    @Test
+    fun `anchorLastRefreshMonthForLegacySave is idempotent`() {
+        val gd = GameData(gameYear = 5, gameMonth = 2, worldLevelLastRefreshMonth = 0)
+        val once = WorldLevelManager.anchorLastRefreshMonthForLegacySave(gd)
+        val twice = WorldLevelManager.anchorLastRefreshMonthForLegacySave(once)
+        assertEquals(once, twice)
+        assertSame(once, twice)
+    }
+
     @Test
     fun `processMonthly deterministic with same seed`() {
         val rng2 = GameRngManager().also { it.initSystemSeed(42) }

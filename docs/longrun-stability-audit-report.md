@@ -251,6 +251,11 @@
 - 【风险等级】P2 ｜ `android/core/data/.../archive/DataArchiver.kt` ｜ `cleanupExpiredArchives(retentionMonths=12)`（:267-289）经全仓 grep 无生产调用方；每次归档事件新建 `.arc` 文件（:190-201,363-369），索引追加（:403-408）｜ 当前默认配置很难触发（内存态战报 takeLast(100)，归档触发阈值 maxBattleLogs=1000，SaveLimitsConfig.kt:60）；但阈值可运行时调至 5000（:63），一旦调高即激活无界路径 ｜ 确定：是（代码层）；是否实际触发需运行时确认 ｜ 验证：检查 filesDir/archives/ 是否有存量 + dump maxBattleLogs 运行时值 ｜ 方向：将 cleanupExpiredArchives 接入 StorageMaintenanceFacade 定时任务（StorageMaintenanceFacade.kt:22-28）
 
 ### P2-16 2x 速度追补上限双端不对称——单 tick 超过 3 旬的追补被静默丢弃（时间漂移）
+
+> **✅ 已修复（登记于 2026-09-28 B9 批复核）**：Kotlin 消费侧 cap 已改
+> `GameTimeClock.maxPhasesPerTick(speed)` 随速度缩放
+> （GameEngineCoreAuthoritativeOps.kt:56），与 C++ `phaseCap=3×max(s,1)` 同式，
+> 双端不对称已消除。以下为原始记录存档。
 - 【风险等级】P2（时间语义缺陷，非增长）｜ C++ `engine_loop.h:145`（phaseCap=3×max(s,1)，2x 单 tick 计划最多 6 旬且**已从累积器扣减**）vs Kotlin `GameEngineCoreAuthoritativeOps.kt:54`（`coerceAtMost(3)` 不随速度缩放）｜ 2x + 挂起 ≥6s → 计划 6 旬只执行 3 旬，其余既未执行也未 refund → 2x 长跑游戏时间相对墙钟持续变慢（每 incident 最多丢 3 旬）｜ 确定：是（两端 cap 公式逐行读实，1x 完全一致）｜ 验证：2x 下注入 8s 帧停顿断言 totalPhases ｜ 方向：Kotlin 消费侧 cap 改 `3*speed`，或 native 侧 plan 直接按 3 封顶
 
 ### P2-17 DirtyTracker 每次导出全量序列化 + 常驻基线 JSON 树（O(状态) 成本随规模×时间上涨）

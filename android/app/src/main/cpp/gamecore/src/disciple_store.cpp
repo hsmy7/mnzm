@@ -48,7 +48,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.statusData = statusData[row];
 
     d.cultivationCompletionMonth = cultivationCompletionMonths[row];
-    d.cultivationCompletionPhase = cultivationCompletionPhases[row];
     d.manualCompletionMonth = manualCompletionMonths[row];
     d.manualCompletionPhase = manualCompletionPhases[row];
     d.equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths[row];
@@ -168,7 +167,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     statusData.push_back(d.statusData);
 
     cultivationCompletionMonths.push_back(d.cultivationCompletionMonth);
-    cultivationCompletionPhases.push_back(d.cultivationCompletionPhase);
     manualCompletionMonths.push_back(d.manualCompletionMonth);
     manualCompletionPhases.push_back(d.manualCompletionPhase);
     equipmentNurturingCompletionMonths.push_back(d.equipmentNurturingCompletionMonth);
@@ -280,7 +278,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     statuses.reserve(n);
     statusData.reserve(n);
     cultivationCompletionMonths.reserve(n);
-    cultivationCompletionPhases.reserve(n);
     manualCompletionMonths.reserve(n);
     manualCompletionPhases.reserve(n);
     equipmentNurturingCompletionMonths.reserve(n);
@@ -425,7 +422,6 @@ void DiscipleStore::clear() {
     statuses.clear();
     statusData.clear();
     cultivationCompletionMonths.clear();
-    cultivationCompletionPhases.clear();
     manualCompletionMonths.clear();
     manualCompletionPhases.clear();
     equipmentNurturingCompletionMonths.clear();
@@ -525,7 +521,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     statuses.erase(statuses.begin() + static_cast<std::ptrdiff_t>(row));
     statusData.erase(statusData.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationCompletionMonths.erase(cultivationCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
-    cultivationCompletionPhases.erase(cultivationCompletionPhases.begin() + static_cast<std::ptrdiff_t>(row));
     manualCompletionMonths.erase(manualCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
     manualCompletionPhases.erase(manualCompletionPhases.begin() + static_cast<std::ptrdiff_t>(row));
     equipmentNurturingCompletionMonths.erase(equipmentNurturingCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
@@ -643,7 +638,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(statuses[a], statuses[b]);
     swap(statusData[a], statusData[b]);
     swap(cultivationCompletionMonths[a], cultivationCompletionMonths[b]);
-    swap(cultivationCompletionPhases[a], cultivationCompletionPhases[b]);
     swap(manualCompletionMonths[a], manualCompletionMonths[b]);
     swap(manualCompletionPhases[a], manualCompletionPhases[b]);
     swap(equipmentNurturingCompletionMonths[a], equipmentNurturingCompletionMonths[b]);

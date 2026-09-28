@@ -108,68 +108,102 @@ TEST(SettlementEngineTest, AdvancePhasesNoBoundary) {
     EXPECT_FALSE(r.yearChanged);
 }
 
-TEST(SettlementEngineTest, AdvanceAccumulatorConsumes) {
-    // GameTimeClock 语义：msPerPhase=2000ms@1x；单 tick 上限 3 旬（超限丢弃余量）
+// ── 墙钟入口（两套时基统一后 = advanceByGameMs 唯一语义）────────────
+// 旧 phaseCap 丢弃式累积器 advance(wallDeltaMs) 已随「两套时基」修复
+// （方案 §3.4，B9）退役；本组用例按 INV-2/INV-3（结算改造方案 §2.4/§5.2）
+// 锁定 shadow 臂与生产臂（PhaseClock + EngineLoop.iterate）共用的语义基准。
+
+TEST(SettlementEngineTest, AdvanceByGameMsCapKeepsTime) {
+    // 10s @1x = 5 个判定窗口，cap=3 只裁判定执行次数——时间全额入轴（INV-2）
     GameData gd;
     gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
     state::GameState st;
     st.gameData = gd;
     SettlementEngine eng;
-    auto r = eng.advance(st, 10'000);   // 10s = 5 旬，cap=3 → 3 旬
-    EXPECT_EQ(3, r.phasesAdvanced);
-    // 3 旬：1年1月上旬 → 1年2月上旬
+    const auto r = eng.advanceByGameMs(st, 10'000);
+    EXPECT_EQ(10'000, r.deltaGameMs);
+    EXPECT_EQ(5, r.windowsTotal);
+    EXPECT_EQ(3, r.windowsExecuted);       // phaseCap 只作用于判定轨
+    EXPECT_EQ(10'000, eng.elapsedGameMs()); // 权威轴不丢时间
+    // 执行 3 旬：1年1月上旬 → 1年2月上旬
     EXPECT_EQ(1, st.gameData.gameYear);
     EXPECT_EQ(2, st.gameData.gameMonth);
     EXPECT_EQ(0, st.gameData.gamePhase);
     EXPECT_TRUE(r.monthChanged);
 
-    // 超限丢弃余量：再 advance 10s → 又 3 旬（accumulator 已清 0）
-    r = eng.advance(st, 10'000);
-    EXPECT_EQ(3, r.phasesAdvanced);
+    // 再 advance 10s：窗口数按权威轴整数差累计（5+5=10），本段执行仍 cap=3；
+    // 后续 advancePhases 不再受「超限丢弃」影响——余量不蒸发
+    const auto r2 = eng.advanceByGameMs(st, 10'000);
+    EXPECT_EQ(10'000, r2.deltaGameMs);
+    EXPECT_EQ(5, r2.windowsTotal);
+    EXPECT_EQ(3, r2.windowsExecuted);
+    EXPECT_EQ(20'000, eng.elapsedGameMs());
     EXPECT_EQ(3, st.gameData.gameMonth);
-    EXPECT_EQ(0, st.gameData.gamePhase);
 }
 
-TEST(SettlementEngineTest, AdvanceSpeedScaling) {
+TEST(SettlementEngineTest, AdvanceByGameMsSpeedScaling) {
     GameData gd;
     gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
     state::GameState st;
     st.gameData = gd;
     SettlementEngine eng;
-    eng.setSpeed(2);                       // 2x：10s = 10 旬，cap=6
-    const auto r = eng.advance(st, 10'000);
-    EXPECT_EQ(6, r.phasesAdvanced);
-    // 6 旬：1年1月上旬 → 1年3月上旬（2 月进位）
+    eng.setSpeed(2);                       // 2x：10s = 20 游戏秒 = 10 窗口，cap=6
+    const auto r = eng.advanceByGameMs(st, 10'000);
+    EXPECT_EQ(20'000, r.deltaGameMs);
+    EXPECT_EQ(10, r.windowsTotal);
+    EXPECT_EQ(6, r.windowsExecuted);
+    // 执行 6 旬：1年1月上旬 → 1年3月上旬（2 月进位）
     EXPECT_EQ(1, st.gameData.gameYear);
     EXPECT_EQ(3, st.gameData.gameMonth);
     EXPECT_EQ(0, st.gameData.gamePhase);
 }
 
-TEST(SettlementEngineTest, AdvancePaused) {
+TEST(SettlementEngineTest, AdvanceByGameMsPaused) {
     GameData gd;
     gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
     state::GameState st;
     st.gameData = gd;
     SettlementEngine eng;
-    eng.setSpeed(0);                       // 暂停
-    const auto r = eng.advance(st, 10'000);
-    EXPECT_EQ(0, r.phasesAdvanced);
+    eng.setSpeed(0);                       // 暂停：轴不动、窗口 0
+    const auto r = eng.advanceByGameMs(st, 10'000);
+    EXPECT_EQ(0, r.deltaGameMs);
+    EXPECT_EQ(0, r.windowsTotal);
+    EXPECT_EQ(0, r.windowsExecuted);
+    EXPECT_EQ(0, eng.elapsedGameMs());
     EXPECT_EQ(1, st.gameData.gameYear);
     EXPECT_EQ(1, st.gameData.gameMonth);
     EXPECT_EQ(0, st.gameData.gamePhase);
 }
 
-TEST(SettlementEngineTest, AdvancePartialPhase) {
-    // 不足 2000ms 不推进（累积留存）
+TEST(SettlementEngineTest, AdvanceByGameMsPartialPhase) {
+    // 不足 2000ms 无窗口可执行，但权威轴累积留存（跨段凑旬，INV-2）
     GameData gd;
     gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
     state::GameState st;
     st.gameData = gd;
     SettlementEngine eng;
-    EXPECT_EQ(0, eng.advance(st, 1'500).phasesAdvanced);
-    EXPECT_EQ(1, eng.advance(st, 1'000).phasesAdvanced);   // 累积 2500ms → 1 旬
+    const auto r1 = eng.advanceByGameMs(st, 1'500);
+    EXPECT_EQ(1'500, r1.deltaGameMs);
+    EXPECT_EQ(0, r1.windowsTotal);
+    EXPECT_EQ(0, r1.windowsExecuted);
+    const auto r2 = eng.advanceByGameMs(st, 1'000);   // 累积 2500ms → 1 窗口
+    EXPECT_EQ(1'000, r2.deltaGameMs);
+    EXPECT_EQ(1, r2.windowsTotal);
+    EXPECT_EQ(1, r2.windowsExecuted);
     EXPECT_EQ(1, st.gameData.gameMonth);
     EXPECT_EQ(1, st.gameData.gamePhase);
+}
+
+TEST(SettlementEngineTest, AdvanceByGameMsNegativeDeltaClamped) {
+    // 负增量（时钟回拨）防御钳制为 0——轴单调
+    GameData gd;
+    gd.gameYear = 1; gd.gameMonth = 1; gd.gamePhase = 0;
+    state::GameState st;
+    st.gameData = gd;
+    SettlementEngine eng;
+    const auto r = eng.advanceByGameMs(st, -5'000);
+    EXPECT_EQ(0, r.deltaGameMs);
+    EXPECT_EQ(0, eng.elapsedGameMs());
 }
 
 TEST(SettlementEngineTest, HooksFiredOnBoundaries) {

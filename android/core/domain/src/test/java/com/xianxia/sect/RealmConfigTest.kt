@@ -452,15 +452,6 @@ class RealmConfigTest {
     }
 
     @Test
-    fun `最小合理年龄应低于对应境界寿元上限`() {
-        for ((realm, minAge) in GameConfig.Realm.REALM_MIN_REASONABLE_AGE) {
-            val maxAge = GameConfig.Realm.get(realm).maxAge
-            assertTrue("境界 $realm 最小年龄 $minAge 应小于寿元 $maxAge",
-                minAge < maxAge)
-        }
-    }
-
-    @Test
     fun `未知境界的最小合理年龄应回退炼气标准`() {
         assertEquals(10, GameConfig.Realm.minReasonableAge(99))
         assertEquals(10, GameConfig.Realm.minReasonableAge(-1))

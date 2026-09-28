@@ -45,7 +45,6 @@ data class GameConfigData(
     @Serializable
     data class DiscipleSection(
         val minAge: Int = 5,
-        val maxAge: Int = 100,
         val protectionMonths: Int = 12
     )
 

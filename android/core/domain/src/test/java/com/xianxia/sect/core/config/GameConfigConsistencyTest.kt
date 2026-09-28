@@ -97,11 +97,7 @@ class GameConfigConsistencyTest {
     }
 
     // ── Disciple ──
-    @Test
-    fun `年龄最大值两源一致`() {
-        val data = GameConfigData().disciple
-        assertEquals(GameConfig.Disciple.MAX_AGE, data.maxAge)
-    }
+    // （年龄最大值两源一致用例已随 maxAge 死配置清理删除——缺陷 #11，B9）
 
     @Test
     fun `保护月数两源一致`() {

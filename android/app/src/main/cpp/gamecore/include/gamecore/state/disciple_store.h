@@ -56,7 +56,6 @@ enum class DiscipleColumn : uint16_t {
     CultivationSpeedDuration,
     DiscipleType,
     CultivationCompletionMonth,
-    CultivationCompletionPhase,
     ManualCompletionMonth,
     ManualCompletionPhase,
     EquipmentNurturingCompletionMonth,
@@ -173,7 +172,6 @@ public:
     std::vector<std::map<std::string, std::string>> statusData;
     // ── 完成时间列 ──
     std::vector<int32_t> cultivationCompletionMonths;
-    std::vector<int32_t> cultivationCompletionPhases;
     std::vector<int32_t> manualCompletionMonths;
     std::vector<int32_t> manualCompletionPhases;
     std::vector<int32_t> equipmentNurturingCompletionMonths;

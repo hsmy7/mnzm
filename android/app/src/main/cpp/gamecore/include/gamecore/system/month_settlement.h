@@ -39,17 +39,20 @@
 // 单事务编排（Kotlin 侧由 MonthSettlementExecutor 提取同构），注册进
 // SettlementEngine::onMonthChange 钩子。
 //
-// 七步事务序（语义权威 = 各被调方法源码）：
-//   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
-//   2. 政策月度道德效果           ← CultivationSettlement.processPolicyMonthlyEffects
-//   3. AI 兽袭目标预计算        ← precomputeTargets（EXPLORATION；
-//      消费方巡视楼/子事件 9 保留 Kotlin）
-//   4. systemManager.onMonthlyEvent 四系统扇出（@SystemPriority 升序）：
-//      Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
-//      （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
-//   5. 月度自动排班              ← processAutoAssign（排班未下沉）
-//   6. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
-//   7. processMonthlyEventsOnState 十四子事件（全部入 C++，相对序与 Kotlin 一致）
+// 月变双臂（B6 拆分后现状；语义权威 = 各被调方法源码）：
+//   - runMonthSettlement（离散臂，shadow/回滚基准）：八步全量——
+//     1. 政策月度灵石扣除      ← government.h::processPolicyCosts（原语接线）
+//     2. 政策月度道德效果      ← CultivationSettlement.processPolicyMonthlyEffects
+//     3. AI 兽袭目标预计算     ← precomputeTargets（EXPLORATION）
+//     4. 四系统扇出（@SystemPriority 升序）：
+//        Alchemy(210) → Forge(211) → Planting(214) → Exploration(240)
+//        （Mail(960) 已移除——在线邮件月度拉取通道下线，Kotlin MailSystem 删除）
+//     5. 月度自动排班          ← processAutoAssign
+//     6. 丹药持续效果月度衰减  ← HpMpRecoveryService.applyMonthlyDurationDecay
+//     7. processMonthlyEvents 15 项子事件（全部入 C++，相对序与 Kotlin 一致）
+//     8. 自动续炼启动          ← production.h autoRestart
+//   - runMonthEvents（连续臂，生产 AUTHORITATIVE）：= 离散臂去积分型四项，
+//     仅判定步 3/4/5/7/8（政策灵石/道德/丹药衰减/灵矿由连续轨承担）。
 //
 // RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
 //   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
@@ -724,11 +727,13 @@ inline void checkGameOverCondition(GameState& state) {
 }
 
 // ── 步骤 8：processMonthlyEventsOnState 可下沉子集 ────────────────
-// Kotlin 十四子事件全序：recruitReset → autoRecruit →
-// completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
-// aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
-// vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 十四件子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
+// Kotlin 月度子事件全序（15 项，实现编号 1/5/6/6b/6c/7/8/9/10/11/12/13/14/15/16
+// ——2/3/4 为历史编号空洞；autoRecruit 已随招募链下线不在其列）：
+// recruitReset → completedMissions → aiSectOperations → aiConquest(6b) →
+// aiPlayerDefense(6c) → gameOverCheck → scoutExpiry → aiBeastRemaining →
+// [12月 autoBuy] → spiritMine → disciplePurchase → vassalBreakaway →
+// missionRefresh → secretRealmExpiry → secretRealmAiTeams。
+// 15 项子事件均已入 C++（详见 processMonthlyEvents 分发段）；相对序与 Kotlin 一致。
 
 // 草稿结构 SecretRealmCloseDraft 定义于 secret_realm_settlement.h
 //（属主文件——closeSecretRealmByExpiry 内部填充）；
@@ -1385,7 +1390,7 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 步骤 6：丹药持续效果月度衰减
     detail::applyMonthlyDurationDecayAll(state, world);
 
-    // 步骤 7：月度事件（十四子事件 + 草稿收集）
+    // 步骤 7：月度事件（15 项子事件 + 草稿收集）
     detail::processMonthlyEvents(state, rng, aiRng, aiBatch, idx, out, world);
 
     // 步骤 8：自动排班（autoRestart 续炼启动；Kotlin processAutoAlchemy/

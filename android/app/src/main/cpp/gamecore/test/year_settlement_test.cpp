@@ -224,7 +224,7 @@ TEST(YearSettlementTest, Y1T1VassalTributeDeductsByIncomeRatio) {
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.suzerainSectId = "ai-1";
-    st.gameData.lastYearSpiritStoneIncome = 10000L;
+    st.gameData.annualTotalIncome = 10000L;
     st.gameData.spiritStones = 10000L;
 
     system::detail::processYearlyTribute(st);
@@ -241,7 +241,7 @@ TEST(YearSettlementTest, Y1T1VassalTributeNoSuzerainOrZeroIncomeSkips) {
     EXPECT_EQ(10000L, st.gameData.spiritStones);
 
     st.gameData.suzerainSectId = "ai-1";
-    st.gameData.lastYearSpiritStoneIncome = 0L;
+    st.gameData.annualTotalIncome = 0L;
     system::detail::processYearlyTribute(st);
     EXPECT_EQ(10000L, st.gameData.spiritStones);
 }
@@ -251,10 +251,85 @@ TEST(YearSettlementTest, Y1T1VassalTributePositiveIncomeUsesMin) {
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.suzerainSectId = "ai-1";
-    st.gameData.lastYearSpiritStoneIncome = 1L;
+    st.gameData.annualTotalIncome = 1L;
     st.gameData.spiritStones = 10L;
     system::detail::processYearlyTribute(st);
     EXPECT_EQ(9L, st.gameData.spiritStones);
+}
+
+// ── 缺陷 #1 修复（方案 §9.1）：思过到期释放 reflectionRelease ─────────
+
+TEST(YearSettlementTest, Y1T1ReflectionReleaseReleasesExpiredReflecting) {
+    // REFLECTING + endYear 已到 → IDLE + statusData 两键清 + 道德 +5
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple d;
+    d.id = "1";
+    d.name = "思过弟子";
+    d.realm = 9;
+    d.isAlive = true;
+    st.disciples.appendDisciple(d);
+    st.disciples.statuses[0] = "REFLECTING";
+    st.disciples.statusData[0]["reflectionStartYear"] = "8";
+    st.disciples.statusData[0]["reflectionEndYear"] = "10";
+    st.disciples.moralities[0] = 50;
+
+    system::detail::processReflectionRelease(st, 10);
+
+    EXPECT_EQ("IDLE", st.disciples.statuses[0]);
+    EXPECT_EQ(st.disciples.statusData[0].end(),
+              st.disciples.statusData[0].find("reflectionStartYear"));
+    EXPECT_EQ(st.disciples.statusData[0].end(),
+              st.disciples.statusData[0].find("reflectionEndYear"));
+    EXPECT_EQ(55, st.disciples.moralities[0]);
+}
+
+TEST(YearSettlementTest, Y1T1ReflectionReleaseSkipsUnexpiredDeadOrKeyless) {
+    // 未到期 / 已死 / 缺 endYear 键 / 非数字键 → 原状不动
+    auto core = makeCore(42);
+    auto& st = core->state();
+    for (const char* id : {"1", "2", "3", "4"}) {
+        Disciple d;
+        d.id = id;
+        d.name = std::string("弟子") + id;
+        d.realm = 9;
+        d.isAlive = true;
+        st.disciples.appendDisciple(d);
+        st.disciples.statuses[st.disciples.size() - 1] = "REFLECTING";
+        st.disciples.moralities[st.disciples.size() - 1] = 40;
+    }
+    st.disciples.statusData[0]["reflectionEndYear"] = "11";   // 未到期
+    st.disciples.isAlive[1] = 0;                              // 已死
+    st.disciples.statusData[2]["reflectionEndYear"] = "10";
+    st.disciples.statusData[2].erase("reflectionEndYear");    // 缺键
+    st.disciples.statusData[3]["reflectionEndYear"] = "abc";  // 非数字
+
+    system::detail::processReflectionRelease(st, 10);
+
+    for (std::size_t row = 0; row < st.disciples.size(); ++row) {
+        EXPECT_EQ("REFLECTING", st.disciples.statuses[row]) << row;
+        EXPECT_EQ(40, st.disciples.moralities[row]) << row;
+    }
+}
+
+TEST(YearSettlementTest, Y1T1ReflectionReleaseMoralityClampAtSkillMax) {
+    // 道德 198 + 5 → clamp 200（GameConfig.Disciple.SKILL_MAX）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple d;
+    d.id = "1";
+    d.name = "临近圆满";
+    d.realm = 9;
+    d.isAlive = true;
+    st.disciples.appendDisciple(d);
+    st.disciples.statuses[0] = "REFLECTING";
+    st.disciples.statusData[0]["reflectionEndYear"] = "10";
+    st.disciples.moralities[0] = 198;
+
+    system::detail::processReflectionRelease(st, 10);
+
+    EXPECT_EQ(200, st.disciples.moralities[0]);
+    EXPECT_EQ("IDLE", st.disciples.statuses[0]);
 }
 
 TEST(YearSettlementTest, Y1T1YearlyVassalTributeGrantsBySectLevel) {

@@ -88,7 +88,6 @@ internal object GameViewDiscipleRows {
         "cultivationSpeedDuration" to DiscipleRow::hasCultivationSpeedDuration,
         "discipleType" to DiscipleRow::hasDiscipleType,
         "cultivationCompletionMonth" to DiscipleRow::hasCultivationCompletionMonth,
-        "cultivationCompletionPhase" to DiscipleRow::hasCultivationCompletionPhase,
         "manualCompletionMonth" to DiscipleRow::hasManualCompletionMonth,
         "manualCompletionPhase" to DiscipleRow::hasManualCompletionPhase,
         "equipmentNurturingCompletionMonth" to DiscipleRow::hasEquipmentNurturingCompletionMonth,
@@ -191,7 +190,6 @@ internal object GameViewDiscipleRows {
             cultivationSpeedDuration = row.cultivationSpeedDuration,
             discipleType = row.discipleType,
             cultivationCompletionMonth = row.cultivationCompletionMonth,
-            cultivationCompletionPhase = row.cultivationCompletionPhase,
             manualCompletionMonth = row.manualCompletionMonth,
             manualCompletionPhase = row.manualCompletionPhase,
             equipmentNurturingCompletionMonth = row.equipmentNurturingCompletionMonth,
@@ -496,9 +494,6 @@ internal object GameViewDiscipleRows {
         if (row.hasCultivationCompletionMonth()) {
             cultivationCompletionMonths[id] = row.cultivationCompletionMonth
         }
-        if (row.hasCultivationCompletionPhase()) {
-            cultivationCompletionPhases[id] = row.cultivationCompletionPhase
-        }
         if (row.hasManualCompletionMonth()) manualCompletionMonths[id] = row.manualCompletionMonth
         if (row.hasManualCompletionPhase()) manualCompletionPhases[id] = row.manualCompletionPhase
         if (row.hasEquipmentNurturingCompletionMonth()) {
@@ -702,7 +697,6 @@ internal object GameViewDiscipleRows {
         b.cultivationSpeedDuration = d.cultivationSpeedDuration
         b.discipleType = d.discipleType
         b.cultivationCompletionMonth = d.cultivationCompletionMonth
-        b.cultivationCompletionPhase = d.cultivationCompletionPhase
         b.manualCompletionMonth = d.manualCompletionMonth
         b.manualCompletionPhase = d.manualCompletionPhase
         b.equipmentNurturingCompletionMonth = d.equipmentNurturingCompletionMonth

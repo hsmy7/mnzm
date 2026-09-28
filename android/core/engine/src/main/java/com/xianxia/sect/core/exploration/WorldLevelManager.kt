@@ -28,6 +28,29 @@ class WorldLevelManager @Inject constructor(
 ) {
     private val rng get() = rngManager.getRng(RngPartition.EXPLORATION)
 
+    companion object {
+        /**
+         * 旧档读档锚定（缺陷 #4 修复，方案 §9.1）：字段加入前的存档
+         * [GameData.worldLevelLastRefreshMonth] 恒 0，而月度刷新门
+         * （[processMonthly]）以 `== 0` 作为「从未刷新」信号——读档后首个
+         * 月结会额外整批生成关卡。检测到 0 且游戏已有进度（绝对月 > 1）时
+         * 锚定为当前绝对月（下次刷新等满 3 个月，与
+         * initSpiritMineLastSettledMonth 同型补丁）。
+         * 纯函数；新档（绝对月 == 1）与已锚定档原样返回。
+         */
+        /** 新档起始绝对月（1 年 1 月 = 1*12+1；绝对月口径 year*12+month） */
+        private const val NEW_GAME_ABSOLUTE_MONTH = 13
+
+        fun anchorLastRefreshMonthForLegacySave(gd: GameData): GameData {
+            if (gd.worldLevelLastRefreshMonth != 0) return gd
+            val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
+            // 新档（1 年 1 月，进度未推进）保留  语义不锚定——
+            // 否则首次读档后关卡首刷被推迟 3 个月（行为劣化）
+            if (absoluteMonth <= NEW_GAME_ABSOLUTE_MONTH) return gd
+            return gd.copy(worldLevelLastRefreshMonth = absoluteMonth)
+        }
+    }
+
     /**
      * 月度处理入口。
      *

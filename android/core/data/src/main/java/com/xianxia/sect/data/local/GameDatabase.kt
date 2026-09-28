@@ -77,7 +77,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
     MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
     MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57,
-    MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60
+    MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -92,7 +92,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 60
+    const val DATABASE_VERSION = 61
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -212,6 +212,9 @@ object GameDatabaseConfig {
     // elapsedGameMs/lastSettleGameMs/spiritMineLastSettledGameMs 三列，
     // production_slots 新增 startedAtGameMs/completeAtGameMs 两列（全 DEFAULT 0，
     // 旧档读档归一化按旧字段换算回填；旧字段全部保留，判据切换随 B5/B6）
+    // v61: MIGRATION_60_61 死值退役（结算改造 B9，方案 §9.1 缺陷 #10）——
+    // disciples 删除 cultivationCompletionPhase 一列（C++ 硬编码恒 1、零读取方，
+    // Proto/Room/镜像三重承载纯协议成本；读写面同批清零）。详见该迁移 KDoc
     // v58: MIGRATION_57_58 字段链删列（G04）——disciples 删除 talentIds/physiqueIds/
     // affixIds/aptitude 四列（comprehension 悟性列保留）；game_data 删除血炼四列
     // bloodRefinements/activeBloodRefinements/bloodRefinementBonusTotals/

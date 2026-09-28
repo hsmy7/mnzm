@@ -36,6 +36,8 @@ import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
@@ -117,8 +119,8 @@ class DiffYearSettlementTest {
         /** realm=9 年俸额 */
         const val SALARY_REALM9 = 500L
 
-        /** 弟子数 */
-        const val DISCIPLE_COUNT = 2
+        /** 弟子数（2 年俸 + 2 思过对拍弟子——思过不排年俸适格，同样领取） */
+        const val DISCIPLE_COUNT = 4
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
@@ -196,7 +198,13 @@ class DiffYearSettlementTest {
             gameData = gameData,
             disciples = listOf(
                 salaryDisciple("21", "岁一"),
-                salaryDisciple("22", "岁二")
+                salaryDisciple("22", "岁二"),
+                // 缺陷 #1 对拍（方案 §9.1）：思过到期释放双端语义——
+                // 年结 year=2：endYear=2 到期释放（IDLE + statusData 两键清 +
+                // morality +5）；endYear=3 未到期原状。全字段对拍覆盖
+                // status/statusData/morality 列。
+                reflectingDisciple("23", "思过满", endYear = 2),
+                reflectingDisciple("24", "思过未满", endYear = 3),
             )
         )
     }
@@ -206,6 +214,19 @@ class DiffYearSettlementTest {
         id = id, name = name, realm = 9, realmLayer = 1,
         cultivation = 10.0, spiritRootType = "metal",
         combat = CombatAttributes(currentHp = -1, currentMp = -1)
+    )
+
+    /** 思过弟子：REFLECTING + reflectionStart/EndYear + 道德 50（+5 后 55 可辨） */
+    private fun reflectingDisciple(id: String, name: String, endYear: Int) = Disciple(
+        id = id, name = name, realm = 9, realmLayer = 1,
+        cultivation = 10.0, spiritRootType = "metal",
+        combat = CombatAttributes(currentHp = -1, currentMp = -1),
+        status = DiscipleStatus.REFLECTING,
+        statusData = mapOf(
+            "reflectionStartYear" to "1",
+            "reflectionEndYear" to endYear.toString()
+        ),
+        skills = SkillStats(morality = 50)
     )
 
     private fun initialRngStates(seed: Long): MutableMap<Int, Long> {
@@ -696,6 +717,21 @@ class DiffYearSettlementTest {
                 d.skills.salaryPaidCount
             )
         }
+
+        // ②' 思过到期释放（缺陷 #1 对拍）：endYear=2 到期 → IDLE + 键清 +
+        // morality 50+5=55；endYear=3 未到期 → REFLECTING 原状、道德不变
+        val byId = actual.disciples.associateBy { it.id }
+        val released = byId.getValue("23")
+        assertEquals(DiscipleStatus.IDLE, released.status)
+        assertTrue(
+            "释放后 statusData 思过键未清: ${released.statusData}",
+            released.statusData.isEmpty()
+        )
+        assertEquals(55, released.skills.morality)
+        val pending = byId.getValue("24")
+        assertEquals(DiscipleStatus.REFLECTING, pending.status)
+        assertEquals("3", pending.statusData["reflectionEndYear"])
+        assertEquals(50, pending.skills.morality)
 
         // ③ RNG 审计：商人收购每年消费 SYSTEM
         // 分区（数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍

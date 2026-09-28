@@ -60,7 +60,7 @@ class DiscipleMergeCoverageTest {
         "portraitRes",
         "templateId",
         "manualMasteries",
-        "cultivationCompletionMonth", "cultivationCompletionPhase",
+        "cultivationCompletionMonth",   // cultivationCompletionPhase 已退役（#10，v61 删列）
         "manualCompletionMonth", "manualCompletionPhase",
         "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
         "usage"

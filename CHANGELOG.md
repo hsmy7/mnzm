@@ -50,6 +50,94 @@
   Diff 家族定向复跑绿；detekt 六模块 0 新增；lintRelease 绿；jni-count **88/88**；
   check-agent-instructions 绿；build-desktop-jni.ps1 已重跑（C++ 变更后 Diff 门依赖）。
 
+### 实时结算线 B9 批（2026-09-28）——测试基准重建 + 遗留清理（§9.1 A 类缺陷清偿 + 死值全链退役）— `feat(test)`
+
+> 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B9 行 / §9.1 缺陷清单
+> + `docs/realtime-watch/batch-B9.md`（派发件）+ `docs/report-B9.md`（本批报告）。
+
+- **缺陷 #1 思过到期释放（reflectionRelease）生产路径补实现**：AUTHORITATIVE 下年变走
+  C++ `runYearSettlement`，但其 T1 组无该子项 → 思过弟子永不自动释放。本批于
+  `year_settlement.h` 新增 `detail::processReflectionRelease(state, year)`（Kotlin T1 序：
+  processYearlyAging 之后、年报快照之前；REFLECTING ∧ 存活 ∧ `year >= reflectionEndYear`
+  → IDLE + statusData 两键清 + 道德 +5 clamp SKILL_MAX=200，零 RNG；列标脏由
+  `markMonthYearBoundaryColumns` 并集兜住）。双端面：C++ GTest 3 用例
+  （到期释放/未到期·已死·缺键·非数字四类跳过/道德钳制）+ `DiffYearSettlementTest`
+  对拍快照新增思过双弟子（endYear=2 到期释放 / =3 未到期原状）+ 显式断言。
+- **两套时基统一（方案 §3.4「两套时基」缺陷）**：旧 phaseCap 丢弃式累积器
+  `SettlementEngine::advance(wallDeltaMs)` 退役（其唯一生产包装 `GameCore::advance`
+  JNI 零暴露、仅 C++ 测试消费）——`GameCore::advance` 内部改走 `advanceByGameMs`
+  （INV-2 时间零丢失 / INV-3 判定窗口整数差），shadow/对拍臂与生产臂
+  （PhaseClock + EngineLoop.iterate）同语义，时基不再漂移；
+  `accumulatedGameMs_` 成员与 reset 复位同步清除。`time_system_test.cpp` 4 用例按
+  INV-2/INV-3 重建 + 新增负增量钳制用例（advanceByGameMs 语义基准 5 用例）。
+- **缺陷 #3 附庸年贡恒早退根因修复**：`lastYearSpiritStoneIncome` 全仓零写入点恒 0
+  （唯一写点 `VassalService.recordYearlyIncome()` 零调用且实现语义错——写余额非收入）→
+  年贡 `max(income×0.5, 1)` 恒早退。双端 `processYearlyTribute` 改读 `annualTotalIncome`
+  年度流水（T1 首位执行时上一完整年收入尚未被年报快照清零——时序天然正确）；
+  `recordYearlyIncome()` 删除。字段退役：C++ `models.h` 字段 + `json_codec` 双向 +
+  `GameDataFieldPatch` 行删除；Kotlin 字段与 Room 列/Proto 95 位保留（规范 7.1 不删列
+  + 旧包回滚兼容，@Deprecated 标注，存储面退役入 D2 同批）。守卫同步：
+  `GameDataFieldPatchGuardTest` 双射断言引入 `intentionallyUnmirrored` 排除集（§9.5
+  三要素）；`BaselineFieldCoverageGuardTest` 排除表登记。
+- **缺陷 #4 worldLevelLastRefreshMonth 读档锚定**：字段加入前旧档恒 0，月度刷新门
+  `== 0` 分支致读档后首个月结整批额外生成关卡（C++ 双臂与 Kotlin 同型 `== 0` 门）。
+  `WorldLevelManager.anchorLastRefreshMonthForLegacySave` 纯函数（`==0 ∧ 绝对月>1 →
+  锚定当前绝对月`，initSpiritMineLastSettledMonth 同型补丁）+ `GameEngineLoadDataOps`
+  读档链注册（importToNative 之前——锚定值随导入进 C++，双臂单点覆盖）；
+  WorldLevelManagerTest 3 用例（锚定/新档与已锚定原样/幂等）。
+- **缺陷 #12 START_STICKY 后台重建不再自动启动循环**：系统重建（null intent）此前与
+  ACTION_START 共用分支 → OEM 杀进程后服务后台被无条件拉起推进游戏时间，绕过
+  「切后台 = 停循环」口径（离线收益上限设计依赖）。`GameForegroundService` 拆 null
+  分支（只恢复服务外壳：前台通知/闹钟链/绑定；循环恢复由 Activity onResume
+  `resumeFromBackground` + 显式 ACTION_START 与看门狗兜底承担——两者均为显式
+  ACTION_START，不受影响）；决策表抽 `shouldAutoStartLoop(action)` 纯函数 +
+  `GameForegroundServiceLoopStartDecisionTest` 4 用例锁定。B7 遗留 D8 真机项
+  （「START_STICKY 是否推进时间」）由代码口径保证收口，不再依赖真机验证。
+- **缺陷 #15 常量双端锚点守卫（C++ 校验面缺口闭合）**：`kSpiritMineBoostMultiplier` 等
+  七常量 C++ 硬编码副本无任何校验面。C++ 腿 `game_config_parity_test.cpp`（新）锁
+  七值（kElderSkillBaseline 三头文件互等锁定）；Kotlin 腿
+  `ConfigCppConstantsParityTest`（app，新）读 C++ 头文本正则抽值与 Kotlin 侧
+  （可达常量直断 + private 常量源码文本抽取）互断——改任一侧另一侧即红。
+- **缺陷 #17 月变/年变文档口径按 B6 后代码实数统一**：`month_settlement.h` 头
+  （七步 → 双臂口径：离散臂八步 / 连续臂五判定步）；「十四子事件」→ 15 项（实数
+  1/5/6/6b/6c/7/8/9/10/11/12/13/14/15/16，2/3/4 编号空洞）+ `autoRecruit` 引用清除；
+  `MonthSettlementExecutor`（七步/十六自相矛盾 → 七步 + 15 项 + 与 C++ 第 8 步差异注记）、
+  `MonthSettlementResidualExecutor`（已下沉 12 件 → 15 项全下沉）、
+  `GameEngineCoreMonthOps`（八步+十六 → 现状）、`GameEngineCorePausOps4`（七系统扇出/
+  血炼 → 六系统七步）、`game_core.cpp`（七系统扇出 → 四系统离散臂八步）、年变
+  「T1 11 项 + T2 11 项」→ 现状（Kotlin T1 8 项 / T2 8 项；C++ T1 七项——discipleAging
+  为 Kotlin 状态重推导幂等纯派生，C++ 列存储权威维护无需重推导 / T2 七项——aiAlliances
+  场景规避）双头 + `GameEngineCoreYearOps` + `DiffAuthoritativeTickTest` 同步。尾注三条
+  过期记录回改：`longrun-stability-audit-report.md` P2-16 已修标注（Kotlin 消费侧 cap 已
+  随速度缩放）+ `GameEngineCoreAuthoritativeOps` KDoc 时钟语义（Kotlin 独占 → C++
+  PhaseClock 状态机、Kotlin 降级镜像）+ 年变 11+11。
+- **缺陷 #10 cultivationCompletionPhase 死值全链退役 + Room v61**：C++ 硬编码恒写 1
+  （`phase_settlement.h` 完成时间预估段）、ProtoNumber(95) + Room 列 + C++ 镜像三重
+  承载零读取方。全链除名：C++（models.h 字段 / DiscipleColumn 枚举值 / 列存储六处 /
+  column_dirty 双 switch / gameview_encode 协议行 28 号退役不重排 / json_codec 双向 /
+  phase_settlement 写值与写回）+ Kotlin（Entity 字段 / Proto surrogate 3 处 /
+  DiscipleTables 列四件 / BreakthroughHandler 两处 / GameViewDiscipleRows 四处 /
+  GameViewMirrorCodec 行）；Room **v60→v61**（`GameDatabaseConfig.DATABASE_VERSION` 61）
+  `rebuildTableDroppingColumns` 删 disciples 单列（v55 先例模式；迁移前备份 +
+  旧档恒 1 值删除零信息损失）；`RoomMigrationV60To61Test` 三用例（真实 Room schema
+  校验 / 删列 + 数据逐格完整 + 索引主键重建 / 幂等）；历史迁移 SQL 与旧档兼容层
+  （OldSerializableSaveData field 95）原样保留。装备阶段 Room 版本顺延基线 v62 起
+  （台账 §8 规则「以合入时刻为准」天然消化）。
+- **缺陷 #11/#16 死值清理**：`RealmConfig.maxAge`（寿元系统 v54→v55 已删、十处命名
+  实参 + 属性 + RealmConfigTest 断言 + `GameConfigData.DiscipleSection.maxAge` +
+  `game_config.json` disciple.maxAge 键 + ConfigLoaderTest 断言）删除；
+  下线系统死常量 `ENHANCED_SECURITY_EFFECT`/`CURFEW_EVENT_REDUCTION`/
+  `CURFEW_DESERTION_REDUCTION`/`REWARD_PUNISH_EFFECT`（生产零消费、政策本体月费/
+  忠诚链保留）+ 两处测试引用删除。
+- **测试基准重定（§3.4 清单 / §5.2 三类口径）**：B1–B8 已将清单内测试按新轨重建
+  （ctest 1483 基线含 bench 10 项）；本批增量：time_system_test 时基 5 用例按
+  INV-2/INV-3 语义基准重建（判定轨 advancePhases/钩子序用例保持逐位口径；
+  投影/积分轨 advanceByGameMs 用例按整数差与闭式断言）；年变 Diff 对拍按
+  「判定轨逐位」扩思过双场景。途中发现（公约 §12 登记，不在派发清单未动）：
+  `ProductionProcessor.processAutoAlchemy`/`CultivationService.processAutoAlchemy`
+  生产零调用（仅 ProcessSlotDualWriteGuardTest 消费）——autoRestart 续炼启动仅
+  C++ 离散臂承担，Kotlin 侧为预留死代码，建议随 B10 或装备阶段裁决。
+
 ### 角色卡池重构 G12 批（2026-09-27）——体验完成（历史·公示·图鉴完整态·引导·死文案清零·连抽打磨·Q31 色板对齐）— `feat(gacha)`
 
 > 批次依据：`docs/design/gacha-batches/TASKBOOK-G12.md`（派工真源，含上位失真 6 条与 D-1…D-7 决策）

@@ -673,9 +673,12 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var suzerainSectId: String = "",
 
-    // 上一年灵石总收入（用于附庸年贡计算）
+    // 已退役（缺陷 #3）：零写入点恒 0，附庸年贡改读 annualTotalIncome 年度流水。
+    // 字段与 Room 列/Proto 95 位保留（规范 7.1 不删列 + 旧包回滚兼容）——
+    // 存储面退役登记待办与 D2 同批清偿。
     @ProtoNumber(117)
     @SettlementStrategy(Strategy.USE_SHADOW)
+    @Deprecated("零写入点恒 0，年贡改读 annualTotalIncome；保留仅为存档 schema 稳定", ReplaceWith("annualTotalIncome"))
     var lastYearSpiritStoneIncome: Long = 0L,
 
     // 活跃的攻击预警列表

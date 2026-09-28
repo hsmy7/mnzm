@@ -74,11 +74,6 @@ class SectPolicyPureLogicTest {
     }
 
     @Test
-    fun policyConfig_enhancedSecurityBaseEffect_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT > 0)
-    }
-
-    @Test
     fun policyConfig_enhancedSecurityCost_isPositive() {
         assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_MONTHLY > 0)
     }

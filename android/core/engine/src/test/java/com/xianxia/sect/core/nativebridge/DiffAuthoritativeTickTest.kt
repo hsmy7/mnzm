@@ -567,7 +567,7 @@ class DiffAuthoritativeTickTest {
     ) {        if (yearChanged) {
             val gd = store.gameDataValue
             ex.year.execute(gd.gameYear, gd.gameMonth == 1)
-            // 年变 T2 延迟组（收购/交易/AI 招募等 11 项）forceDrain 全量执行
+            // 年变 T2 延迟组（收购/交易/AI 招募等 8 项）forceDrain 全量执行
             //——对齐生产引擎 tick drain 语义与 C++ T2 内联执行（对齐
             // DiffYearSettlementTest 同款；mock 缺席 ≡ 场景恒零的步骤除外）
             ex.service.flushYearlyOpsQueue()

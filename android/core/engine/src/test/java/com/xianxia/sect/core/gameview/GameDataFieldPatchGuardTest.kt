@@ -57,15 +57,24 @@ class GameDataFieldPatchGuardTest {
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
+    /**
+     * 故意排除项：已退役不再镜像的字段（C++ 导出与 FieldPatch 表均已除名）。
+     * - lastYearSpiritStoneIncome：缺陷 #3 退役——零写入点恒 0，附庸年贡改读
+     *   annualTotalIncome；字段保留仅为存档 schema 稳定（Room 列/Proto 95 位）。
+     * 新增退役字段时在此登记并注明缘由；除此之外序列化面必须与写入器键集双射。
+     */
+    private val intentionallyUnmirrored: Set<String> = setOf("lastYearSpiritStoneIncome")
+
     @Test
     fun `写入器键集与 GameData 序列化面双射（漏登记即红）`() {
         val serialized = GameData.Companion.serializer().descriptor.elementNames.toSet()
         assertEquals(
             "gameData 字段级应用表与序列化面漂移 —— 仅表内有：" +
                 (GameDataFieldPatch.coveredFields - serialized) +
-                "；仅序列化面有（新增字段漏登记 = 镜像静默丢变更）：" +
-                (serialized - GameDataFieldPatch.coveredFields),
-            serialized,
+                "；仅序列化面有（新增字段漏登记 = 镜像静默丢变更；确属退役的登入" +
+                "intentionallyUnmirrored 并注明缘由）：" +
+                (serialized - GameDataFieldPatch.coveredFields - intentionallyUnmirrored),
+            serialized - intentionallyUnmirrored,
             GameDataFieldPatch.coveredFields
         )
     }

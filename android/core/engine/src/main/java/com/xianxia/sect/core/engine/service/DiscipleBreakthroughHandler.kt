@@ -204,10 +204,8 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val remaining = if (d.cultivation < d.maxCultivation) d.maxCultivation - d.cultivation else 0.0
         val monthsToNext = com.xianxia.sect.core.engine.LazyEvaluationDispatcher
             .estimateMonthsToNextBreakthrough(remaining, rate)
-        return d.copy(
-            cultivationCompletionMonth = currentMonth + monthsToNext,
-            cultivationCompletionPhase = 1
-        )
+        // cultivationCompletionPhase 死值退役（#10）
+        return d.copy(cultivationCompletionMonth = currentMonth + monthsToNext)
     }
 
     /**
@@ -254,7 +252,6 @@ class DiscipleBreakthroughHandler @Inject constructor(
             tables.statusData[id] = d.statusData
             // 修炼完成时间
             tables.cultivationCompletionMonths[id] = d.cultivationCompletionMonth
-            tables.cultivationCompletionPhases[id] = d.cultivationCompletionPhase
         }
     }
 

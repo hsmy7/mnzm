@@ -12,7 +12,7 @@ import com.xianxia.sect.core.state.MutableGameState
  * 分支原样提取的编排逻辑：生产 tick 与跨语言对拍测试共用同一入口
  * （God Method 拆分 + 对拍基准双重需要）。
  *
- * 七步事务顺序（与 C++ `gamecore::system::runMonthSettlement` 逐位对应；
+ * 七步事务顺序（与 C++ `gamecore::system::runMonthSettlement` 离散臂逐位对应；
  * 语义权威 = 各被调方法源码，RNG 分区调用点表见 .superpowers/sdd/t2-2-semantics.md）：
  * 1. 政策月度灵石扣除（不足自动关闭政策，结果返回给调用方做事务外决策）
  * 2. 政策月度道德效果
@@ -21,7 +21,11 @@ import com.xianxia.sect.core.state.MutableGameState
  *    Time→Inventory→Alchemy→Forge→Planting→Exploration）
  * 5. 月度自动排班（P0.2 合入同一事务）
  * 6. 丹药持续效果全量月衰减（每月 3 旬口径）
- * 7. processMonthlyEventsOnState 十六子事件（★ 单原子提交 policy + 月变）
+ * 7. processMonthlyEventsOnState 15 项子事件（★ 单原子提交 policy + 月变）
+ *
+ * 与 C++ 离散臂的第 8 步差异：C++ `runMonthSettlement` 末尾另有 autoRestart
+ * 续炼启动步（production.h）；Kotlin 编排提取自历史 monthChanged 分支，
+ * 本执行器无该步（续炼启动仅 C++ 臂承担）。
  *
  * 行为契约：与提取前的 monthChanged 分支逐行等价，生产行为零变化。
  * 事务外三件（SomeDisabled → checkpointAllProduction / missionCheck 回调 /

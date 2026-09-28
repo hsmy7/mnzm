@@ -73,6 +73,19 @@ class GameForegroundService : Service() {
 
         /** 前台服务通知 ID（与 [GameNotificationHelper.NOTIFICATION_ID] 一致） */
         const val NOTIFICATION_ID = 0x7E01
+
+        /**
+         * 「该 intent 是否应自动启动游戏循环」决策表（缺陷 #12 修复，方案 §9.1）：
+         * 仅**用户/调用方显式** [ACTION_START]（Activity onResume、看门狗兜底重投递）
+         * 启动循环；`null` intent（START_STICKY 系统重建）与暂停/恢复/停止均不启动。
+         *
+         * 缘由：系统重建此前与 ACTION_START 共用分支 → OEM 杀进程后服务在后台被
+         * 无条件拉起并继续推进游戏时间——「切后台 = 停循环」口径（离线收益上限
+         * 设计依赖）被绕过。修复后重建只恢复服务外壳（前台通知/闹钟链/绑定），
+         * 循环恢复由 GameActivity.onResume（resumeFromBackground + 显式
+         * ACTION_START）承担，口径由代码保证、不再依赖真机验证。
+         */
+        fun shouldAutoStartLoop(action: String?): Boolean = action == ACTION_START
     }
 
     @Inject
@@ -111,13 +124,26 @@ class GameForegroundService : Service() {
         gameEngineCore.initialize()
 
         when (intent?.action) {
-            ACTION_START, null -> {
+            ACTION_START -> {
                 if (!gameEngineCore.isGameLoopRunning) {
                     gameEngineCore.startGameLoop()
                     Log.d(TAG, "ACTION_START: game loop started")
                 } else {
                     Log.d(TAG, "ACTION_START: game loop already running, skip")
                 }
+            }
+            null -> {
+                // START_STICKY 系统重建（缺陷 #12）：只恢复服务外壳——
+                // safeStartForeground（上面）+ initialize（幂等）+ onCreate 闹钟链
+                // 已完成；游戏循环**不**自动启动（「切后台 = 停循环」口径，
+                // 离线收益上限依赖该口径）。恢复由 Activity onResume 显式
+                // ACTION_START / resumeFromBackground 承担；看门狗兜底同样走
+                // 显式 ACTION_START（AlarmWatchdogReceiver:242）不受影响。
+                Log.d(
+                    TAG,
+                    "null intent (START_STICKY rebuild): shell restored, " +
+                        "loop not auto-started (wasPausedByBackground=${gameEngineCore.wasPausedByBackground})"
+                )
             }
             ACTION_PAUSE -> {
                 // pause() 为 suspend，通过 engineScope 启动协程调用

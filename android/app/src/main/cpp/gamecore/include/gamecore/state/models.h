@@ -322,7 +322,6 @@ struct Disciple {
     int32_t cultivationSpeedDuration = 0;
     std::string discipleType = "outer";
     int32_t cultivationCompletionMonth = 0;
-    int32_t cultivationCompletionPhase = 1;
     int32_t manualCompletionMonth = 0;
     int32_t manualCompletionPhase = 1;
     int32_t equipmentNurturingCompletionMonth = 0;
@@ -1286,9 +1285,9 @@ struct GameData {
     SecretRealmState secretRealmState;
     SecretRealmExplorationSession secretRealmSession;
     std::vector<SecretRealmAITeam> secretRealmAITeams;
-    // 附庸
+    // 附庸（上年收入快照 lastYearSpiritStoneIncome 已退役——缺陷 #3：
+    // 零写入点恒 0 致年贡恒早退；年贡改读 annualTotalIncome 年度流水）
     std::string suzerainSectId;
-    int64_t lastYearSpiritStoneIncome = 0;
     // 地图
     int32_t mapSeed = 0;
     // ── 地图冻结（WS-5b）：生成即数据 ──

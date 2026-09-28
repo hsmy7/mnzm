@@ -7,7 +7,6 @@
   },
   "disciple": {
     "minAge": 5,
-    "maxAge": 100,
     "protectionMonths": 12
   },
   "elder": {

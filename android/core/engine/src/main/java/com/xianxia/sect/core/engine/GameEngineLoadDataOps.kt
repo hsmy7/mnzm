@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import com.xianxia.sect.core.engine.domain.gacha.syncGachaUnlockedRoster
+import com.xianxia.sect.core.exploration.WorldLevelManager
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.CharacterTemplateDb
@@ -112,9 +113,9 @@ suspend fun GameEngine.loadData(
         // 同时设置 lastGrantYear 防止下一年度事件双倍发放
         initMerchantRefreshChances(currentData)
         discipleService.syncAllDiscipleStatuses()
-        // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
-        // 检测到 0 且游戏已有进度时，初始化为当前月份
-        initSpiritMineLastSettledMonth()
+        // 旧存档时间锚定族（灵矿结算基准 + worldLevelLastRefreshMonth 缺陷 #4；
+        // importToNative 之前执行，锚定值随导入进 C++ 双臂覆盖）
+        initLegacySaveMonthAnchors()
         // 寻访解锁名册补齐（幂等）：星级账本已有、名册却无该模板弟子时补入册
         syncGachaUnlockedRoster(disciples)
         // 邮件永久保留：resetAndInitSlot 不删除任何邮件，未领取的溢出/直发邮件跨读档保留
@@ -222,10 +223,18 @@ private suspend fun GameEngine.initMerchantRefreshChances(currentData: GameData)
     }
 }
 
-/** 读档 spiritMineLastSettledMonth 兼容：0 值且已有进度时初始化为当前月份 */
-private suspend fun GameEngine.initSpiritMineLastSettledMonth() {
-    // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
-    // 检测到 0 且游戏已有进度时，初始化为当前月份
+/**
+ * 旧档时间锚定族单入口（读档链旧存档兼容段）：两个「字段加入前恒 0 → 月度差值
+ * 判据误触发」同型缺陷的读档补丁合并（合并动机：detekt TooManyFunctions 文件阈，
+ * 且两者语义同族——绝对月锚定）。
+ *
+ * ① spiritMineLastSettledMonth=0（字段加入前的存档）→ 首月灵矿产出暴增；
+ *   初始化为当前月份。
+ * ② worldLevelLastRefreshMonth=0（缺陷 #4，方案 §9.1）→ 读档后首个月结整批
+ *   额外生成关卡；锚定为当前绝对月。锚定值随后随 importToNative 进 C++，
+ *   双臂（AUTHORITATIVE/回退）单点覆盖。
+ */
+private suspend fun GameEngine.initLegacySaveMonthAnchors() {
     stateStore.update {
         val data = this.gameData
         if (data.spiritMineLastSettledMonth == 0) {
@@ -234,6 +243,14 @@ private suspend fun GameEngine.initSpiritMineLastSettledMonth() {
                 this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
                 DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
             }
+        }
+        val anchored = WorldLevelManager.anchorLastRefreshMonthForLegacySave(this.gameData)
+        if (anchored !== this.gameData) {
+            this.gameData = anchored
+            DomainLog.w(
+                "GameEngine",
+                "loadData: worldLevelLastRefreshMonth was 0, anchored to ${anchored.worldLevelLastRefreshMonth}"
+            )
         }
     }
 }

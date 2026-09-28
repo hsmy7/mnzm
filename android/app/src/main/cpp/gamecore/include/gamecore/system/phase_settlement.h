@@ -919,7 +919,8 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
         (d.cultivation < maxCult) ? (maxCult - d.cultivation) : 0.0;
     d.cultivationCompletionMonth =
         currentMonth + estimateMonthsToNextBreakthrough(remaining, rate);
-    d.cultivationCompletionPhase = 1;
+    // cultivationCompletionPhase 死值退役（#10：原硬编码 1，Proto/Room/镜像
+    // 三重承载无语义——全链已除名）
 }
 
 /// 单弟子连续突破循环（performBreakthrough 核心）。
@@ -998,7 +999,6 @@ inline void performBreakthrough(
     live.storageBagItems = d.storageBagItems;
     live.statusData = d.statusData;
     live.cultivationCompletionMonth = d.cultivationCompletionMonth;
-    live.cultivationCompletionPhase = d.cultivationCompletionPhase;
 }
 
 /// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 大境界日志
