@@ -105,7 +105,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
             GridBuildingData(displayName = "灵植阁", gridX = 0, gridY = 0,
                 width = 4, height = 3, instanceId = "garden1", sectId = "sectA"),
             GridBuildingData(displayName = "灵田", gridX = 2, gridY = 1,
-                width = 1, height = 1, instanceId = "field_in", sectId = "sectA"),
+                width = 2, height = 2, instanceId = "field_in", sectId = "sectA"),
             GridBuildingData(displayName = "灵田", gridX = 20, gridY = 20,
                 width = 1, height = 1, instanceId = "field_out", sectId = "sectA")
         )

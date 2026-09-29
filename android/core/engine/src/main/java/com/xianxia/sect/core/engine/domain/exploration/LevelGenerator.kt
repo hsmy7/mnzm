@@ -216,10 +216,9 @@ class LevelGenerator @Inject constructor(
             // 预计算妖兽最终属性
             beastMaxHp = maxHp,
             beastMaxMp = maxMp,
-            beastPhysicalAttack = atk,
-            beastMagicAttack = atk,
-            beastPhysicalDefense = defValue,
-            beastMagicDefense = defValue,
+            // 单列口径（B1）：物=法同源两半各自 round 后相加（= 旧两列相加的等价值）
+            beastAttack = atk + atk,
+            beastDefense = defValue + defValue,
             beastSpeed = speed
         )
     }

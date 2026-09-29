@@ -74,8 +74,7 @@ TEST(JsonCodecTest, ItemsRoundTrip) {
     es.rarity = 3;
     es.quantity = 2;
     es.slot = "WEAPON";
-    es.physicalAttack = 12;
-    es.magicAttack = 3;
+    es.physicalAttack = 15;
     es.isLocked = true;
     EXPECT_EQ(es.id, nlohmann::json(es).get<EquipmentStack>().id);
     EXPECT_EQ(es.isLocked, nlohmann::json(es).get<EquipmentStack>().isLocked);

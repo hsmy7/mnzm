@@ -85,10 +85,13 @@ class DiffBattleCalculatorTest {
         put("maxHp", c.maxHp)
         put("mp", c.mp)
         put("maxMp", c.maxMp)
-        put("physicalAttack", c.physicalAttack)
-        put("magicAttack", c.magicAttack)
-        put("physicalDefense", c.physicalDefense)
-        put("magicDefense", c.magicDefense)
+        put("attack", c.attack)
+        put("defense", c.defense)
+        put("innateDamageType", c.innateDamageType.name)
+        put("physicalDamageBonus", c.physicalDamageBonus)
+        put("magicDamageBonus", c.magicDamageBonus)
+        put("physicalDamageReduction", c.physicalDamageReduction)
+        put("magicDamageReduction", c.magicDamageReduction)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -237,8 +240,7 @@ class DiffBattleCalculatorTest {
     private fun baseCombatant(id: String, name: String): Combatant = Combatant(
         id = id, name = name,
         hp = 1000, maxHp = 1000, mp = 100, maxMp = 100,
-        physicalAttack = 120, magicAttack = 100,
-        physicalDefense = 60, magicDefense = 50,
+        attack = 120, defense = 60,
         speed = 80, critRate = 0.15,
         skills = emptyList(),
         realm = 9, realmLayer = 1

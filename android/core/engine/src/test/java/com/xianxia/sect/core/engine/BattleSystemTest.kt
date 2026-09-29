@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.BuffType
+import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
@@ -119,8 +120,7 @@ class BattleSystemTest {
     ) = Combatant(
         id = id, name = id, side = side,
         hp = hp, maxHp = maxHp, mp = 500, maxMp = 500,
-        physicalAttack = physAtk, magicAttack = physAtk,
-        physicalDefense = physDef, magicDefense = physDef,
+        attack = physAtk, defense = physDef,
         speed = speed, critRate = 0.0,
         skills = emptyList(), buffs = emptyList(), realm = 5, realmLayer = 1
     )
@@ -378,7 +378,7 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 0, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 5, magicDefense = 5,
+            attack = 10, defense = 5,
             speed = 10, critRate = 0.05, skills = emptyList()
         )
         assertTrue(combatant.isDead)
@@ -389,7 +389,7 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.ATTACKER,
             hp = -10, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 5, magicDefense = 5,
+            attack = 10, defense = 5,
             speed = 10, critRate = 0.05, skills = emptyList()
         )
         assertTrue(combatant.isDead)
@@ -400,22 +400,26 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 30, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 5, magicDefense = 5,
+            attack = 10, defense = 5,
             speed = 10, critRate = 0.05, skills = emptyList()
         )
         assertEquals(0.3, combatant.hpPercent, 0.01)
     }
 
     @Test
-    fun `Combatant - effectivePhysicalAttack with buff`() {
+    fun `Combatant - physical attack buff migrates to type damage bucket`() {
+        // 单列口径（B1 §15.2③）：物攻 buff 不再乘 attack 属性本体（effective* 已删），
+        // 语义迁移为类型增伤——buildDamageZones 收集进 physicalAttackBuffs 分桶
         val buff = CombatBuff(BuffType.PHYSICAL_ATTACK_BOOST, 0.5, 3)
-        val combatant = Combatant(
+        val attacker = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 100, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 100, magicAttack = 50, physicalDefense = 10, magicDefense = 10,
+            attack = 100, defense = 10,
             speed = 20, critRate = 0.05, skills = emptyList(), buffs = listOf(buff)
         )
-        assertEquals(150, combatant.effectivePhysicalAttack)
+        assertEquals(100, attacker.attack)
+        val zones = BattleCalculator.buildDamageZones(attacker)
+        assertEquals(0.5, zones.physicalAttackBuffs, 1e-9)
     }
 
     @Test
@@ -424,22 +428,25 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 100, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 10, magicDefense = 10,
+            attack = 10, defense = 10,
             speed = 100, critRate = 0.05, skills = emptyList(), buffs = listOf(buff)
         )
         assertEquals(130, combatant.effectiveSpeed)
     }
 
     @Test
-    fun `Combatant - debuff reduces attack`() {
+    fun `Combatant - attack reduce debuff nets into type bucket`() {
+        // 单列口径（B1）：REDUCE 进同桶负值（净额 = BOOST − REDUCE）
         val debuff = CombatBuff(BuffType.PHYSICAL_ATTACK_REDUCE, 0.3, 2)
-        val combatant = Combatant(
+        val attacker = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 100, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 100, magicAttack = 50, physicalDefense = 10, magicDefense = 10,
+            attack = 100, defense = 10,
             speed = 20, critRate = 0.05, skills = emptyList(), buffs = listOf(debuff)
         )
-        assertEquals(70, combatant.effectivePhysicalAttack)
+        assertEquals(100, attacker.attack)
+        val zones = BattleCalculator.buildDamageZones(attacker)
+        assertEquals(-0.3, zones.physicalAttackBuffs, 1e-9)
     }
 
     @Test
@@ -496,7 +503,7 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 100, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 5, magicDefense = 5,
+            attack = 10, defense = 5,
             speed = 10, critRate = 0.05, skills = emptyList(), buffs = listOf(stunBuff)
         )
         assertTrue(combatant.hasControlEffect)
@@ -508,7 +515,7 @@ class BattleSystemTest {
         val combatant = Combatant(
             id = "test", name = "Test", side = CombatantSide.DEFENDER,
             hp = 100, maxHp = 100, mp = 50, maxMp = 50,
-            physicalAttack = 10, magicAttack = 10, physicalDefense = 5, magicDefense = 5,
+            attack = 10, defense = 5,
             speed = 10, critRate = 0.05, skills = emptyList(), buffs = listOf(buff)
         )
         assertFalse(combatant.hasControlEffect)
@@ -658,7 +665,7 @@ class BattleSystemTest {
         )
         assertEquals("武器名应从实例 map 解析", "斩龙剑", combatant.weaponName)
         assertTrue("功法技能必须保留", combatant.skills.isNotEmpty())
-        assertTrue("装备攻击加成必须生效", combatant.physicalAttack >= 1000)
+        assertTrue("装备攻击加成必须生效", combatant.attack >= 1000)
         assertTrue("装备血量加成必须生效", combatant.maxHp >= 5000)
     }
 }

@@ -276,10 +276,8 @@ class HpMpRecoveryService @Inject constructor() {
             if (newDuration <= 0) {
                 tables.pillHpBonuses[id] = 0
                 tables.pillMpBonuses[id] = 0
-                tables.pillPhysicalAttackBonuses[id] = 0
-                tables.pillMagicAttackBonuses[id] = 0
-                tables.pillPhysicalDefenseBonuses[id] = 0
-                tables.pillMagicDefenseBonuses[id] = 0
+                tables.pillAttackBonuses[id] = 0
+tables.pillDefenseBonuses[id] = 0
                 tables.pillSpeedBonuses[id] = 0
                 tables.pillCritRateBonuses[id] = 0.0
                 tables.pillCritEffectBonuses[id] = 0.0

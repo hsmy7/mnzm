@@ -262,8 +262,7 @@ class HeavenlyTrialCombatLogicTest {
         name = "Test",
         hp = hp, maxHp = maxHp,
         mp = mp, maxMp = maxMp,
-        physicalAttack = 10, magicAttack = 10,
-        physicalDefense = 5, magicDefense = 5,
+        attack = 10, defense = 5,
         speed = 100, critRate = 0.05,
         skills = emptyList(), buffs = emptyList(),
         realm = 1, realmName = "练气"

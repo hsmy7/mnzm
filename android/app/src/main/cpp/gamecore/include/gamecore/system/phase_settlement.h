@@ -601,10 +601,8 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.morality = r.morality;
     d.mining = r.mining;
     // PillEffects 字段
-    d.pillPhysicalAttackBonus = r.pillPhysicalAttackBonus;
-    d.pillMagicAttackBonus = r.pillMagicAttackBonus;
-    d.pillPhysicalDefenseBonus = r.pillPhysicalDefenseBonus;
-    d.pillMagicDefenseBonus = r.pillMagicDefenseBonus;
+    d.pillAttackBonus = r.pillAttackBonus;
+    d.pillDefenseBonus = r.pillDefenseBonus;
     d.pillHpBonus = r.pillHpBonus;
     d.pillMpBonus = r.pillMpBonus;
     d.pillSpeedBonus = r.pillSpeedBonus;

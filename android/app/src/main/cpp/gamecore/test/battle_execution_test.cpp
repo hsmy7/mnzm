@@ -46,10 +46,8 @@ Combatant baseCombatant(const std::string& id, const std::string& name) {
     c.maxHp = 1000;
     c.mp = 100;
     c.maxMp = 100;
-    c.physicalAttack = 120;
-    c.magicAttack = 100;
-    c.physicalDefense = 60;
-    c.magicDefense = 50;
+    c.attack = 120;
+    c.defense = 60;
     c.speed = 80;
     c.critRate = 0.15;
     c.realm = 9;
@@ -87,22 +85,22 @@ TEST(BattleExecution, DeterministicReplaySameSeed) {
         auto d1 = baseCombatant("d1", "剑修");
         d1.skills = {attackSkill("重斩", 1.8, 10, 2), attackSkill("烈焰斩", 2.2, 18, 3)};
         auto d2 = baseCombatant("d2", "体修");
-        d2.physicalAttack = 180;
-        d2.physicalDefense = 90;
+        d2.attack = 180;
+        d2.defense = 90;
         d2.speed = 60;
         d2.skills = {attackSkill("碎岩击", 1.6, 8, 2)};
         auto b1 = baseCombatant("beast_1", "烈焰狼");
         b1.side = CombatantSide::kAttacker;
         b1.hp = 800;
         b1.maxHp = 800;
-        b1.physicalAttack = 150;
+        b1.attack = 150;
         b1.speed = 90;
         b1.skills = {attackSkill("撕咬", 1.5, 5, 1)};
         auto b2 = baseCombatant("beast_2", "冰霜狼");
         b2.side = CombatantSide::kAttacker;
         b2.hp = 700;
         b2.maxHp = 700;
-        b2.magicAttack = 140;
+        b2.attack = 140;
         b2.speed = 75;
         b2.skills = {attackSkill("冰锥", 1.7, 8, 2)};
         state.team = {d1, d2};
@@ -142,14 +140,14 @@ TEST(BattleExecution, EndsWhenAllEnemiesDieWithRewards) {
     auto d1 = baseCombatant("d1", "高境界");
     d1.realm = 5;
     d1.realmLayer = 9;
-    d1.physicalAttack = 500;
+    d1.attack = 500;
     d1.skills = {attackSkill("破军斩", 3.0, 20, 3)};
     auto b1 = baseCombatant("beast_1", "弱兽");
     b1.side = CombatantSide::kAttacker;
     b1.realm = 8;
     b1.hp = 300;
     b1.maxHp = 300;
-    b1.physicalDefense = 20;
+    b1.defense = 20;
     state.team = {d1};
     state.beasts = {b1};
 
@@ -168,14 +166,11 @@ TEST(BattleExecution, NoDamageWithoutEngagement) {
     auto rng = DeterministicRng::fromSeed(1);
     BattleState state;
     auto d1 = baseCombatant("d1", "守方");
-    d1.physicalDefense = 100000;
-    d1.magicDefense = 100000;
+    d1.defense = 100000;
     auto b1 = baseCombatant("beast_1", "攻方");
     b1.side = CombatantSide::kAttacker;
-    b1.physicalAttack = 1;
-    b1.magicAttack = 1;
-    b1.physicalDefense = 100000;
-    b1.magicDefense = 100000;
+    b1.attack = 1;
+    b1.defense = 100000;
     b1.speed = 10;
     state.team = {d1};
     state.beasts = {b1};
@@ -202,7 +197,7 @@ TEST(BattleExecution, RngConsumedAcrossBattle) {
     d1.skills = {attackSkill("重斩", 1.8, 10, 2)};
     auto b1 = baseCombatant("beast_1", "妖兽");
     b1.side = CombatantSide::kAttacker;
-    b1.physicalAttack = 150;
+    b1.attack = 150;
     state.team = {d1};
     state.beasts = {b1};
     const int64_t before = rng.snapshot();
@@ -241,7 +236,7 @@ TEST(BattleExecution, SupportHealAndTeamBuffPreserved) {
     tank.hp = 400;
     auto b1 = baseCombatant("beast_1", "妖兽");
     b1.side = CombatantSide::kAttacker;
-    b1.physicalAttack = 200;
+    b1.attack = 200;
     b1.speed = 70;
     state.team = {healer, tank};
     state.beasts = {b1};
@@ -262,37 +257,37 @@ TEST(BattleExecution, GoldenBasicBattleSeed42) {
     auto d1 = baseCombatant("d1", "剑修");
     d1.skills = {attackSkill("重斩", 1.8, 10, 2), attackSkill("烈焰斩", 2.2, 18, 3)};
     auto d2 = baseCombatant("d2", "体修");
-    d2.physicalAttack = 180;
-    d2.physicalDefense = 90;
+    d2.attack = 180;
+    d2.defense = 90;
     d2.speed = 60;
     d2.skills = {attackSkill("碎岩击", 1.6, 8, 2)};
     auto b1 = baseCombatant("beast_1", "烈焰狼");
     b1.side = CombatantSide::kAttacker;
     b1.hp = 800;
     b1.maxHp = 800;
-    b1.physicalAttack = 150;
+    b1.attack = 150;
     b1.speed = 90;
     b1.skills = {attackSkill("撕咬", 1.5, 5, 1)};
     auto b2 = baseCombatant("beast_2", "冰霜狼");
     b2.side = CombatantSide::kAttacker;
     b2.hp = 700;
     b2.maxHp = 700;
-    b2.magicAttack = 140;
+    b2.attack = 140;
     b2.speed = 75;
     b2.skills = {attackSkill("冰锥", 1.7, 8, 2)};
     state.team = {d1, d2};
     state.beasts = {b1, b2};
     const auto out = executeBattle(state, 1.0, rng);
     // 黄金值（Kotlin BattleSystem 同种子输出，DiffBattleExecutionTest 对拍确认）
-    EXPECT_EQ(4, out.turn);  // 玩家 4 回合全灭妖兽提前结束
+    EXPECT_EQ(5, out.turn);  // 玩家 4 回合全灭妖兽提前结束
     EXPECT_EQ(static_cast<int32_t>(BattleWinner::kTeam), static_cast<int32_t>(out.winner));
     // 奖励：100 × 初始 beasts 数（2）
     const auto rewardIt = out.rewards.find("spiritStones");
     ASSERT_TRUE(rewardIt != out.rewards.end());
     EXPECT_EQ(200, rewardIt->second);
     // 终态 hp（对拍确认值，防 C++ 回归漂移）
-    EXPECT_EQ(145, hpOf(out.team, "d1"));
-    EXPECT_EQ(840, hpOf(out.team, "d2"));
+    EXPECT_EQ(164, hpOf(out.team, "d1"));
+    EXPECT_EQ(629, hpOf(out.team, "d2"));
     EXPECT_EQ(0, hpOf(out.beasts, "beast_1"));
     EXPECT_EQ(0, hpOf(out.beasts, "beast_2"));
 }
@@ -304,14 +299,14 @@ TEST(BattleExecution, GoldenOverpoweredVictorySeed1) {
     auto d1 = baseCombatant("d1", "高境界");
     d1.realm = 5;
     d1.realmLayer = 9;
-    d1.physicalAttack = 500;
+    d1.attack = 500;
     d1.skills = {attackSkill("破军斩", 3.0, 20, 3)};
     auto b1 = baseCombatant("beast_1", "弱兽");
     b1.side = CombatantSide::kAttacker;
     b1.realm = 8;
     b1.hp = 300;
     b1.maxHp = 300;
-    b1.physicalDefense = 20;
+    b1.defense = 20;
     state.team = {d1};
     state.beasts = {b1};
     const auto out = executeBattle(state, 1.0, rng);

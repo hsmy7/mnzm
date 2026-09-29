@@ -347,10 +347,8 @@ class PatrolBattleSystem @Inject constructor(
             val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
                 maxHp = target.beastMaxHp,
                 maxMp = target.beastMaxMp,
-                physicalAttack = target.beastPhysicalAttack,
-                magicAttack = target.beastMagicAttack,
-                physicalDefense = target.beastPhysicalDefense,
-                magicDefense = target.beastMagicDefense,
+                attack = target.beastAttackTotal,
+                defense = target.beastDefenseTotal,
                 speed = target.beastSpeed,
                 realmLayer = target.realmLayer
             ) else null
@@ -719,8 +717,7 @@ private fun buildTeamPhase2Battle(
     // 构建妖兽预计算属性
     val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
         maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
-        physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
-        physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+        attack = target.beastAttackTotal, defense = target.beastDefenseTotal,
         speed = target.beastSpeed, realmLayer = target.realmLayer
     ) else null
     val beastTypeName = GameConfig.Beast.getType(
@@ -757,8 +754,7 @@ private fun createAIBattle(
     val prepared = AISectDiscipleManager.prepareDisciplesForBattle(disciples)
     val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
         maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
-        physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
-        physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+        attack = target.beastAttackTotal, defense = target.beastDefenseTotal,
         speed = target.beastSpeed, realmLayer = target.realmLayer
     ) else null
     val beastTypeName = GameConfig.Beast.getType(

@@ -57,8 +57,11 @@ inline nlohmann::json combatantToJson(const Combatant& c) {
         {"id", c.id}, {"name", c.name},
         {"side", c.side == CombatantSide::kAttacker ? "ATTACKER" : "DEFENDER"},
         {"hp", c.hp}, {"maxHp", c.maxHp}, {"mp", c.mp}, {"maxMp", c.maxMp},
-        {"physicalAttack", c.physicalAttack}, {"magicAttack", c.magicAttack},
-        {"physicalDefense", c.physicalDefense}, {"magicDefense", c.magicDefense},
+        {"attack", c.attack}, {"defense", c.defense},
+        {"innateDamageType", c.innateDamageType == DamageType::kMagic ? "MAGIC" : "PHYSICAL"},
+        {"physicalDamageBonus", c.physicalDamageBonus}, {"magicDamageBonus", c.magicDamageBonus},
+        {"physicalDamageReduction", c.physicalDamageReduction},
+        {"magicDamageReduction", c.magicDamageReduction},
         {"speed", c.speed}, {"critRate", c.critRate},
         {"realm", c.realm}, {"realmLayer", c.realmLayer}, {"element", c.element},
         {"isBeast", c.isBeast},
@@ -129,10 +132,15 @@ inline Combatant combatantFromJson(const nlohmann::json& j) {    Combatant c;
     c.maxHp = j.value("maxHp", 0);
     c.mp = j.value("mp", 0);
     c.maxMp = j.value("maxMp", 0);
-    c.physicalAttack = j.value("physicalAttack", 0);
-    c.magicAttack = j.value("magicAttack", 0);
-    c.physicalDefense = j.value("physicalDefense", 0);
-    c.magicDefense = j.value("magicDefense", 0);
+    c.attack = j.value("attack", 0);
+    c.defense = j.value("defense", 0);
+    c.innateDamageType =
+        j.value("innateDamageType", "PHYSICAL") == "MAGIC" ? DamageType::kMagic
+                                                           : DamageType::kPhysical;
+    c.physicalDamageBonus = j.value("physicalDamageBonus", 0.0);
+    c.magicDamageBonus = j.value("magicDamageBonus", 0.0);
+    c.physicalDamageReduction = j.value("physicalDamageReduction", 0.0);
+    c.magicDamageReduction = j.value("magicDamageReduction", 0.0);
     c.speed = j.value("speed", 0);
     c.critRate = j.value("critRate", 0.05);
     if (j.contains("skills") && j["skills"].is_array()) {

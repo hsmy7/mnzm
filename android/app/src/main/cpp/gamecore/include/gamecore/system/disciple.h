@@ -125,16 +125,14 @@ inline double safeVarianceMultiplier(int32_t variance) {
     return coerceAtLeast(1.0 + variance / 100.0, 0.0);
 }
 
-/// 属性计算输入（对应 Kotlin VarianceInputs/SkillInputs 收拢）
+/// 属性计算输入（对应 Kotlin VarianceInputs/SkillInputs 收拢；单列口径 B1）
 struct BaseStatsInput {
     int32_t realm = 9;
     int32_t realmLayer = 1;
     int32_t hpVariance = 0;
     int32_t mpVariance = 0;
-    int32_t physicalAttackVariance = 0;
-    int32_t magicAttackVariance = 0;
-    int32_t physicalDefenseVariance = 0;
-    int32_t magicDefenseVariance = 0;
+    int32_t attackVariance = 0;
+    int32_t defenseVariance = 0;
     int32_t speedVariance = 0;
     // 技能（skill 属性）
     int32_t intelligence = 0;
@@ -148,16 +146,14 @@ struct BaseStatsInput {
     int32_t pillRefining = 0;
 };
 
-/// 最终属性（对应 Kotlin DiscipleStats）
+/// 最终属性（对应 Kotlin DiscipleStats；单列口径 B1）
 struct DiscipleStats {
     int32_t hp = 0;
     int32_t maxHp = 0;
     int32_t mp = 0;
     int32_t maxMp = 0;
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
+    int32_t attack = 0;
+    int32_t defense = 0;
     int32_t speed = 0;
     double critRate = kBaseCritRate;
     int32_t intelligence = 0;
@@ -183,18 +179,16 @@ inline DiscipleStats computeBaseStats(const BaseStatsInput& in) {
         rc.baseMp * safeVarianceMultiplier(in.mpVariance) * layerMult);
     s.hp = s.maxHp;
     s.mp = s.maxMp;
-    s.physicalAttack = roundToInt(
-        rc.basePhysicalAttack * safeVarianceMultiplier(in.physicalAttackVariance) *
-        layerMult);
-    s.magicAttack = roundToInt(
-        rc.baseMagicAttack * safeVarianceMultiplier(in.magicAttackVariance) *
-        layerMult);
-    s.physicalDefense = roundToInt(
-        rc.basePhysicalDefense * safeVarianceMultiplier(in.physicalDefenseVariance) *
-        layerMult);
-    s.magicDefense = roundToInt(
-        rc.baseMagicDefense * safeVarianceMultiplier(in.magicDefenseVariance) *
-        layerMult);
+    // 单列口径（B1 §15.4/Q2）：境界面物法两列各自 round 后相加进单列——
+    // 同一方差乘区作用于物法两半，与战力取和公式线性一致（迁移前后战力不变）
+    {
+        const double atkVar = safeVarianceMultiplier(in.attackVariance);
+        const double defVar = safeVarianceMultiplier(in.defenseVariance);
+        s.attack = roundToInt(rc.basePhysicalAttack * atkVar * layerMult) +
+                   roundToInt(rc.baseMagicAttack * atkVar * layerMult);
+        s.defense = roundToInt(rc.basePhysicalDefense * defVar * layerMult) +
+                    roundToInt(rc.baseMagicDefense * defVar * layerMult);
+    }
     s.speed = roundToInt(
         rc.baseSpeed * safeVarianceMultiplier(in.speedVariance) *
         layerMult);

@@ -521,8 +521,7 @@ class HeavenlyTrialAnimationGuardTest {
         private fun player(id: String, hp: Int, maxHp: Int, speed: Int): Combatant = Combatant(
             id = id, name = "试炼弟子",
             hp = hp, maxHp = maxHp, mp = 200, maxMp = 200,
-            physicalAttack = 120, magicAttack = 80,
-            physicalDefense = 60, magicDefense = 50,
+            attack = 120, defense = 60,
             speed = speed, critRate = 0.1,
             skills = emptyList(),
             realm = 9, realmName = "炼虚"
@@ -532,8 +531,7 @@ class HeavenlyTrialAnimationGuardTest {
         private fun enemy(id: String, hp: Int, speed: Int): Combatant = Combatant(
             id = id, name = "试炼魔将",
             hp = hp, maxHp = 600, mp = 200, maxMp = 200,
-            physicalAttack = 150, magicAttack = 100,
-            physicalDefense = 70, magicDefense = 60,
+            attack = 150, defense = 70,
             speed = speed, critRate = 0.1,
             skills = ENEMY_SKILLS,
             realm = 9, realmName = "炼虚", realmLayer = 0

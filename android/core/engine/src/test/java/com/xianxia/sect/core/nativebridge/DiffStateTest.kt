@@ -207,8 +207,8 @@ class DiffStateTest {
                 x = 10.5f, y = 20.5f, spawnYear = 3, spawnMonth = 1,
                 expiryYear = 3, expiryMonth = 6, count = 2,
                 defeated = true, beastMaxHp = 500, beastMaxMp = 100,
-                beastPhysicalAttack = 50, beastMagicAttack = 20,
-                beastPhysicalDefense = 30, beastMagicDefense = 15
+                beastAttack = 50,
+                beastDefense = 30
             )
         )
         placedBuildings = listOf(
@@ -256,7 +256,7 @@ class DiffStateTest {
         equipmentStacks = listOf(
             EquipmentStack(
                 id = "eq-s1", name = "青锋剑", rarity = 3, quantity = 2,
-                slot = EquipmentSlot.WEAPON, physicalAttack = 12, magicAttack = 3
+                slot = EquipmentSlot.WEAPON, physicalAttack = 12, 
             )
         ),
         equipmentInstances = listOf(

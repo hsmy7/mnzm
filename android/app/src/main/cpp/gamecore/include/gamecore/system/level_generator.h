@@ -351,10 +351,9 @@ inline state::WorldLevel generateBeastLevel(
     level.count = count;
     level.beastMaxHp = maxHp;
     level.beastMaxMp = maxMp;
-    level.beastPhysicalAttack = atk;
-    level.beastMagicAttack = atk;
-    level.beastPhysicalDefense = def;
-    level.beastMagicDefense = def;
+    // 单列口径（B1）：物=法同源两半相加
+    level.beastAttack = atk + atk;
+    level.beastDefense = def + def;
     level.beastSpeed = speed;
     return level;
 }

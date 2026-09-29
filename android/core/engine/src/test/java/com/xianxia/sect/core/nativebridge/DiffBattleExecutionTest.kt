@@ -90,10 +90,8 @@ class DiffBattleExecutionTest {
         put("maxHp", c.maxHp)
         put("mp", c.mp)
         put("maxMp", c.maxMp)
-        put("physicalAttack", c.physicalAttack)
-        put("magicAttack", c.magicAttack)
-        put("physicalDefense", c.physicalDefense)
-        put("magicDefense", c.magicDefense)
+        put("attack", c.attack)
+        put("defense", c.defense)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -231,17 +229,17 @@ class DiffBattleExecutionTest {
             )
         )
         val disciple2 = baseCombatant("d2", "体修").copy(
-            physicalAttack = 180, physicalDefense = 90, speed = 60,
+            attack = 180, defense = 90, speed = 60,
             skills = listOf(attackSkill("碎岩击", 1.6, 8, 2))
         )
         val beast1 = baseCombatant("beast_1", "烈焰狼").copy(
             side = CombatantSide.ATTACKER, hp = 800, maxHp = 800,
-            physicalAttack = 150, speed = 90,
+            attack = 150, speed = 90,
             skills = listOf(attackSkill("撕咬", 1.5, 5, 1))
         )
         val beast2 = baseCombatant("beast_2", "冰霜狼").copy(
             side = CombatantSide.ATTACKER, hp = 700, maxHp = 700,
-            magicAttack = 140, speed = 75,
+            
             skills = listOf(attackSkill("冰锥", 1.7, 8, 2))
         )
         for (seed in longArrayOf(42, 20260901, 987654321)) {
@@ -260,7 +258,7 @@ class DiffBattleExecutionTest {
         )
         val tank = baseCombatant("d2", "肉盾").copy(hp = 400, maxHp = 1000)
         val beast = baseCombatant("beast_1", "妖兽").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 200, speed = 70
+            side = CombatantSide.ATTACKER, attack = 200, speed = 70
         )
         for (seed in longArrayOf(7, 99)) {
             runBattleDiff(seed, listOf(healer, tank), listOf(beast))
@@ -274,10 +272,10 @@ class DiffBattleExecutionTest {
             skills = listOf(stunSkill("定身咒", 15, 3))
         )
         val beast1 = baseCombatant("beast_1", "妖兽一").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 160
+            side = CombatantSide.ATTACKER, attack = 160
         )
         val beast2 = baseCombatant("beast_2", "妖兽二").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 130
+            side = CombatantSide.ATTACKER, attack = 130
         )
         for (seed in longArrayOf(42, 555)) {
             runBattleDiff(seed, listOf(controller), listOf(beast1, beast2))
@@ -296,7 +294,7 @@ class DiffBattleExecutionTest {
         val beasts = (1..3).map { i ->
             baseCombatant("beast_$i", "妖兽$i").copy(
                 side = CombatantSide.ATTACKER, hp = 600, maxHp = 600,
-                physicalAttack = 120 + i * 20
+                attack = 120 + i * 20
             )
         }
         for (seed in longArrayOf(42, 123)) {
@@ -313,11 +311,11 @@ class DiffBattleExecutionTest {
             )
         )
         val dps = baseCombatant("d2", "输出").copy(
-            physicalAttack = 200,
+            attack = 200,
             skills = listOf(attackSkill("重斩", 1.8, 10, 2))
         )
         val beast = baseCombatant("beast_1", "妖兽").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 150
+            side = CombatantSide.ATTACKER, attack = 150
         )
         for (seed in longArrayOf(42, 2024)) {
             runBattleDiff(seed, listOf(buffer, dps), listOf(beast))
@@ -334,7 +332,7 @@ class DiffBattleExecutionTest {
             buffs = listOf(CombatBuff(BuffType.DAMAGE_SHARE, 0.4, 5))
         )
         val beast = baseCombatant("beast_1", "妖兽").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 220,
+            side = CombatantSide.ATTACKER, attack = 220,
             buffs = listOf(CombatBuff(BuffType.DAMAGE_LINK, 0.3, 5))
         )
         for (seed in longArrayOf(42, 777)) {
@@ -347,12 +345,12 @@ class DiffBattleExecutionTest {
         assumeTrue(DiffRngBridge.isAvailable())
         // 玩家境界压制 + 高伤 → 快速全灭，验证提前结束 + 奖励
         val overPowered = baseCombatant("d1", "高境界").copy(
-            realm = 5, realmLayer = 9, physicalAttack = 500,
+            realm = 5, realmLayer = 9, attack = 500,
             skills = listOf(attackSkill("破军斩", 3.0, 20, 3))
         )
         val weakBeast = baseCombatant("beast_1", "弱兽").copy(
             side = CombatantSide.ATTACKER, realm = 8, hp = 300, maxHp = 300,
-            physicalDefense = 20
+            defense = 20
         )
         for (seed in longArrayOf(1, 42)) {
             runBattleDiff(seed, listOf(overPowered), listOf(weakBeast))
@@ -366,8 +364,8 @@ class DiffBattleExecutionTest {
             skills = listOf(attackSkill("重斩", 1.8, 10, 2))
         )
         val beast = baseCombatant("beast_1", "妖兽").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 150,
-            physicalDefense = 100
+            side = CombatantSide.ATTACKER, attack = 150,
+            defense = 100
         )
         for (modifier in doubleArrayOf(1.0, 1.5)) {
             for (seed in longArrayOf(42, 7)) {
@@ -382,8 +380,7 @@ class DiffBattleExecutionTest {
         id = id, name = name,
         side = CombatantSide.DEFENDER,
         hp = 1000, maxHp = 1000, mp = 100, maxMp = 100,
-        physicalAttack = 120, magicAttack = 100,
-        physicalDefense = 60, magicDefense = 50,
+        attack = 120, defense = 60,
         speed = 80, critRate = 0.15,
         skills = emptyList(),
         realm = 9, realmLayer = 1

@@ -302,10 +302,20 @@ data class AICaveDisciple(
     @ProtoNumber(6) val maxHp: Int = 1000,
     @ProtoNumber(7) val mp: Int = 500,
     @ProtoNumber(8) val maxMp: Int = 500,
-    @ProtoNumber(9) val physicalAttack: Int = 100,
-    @ProtoNumber(10) val magicAttack: Int = 50,
-    @ProtoNumber(11) val physicalDefense: Int = 50,
-    @ProtoNumber(12) val magicDefense: Int = 40,
+    // ── 攻防单列口径（B1，方案 §15.4）──
+    // 新写入 attack(17)/defense(18)；旧物法四列（9–12）保留声明仅作旧 JSON
+    // 归一化读取（洞府数据存 game_data TEXT 列，字段名即 JSON 键），
+    // 消费点一律读 [attackTotal]/[defenseTotal]。
+    @Deprecated("旧物攻，仅旧档归一化读取；改用 attackTotal")
+    @ProtoNumber(9) val physicalAttack: Int = 0,
+    @Deprecated("旧法攻，仅旧档归一化读取")
+    @ProtoNumber(10) val magicAttack: Int = 0,
+    @Deprecated("旧物防，仅旧档归一化读取")
+    @ProtoNumber(11) val physicalDefense: Int = 0,
+    @Deprecated("旧法防，仅旧档归一化读取")
+    @ProtoNumber(12) val magicDefense: Int = 0,
+    @ProtoNumber(17) val attack: Int = 150,
+    @ProtoNumber(18) val defense: Int = 90,
     @ProtoNumber(13) val speed: Int = 100,
     @ProtoNumber(14) val critRate: Double = 0.05,
     @ProtoNumber(15) val equipments: List<AIRandomEquipment> = emptyList(),
@@ -313,6 +323,12 @@ data class AICaveDisciple(
 ) {
     val isAlive: Boolean get() = hp > 0
     val hpPercent: Int get() = if (maxHp > 0) ((hp.toDouble() / maxHp) * 100).toInt() else 0
+
+    /** 有效攻击：新单列值 + 旧物法两列归一化（旧 JSON 9/10 有值、新档恒 0） */
+    val attackTotal: Int get() = attack + physicalAttack + magicAttack
+
+    /** 有效防御：口径同 [attackTotal] */
+    val defenseTotal: Int get() = defense + physicalDefense + magicDefense
 }
 
 @Keep

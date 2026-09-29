@@ -157,8 +157,7 @@ class SecretRealmServiceTest {
         val combatants = ids.map { id ->
             Combatant(
                 id = id, name = "弟子", hp = 800, maxHp = 1000, mp = 100, maxMp = 200,
-                physicalAttack = 100, magicAttack = 80, physicalDefense = 60,
-                magicDefense = 50, speed = 40, critRate = 0.1, skills = emptyList()
+                attack = 100, defense = 60, speed = 40, critRate = 0.1, skills = emptyList()
             )
         }
         val battle = Battle(team = combatants, beasts = emptyList(), turn = 3, isFinished = true, winner = null)
@@ -176,8 +175,7 @@ class SecretRealmServiceTest {
                 id = id, name = "弟子",
                 hp = if (index == 0) 200 else 0,  // 2~4 号阵亡
                 maxHp = 1000, mp = 100, maxMp = 200,
-                physicalAttack = 100, magicAttack = 80, physicalDefense = 60,
-                magicDefense = 50, speed = 40, critRate = 0.1, skills = emptyList()
+                attack = 100, defense = 60, speed = 40, critRate = 0.1, skills = emptyList()
             )
         }
         val battle = Battle(team = combatants, beasts = emptyList(), turn = 5, isFinished = true, winner = null)
@@ -198,8 +196,7 @@ class SecretRealmServiceTest {
         val combatants = ids.map { id ->
             Combatant(
                 id = id, name = "弟子", hp = 0, maxHp = 1000, mp = 100, maxMp = 200,
-                physicalAttack = 100, magicAttack = 80, physicalDefense = 60,
-                magicDefense = 50, speed = 40, critRate = 0.1, skills = emptyList()
+                attack = 100, defense = 60, speed = 40, critRate = 0.1, skills = emptyList()
             )
         }
         val battle = Battle(team = combatants, beasts = emptyList(), turn = 5, isFinished = true, winner = null)

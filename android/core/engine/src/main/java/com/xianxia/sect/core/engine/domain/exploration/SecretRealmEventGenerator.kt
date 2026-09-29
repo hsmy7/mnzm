@@ -394,10 +394,9 @@ object SecretRealmEventGenerator {
         return BattleSystem.BeastPreGenStats(
             maxHp = maxHp,
             maxMp = maxMp,
-            physicalAttack = atk,
-            magicAttack = atk,
-            physicalDefense = def,
-            magicDefense = def,
+            // 单列口径（B1）：物=法同源两半各自 round 后相加
+            attack = atk * 2,
+            defense = def * 2,
             speed = speed,
             realmLayer = clampedLayer
         )

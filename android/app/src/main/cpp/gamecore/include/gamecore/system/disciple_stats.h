@@ -111,10 +111,10 @@ inline double effectValue(const std::map<std::string, double>& effects,
 // ── 装备最终属性（EquipmentInstance.getFinalStats） ─────────────────
 
 struct EquipmentStats {
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
+    // 单列口径（B1）：装备面板四列（EquipmentInstance 本体保留至 B3 退役）
+    // 在 equipmentFinalStats 出口合并为单列
+    int32_t attack = 0;
+    int32_t defense = 0;
     int32_t speed = 0;
     int32_t hp = 0;
     int32_t mp = 0;
@@ -135,10 +135,10 @@ inline double nurtureMultiplier(int32_t nurtureLevel) {
 inline EquipmentStats equipmentFinalStats(const EquipmentInstance& eq) {
     const double m = nurtureMultiplier(eq.nurtureLevel);
     EquipmentStats s;
-    s.physicalAttack = static_cast<int32_t>(eq.physicalAttack * m);
-    s.magicAttack = static_cast<int32_t>(eq.magicAttack * m);
-    s.physicalDefense = static_cast<int32_t>(eq.physicalDefense * m);
-    s.magicDefense = static_cast<int32_t>(eq.magicDefense * m);
+    s.attack = static_cast<int32_t>(eq.physicalAttack * m) +
+               static_cast<int32_t>(eq.magicAttack * m);
+    s.defense = static_cast<int32_t>(eq.physicalDefense * m) +
+                static_cast<int32_t>(eq.magicDefense * m);
     s.speed = static_cast<int32_t>(eq.speed * m);
     s.hp = static_cast<int32_t>(eq.hp * m);
     s.mp = static_cast<int32_t>(eq.mp * m);
@@ -307,10 +307,8 @@ inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
     in.realmLayer = d.realmLayer;
     in.hpVariance = d.hpVariance;
     in.mpVariance = d.mpVariance;
-    in.physicalAttackVariance = d.physicalAttackVariance;
-    in.magicAttackVariance = d.magicAttackVariance;
-    in.physicalDefenseVariance = d.physicalDefenseVariance;
-    in.magicDefenseVariance = d.magicDefenseVariance;
+    in.attackVariance = d.attackVariance;
+    in.defenseVariance = d.defenseVariance;
     in.speedVariance = d.speedVariance;
     in.intelligence = d.intelligence;
     in.charm = d.charm;
@@ -359,10 +357,8 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
         total.hp += fs.hp;
         total.maxMp += fs.mp;
         total.mp += fs.mp;
-        total.physicalAttack += fs.physicalAttack;
-        total.magicAttack += fs.magicAttack;
-        total.physicalDefense += fs.physicalDefense;
-        total.magicDefense += fs.magicDefense;
+        total.attack += fs.attack;
+        total.defense += fs.defense;
         total.speed += fs.speed;
         totalCritRate += it->second.critChance;
     }
@@ -391,13 +387,14 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
         total.hp += static_cast<int32_t>(hpValue * masteryBonus);
         total.maxMp += static_cast<int32_t>(mpValue * masteryBonus);
         total.mp += static_cast<int32_t>(mpValue * masteryBonus);
-        total.physicalAttack += static_cast<int32_t>(
-            static_cast<double>(statOf("physicalAttack", "")) * masteryBonus);
-        total.magicAttack += static_cast<int32_t>(
+        // 功法保留物法双列数据（Q2），结算层各自 round 后相加（与 Kotlin 同式）
+        total.attack += static_cast<int32_t>(
+            static_cast<double>(statOf("physicalAttack", "")) * masteryBonus) +
+            static_cast<int32_t>(
             static_cast<double>(statOf("magicAttack", "")) * masteryBonus);
-        total.physicalDefense += static_cast<int32_t>(
-            static_cast<double>(statOf("physicalDefense", "")) * masteryBonus);
-        total.magicDefense += static_cast<int32_t>(
+        total.defense += static_cast<int32_t>(
+            static_cast<double>(statOf("physicalDefense", "")) * masteryBonus) +
+            static_cast<int32_t>(
             static_cast<double>(statOf("magicDefense", "")) * masteryBonus);
         total.speed += static_cast<int32_t>(
             static_cast<double>(statOf("speed", "")) * masteryBonus);
@@ -410,10 +407,8 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
         total.hp += d.pillHpBonus;
         total.maxMp += d.pillMpBonus;
         total.mp += d.pillMpBonus;
-        total.physicalAttack += d.pillPhysicalAttackBonus;
-        total.magicAttack += d.pillMagicAttackBonus;
-        total.physicalDefense += d.pillPhysicalDefenseBonus;
-        total.magicDefense += d.pillMagicDefenseBonus;
+        total.attack += d.pillAttackBonus;
+        total.defense += d.pillDefenseBonus;
         total.speed += d.pillSpeedBonus;
         totalCritRate += d.pillCritRateBonus;
     }

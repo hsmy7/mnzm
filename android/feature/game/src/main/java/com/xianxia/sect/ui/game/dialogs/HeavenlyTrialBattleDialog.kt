@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -344,8 +345,9 @@ private fun EnemyBasicInfo(enemy: Combatant) {
     Spacer(Modifier.height(2.dp))
     Text("${enemy.realmName}${enemy.realmLayer}层  HP:${enemy.hp}/${enemy.maxHp}  MP:${enemy.mp}/${enemy.maxMp}",
         fontSize = 10.sp, color = Color.Black)
-    Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} " +
-        "速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)
+    val typeName = if (enemy.innateDamageType == DamageType.MAGIC) "法术" else "物理"
+    Text("攻击${enemy.attack} 防御${enemy.defense} 速度${enemy.speed} 普攻$typeName",
+        fontSize = 10.sp, color = Color.Black)
 }
 
 /** 妖兽技能区 */

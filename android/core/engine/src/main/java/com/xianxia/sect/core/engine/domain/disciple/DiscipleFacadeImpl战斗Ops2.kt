@@ -20,10 +20,9 @@ import kotlinx.serialization.json.put
 /** 持续/临时战斗属性丹效果：面板加成 + 持续时间 */
 // ── DiscipleFacadeImpl 拆分域 2/2（行为零变更） ──
 internal fun MutableGameState.applyBattleAttrEffects(id: Int, effect: PillEffect, pill: Pill, rule: PillRule) {
-    discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
-    discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
-    discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
-    discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
+    // 单列口径（B1）：旧物法四列由 attackAddTotal/defenseAddTotal 归一化后写单列表
+    discipleTables.pillAttackBonuses[id] = effect.attackAddTotal
+    discipleTables.pillDefenseBonuses[id] = effect.defenseAddTotal
     discipleTables.pillHpBonuses[id] = effect.hpAdd
     discipleTables.pillMpBonuses[id] = effect.mpAdd
     discipleTables.pillSpeedBonuses[id] = effect.speedAdd
@@ -75,10 +74,8 @@ internal fun MutableGameState.applyHealEffect(id: Int, effect: PillEffect) {
 /** 清除丹药效果 */
 
 internal fun MutableGameState.applyClearAllEffect(id: Int) {
-    discipleTables.pillPhysicalAttackBonuses[id] = 0
-    discipleTables.pillMagicAttackBonuses[id] = 0
-    discipleTables.pillPhysicalDefenseBonuses[id] = 0
-    discipleTables.pillMagicDefenseBonuses[id] = 0
+    discipleTables.pillAttackBonuses[id] = 0
+    discipleTables.pillDefenseBonuses[id] = 0
     discipleTables.pillHpBonuses[id] = 0
     discipleTables.pillMpBonuses[id] = 0
     discipleTables.pillSpeedBonuses[id] = 0

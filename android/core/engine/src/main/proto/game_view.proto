@@ -149,19 +149,20 @@ message DiscipleRow {
   optional int32 equipmentNurturingCompletionPhase = 32;
 
   // ── CombatAttributes（C++/JSON 协议为扁平字段，本消息同构扁平）──
+  // 属性单列口径（装备重构 B1，方案 §15）：旧物法双列 35-38/42-45 退役 reserved；
+  // 新单列 113-117。C++/Kotlin 同发同版（JNI 镜像协议），旧号不再写出。
+  reserved 35, 36, 37, 38, 42, 43, 44, 45;
   optional int32 baseHp = 33;
   optional int32 baseMp = 34;
-  optional int32 basePhysicalAttack = 35;
-  optional int32 baseMagicAttack = 36;
-  optional int32 basePhysicalDefense = 37;
-  optional int32 baseMagicDefense = 38;
+  optional int32 baseAttack = 113;
+  optional int32 baseDefense = 114;
   optional int32 baseSpeed = 39;
   optional int32 hpVariance = 40;
   optional int32 mpVariance = 41;
-  optional int32 physicalAttackVariance = 42;
-  optional int32 magicAttackVariance = 43;
-  optional int32 physicalDefenseVariance = 44;
-  optional int32 magicDefenseVariance = 45;
+  optional int32 attackVariance = 116;
+  optional int32 defenseVariance = 117;
+  /// 固有伤害属性（"PHYSICAL"/"MAGIC"；空串 = 存量旧弟子按模板/灵根派生）
+  optional string innateDamageType = 115;
   optional int32 speedVariance = 46;
   optional int64 totalCultivation = 47;
   optional int32 breakthroughCount = 48;
@@ -171,10 +172,10 @@ message DiscipleRow {
   optional int32 currentMp = 51;
 
   // ── PillEffects ────────────────────────────────────────
-  optional int32 pillPhysicalAttackBonus = 52;
-  optional int32 pillMagicAttackBonus = 53;
-  optional int32 pillPhysicalDefenseBonus = 54;
-  optional int32 pillMagicDefenseBonus = 55;
+  // 丹药攻防加成单列（B1）：旧四列 52-55 退役 reserved，新单列 118-119
+  reserved 52, 53, 54, 55;
+  optional int32 pillAttackBonus = 118;
+  optional int32 pillDefenseBonus = 119;
   optional int32 pillHpBonus = 56;
   optional int32 pillMpBonus = 57;
   optional int32 pillSpeedBonus = 58;

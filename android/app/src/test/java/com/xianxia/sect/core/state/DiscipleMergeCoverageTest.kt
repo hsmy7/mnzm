@@ -72,15 +72,15 @@ class DiscipleMergeCoverageTest {
      * 新增 getter/委托属性时加到这里（通常这些属性名与主构造函数字段不同）。
      */
     private val computedProps = setOf(
-        // --- 委托到 @Embedded 组件的属性 ---
-        "baseHp", "baseMp", "basePhysicalAttack", "baseMagicAttack",
-        "basePhysicalDefense", "baseMagicDefense", "baseSpeed",
-        "hpVariance", "mpVariance", "physicalAttackVariance", "magicAttackVariance",
-        "physicalDefenseVariance", "magicDefenseVariance", "speedVariance",
+        // --- 委托到 @Embedded 组件的属性（单列口径 B1：attack/defense 各一列） ---
+        "baseHp", "baseMp", "baseAttack",
+        "baseDefense", "baseSpeed",
+        "hpVariance", "mpVariance", "attackVariance",
+        "defenseVariance", "speedVariance",
+        "innateDamageType",
         "totalCultivation", "breakthroughCount", "breakthroughFailCount",
         "currentHp", "currentMp",
-        "pillPhysicalAttackBonus", "pillMagicAttackBonus", "pillPhysicalDefenseBonus",
-        "pillMagicDefenseBonus", "pillHpBonus", "pillMpBonus", "pillSpeedBonus",
+        "pillAttackBonus", "pillDefenseBonus", "pillHpBonus", "pillMpBonus", "pillSpeedBonus",
         "pillEffectDuration", "pillCritRateBonus", "pillCritEffectBonus",
         "pillCultivationSpeedBonus", "pillSkillExpSpeedBonus", "pillNurtureSpeedBonus",
         "activePillCategory",
@@ -93,14 +93,13 @@ class DiscipleMergeCoverageTest {
         "salaryPaidCount", "salaryMissedCount",
         "monthlyUsedPillIds",
         "recruitedMonth", "hasReviveEffect", "hasClearAllEffect",
-        // --- 计算属性 ---
+        // --- 计算属性（单列口径 B1：物法四 getter 收敛为 attack/defense） ---
         "canCultivate", "realmName", "realmNameOnly", "maxCultivation",
         "cultivationProgress", "spiritRoot", "spiritRootName",
-        "physicalAttack", "physicalDefense", "magicAttack", "magicDefense",
+        "attack", "defense",
         "speed", "maxHp", "maxMp", "hpPercent", "mpPercent",
         "equippedItems", "learnedManuals",
         "genderName", "genderSymbol",
-        "aptitude",
         // @Ignore 字段（不参与 Room 持久化，需单独登记核对）
         "lifeEvents"
     )

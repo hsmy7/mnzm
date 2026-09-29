@@ -17,13 +17,11 @@ import com.xianxia.sect.core.model.pillCritEffectBonus
 import com.xianxia.sect.core.model.pillCritRateBonus
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
+import com.xianxia.sect.core.model.pillAttackBonus
+import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillHpBonus
-import com.xianxia.sect.core.model.pillMagicAttackBonus
-import com.xianxia.sect.core.model.pillMagicDefenseBonus
 import com.xianxia.sect.core.model.pillMpBonus
 import com.xianxia.sect.core.model.pillNurtureSpeedBonus
-import com.xianxia.sect.core.model.pillPhysicalAttackBonus
-import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -154,10 +152,9 @@ class PillEffectApplier @Inject constructor() {
 
         return disciple.copy(
             pillEffects = disciple.pillEffects.copy(
-                pillPhysicalAttackBonus = effect.physicalAttackAdd,
-                pillMagicAttackBonus = effect.magicAttackAdd,
-                pillPhysicalDefenseBonus = effect.physicalDefenseAdd,
-                pillMagicDefenseBonus = effect.magicDefenseAdd,
+                // 单列口径（B1）：旧物法四列经 attackAddTotal/defenseAddTotal 归一化
+                pillAttackBonus = effect.attackAddTotal,
+                pillDefenseBonus = effect.defenseAddTotal,
                 pillHpBonus = effect.hpAdd,
                 pillMpBonus = effect.mpAdd,
                 pillSpeedBonus = effect.speedAdd,

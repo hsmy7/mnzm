@@ -34,10 +34,10 @@ object ItemDatabase {
         val nurtureAdd: Int = 0,
         val duration: Int = 3,
         val cannotStack: Boolean = true,
-        val physicalAttackAdd: Int = 0,
-        val magicAttackAdd: Int = 0,
-        val physicalDefenseAdd: Int = 0,
-        val magicDefenseAdd: Int = 0,
+        // 攻防加成单列口径（B1）：物法攻合并进 attackAdd、物法防合并进 defenseAdd；
+        // pillType 保留物法身份字符串（丹药种类/价格/文案不变，效果等价归并）
+        val attackAdd: Int = 0,
+        val defenseAdd: Int = 0,
         val hpAdd: Int = 0,
         val mpAdd: Int = 0,
         val speedAdd: Int = 0,
@@ -352,10 +352,10 @@ object ItemDatabase {
                         price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                         duration = 3,
                         cannotStack = true,
-                        physicalAttackAdd = if (pillType == "physicalAttack") val_ else 0,
-                        magicAttackAdd = if (pillType == "magicAttack") val_ else 0,
-                        physicalDefenseAdd = if (pillType == "physicalDefense") val_ else 0,
-                        magicDefenseAdd = if (pillType == "magicDefense") val_ else 0,
+                        attackAdd = (if (pillType == "physicalAttack") val_ else 0) +
+                            (if (pillType == "magicAttack") val_ else 0),
+                        defenseAdd = (if (pillType == "physicalDefense") val_ else 0) +
+                            (if (pillType == "magicDefense") val_ else 0),
                         hpAdd = if (pillType == "hp") val_ else 0,
                         mpAdd = if (pillType == "mp") val_ else 0,
                         speedAdd = if (pillType == "speed") val_ else 0,
@@ -422,14 +422,14 @@ object ItemDatabase {
                         price = (tierPrice(tier) * 1.2 * grade.priceMultiplier).roundToInt(),
                         duration = 3,
                         cannotStack = true,
-                        physicalAttackAdd = if (config.attr1 == "physicalAttack") v1 else if (config
-                            .attr2 == "physicalAttack") v2 else 0,
-                        magicAttackAdd = if (config.attr1 == "magicAttack") v1 else if (config
-                            .attr2 == "magicAttack") v2 else 0,
-                        physicalDefenseAdd = if (config.attr1 == "physicalDefense") v1 else if (config
-                            .attr2 == "physicalDefense") v2 else 0,
-                        magicDefenseAdd = if (config.attr1 == "magicDefense") v1 else if (config
-                            .attr2 == "magicDefense") v2 else 0,
+                        attackAdd = (if (config.attr1 == "physicalAttack") v1 else if (config
+                            .attr2 == "physicalAttack") v2 else 0) +
+                            (if (config.attr1 == "magicAttack") v1 else if (config
+                                .attr2 == "magicAttack") v2 else 0),
+                        defenseAdd = (if (config.attr1 == "physicalDefense") v1 else if (config
+                            .attr2 == "physicalDefense") v2 else 0) +
+                            (if (config.attr1 == "magicDefense") v1 else if (config
+                                .attr2 == "magicDefense") v2 else 0),
                         hpAdd = if (config.attr1 == "hp") v1 else if (config.attr2 == "hp") v2 else 0,
                         mpAdd = if (config.attr1 == "mp") v1 else if (config.attr2 == "mp") v2 else 0,
                         speedAdd = if (config.attr1 == "speed") v1 else if (config.attr2 == "speed") v2 else 0,
@@ -686,10 +686,8 @@ object ItemDatabase {
                 nurtureAdd = template.nurtureAdd,
                 duration = template.duration,
                 cannotStack = template.cannotStack,
-                physicalAttackAdd = template.physicalAttackAdd,
-                magicAttackAdd = template.magicAttackAdd,
-                physicalDefenseAdd = template.physicalDefenseAdd,
-                magicDefenseAdd = template.magicDefenseAdd,
+                attackAdd = template.attackAdd,
+                defenseAdd = template.defenseAdd,
                 hpAdd = template.hpAdd,
                 mpAdd = template.mpAdd,
                 speedAdd = template.speedAdd,

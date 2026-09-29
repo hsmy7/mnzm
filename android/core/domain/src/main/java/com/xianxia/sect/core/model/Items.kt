@@ -328,11 +328,14 @@ data class EquipmentStats(
         )
     }
 
+    /**
+     * 单列映射（B1，方案 §15.4）：装备物攻/法攻相加进 attack、物防/法防相加进
+     * defense（旧值取和口径，与迁移回填一致）；四列字段本体在 B3 装备体系
+     * 替换批退役。
+     */
     fun toDiscipleStats(): DiscipleStats = DiscipleStats(
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
+        attack = physicalAttack + magicAttack,
+        defense = physicalDefense + magicDefense,
         speed = speed,
         hp = hp,
         maxHp = hp,
@@ -805,10 +808,8 @@ data class Pill(
     val nurtureAdd: Int get() = effects.nurtureAdd
     val duration: Int get() = effects.duration
     val cannotStack: Boolean get() = effects.cannotStack
-    val physicalAttackAdd: Int get() = effects.physicalAttackAdd
-    val magicAttackAdd: Int get() = effects.magicAttackAdd
-    val physicalDefenseAdd: Int get() = effects.physicalDefenseAdd
-    val magicDefenseAdd: Int get() = effects.magicDefenseAdd
+    val attackAdd: Int get() = effects.attackAddTotal
+    val defenseAdd: Int get() = effects.defenseAddTotal
     val hpAdd: Int get() = effects.hpAdd
     val mpAdd: Int get() = effects.mpAdd
     val speedAdd: Int get() = effects.speedAdd
@@ -896,10 +897,21 @@ data class PillEffect(
     @ProtoNumber(9) val nurtureAdd: Int = 0,
     @ProtoNumber(10) val duration: Int = 3,
     @ProtoNumber(11) val cannotStack: Boolean = true,
+    // ── 攻防加成单列口径（B1，方案 §15.4）──
+    // 新写入 attackAdd(36)/defenseAdd(37)；旧物法四列（12–15）保留声明仅作旧档
+    // 归一化读取（不再写入），消费点一律读 [attackAddTotal]/[defenseAddTotal]。
+    @Deprecated("旧物攻加成，仅旧档归一化读取；改用 attackAddTotal")
     @ProtoNumber(12) val physicalAttackAdd: Int = 0,
+    @Deprecated("旧法攻加成，仅旧档归一化读取")
     @ProtoNumber(13) val magicAttackAdd: Int = 0,
+    @Deprecated("旧物防加成，仅旧档归一化读取")
     @ProtoNumber(14) val physicalDefenseAdd: Int = 0,
+    @Deprecated("旧法防加成，仅旧档归一化读取")
     @ProtoNumber(15) val magicDefenseAdd: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    @ProtoNumber(36) val attackAdd: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    @ProtoNumber(37) val defenseAdd: Int = 0,
     @ProtoNumber(16) val hpAdd: Int = 0,
     @ProtoNumber(17) val mpAdd: Int = 0,
     @ProtoNumber(18) val speedAdd: Int = 0,
@@ -920,7 +932,13 @@ data class PillEffect(
     @ProtoNumber(33) val mpRecoverMaxMpPercent: Double = 0.0,
     @ProtoNumber(34) val revive: Boolean = false,
     @ProtoNumber(35) val clearAll: Boolean = false
-)
+) {
+    /** 有效攻击加成：新单列值 + 旧物法两列归一化（旧档 12/13 有值、新档恒 0） */
+    val attackAddTotal: Int get() = attackAdd + physicalAttackAdd + magicAttackAdd
+
+    /** 有效防御加成：口径同 [attackAddTotal] */
+    val defenseAddTotal: Int get() = defenseAdd + physicalDefenseAdd + magicDefenseAdd
+}
 
 @Keep
 @Serializable

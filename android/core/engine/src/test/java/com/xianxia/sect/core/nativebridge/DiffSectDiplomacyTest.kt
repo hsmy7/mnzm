@@ -144,11 +144,12 @@ class DiffSectDiplomacyTest {
             Case(0, 0, 0, 0, 0, 0),
             Case(-10, 50, 50, 30, 30, 5),
         )) {
+            // 单列口径（B1）：attack = 旧物+法（测试 Case 里 patk/matk 同值）
             val kotlinPower = SectCombatPowerCalculator.calculateBeastCombatPower(
-                c.maxHp, c.patk, c.matk, c.pdef, c.mdef, c.speed)
+                c.maxHp, c.patk, c.pdef, c.speed)
             val r = cppExec(ActionIds.SECT_POWER_BEAST, buildJsonObject {
-                put("maxHp", c.maxHp); put("physicalAttack", c.patk); put("magicAttack", c.matk)
-                put("physicalDefense", c.pdef); put("magicDefense", c.mdef); put("speed", c.speed)
+                put("maxHp", c.maxHp); put("attack", c.patk);
+                put("defense", c.pdef); put("speed", c.speed)
             })
             assertSuccess(r)
             assertEquals("hp=${c.maxHp}", kotlinPower,
@@ -160,17 +161,15 @@ class DiffSectDiplomacyTest {
     fun `disciple power matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         val stats = DiscipleStats(
-            maxHp = 1200, physicalAttack = 150, magicAttack = 90,
-            physicalDefense = 80, magicDefense = 60, speed = 45)
+            maxHp = 1200, attack = 150, defense = 80, speed = 45)
         // 星级逐档同参对拍（口径 A）：0 = 未解锁/存量旧弟子、1 = 基线、2、5 = 上限
         for (star in listOf(0, 1, 2, 5)) {
             freshCore(42)
             val kotlinPower = SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
                 stats, star)
             val r = cppExec(ActionIds.SECT_POWER_DISCIPLE, buildJsonObject {
-                put("physicalAttack", 150); put("magicAttack", 90)
-                put("maxHp", 1200); put("physicalDefense", 80)
-                put("magicDefense", 60); put("speed", 45)
+                put("attack", 150)
+                put("maxHp", 1200); put("defense", 80); put("speed", 45)
                 put("star", star)
             })
             assertSuccess(r)
@@ -186,16 +185,16 @@ class DiffSectDiplomacyTest {
         val disciple = Disciple(
             id = "1", name = "张三", realm = 5, realmLayer = 3,
             combat = CombatAttributes(
-                hpVariance = 1, physicalAttackVariance = 2, magicAttackVariance = 3,
-                physicalDefenseVariance = 4, magicDefenseVariance = 5, speedVariance = 6,
+                hpVariance = 1, attackVariance = 2,
+                defenseVariance = 4, speedVariance = 6,
             ),
         )
         val aggregate = DiscipleAggregate.fromDisciple(disciple)
         val kotlinFp = SectCombatPowerCalculator.computeFingerprint(aggregate)
         val r = cppExec(ActionIds.SECT_POWER_FINGERPRINT, buildJsonObject {
             put("realm", 5); put("realmLayer", 3)
-            put("hpVariance", 1); put("physicalAttackVariance", 2); put("magicAttackVariance", 3)
-            put("physicalDefenseVariance", 4); put("magicDefenseVariance", 5); put("speedVariance", 6)
+            put("hpVariance", 1); put("attackVariance", 2)
+            put("defenseVariance", 4); put("speedVariance", 6)
         })
         assertSuccess(r)
         assertEquals(kotlinFp, int(r["data"]!!.jsonObject.getValue("fingerprint")))

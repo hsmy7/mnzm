@@ -136,6 +136,7 @@ add_executable(game-core-tests
     ai_sect_ops_test.cpp
     battle_test.cpp
     battle_calculator_test.cpp
+    single_column_stat_test.cpp  # B1 属性单列（S19）
     battle_ai_test.cpp
     battle_execution_test.cpp
     government_test.cpp

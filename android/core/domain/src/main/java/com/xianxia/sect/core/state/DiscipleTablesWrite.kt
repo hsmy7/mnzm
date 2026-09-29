@@ -7,12 +7,10 @@ import com.xianxia.sect.core.model.activePillCategory
 import com.xianxia.sect.core.model.armorId
 import com.xianxia.sect.core.model.armorNurture
 import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.baseAttack
+import com.xianxia.sect.core.model.baseDefense
 import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
 import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
 import com.xianxia.sect.core.model.baseSpeed
 import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.bootsNurture
@@ -24,26 +22,22 @@ import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.hasClearAllEffect
 import com.xianxia.sect.core.model.hasReviveEffect
+import com.xianxia.sect.core.model.attackVariance
+import com.xianxia.sect.core.model.defenseVariance
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
 import com.xianxia.sect.core.model.pillCritEffectBonus
 import com.xianxia.sect.core.model.pillCritRateBonus
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
+import com.xianxia.sect.core.model.pillAttackBonus
+import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillHpBonus
-import com.xianxia.sect.core.model.pillMagicAttackBonus
-import com.xianxia.sect.core.model.pillMagicDefenseBonus
 import com.xianxia.sect.core.model.pillMpBonus
 import com.xianxia.sect.core.model.pillNurtureSpeedBonus
-import com.xianxia.sect.core.model.pillPhysicalAttackBonus
-import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -101,15 +95,12 @@ internal fun DiscipleTables.writeCombatFields(id: Int, disciple: Disciple) {
     // 战斗属性
     val c = disciple.combat
     baseHps[id] = c.baseHp; baseMps[id] = c.baseMp
-    basePhysicalAttacks[id] = c.basePhysicalAttack
-    baseMagicAttacks[id] = c.baseMagicAttack
-    basePhysicalDefenses[id] = c.basePhysicalDefense
-    baseMagicDefenses[id] = c.baseMagicDefense; baseSpeeds[id] = c.baseSpeed
+    baseAttacks[id] = c.baseAttack; baseDefenses[id] = c.baseDefense
+    baseSpeeds[id] = c.baseSpeed
     hpVariances[id] = c.hpVariance; mpVariances[id] = c.mpVariance
-    physicalAttackVariances[id] = c.physicalAttackVariance
-    magicAttackVariances[id] = c.magicAttackVariance
-    physicalDefenseVariances[id] = c.physicalDefenseVariance
-    magicDefenseVariances[id] = c.magicDefenseVariance
+    attackVariances[id] = c.attackVariance
+    defenseVariances[id] = c.defenseVariance
+    innateDamageTypes[id] = c.innateDamageType
     speedVariances[id] = c.speedVariance; totalCultivations[id] = c.totalCultivation
     breakthroughCounts[id] = c.breakthroughCount
     breakthroughFailCounts[id] = c.breakthroughFailCount
@@ -119,10 +110,8 @@ internal fun DiscipleTables.writeCombatFields(id: Int, disciple: Disciple) {
 internal fun DiscipleTables.writePillFields(id: Int, disciple: Disciple) {
     // 丹药效果
     val p = disciple.pillEffects
-    pillPhysicalAttackBonuses[id] = p.pillPhysicalAttackBonus
-    pillMagicAttackBonuses[id] = p.pillMagicAttackBonus
-    pillPhysicalDefenseBonuses[id] = p.pillPhysicalDefenseBonus
-    pillMagicDefenseBonuses[id] = p.pillMagicDefenseBonus
+    pillAttackBonuses[id] = p.pillAttackBonus
+    pillDefenseBonuses[id] = p.pillDefenseBonus
     pillHpBonuses[id] = p.pillHpBonus; pillMpBonuses[id] = p.pillMpBonus
     pillSpeedBonuses[id] = p.pillSpeedBonus; pillEffectDurations[id] = p.pillEffectDuration
     pillCritRateBonuses[id] = p.pillCritRateBonus

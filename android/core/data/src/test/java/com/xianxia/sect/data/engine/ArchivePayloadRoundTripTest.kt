@@ -89,7 +89,9 @@ class ArchivePayloadRoundTripTest {
         combat = CombatAttributes(
             baseHp = 5000,
             baseMp = 1200,
-            basePhysicalAttack = 320,
+            baseAttack = 320,
+            baseDefense = 180,
+            innateDamageType = "PHYSICAL",
             baseSpeed = 44,
             totalCultivation = 987654321L,
             breakthroughCount = 6,

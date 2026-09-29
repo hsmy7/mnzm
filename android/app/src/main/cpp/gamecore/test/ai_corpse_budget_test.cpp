@@ -31,8 +31,7 @@ Disciple makeDisciple(const std::string& id, bool alive, int deathYear,
     d.isAlive = alive;
     d.deathYear = deathYear;
     if (!alive) d.status = "DEAD";
-    d.basePhysicalAttack = static_cast<int32_t>(power);
-    d.baseMagicAttack = 0;
+    d.baseAttack = static_cast<int32_t>(power);
     d.baseHp = 0;
     return d;
 }

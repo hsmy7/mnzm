@@ -165,9 +165,9 @@ TEST(SecretRealmTest, BuildBeastPreGenStatsBasics) {
     const auto stats = buildSecretRealmBeastPreGenStats(rng, 9, "虎妖", false, 1);
     EXPECT_GE(stats.maxHp, 1);
     EXPECT_GE(stats.maxMp, 1);
-    EXPECT_GE(stats.physicalAttack, 1);
-    EXPECT_EQ(stats.physicalAttack, stats.magicAttack);   // Kotlin atk 两用
-    EXPECT_EQ(stats.physicalDefense, stats.magicDefense); // Kotlin def 两用
+    // 单列口径（B1）：物=法同源两半相加（≥2 = 单半 ≥1）
+    EXPECT_GE(stats.attack, 2);
+    EXPECT_GE(stats.defense, 2);
     EXPECT_EQ(stats.realmLayer, 1);
 }
 

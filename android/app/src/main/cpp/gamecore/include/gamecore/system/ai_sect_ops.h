@@ -530,11 +530,15 @@ inline gamecore::battle::BattleState aiCreateBattle(
     b.maxHp = b.hp;
     b.mp = std::max(beast.beastMaxMp, 0);
     b.maxMp = b.mp;
-    b.physicalAttack = std::max(beast.beastPhysicalAttack, 0);
-    b.magicAttack = std::max(beast.beastMagicAttack, 0);
-    b.physicalDefense = std::max(beast.beastPhysicalDefense, 0);
-    b.magicDefense = std::max(beast.beastMagicDefense, 0);
+    // 单列口径（B1）
+    b.attack = std::max(beast.beastAttack, 0);
+    b.defense = std::max(beast.beastDefense, 0);
     b.speed = std::max(beast.beastSpeed, 0);
+    // 妖兽伤害类型按种类元素固定（§15.3）
+    b.innateDamageType =
+        (type.element == "metal" || type.element == "earth")
+            ? gamecore::battle::DamageType::kPhysical
+            : gamecore::battle::DamageType::kMagic;
     b.critRate = 0.05 + realmIndex * 0.01;
     b.realm = realmIndex;
     b.realmLayer = beast.realmLayer;

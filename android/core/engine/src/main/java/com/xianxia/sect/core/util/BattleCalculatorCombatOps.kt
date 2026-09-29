@@ -113,15 +113,15 @@ fun BattleCalculator.selectTarget(
     }
 
     val highThreatTargets = targets.filter { target ->
-        target.skills.isNotEmpty() && target.effectivePhysicalAttack > attacker.effectivePhysicalDefense
+        target.skills.isNotEmpty() && target.attack > attacker.defense
     }
     if (highThreatTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_HIGH_THREAT) {
         return highThreatTargets[rng.nextInt(highThreatTargets.size)]
     }
 
+    // 单列口径（B1）：防御单列，类型差异由类型减伤桶承载
     val lowDefenseTargets = targets.filter { target ->
-        val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0
-        avgDefense < attacker.effectivePhysicalAttack * 0.5
+        target.defense < attacker.attack * 0.5
     }
     if (lowDefenseTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_LOW_DEFENSE) {
         return lowDefenseTargets[rng.nextInt(lowDefenseTargets.size)]
@@ -356,7 +356,7 @@ internal fun BattleCalculator.tryDodge(
         damage = 0,
         isCrit = false,
         isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
-        else attacker.physicalAttack >= attacker.magicAttack,
+        else attacker.innateDamageType == DamageType.PHYSICAL,
         isDodged = true,
         skillName = skill?.name,
         hits = skill?.hits ?: 1

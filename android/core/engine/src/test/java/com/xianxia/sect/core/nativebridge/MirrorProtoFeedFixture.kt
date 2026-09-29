@@ -96,18 +96,17 @@ internal object MirrorProtoFeedFixture {
     }
 
     private fun richCombat(): CombatAttributes = CombatAttributes(
-        baseHp = 500, baseMp = 300, basePhysicalAttack = 61, baseMagicAttack = 57,
-        basePhysicalDefense = 48, baseMagicDefense = 44, baseSpeed = 39,
-        hpVariance = 12, mpVariance = 9, physicalAttackVariance = 7,
-        magicAttackVariance = 5, physicalDefenseVariance = 4,
-        magicDefenseVariance = 3, speedVariance = 2,
+        baseHp = 500, baseMp = 300, baseAttack = 61,
+        baseDefense = 48, baseSpeed = 39,
+        hpVariance = 12, mpVariance = 9, attackVariance = 7,
+        defenseVariance = 4, speedVariance = 2,
         totalCultivation = 9999999L, breakthroughCount = 2, breakthroughFailCount = 1,
         currentHp = -1, currentMp = 120,
     )
 
     private fun richPillEffects(): PillEffects = PillEffects(
-        pillPhysicalAttackBonus = 11, pillMagicAttackBonus = 12,
-        pillPhysicalDefenseBonus = 13, pillMagicDefenseBonus = 14,
+        pillAttackBonus = 11,
+        pillDefenseBonus = 13,
         pillHpBonus = 15, pillMpBonus = 16, pillSpeedBonus = 17,
         pillCritRateBonus = 0.05, pillCritEffectBonus = 0.06,
         pillCultivationSpeedBonus = 0.07, pillSkillExpSpeedBonus = 0.08,

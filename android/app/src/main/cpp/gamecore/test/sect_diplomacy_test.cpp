@@ -99,23 +99,24 @@ TEST(SectDiplomacyTest, PowerScoreTiers) {
 // ── 战力计算 ──────────────────────────────────────────────────
 
 TEST(SectDiplomacyTest, DiscipleCombatPowerFormula) {
-    // (100+80)*5 + 1000*4 + (60+50)*3 + 40*2 = 900 + 4000 + 330 + 80 = 5310
-    EXPECT_EQ(discipleCombatPower(100, 80, 1000, 60, 50, 40), 5310);
-    EXPECT_EQ(discipleCombatPower(0, 0, 0, 0, 0, 0), 0);
+    // 单列口径（B1）：180*5 + 1000*4 + 110*3 + 40*2 = 900 + 4000 + 330 + 80 = 5310
+    //（与旧双列 (100+80)/(60+50) 取和口径线性等价）
+    EXPECT_EQ(discipleCombatPower(180, 1000, 110, 40), 5310);
+    EXPECT_EQ(discipleCombatPower(0, 0, 0, 0), 0);
 }
 
 TEST(SectDiplomacyTest, BeastCombatPowerClampsNegative) {
-    EXPECT_EQ(beastCombatPower(-5, 10, 10, 5, 5, 2), (10 + 10) * 5 + 0 * 4 + (5 + 5) * 3 + 2 * 2);
-    EXPECT_EQ(beastCombatPower(0, -1, -1, -1, -1, -1), 0);
+    EXPECT_EQ(beastCombatPower(-5, 20, 10, 2), 20 * 5 + 0 * 4 + 10 * 3 + 2 * 2);
+    EXPECT_EQ(beastCombatPower(0, -1, -1, -1), 0);
 }
 
 TEST(SectDiplomacyTest, FingerprintDeterministic) {
-    const int32_t a = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6);
-    const int32_t b = sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 6);
+    const int32_t a = sectPowerFingerprint(5, 3, 1, 2, 4, 6);
+    const int32_t b = sectPowerFingerprint(5, 3, 1, 2, 4, 6);
     EXPECT_EQ(a, b);
     // 任一字段变化 → 指纹变化
-    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 3, 4, 5, 7));
-    EXPECT_NE(a, sectPowerFingerprint(6, 3, 1, 2, 3, 4, 5, 6));
+    EXPECT_NE(a, sectPowerFingerprint(5, 3, 1, 2, 4, 7));
+    EXPECT_NE(a, sectPowerFingerprint(6, 3, 1, 2, 4, 6));
 }
 
 // ── 品阶时间曲线 ──────────────────────────────────────────────

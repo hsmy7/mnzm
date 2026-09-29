@@ -159,32 +159,13 @@ inline const Combatant* selectAttackTarget(const Combatant& attacker,
     if (rng.nextDouble() < kProbTargetHighThreat) {
         return *std::max_element(
             alive.begin(), alive.end(),
-            [](const Combatant* a, const Combatant* b) {
-                return a->effectivePhysicalAttack() + a->effectiveMagicAttack() <
-                       b->effectivePhysicalAttack() + b->effectiveMagicAttack();
-            });
+            [](const Combatant* a, const Combatant* b) { return a->attack < b->attack; });
     }
+    // 单列口径（B1）：防御单列，物法技能同看 defense（类型差异走类型减伤桶）
     if (rng.nextDouble() < kProbTargetLowDef) {
-        if (skill && skill->damageType == DamageType::kMagic) {
-            return *std::min_element(
-                alive.begin(), alive.end(),
-                [](const Combatant* a, const Combatant* b) {
-                    return a->effectiveMagicDefense() < b->effectiveMagicDefense();
-                });
-        }
-        if (skill && skill->damageType == DamageType::kPhysical) {
-            return *std::min_element(
-                alive.begin(), alive.end(),
-                [](const Combatant* a, const Combatant* b) {
-                    return a->effectivePhysicalDefense() < b->effectivePhysicalDefense();
-                });
-        }
         return *std::min_element(
             alive.begin(), alive.end(),
-            [](const Combatant* a, const Combatant* b) {
-                return a->effectivePhysicalDefense() + a->effectiveMagicDefense() <
-                       b->effectivePhysicalDefense() + b->effectiveMagicDefense();
-            });
+            [](const Combatant* a, const Combatant* b) { return a->defense < b->defense; });
     }
     return alive.front();
 }
@@ -217,10 +198,7 @@ inline const Combatant* selectSupportTarget(const Combatant& caster,
     }
     return *std::min_element(
         candidates.begin(), candidates.end(),
-        [](const Combatant* a, const Combatant* b) {
-            return a->effectivePhysicalDefense() + a->effectiveMagicDefense() <
-                   b->effectivePhysicalDefense() + b->effectiveMagicDefense();
-        });
+        [](const Combatant* a, const Combatant* b) { return a->defense < b->defense; });
 }
 
 // ============================================================
@@ -283,10 +261,7 @@ inline std::optional<AIAction> findExecuteTarget(
     // 按威胁降序（stable_sort——Kotlin sortedByDescending 稳定）
     std::stable_sort(lowHp.begin(), lowHp.end(),
                      [](const Combatant* a, const Combatant* b) {
-                         return a->effectivePhysicalAttack() +
-                                    a->effectiveMagicAttack() >
-                                b->effectivePhysicalAttack() +
-                                    b->effectiveMagicAttack();
+                         return a->attack > b->attack;
                      });
     for (const auto* target : lowHp) {
         // 非 AOE 技能池在循环内重建（Kotlin for 循环内 filter 同语义）
@@ -443,8 +418,7 @@ inline std::optional<AIAction> findControlAction(
     const Combatant* target = *std::max_element(
         uncontrolled.begin(), uncontrolled.end(),
         [](const Combatant* a, const Combatant* b) {
-            return a->effectivePhysicalAttack() + a->effectiveMagicAttack() <
-                   b->effectivePhysicalAttack() + b->effectiveMagicAttack();
+            return a->attack < b->attack;
         });
     AIAction a;
     a.skill = *ccSkills.front();

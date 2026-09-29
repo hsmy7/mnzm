@@ -64,8 +64,6 @@ class SaveValidatorIntegrationTest {
             isAlive = true,
             equipment = EquipmentSet(weaponId = "ghost-sword"))
         val d2 = Disciple(
-            id = "d-1", name = "乙", realm = 9, realmLayer = 1, cultivation = 10.0,
-            isAlive = false,
             equipment = EquipmentSet(armorId = "ghost-armor"))
 
         val data = SaveData(

@@ -150,10 +150,14 @@ struct ItemEffect {
     int32_t hpAdd = 0;
     int32_t mpAdd = 0;
     int32_t extendLife = 0;
+    // 单列口径（B1）：旧物法四字段保留（旧档 JSON 归一化读取源），
+    // 消费点一律用 AttackAddTotal/DefenseAddTotal；新档写入只写新键
     int32_t physicalAttackAdd = 0;
     int32_t magicAttackAdd = 0;
     int32_t physicalDefenseAdd = 0;
     int32_t magicDefenseAdd = 0;
+    int32_t attackAdd = 0;
+    int32_t defenseAdd = 0;
     int32_t speedAdd = 0;
     double critRateAdd = 0.0;
     double critEffectAdd = 0.0;
@@ -174,6 +178,11 @@ struct ItemEffect {
     int32_t minRealm = 9;
     std::string pillCategory;
     std::string pillType;
+
+    /// 有效攻击加成：新单列值 + 旧物法两列归一化（旧档 14/15 有值、新档恒 0）
+    int32_t AttackAddTotal() const { return attackAdd + physicalAttackAdd + magicAttackAdd; }
+    /// 有效防御加成：口径同 AttackAddTotal
+    int32_t DefenseAddTotal() const { return defenseAdd + physicalDefenseAdd + magicDefenseAdd; }
 };
 
 /// StorageBagItem（弟子储物袋条目；effect/payload 为可选）
@@ -208,10 +217,13 @@ struct PillEffect {
     int32_t nurtureAdd = 0;
     int32_t duration = 3;
     bool cannotStack = true;
+    // 单列口径（B1）：旧物法四字段保留（归一化读取源），消费点用 AttackAddTotal
     int32_t physicalAttackAdd = 0;
     int32_t magicAttackAdd = 0;
     int32_t physicalDefenseAdd = 0;
     int32_t magicDefenseAdd = 0;
+    int32_t attackAdd = 0;
+    int32_t defenseAdd = 0;
     int32_t hpAdd = 0;
     int32_t mpAdd = 0;
     int32_t speedAdd = 0;
@@ -231,6 +243,10 @@ struct PillEffect {
     double mpRecoverMaxMpPercent = 0.0;
     bool revive = false;
     bool clearAll = false;
+    /// 有效攻击加成：新单列值 + 旧物法两列归一化
+    int32_t AttackAddTotal() const { return attackAdd + physicalAttackAdd + magicAttackAdd; }
+    /// 有效防御加成：口径同 AttackAddTotal
+    int32_t DefenseAddTotal() const { return defenseAdd + physicalDefenseAdd + magicDefenseAdd; }
 };
 
 struct Pill {
@@ -327,32 +343,29 @@ struct Disciple {
     int32_t equipmentNurturingCompletionMonth = 0;
     int32_t equipmentNurturingCompletionPhase = 1;
 
-    // ── CombatAttributes（@Embedded 平铺；字段名与 Kotlin 序列化一致） ──
+    // ── CombatAttributes（@Embedded 平铺；单列口径 B1，方案 §15）──
+    // 旧档 JSON 的物法双列键由 json_codec 读档归一化（基值取和/方差均值），
+    // 结构体只承载单列；innateDamageType 空 = 存量旧弟子按模板/灵根派生。
     int32_t baseHp = 120;
     int32_t baseMp = 60;
-    int32_t basePhysicalAttack = 12;
-    int32_t baseMagicAttack = 12;
-    int32_t basePhysicalDefense = 10;
-    int32_t baseMagicDefense = 8;
+    int32_t baseAttack = 24;
+    int32_t baseDefense = 18;
     int32_t baseSpeed = 15;
     int32_t hpVariance = 0;
     int32_t mpVariance = 0;
-    int32_t physicalAttackVariance = 0;
-    int32_t magicAttackVariance = 0;
-    int32_t physicalDefenseVariance = 0;
-    int32_t magicDefenseVariance = 0;
+    int32_t attackVariance = 0;
+    int32_t defenseVariance = 0;
     int32_t speedVariance = 0;
+    std::string innateDamageType;           // DamageType.name；空串 = 未派生
     int64_t totalCultivation = 0;
     int32_t breakthroughCount = 0;        // combat.breakthroughCount（历史成功次数）
     int32_t breakthroughFailCount = 0;
     int32_t currentHp = -1;               // -1 = 满血（向后兼容语义）
     int32_t currentMp = -1;
 
-    // ── PillEffects（@Embedded 平铺） ──
-    int32_t pillPhysicalAttackBonus = 0;
-    int32_t pillMagicAttackBonus = 0;
-    int32_t pillPhysicalDefenseBonus = 0;
-    int32_t pillMagicDefenseBonus = 0;
+    // ── PillEffects（@Embedded 平铺；单列口径 B1，旧四列由 json_codec 归一化） ──
+    int32_t pillAttackBonus = 0;
+    int32_t pillDefenseBonus = 0;
     int32_t pillHpBonus = 0;
     int32_t pillMpBonus = 0;
     int32_t pillSpeedBonus = 0;
@@ -1087,10 +1100,9 @@ struct WorldLevel {
     bool defeated = false;
     int32_t beastMaxHp = 0;
     int32_t beastMaxMp = 0;
-    int32_t beastPhysicalAttack = 0;
-    int32_t beastMagicAttack = 0;
-    int32_t beastPhysicalDefense = 0;
-    int32_t beastMagicDefense = 0;
+    // 单列口径（B1）：旧 JSON 物法四键由 data_json/json_codec 归一化取和
+    int32_t beastAttack = 0;
+    int32_t beastDefense = 0;
     int32_t beastSpeed = 0;
 };
 

@@ -93,13 +93,12 @@ inline int32_t gaussianInt(rng::DeterministicRng& rng, double mean, double sigma
 // ============================================================
 
 /// 六维方差 + 技能随机结果（聚合避免超长参数表）
+/// 单列口径（B1）：攻/防各一个方差
 struct DiscipleRolls {
     int32_t hpVariance = 0;
     int32_t mpVariance = 0;
-    int32_t physicalAttackVariance = 0;
-    int32_t magicAttackVariance = 0;
-    int32_t physicalDefenseVariance = 0;
-    int32_t magicDefenseVariance = 0;
+    int32_t attackVariance = 0;
+    int32_t defenseVariance = 0;
     int32_t speedVariance = 0;
     int32_t comprehension = 50;  // 灵根数阶梯直填（不消费 RNG）
     int32_t intelligence = 50;
@@ -112,15 +111,13 @@ struct DiscipleRolls {
     int32_t teaching = 50;
 };
 
-/// 六维方差（Kotlin rollVariances）：7 × gaussianInt(0, 16.667, -50, 50)
+/// 五维方差（Kotlin rollVariances；单列 B1）：5 × gaussianInt(0, 16.667, -50, 50)
 inline DiscipleRolls rollVariances(rng::DeterministicRng& rng) {
     DiscipleRolls out;
     out.hpVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
     out.mpVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
-    out.physicalAttackVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
-    out.magicAttackVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
-    out.physicalDefenseVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
-    out.magicDefenseVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
+    out.attackVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
+    out.defenseVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
     out.speedVariance = gaussianInt(rng, 0.0, 16.667, -50, 50);
     return out;
 }
@@ -156,19 +153,15 @@ inline DiscipleRolls rollSkills(rng::DeterministicRng& rng, int32_t comprehensio
 }
 
 /// 基础属性（Kotlin CombatAttributes.calculateBaseStatsWithVariance）：
-/// 120/60/12/12/10/8/15 × (1 + 方差/100) 截断——创建期基准，**非** realm
-/// 乘区（computeBaseStats 为 getBaseStats 路径，勿混用）
+/// 120/60/24/18/15 × (1 + 方差/100) 截断——创建期基准，**非** realm
+/// 乘区（computeBaseStats 为 getBaseStats 路径，勿混用）；单列口径 B1
 inline void applyBaseStats(state::Disciple& d, const DiscipleRolls& rolls) {
     d.baseHp = static_cast<int32_t>(120.0 * (1.0 + rolls.hpVariance / 100.0));
     d.baseMp = static_cast<int32_t>(60.0 * (1.0 + rolls.mpVariance / 100.0));
-    d.basePhysicalAttack =
-        static_cast<int32_t>(12.0 * (1.0 + rolls.physicalAttackVariance / 100.0));
-    d.baseMagicAttack =
-        static_cast<int32_t>(12.0 * (1.0 + rolls.magicAttackVariance / 100.0));
-    d.basePhysicalDefense =
-        static_cast<int32_t>(10.0 * (1.0 + rolls.physicalDefenseVariance / 100.0));
-    d.baseMagicDefense =
-        static_cast<int32_t>(8.0 * (1.0 + rolls.magicDefenseVariance / 100.0));
+    d.baseAttack =
+        static_cast<int32_t>(24.0 * (1.0 + rolls.attackVariance / 100.0));
+    d.baseDefense =
+        static_cast<int32_t>(18.0 * (1.0 + rolls.defenseVariance / 100.0));
     d.baseSpeed = static_cast<int32_t>(15.0 * (1.0 + rolls.speedVariance / 100.0));
 }
 
@@ -208,14 +201,12 @@ inline state::Disciple createDisciple(const DiscipleCreationSeed& seed,
     d.status = "IDLE";       // DiscipleStatus.IDLE
     d.discipleType = "outer";
 
-    // 1. 六维方差（7 × gaussianInt = 14 次 nextInt）
+    // 1. 五维方差（5 × gaussianInt = 10 次 nextInt；单列口径 B1）
     const DiscipleRolls rolls = rollVariances(rng);
     d.hpVariance = rolls.hpVariance;
     d.mpVariance = rolls.mpVariance;
-    d.physicalAttackVariance = rolls.physicalAttackVariance;
-    d.magicAttackVariance = rolls.magicAttackVariance;
-    d.physicalDefenseVariance = rolls.physicalDefenseVariance;
-    d.magicDefenseVariance = rolls.magicDefenseVariance;
+    d.attackVariance = rolls.attackVariance;
+    d.defenseVariance = rolls.defenseVariance;
     d.speedVariance = rolls.speedVariance;
 
     // 2. 灵根数量 → 悟性（1 次 nextInt）

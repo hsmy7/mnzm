@@ -423,10 +423,9 @@ TEST(BeastAssemblyTest, RealmStatsGoldenValues) {
     EXPECT_EQ(beast.maxHp, 1541);
     EXPECT_EQ(beast.mp, 593);
     EXPECT_EQ(beast.maxMp, 593);
-    EXPECT_EQ(beast.physicalAttack, 148);
-    EXPECT_EQ(beast.magicAttack, 148);
-    EXPECT_EQ(beast.physicalDefense, 55);
-    EXPECT_EQ(beast.magicDefense, 55);
+    // 单列口径（B1）：妖兽物=法同源两半相加（148×2 / 55×2）
+    EXPECT_EQ(beast.attack, 296);
+    EXPECT_EQ(beast.defense, 110);
     EXPECT_EQ(beast.speed, 57);
     EXPECT_DOUBLE_EQ(beast.critRate, 0.13);
     EXPECT_EQ(beast.realm, 8);
@@ -483,7 +482,7 @@ TEST(HumanEnemyTest, DeterministicGenerationAndPartitions) {
     auto e2 = mc::detail::generateHumanEnemies(8, 9, 2, rngs2.getRng(rng::RngPartition::kEnemyGen));
     EXPECT_EQ(e1[0].name, e2[0].name);
     EXPECT_EQ(e1[0].hp, e2[0].hp);
-    EXPECT_EQ(e1[0].physicalAttack, e2[0].physicalAttack);
+    EXPECT_EQ(e1[0].attack, e2[0].attack);
     EXPECT_EQ(e1[1].element, e2[1].element);
     // 技能兜底（无功法生成时默认普通攻击——概率性，仅断言非空或兜底）
     for (const auto& e : e1) {

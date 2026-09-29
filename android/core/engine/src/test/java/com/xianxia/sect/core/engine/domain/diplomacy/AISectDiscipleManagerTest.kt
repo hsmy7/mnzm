@@ -83,7 +83,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `truncateToLimit - 按战力降序保留强者`() {
-        // 战力 = basePhysicalAttack + baseMagicAttack + baseHp
+        // 战力 = baseAttack + baseAttack + baseHp
         // weak:   10 + 10 + 120 = 140
         // filler: 50 + 50 + 120 = 220
         // strong: 100 + 100 + 120 = 320
@@ -610,8 +610,7 @@ class AISectDiscipleManagerTest {
         isAlive = true,
         skills = com.xianxia.sect.core.model.SkillStats(comprehension = comprehension),
         combat = CombatAttributes(
-            basePhysicalAttack = 50,
-            baseMagicAttack = 50,
+            baseAttack = 50,
             baseHp = 120,
             baseMp = 80
         )
@@ -633,8 +632,7 @@ class AISectDiscipleManagerTest {
         return Disciple(
             id = id,
             combat = CombatAttributes(
-                basePhysicalAttack = actualPa,
-                baseMagicAttack = actualMa,
+                baseAttack = actualPa,
                 baseHp = actualHp
             )
         )

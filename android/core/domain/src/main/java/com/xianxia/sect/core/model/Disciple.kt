@@ -19,7 +19,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * 为保持代码清晰和可维护性，推荐直接通过 @Embedded 子组件访问属性：
  *
- * **战斗属性** → `disciple.combat.baseHp`, `disciple.combat.basePhysicalAttack` 等
+ * **战斗属性** → `disciple.combat.baseHp`, `disciple.combat.baseAttack` 等
  * **丹药效果** → `disciple.pillEffects.pillHpBonus`, `disciple.pillEffects.pillEffectDuration` 等
  * **装备数据** → `disciple.equipment.weaponId`, `disciple.equipment.spiritStones` 等
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
@@ -160,10 +160,8 @@ data class Disciple(
     val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)
     val spiritRootName: String get() = spiritRoot.name
 
-    val physicalAttack: Int get() = getBaseStats().physicalAttack
-    val physicalDefense: Int get() = getBaseStats().physicalDefense
-    val magicAttack: Int get() = getBaseStats().magicAttack
-    val magicDefense: Int get() = getBaseStats().magicDefense
+    val attack: Int get() = getBaseStats().attack
+    val defense: Int get() = getBaseStats().defense
     val speed: Int get() = getBaseStats().speed
     val maxHp: Int get() = getBaseStats().maxHp
     val maxMp: Int get() = getBaseStats().maxMp
@@ -185,15 +183,12 @@ data class Disciple(
         fun calculateBaseStatsWithVariance(
             hpVariance: Int,
             mpVariance: Int,
-            physicalAttackVariance: Int,
-            magicAttackVariance: Int,
-            physicalDefenseVariance: Int,
-            magicDefenseVariance: Int,
+            attackVariance: Int,
+            defenseVariance: Int,
             speedVariance: Int
         ): BaseCombatStats {
             return CombatAttributes.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
+                hpVariance, mpVariance, attackVariance, defenseVariance, speedVariance
             )
         }
     }
@@ -312,10 +307,8 @@ data class DiscipleStats(
     val maxHp: Int = 0,
     val mp: Int = 0,
     val maxMp: Int = 0,
-    val physicalAttack: Int = 0,
-    val magicAttack: Int = 0,
-    val physicalDefense: Int = 0,
-    val magicDefense: Int = 0,
+    val attack: Int = 0,
+    val defense: Int = 0,
     val speed: Int = 0,
     val critRate: Double = 0.0,
     val intelligence: Int = 0,
@@ -334,10 +327,8 @@ data class DiscipleStats(
             maxHp = maxHp + other.maxHp,
             mp = mp + other.mp,
             maxMp = maxMp + other.maxMp,
-            physicalAttack = physicalAttack + other.physicalAttack,
-            magicAttack = magicAttack + other.magicAttack,
-            physicalDefense = physicalDefense + other.physicalDefense,
-            magicDefense = magicDefense + other.magicDefense,
+            attack = attack + other.attack,
+            defense = defense + other.defense,
             speed = speed + other.speed,
             critRate = critRate + other.critRate,
             intelligence = intelligence + other.intelligence,
@@ -358,10 +349,8 @@ data class DiscipleStats(
 data class BaseCombatStats(
     val baseHp: Int = 120,
     val baseMp: Int = 60,
-    val basePhysicalAttack: Int = 12,
-    val baseMagicAttack: Int = 12,
-    val basePhysicalDefense: Int = 10,
-    val baseMagicDefense: Int = 8,
+    val baseAttack: Int = 24,
+    val baseDefense: Int = 18,
     val baseSpeed: Int = 15
 )
 
@@ -431,10 +420,20 @@ data class ItemEffect(
     @ProtoNumber(11) val hpAdd: Int = 0,
     @ProtoNumber(12) val mpAdd: Int = 0,
     @ProtoNumber(13) val extendLife: Int = 0,
+    // ── 攻防加成单列口径（B1，方案 §15.4）──
+    // 新写入字段为 attackAdd(39)/defenseAdd(40)；旧物法四列（14–17）保留声明
+    // 仅作旧档归一化读取（不再写入；新档恒 0），消费点一律读 [attackAddTotal]/
+    // [defenseAddTotal]。退役编号禁复用。
+    @Deprecated("旧物攻加成，仅旧档归一化读取；改用 attackAddTotal")
     @ProtoNumber(14) val physicalAttackAdd: Int = 0,
+    @Deprecated("旧法攻加成，仅旧档归一化读取；改用 attackAddTotal")
     @ProtoNumber(15) val magicAttackAdd: Int = 0,
+    @Deprecated("旧物防加成，仅旧档归一化读取；改用 defenseAddTotal")
     @ProtoNumber(16) val physicalDefenseAdd: Int = 0,
+    @Deprecated("旧法防加成，仅旧档归一化读取；改用 defenseAddTotal")
     @ProtoNumber(17) val magicDefenseAdd: Int = 0,
+    @ProtoNumber(39) val attackAdd: Int = 0,
+    @ProtoNumber(40) val defenseAdd: Int = 0,
     @ProtoNumber(18) val speedAdd: Int = 0,
     @ProtoNumber(19) val critRateAdd: Double = 0.0,
     @ProtoNumber(20) val critEffectAdd: Double = 0.0,
@@ -456,7 +455,16 @@ data class ItemEffect(
     @ProtoNumber(35) val minRealm: Int = 9,
     @ProtoNumber(36) val pillCategory: String = "",
     @ProtoNumber(37) val pillType: String = ""
-)
+) {
+    /**
+     * 有效攻击加成：新单列值 + 旧物法两列归一化（旧档 14/15 有值、新档恒 0，
+     * 线性相加对两代存档皆正确）。
+     */
+    val attackAddTotal: Int get() = attackAdd + physicalAttackAdd + magicAttackAdd
+
+    /** 有效防御加成：口径同 [attackAddTotal] */
+    val defenseAddTotal: Int get() = defenseAdd + physicalDefenseAdd + magicDefenseAdd
+}
 
 @Keep
 @Serializable

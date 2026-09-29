@@ -74,10 +74,8 @@ class DiffLevelGeneratorTest {
             defeated = this["defeated"]!!.jsonPrimitive.content.toBoolean(),
             beastMaxHp = this["beastMaxHp"]!!.jsonPrimitive.content.toInt(),
             beastMaxMp = this["beastMaxMp"]!!.jsonPrimitive.content.toInt(),
-            beastPhysicalAttack = this["beastPhysicalAttack"]!!.jsonPrimitive.content.toInt(),
-            beastMagicAttack = this["beastMagicAttack"]!!.jsonPrimitive.content.toInt(),
-            beastPhysicalDefense = this["beastPhysicalDefense"]!!.jsonPrimitive.content.toInt(),
-            beastMagicDefense = this["beastMagicDefense"]!!.jsonPrimitive.content.toInt(),
+            beastAttack = this["beastAttack"]!!.jsonPrimitive.content.toInt(),
+            beastDefense = this["beastDefense"]!!.jsonPrimitive.content.toInt(),
             beastSpeed = this["beastSpeed"]!!.jsonPrimitive.content.toInt(),
         )
     }
@@ -99,10 +97,10 @@ class DiffLevelGeneratorTest {
         assertEquals("$tag caveImageIndex", k.caveImageIndex, c.caveImageIndex)
         assertEquals("$tag beastMaxHp", k.beastMaxHp, c.beastMaxHp)
         assertEquals("$tag beastMaxMp", k.beastMaxMp, c.beastMaxMp)
-        assertEquals("$tag beastPhysicalAttack", k.beastPhysicalAttack, c.beastPhysicalAttack)
-        assertEquals("$tag beastMagicAttack", k.beastMagicAttack, c.beastMagicAttack)
-        assertEquals("$tag beastPhysicalDefense", k.beastPhysicalDefense, c.beastPhysicalDefense)
-        assertEquals("$tag beastMagicDefense", k.beastMagicDefense, c.beastMagicDefense)
+        assertEquals("$tag beastAttack", k.beastAttack, c.beastAttack)
+        assertEquals("$tag beastAttack", k.beastAttack, c.beastAttack)
+        assertEquals("$tag beastDefense", k.beastDefense, c.beastDefense)
+        assertEquals("$tag beastDefense", k.beastDefense, c.beastDefense)
         assertEquals("$tag beastSpeed", k.beastSpeed, c.beastSpeed)
     }
 

@@ -60,31 +60,26 @@ enum class DiscipleColumn : uint16_t {
     ManualCompletionPhase,
     EquipmentNurturingCompletionMonth,
     EquipmentNurturingCompletionPhase,
-    // CombatAttributes
+    // CombatAttributes（单列口径 B1）
     BaseHp,
     BaseMp,
-    BasePhysicalAttack,
-    BaseMagicAttack,
-    BasePhysicalDefense,
-    BaseMagicDefense,
+    BaseAttack,
+    BaseDefense,
     BaseSpeed,
     HpVariance,
     MpVariance,
-    PhysicalAttackVariance,
-    MagicAttackVariance,
-    PhysicalDefenseVariance,
-    MagicDefenseVariance,
+    AttackVariance,
+    DefenseVariance,
+    InnateDamageType,
     SpeedVariance,
     TotalCultivation,
     BreakthroughCount,
     BreakthroughFailCount,
     CurrentHp,
     CurrentMp,
-    // PillEffects
-    PillPhysicalAttackBonus,
-    PillMagicAttackBonus,
-    PillPhysicalDefenseBonus,
-    PillMagicDefenseBonus,
+    // PillEffects（单列口径 B1）
+    PillAttackBonus,
+    PillDefenseBonus,
     PillHpBonus,
     PillMpBonus,
     PillSpeedBonus,
@@ -180,18 +175,15 @@ public:
     // ── CombatAttributes 列 ──
     std::vector<int32_t> baseHps;
     std::vector<int32_t> baseMps;
-    std::vector<int32_t> basePhysicalAttacks;
-    std::vector<int32_t> baseMagicAttacks;
-    std::vector<int32_t> basePhysicalDefenses;
-    std::vector<int32_t> baseMagicDefenses;
+    std::vector<int32_t> baseAttacks;
+    std::vector<int32_t> baseDefenses;
     std::vector<int32_t> baseSpeeds;
     std::vector<int32_t> hpVariances;
     std::vector<int32_t> mpVariances;
-    std::vector<int32_t> physicalAttackVariances;
-    std::vector<int32_t> magicAttackVariances;
-    std::vector<int32_t> physicalDefenseVariances;
-    std::vector<int32_t> magicDefenseVariances;
+    std::vector<int32_t> attackVariances;
+    std::vector<int32_t> defenseVariances;
     std::vector<int32_t> speedVariances;
+    std::vector<std::string> innateDamageTypes;
     std::vector<int64_t> totalCultivations;
     std::vector<int32_t> breakthroughCounts;
     std::vector<int32_t> breakthroughFailCounts;
@@ -199,10 +191,8 @@ public:
     std::vector<int32_t> currentMps;
 
     // ── PillEffects 列 ──
-    std::vector<int32_t> pillPhysicalAttackBonuses;
-    std::vector<int32_t> pillMagicAttackBonuses;
-    std::vector<int32_t> pillPhysicalDefenseBonuses;
-    std::vector<int32_t> pillMagicDefenseBonuses;
+    std::vector<int32_t> pillAttackBonuses;
+    std::vector<int32_t> pillDefenseBonuses;
     std::vector<int32_t> pillHpBonuses;
     std::vector<int32_t> pillMpBonuses;
     std::vector<int32_t> pillSpeedBonuses;

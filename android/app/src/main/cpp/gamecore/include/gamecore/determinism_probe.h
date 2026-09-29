@@ -34,7 +34,7 @@
 namespace gamecore::probe {
 
 /// golden 摘要（x86-64 llvm-mingw 桌面腿录制；跨架构必须逐位一致）
-inline constexpr uint64_t kGoldenDigest = 0xb4f3c6912207f597ULL;
+inline constexpr uint64_t kGoldenDigest = 0x8877d164f6bfe1fcULL;
 
 /// 探针转录版本戳（转录格式/场景变更时递增，强制 golden 重录）
 inline constexpr uint64_t kProbeVersion = 1;
@@ -128,10 +128,10 @@ inline battle::Combatant probeCombatant(const char* id, const char* name,
     c.maxHp = 1000;
     c.mp = 100;
     c.maxMp = 100;
-    c.physicalAttack = 120;
-    c.magicAttack = 100;
-    c.physicalDefense = 60;
-    c.magicDefense = 50;
+    c.attack = 120;
+    c.defense = 100;
+    c.defense = 60;
+    c.defense = 50;
     c.speed = speed;
     c.critRate = 0.15;
     c.realm = 9;

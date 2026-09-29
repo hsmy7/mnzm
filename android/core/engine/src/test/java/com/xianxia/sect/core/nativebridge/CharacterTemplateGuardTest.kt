@@ -191,6 +191,7 @@ class CharacterTemplateGuardTest {
             FIELD_SPIRIT_ROOTS to template.spiritRoots.joinToString(","),
             FIELD_AVATAR_KEY to template.avatarKey,
             FIELD_PORTRAIT_KEY to template.portraitKey,
+            FIELD_INNATE_DAMAGE_TYPE to template.innateDamageType,
         )
     }
 
@@ -541,11 +542,14 @@ class CharacterTemplateGuardTest {
         const val FIELD_SPIRIT_ROOTS = "spiritRoots"
         const val FIELD_AVATAR_KEY = "avatarKey"
         const val FIELD_PORTRAIT_KEY = "portraitKey"
+        // 固有伤害属性（B1 §15.3 Q1：普攻类型由模板固定）
+        const val FIELD_INNATE_DAMAGE_TYPE = "innateDamageType"
 
         /** 逐字段比对域：镜像表与产物模板对象共有的 6 个键 */
         val MIRRORED_FIELDS: Set<String> = setOf(
             FIELD_ID, FIELD_NAME, FIELD_GENDER, FIELD_SPIRIT_ROOTS, FIELD_AVATAR_KEY, FIELD_PORTRAIT_KEY,
-        )
+            FIELD_INNATE_DAMAGE_TYPE,
+)
 
         /**
          * 故意排除项：`spiritRootType` 是 [CharacterTemplate] 的只读派生属性

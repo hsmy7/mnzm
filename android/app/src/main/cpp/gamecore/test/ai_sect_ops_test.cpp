@@ -66,10 +66,9 @@ WorldLevel beastLevel(const std::string& id, int32_t count = 1) {
     w.count = count;
     w.beastMaxHp = 500;
     w.beastMaxMp = 100;
-    w.beastPhysicalAttack = 50;
-    w.beastMagicAttack = 50;
-    w.beastPhysicalDefense = 30;
-    w.beastMagicDefense = 30;
+    // 单列口径（B1）：取和等价（旧物+法各 50/30 ⇒ 100/60）
+    w.beastAttack = 100;
+    w.beastDefense = 60;
     w.beastSpeed = 20;
     w.spawnYear = 1;
     w.spawnMonth = 1;

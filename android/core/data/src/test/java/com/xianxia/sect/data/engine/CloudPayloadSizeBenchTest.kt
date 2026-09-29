@@ -238,8 +238,9 @@ class CloudPayloadSizeBenchTest {
             alchemyLevel = idx % 9, alchemyPromotionCount = idx % 5, forgeLevel = idx % 7
         ),
         combat = CombatAttributes(
-            baseHp = 1000 + idx * 7, baseMp = 500 + idx * 3, basePhysicalAttack = 50 + idx % 300,
-            baseSpeed = idx % 100, totalCultivation = 100_000L + idx, breakthroughCount = idx % 10,
+            baseHp = 1000 + idx * 7, baseMp = 500 + idx * 3, baseAttack = 50 + idx % 300,
+            baseDefense = 30 + idx % 200, baseSpeed = idx % 100, totalCultivation = 100_000L + idx,
+            breakthroughCount = idx % 10,
             breakthroughFailCount = idx % 3, currentHp = 1000 + idx * 7, currentMp = 500
         ),
         usage = UsageTracking(

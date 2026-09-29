@@ -102,20 +102,18 @@ fun CombatStatsSection(
             color = Color.Black
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatItem("物攻", finalStats.physicalAttack, Modifier.weight(1f))
-            StatItem("法攻", finalStats.magicAttack, Modifier.weight(1f))
+        // 固有伤害属性标签（B1 §15.3：普攻类型由角色模板固定）
+        val innateLabel = when (disciple.resolvedInnateDamageType) {
+            "MAGIC" -> "法术"
+            else -> "物理"
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem("物防", finalStats.physicalDefense, Modifier.weight(1f))
-            StatItem("法防", finalStats.magicDefense, Modifier.weight(1f))
+            StatItem("攻击力", finalStats.attack, Modifier.weight(1f))
+            StatItem("防御力", finalStats.defense, Modifier.weight(1f))
         }
 
         Row(
@@ -123,8 +121,29 @@ fun CombatStatsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatItem("速度", finalStats.speed, Modifier.weight(1f))
-            Spacer(Modifier.weight(1f))
+            StatItem("普攻属性", innateLabel, Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+fun StatItem(name: String, value: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(
+            text = name,
+            fontSize = 11.sp,
+            color = Color.Black
+        )
+        Text(
+            text = value,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
     }
 }
 

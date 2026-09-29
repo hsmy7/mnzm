@@ -2,12 +2,17 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
+import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import kotlinx.serialization.Serializable
 
 /**
  * 弟子战斗属性组件
- * 包含基础战斗属性、浮动系数、战斗统计等共18个字段
+ * 包含基础战斗属性、浮动系数、战斗统计等共15个字段
+ *
+ * 属性单列口径（装备重构 B1，方案 §15）：基础攻防各只有一列
+ * [baseAttack]/[baseDefense]，物理/法术之分由三条通道承载——
+ * 普攻 [innateDamageType]、技能 damageType、类型增伤/减伤分桶（战斗层）。
  */
 @Keep
 @Serializable
@@ -16,19 +21,19 @@ data class CombatAttributes(
     // 基础战斗属性（创建时根据浮动系数计算并存储）
     var baseHp: Int = 120,
     var baseMp: Int = 60,
-    var basePhysicalAttack: Int = 12,
-    var baseMagicAttack: Int = 12,
-    var basePhysicalDefense: Int = 10,
-    var baseMagicDefense: Int = 8,
+    @ColumnInfo(defaultValue = "0")
+    var baseAttack: Int = 24,
+    @ColumnInfo(defaultValue = "0")
+    var baseDefense: Int = 18,
     var baseSpeed: Int = 15,
 
     // 战斗属性独立浮动百分比（±30%，精确到1%）
     var hpVariance: Int = 0,
     var mpVariance: Int = 0,
-    var physicalAttackVariance: Int = 0,
-    var magicAttackVariance: Int = 0,
-    var physicalDefenseVariance: Int = 0,
-    var magicDefenseVariance: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    var attackVariance: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    var defenseVariance: Int = 0,
     var speedVariance: Int = 0,
 
     // 战斗统计
@@ -38,25 +43,30 @@ data class CombatAttributes(
 
     // 当前血量/灵力（-1表示满血，用于向后兼容）
     var currentHp: Int = -1,
-    var currentMp: Int = -1
+    var currentMp: Int = -1,
+
+    /**
+     * 固有伤害属性（[DamageType].name，"PHYSICAL"/"MAGIC"）。
+     * 来源是角色模板（创建时继承、创建后不变）；空串 = 未派生
+     * （存量旧弟子），读取时按 templateId → 模板、缺失按首灵根派生兜底
+     * （金/土→物理，水/木/火→法术，见 [InnateDamageType.derive]）。
+     */
+    @ColumnInfo(defaultValue = "")
+    var innateDamageType: String = ""
 ) {
     companion object {
         fun calculateBaseStatsWithVariance(
             hpVariance: Int,
             mpVariance: Int,
-            physicalAttackVariance: Int,
-            magicAttackVariance: Int,
-            physicalDefenseVariance: Int,
-            magicDefenseVariance: Int,
+            attackVariance: Int,
+            defenseVariance: Int,
             speedVariance: Int
         ): BaseCombatStats {
             return BaseCombatStats(
                 baseHp = (120 * (1.0 + hpVariance / 100.0)).toInt(),
                 baseMp = (60 * (1.0 + mpVariance / 100.0)).toInt(),
-                basePhysicalAttack = (12 * (1.0 + physicalAttackVariance / 100.0)).toInt(),
-                baseMagicAttack = (12 * (1.0 + magicAttackVariance / 100.0)).toInt(),
-                basePhysicalDefense = (10 * (1.0 + physicalDefenseVariance / 100.0)).toInt(),
-                baseMagicDefense = (8 * (1.0 + magicDefenseVariance / 100.0)).toInt(),
+                baseAttack = (24 * (1.0 + attackVariance / 100.0)).toInt(),
+                baseDefense = (18 * (1.0 + defenseVariance / 100.0)).toInt(),
                 baseSpeed = (15 * (1.0 + speedVariance / 100.0)).toInt()
             )
         }
@@ -65,16 +75,19 @@ data class CombatAttributes(
 
 /**
  * 丹药效果组件
- * 包含丹药临时属性加成和持续时间，共8个字段
+ * 包含丹药临时属性加成和持续时间，共12个字段
+ *
+ * 攻防加成单列口径（B1）：[pillAttackBonus]/[pillDefenseBonus] 各一列；
+ * 旧物法四列（36–39 号段）退役为只读归一化源（见 [DiscipleSerializer]）。
  */
 @Keep
 @Serializable
 @Immutable
 data class PillEffects(
-    var pillPhysicalAttackBonus: Int = 0,
-    var pillMagicAttackBonus: Int = 0,
-    var pillPhysicalDefenseBonus: Int = 0,
-    var pillMagicDefenseBonus: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    var pillAttackBonus: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    var pillDefenseBonus: Int = 0,
     var pillHpBonus: Int = 0,
     var pillMpBonus: Int = 0,
     var pillSpeedBonus: Int = 0,

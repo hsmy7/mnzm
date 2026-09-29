@@ -94,27 +94,22 @@ internal object GameViewDiscipleRows {
         "equipmentNurturingCompletionPhase" to DiscipleRow::hasEquipmentNurturingCompletionPhase,
         "baseHp" to DiscipleRow::hasBaseHp,
         "baseMp" to DiscipleRow::hasBaseMp,
-        "basePhysicalAttack" to DiscipleRow::hasBasePhysicalAttack,
-        "baseMagicAttack" to DiscipleRow::hasBaseMagicAttack,
-        "basePhysicalDefense" to DiscipleRow::hasBasePhysicalDefense,
-        "baseMagicDefense" to DiscipleRow::hasBaseMagicDefense,
+        "baseAttack" to DiscipleRow::hasBaseAttack,
+        "baseDefense" to DiscipleRow::hasBaseDefense,
         "baseSpeed" to DiscipleRow::hasBaseSpeed,
         "hpVariance" to DiscipleRow::hasHpVariance,
         "mpVariance" to DiscipleRow::hasMpVariance,
-        "physicalAttackVariance" to DiscipleRow::hasPhysicalAttackVariance,
-        "magicAttackVariance" to DiscipleRow::hasMagicAttackVariance,
-        "physicalDefenseVariance" to DiscipleRow::hasPhysicalDefenseVariance,
-        "magicDefenseVariance" to DiscipleRow::hasMagicDefenseVariance,
+        "attackVariance" to DiscipleRow::hasAttackVariance,
+        "defenseVariance" to DiscipleRow::hasDefenseVariance,
+        "innateDamageType" to DiscipleRow::hasInnateDamageType,
         "speedVariance" to DiscipleRow::hasSpeedVariance,
         "totalCultivation" to DiscipleRow::hasTotalCultivation,
         "breakthroughCount" to DiscipleRow::hasBreakthroughCount,
         "breakthroughFailCount" to DiscipleRow::hasBreakthroughFailCount,
         "currentHp" to DiscipleRow::hasCurrentHp,
         "currentMp" to DiscipleRow::hasCurrentMp,
-        "pillPhysicalAttackBonus" to DiscipleRow::hasPillPhysicalAttackBonus,
-        "pillMagicAttackBonus" to DiscipleRow::hasPillMagicAttackBonus,
-        "pillPhysicalDefenseBonus" to DiscipleRow::hasPillPhysicalDefenseBonus,
-        "pillMagicDefenseBonus" to DiscipleRow::hasPillMagicDefenseBonus,
+        "pillAttackBonus" to DiscipleRow::hasPillAttackBonus,
+        "pillDefenseBonus" to DiscipleRow::hasPillDefenseBonus,
         "pillHpBonus" to DiscipleRow::hasPillHpBonus,
         "pillMpBonus" to DiscipleRow::hasPillMpBonus,
         "pillSpeedBonus" to DiscipleRow::hasPillSpeedBonus,
@@ -211,17 +206,14 @@ internal object GameViewDiscipleRows {
     private fun combatOf(row: DiscipleRow) = CombatAttributes(
                 baseHp = row.baseHp,
                 baseMp = row.baseMp,
-                basePhysicalAttack = row.basePhysicalAttack,
-                baseMagicAttack = row.baseMagicAttack,
-                basePhysicalDefense = row.basePhysicalDefense,
-                baseMagicDefense = row.baseMagicDefense,
+                baseAttack = row.baseAttack,
+                baseDefense = row.baseDefense,
                 baseSpeed = row.baseSpeed,
                 hpVariance = row.hpVariance,
                 mpVariance = row.mpVariance,
-                physicalAttackVariance = row.physicalAttackVariance,
-                magicAttackVariance = row.magicAttackVariance,
-                physicalDefenseVariance = row.physicalDefenseVariance,
-                magicDefenseVariance = row.magicDefenseVariance,
+                attackVariance = row.attackVariance,
+                defenseVariance = row.defenseVariance,
+                innateDamageType = row.innateDamageType,
                 speedVariance = row.speedVariance,
                 totalCultivation = row.totalCultivation,
                 breakthroughCount = row.breakthroughCount,
@@ -231,10 +223,8 @@ internal object GameViewDiscipleRows {
         )
 
     private fun pillEffectsOf(row: DiscipleRow) = PillEffects(
-                pillPhysicalAttackBonus = row.pillPhysicalAttackBonus,
-                pillMagicAttackBonus = row.pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = row.pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = row.pillMagicDefenseBonus,
+                pillAttackBonus = row.pillAttackBonus,
+                pillDefenseBonus = row.pillDefenseBonus,
                 pillHpBonus = row.pillHpBonus,
                 pillMpBonus = row.pillMpBonus,
                 pillSpeedBonus = row.pillSpeedBonus,
@@ -511,21 +501,14 @@ internal object GameViewDiscipleRows {
     private fun DiscipleTables.applyCombatPatchColumns(id: Int, row: DiscipleRow) {
         if (row.hasBaseHp()) baseHps[id] = row.baseHp
         if (row.hasBaseMp()) baseMps[id] = row.baseMp
-        if (row.hasBasePhysicalAttack()) basePhysicalAttacks[id] = row.basePhysicalAttack
-        if (row.hasBaseMagicAttack()) baseMagicAttacks[id] = row.baseMagicAttack
-        if (row.hasBasePhysicalDefense()) basePhysicalDefenses[id] = row.basePhysicalDefense
-        if (row.hasBaseMagicDefense()) baseMagicDefenses[id] = row.baseMagicDefense
+        if (row.hasBaseAttack()) baseAttacks[id] = row.baseAttack
+        if (row.hasBaseDefense()) baseDefenses[id] = row.baseDefense
         if (row.hasBaseSpeed()) baseSpeeds[id] = row.baseSpeed
         if (row.hasHpVariance()) hpVariances[id] = row.hpVariance
         if (row.hasMpVariance()) mpVariances[id] = row.mpVariance
-        if (row.hasPhysicalAttackVariance()) {
-            physicalAttackVariances[id] = row.physicalAttackVariance
-        }
-        if (row.hasMagicAttackVariance()) magicAttackVariances[id] = row.magicAttackVariance
-        if (row.hasPhysicalDefenseVariance()) {
-            physicalDefenseVariances[id] = row.physicalDefenseVariance
-        }
-        if (row.hasMagicDefenseVariance()) magicDefenseVariances[id] = row.magicDefenseVariance
+        if (row.hasAttackVariance()) attackVariances[id] = row.attackVariance
+        if (row.hasDefenseVariance()) defenseVariances[id] = row.defenseVariance
+        if (row.hasInnateDamageType()) innateDamageTypes[id] = row.innateDamageType
         if (row.hasSpeedVariance()) speedVariances[id] = row.speedVariance
         if (row.hasTotalCultivation()) totalCultivations[id] = row.totalCultivation
         if (row.hasBreakthroughCount()) breakthroughCounts[id] = row.breakthroughCount
@@ -539,14 +522,8 @@ internal object GameViewDiscipleRows {
     // + 直写（与 C++ serializeDiscipleColumn switch 同形样板），拆分即机械切半
     @Suppress("CyclomaticComplexMethod")
     private fun DiscipleTables.applyPillPatchColumns(id: Int, row: DiscipleRow) {
-        if (row.hasPillPhysicalAttackBonus()) {
-            pillPhysicalAttackBonuses[id] = row.pillPhysicalAttackBonus
-        }
-        if (row.hasPillMagicAttackBonus()) pillMagicAttackBonuses[id] = row.pillMagicAttackBonus
-        if (row.hasPillPhysicalDefenseBonus()) {
-            pillPhysicalDefenseBonuses[id] = row.pillPhysicalDefenseBonus
-        }
-        if (row.hasPillMagicDefenseBonus()) pillMagicDefenseBonuses[id] = row.pillMagicDefenseBonus
+        if (row.hasPillAttackBonus()) pillAttackBonuses[id] = row.pillAttackBonus
+        if (row.hasPillDefenseBonus()) pillDefenseBonuses[id] = row.pillDefenseBonus
         if (row.hasPillHpBonus()) pillHpBonuses[id] = row.pillHpBonus
         if (row.hasPillMpBonus()) pillMpBonuses[id] = row.pillMpBonus
         if (row.hasPillSpeedBonus()) pillSpeedBonuses[id] = row.pillSpeedBonus
@@ -706,27 +683,22 @@ internal object GameViewDiscipleRows {
     private fun fillCombatPillRowFields(b: DiscipleRow.Builder, d: Disciple) {
         b.baseHp = d.combat.baseHp
         b.baseMp = d.combat.baseMp
-        b.basePhysicalAttack = d.combat.basePhysicalAttack
-        b.baseMagicAttack = d.combat.baseMagicAttack
-        b.basePhysicalDefense = d.combat.basePhysicalDefense
-        b.baseMagicDefense = d.combat.baseMagicDefense
+        b.baseAttack = d.combat.baseAttack
+        b.baseDefense = d.combat.baseDefense
         b.baseSpeed = d.combat.baseSpeed
         b.hpVariance = d.combat.hpVariance
         b.mpVariance = d.combat.mpVariance
-        b.physicalAttackVariance = d.combat.physicalAttackVariance
-        b.magicAttackVariance = d.combat.magicAttackVariance
-        b.physicalDefenseVariance = d.combat.physicalDefenseVariance
-        b.magicDefenseVariance = d.combat.magicDefenseVariance
+        b.attackVariance = d.combat.attackVariance
+        b.defenseVariance = d.combat.defenseVariance
+        b.innateDamageType = d.combat.innateDamageType
         b.speedVariance = d.combat.speedVariance
         b.totalCultivation = d.combat.totalCultivation
         b.breakthroughCount = d.combat.breakthroughCount
         b.breakthroughFailCount = d.combat.breakthroughFailCount
         b.currentHp = d.combat.currentHp
         b.currentMp = d.combat.currentMp
-        b.pillPhysicalAttackBonus = d.pillEffects.pillPhysicalAttackBonus
-        b.pillMagicAttackBonus = d.pillEffects.pillMagicAttackBonus
-        b.pillPhysicalDefenseBonus = d.pillEffects.pillPhysicalDefenseBonus
-        b.pillMagicDefenseBonus = d.pillEffects.pillMagicDefenseBonus
+        b.pillAttackBonus = d.pillEffects.pillAttackBonus
+        b.pillDefenseBonus = d.pillEffects.pillDefenseBonus
         b.pillHpBonus = d.pillEffects.pillHpBonus
         b.pillMpBonus = d.pillEffects.pillMpBonus
         b.pillSpeedBonus = d.pillEffects.pillSpeedBonus

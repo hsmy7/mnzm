@@ -105,9 +105,9 @@ struct EquipCandidate {
     std::string stackId;                     // 仓库堆叠 id（扣减用）
 };
 
-/// 攻击类型匹配度（Kotlin prefersPhysical 判定：物攻 ≥ 法攻偏好物理）
+/// 攻击类型匹配度（单列口径 B1 §15.4：物法倾向由固有伤害属性表达）
 inline int32_t equipTypeMatch(const Disciple& d, const EquipCandidate& c) {
-    const bool prefersPhysical = d.basePhysicalAttack >= d.baseMagicAttack;
+    const bool prefersPhysical = d.innateDamageType != "MAGIC";
     if (prefersPhysical && c.hasPhysical) return 1;
     if (!prefersPhysical && c.hasMagic) return 1;
     return 0;
@@ -198,9 +198,9 @@ struct ManualCandidate {
     std::string stackId;
 };
 
-/// 攻击类型匹配度（功法按 skillDamageType）
+/// 攻击类型匹配度（功法按 skillDamageType；单列口径 B1 §15.4）
 inline int32_t manualTypeMatch(const Disciple& d, const ManualCandidate& c) {
-    const bool prefersPhysical = d.basePhysicalAttack >= d.baseMagicAttack;
+    const bool prefersPhysical = d.innateDamageType != "MAGIC";
     if (prefersPhysical && c.hasPhysical) return 1;
     if (!prefersPhysical && c.hasMagic) return 1;
     return 0;

@@ -22,10 +22,8 @@ class DiscipleStatCalculatorTest {
         realmLayer: Int = 1,
         baseHp: Int = 100,
         baseMp: Int = 50,
-        basePhysicalAttack: Int = 20,
-        baseMagicAttack: Int = 15,
-        basePhysicalDefense: Int = 10,
-        baseMagicDefense: Int = 8,
+        baseAttack: Int = 20,
+        baseDefense: Int = 10,
         baseSpeed: Int = 30,
         intelligence: Int = 50,
         charm: Int = 50,
@@ -40,10 +38,8 @@ class DiscipleStatCalculatorTest {
         pillEffectDuration: Int = 0,
         pillHpBonus: Int = 0,
         pillMpBonus: Int = 0,
-        pillPhysicalAttackBonus: Int = 0,
-        pillMagicAttackBonus: Int = 0,
-        pillPhysicalDefenseBonus: Int = 0,
-        pillMagicDefenseBonus: Int = 0,
+        pillAttackBonus: Int = 0,
+        pillDefenseBonus: Int = 0,
         pillSpeedBonus: Int = 0,
         discipleType: String = "inner",
         statusData: Map<String, String> = emptyMap(),
@@ -57,19 +53,15 @@ class DiscipleStatCalculatorTest {
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
-                basePhysicalAttack = basePhysicalAttack,
-                baseMagicAttack = baseMagicAttack,
-                basePhysicalDefense = basePhysicalDefense,
-                baseMagicDefense = baseMagicDefense,
+                baseAttack = baseAttack,
+                baseDefense = baseDefense,
                 baseSpeed = baseSpeed
             ),
             pillEffects = PillEffects(
                 pillHpBonus = pillHpBonus,
                 pillMpBonus = pillMpBonus,
-                pillPhysicalAttackBonus = pillPhysicalAttackBonus,
-                pillMagicAttackBonus = pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = pillMagicDefenseBonus,
+                pillAttackBonus = pillAttackBonus,
+                pillDefenseBonus = pillDefenseBonus,
                 pillSpeedBonus = pillSpeedBonus,
                 pillEffectDuration = pillEffectDuration
             ),
@@ -98,10 +90,10 @@ class DiscipleStatCalculatorTest {
         val stats = DiscipleStatCalculator.getBaseStats(disciple)
         assertTrue(stats.maxHp > 0)
         assertTrue(stats.maxMp > 0)
-        assertTrue(stats.physicalAttack > 0)
-        assertTrue(stats.physicalDefense > 0)
-        assertTrue(stats.magicAttack > 0)
-        assertTrue(stats.magicDefense > 0)
+        assertTrue(stats.attack > 0)
+        assertTrue(stats.defense > 0)
+        assertTrue(stats.attack > 0)
+        assertTrue(stats.defense > 0)
         assertTrue(stats.speed > 0)
     }
 
@@ -112,7 +104,7 @@ class DiscipleStatCalculatorTest {
         val lowStats = DiscipleStatCalculator.getBaseStats(low)
         val highStats = DiscipleStatCalculator.getBaseStats(high)
         assertTrue("高境界HP应更高", highStats.maxHp > lowStats.maxHp)
-        assertTrue("高境界攻击应更高", highStats.physicalAttack > lowStats.physicalAttack)
+        assertTrue("高境界攻击应更高", highStats.attack > lowStats.attack)
     }
 
     @Test
@@ -127,28 +119,28 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `getBaseStats - 丹药加成不影响基础属性`() {
         val noPill = createDisciple()
-        val withPill = createDisciple(pillPhysicalAttackBonus = 20)
+        val withPill = createDisciple(pillAttackBonus = 20)
         val normalStats = DiscipleStatCalculator.getBaseStats(noPill)
         val boostedStats = DiscipleStatCalculator.getBaseStats(withPill)
-        assertEquals("丹药加成不影响getBaseStats", normalStats.physicalAttack, boostedStats.physicalAttack)
+        assertEquals("丹药加成不影响getBaseStats", normalStats.attack, boostedStats.attack)
     }
 
     @Test
     fun `getFinalStats - 丹药加成在最终属性中生效`() {
         val noPill = createDisciple(pillEffectDuration = 0)
-        val withPill = createDisciple(pillPhysicalAttackBonus = 50, pillEffectDuration = 3)
+        val withPill = createDisciple(pillAttackBonus = 50, pillEffectDuration = 3)
         val normalStats = DiscipleStatCalculator.getFinalStats(noPill, emptyMap(), emptyMap())
         val boostedStats = DiscipleStatCalculator.getFinalStats(withPill, emptyMap(), emptyMap())
-        assertTrue("丹药加成应在最终属性中生效", boostedStats.physicalAttack > normalStats.physicalAttack)
+        assertTrue("丹药加成应在最终属性中生效", boostedStats.attack > normalStats.attack)
     }
 
     @Test
     fun `getFinalStats - 丹药持续时间为0时不生效`() {
         val noPill = createDisciple(pillEffectDuration = 0)
-        val withPillButExpired = createDisciple(pillPhysicalAttackBonus = 50, pillEffectDuration = 0)
+        val withPillButExpired = createDisciple(pillAttackBonus = 50, pillEffectDuration = 0)
         val normalStats = DiscipleStatCalculator.getFinalStats(noPill, emptyMap(), emptyMap())
         val expiredStats = DiscipleStatCalculator.getFinalStats(withPillButExpired, emptyMap(), emptyMap())
-        assertEquals("丹药持续时间为0不应生效", normalStats.physicalAttack, expiredStats.physicalAttack)
+        assertEquals("丹药持续时间为0不应生效", normalStats.attack, expiredStats.attack)
     }
 
     @Test

@@ -46,10 +46,9 @@ TEST(BaseStatsTest, LianqiBaseStats) {
     const auto s = computeBaseStats(in);
     EXPECT_EQ(s.maxHp, 203);
     EXPECT_EQ(s.maxMp, 78);
-    EXPECT_EQ(s.physicalAttack, 16);
-    EXPECT_EQ(s.magicAttack, 16);
-    EXPECT_EQ(s.physicalDefense, 13);
-    EXPECT_EQ(s.magicDefense, 10);
+    // 单列口径（B1）：物法各自 round 后相加（16+16 / 13+10）
+    EXPECT_EQ(s.attack, 32);
+    EXPECT_EQ(s.defense, 23);
     EXPECT_EQ(s.speed, 15);
     EXPECT_DOUBLE_EQ(s.critRate, 0.05);
 }

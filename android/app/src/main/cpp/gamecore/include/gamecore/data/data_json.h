@@ -247,6 +247,8 @@ inline void from_json(const nlohmann::json& j, PillRecipeTemplate& v) {
     jread(j, "skillExpAdd", v.skillExpAdd);
     jread(j, "nurtureAdd", v.nurtureAdd);
     jread(j, "physicalAttackAdd", v.physicalAttackAdd);
+    jread(j, "attackAdd", v.attackAdd);
+    jread(j, "defenseAdd", v.defenseAdd);
     jread(j, "magicAttackAdd", v.magicAttackAdd);
     jread(j, "physicalDefenseAdd", v.physicalDefenseAdd);
     jread(j, "magicDefenseAdd", v.magicDefenseAdd);
@@ -285,7 +287,8 @@ inline void to_json(nlohmann::json& j, const PillRecipeTemplate& v) {
                        {"cultivationAdd", v.cultivationAdd},
                        {"skillExpAdd", v.skillExpAdd},
                        {"nurtureAdd", v.nurtureAdd},
-                       {"physicalAttackAdd", v.physicalAttackAdd},
+                       {"physicalAttackAdd", v.physicalAttackAdd}, {"attackAdd", v.attackAdd},
+                       {"defenseAdd", v.defenseAdd},
                        {"magicAttackAdd", v.magicAttackAdd},
                        {"physicalDefenseAdd", v.physicalDefenseAdd},
                        {"magicDefenseAdd", v.magicDefenseAdd},

@@ -122,6 +122,10 @@ struct PillRecipeTemplate {
     /// 注：`price` 为派生字段（见上方字段注释）——数据文件不含该键，注入后由
     /// `data_inject.h` 按 C++ 同一公式回填，等价守卫仍含 price 全字段比对。
     friend bool operator==(const PillRecipeTemplate&, const PillRecipeTemplate&) = default;
+
+    // ── 单列口径（B1，尾部追加）──
+    int32_t attackAdd = 0;
+    int32_t defenseAdd = 0;
 };
 
 namespace detail {
@@ -188,6 +192,10 @@ struct PillTemplateSpec {
     //    下标）——任务奖励 generateRandomPill 消费（createPillFromTemplate 的
     //    grade 字段）；finalize 由 id 尾段（low/medium/high）解析
     int32_t grade = 1;
+    // ── 单列口径（B1，尾部追加——既有聚合初始化位置不变）──
+    // 物法攻合并 attackAdd、物法防合并 defenseAdd
+    int32_t attackAdd = 0;
+    int32_t defenseAdd = 0;
 };
 
 // ── 常量表（与 Kotlin ItemDatabase 字面量逐值一致）────────────────
@@ -479,18 +487,23 @@ inline void buildSingleAttrBattlePills(std::vector<PillTemplateSpec>& out) {
                 const std::string gradeName = kGradeDisplay[g];
                 const std::string desc = tierName + gradeName + cfg.attrName + "丹，增加" +
                     std::to_string(val) + "点" + cfg.attrName + "，持续9旬";
+                // 单列口径（B1）：物法攻合并 attackAdd、物法防合并 defenseAdd
+                //（attackAdd/defenseAdd 位于聚合尾部 S4 块之后，位置列表不可达 → push 后按名赋值）
                 out.push_back(PillTemplateSpec{
                     std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" + gradeLower,
                     cfg.names[tier], desc,
                     0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0,
-                    std::string(cfg.pillType) == "physicalAttack" ? val : 0,
-                    std::string(cfg.pillType) == "magicAttack" ? val : 0,
-                    std::string(cfg.pillType) == "physicalDefense" ? val : 0,
-                    std::string(cfg.pillType) == "magicDefense" ? val : 0,
+                    0, 0, 0, 0,
                     std::string(cfg.pillType) == "hp" ? val : 0,
                     std::string(cfg.pillType) == "mp" ? val : 0,
                     std::string(cfg.pillType) == "speed" ? val : 0,
                     0.0, 0.0, 0, 0, 0, 0, 0, 0, 0});
+                out.back().attackAdd =
+                    (std::string(cfg.pillType) == "physicalAttack" ||
+                     std::string(cfg.pillType) == "magicAttack") ? val : 0;
+                out.back().defenseAdd =
+                    (std::string(cfg.pillType) == "physicalDefense" ||
+                     std::string(cfg.pillType) == "magicDefense") ? val : 0;
             }
         }
     }
@@ -538,14 +551,18 @@ inline void buildDualAttrBattlePills(std::vector<PillTemplateSpec>& out) {
                     if (attr == cfg.attr2) return v2;
                     return 0;
                 };
+                // 单列口径（B1）：物法攻/防各自合并（尾部字段 push 后按名赋值）
                 out.push_back(PillTemplateSpec{
                     std::string(cfg.pillType) + "_" + std::to_string(tier) + "_" + gradeLower,
                     cfg.names[tier], desc,
                     0.0, 0, 0.0, 0.0, 0.0, 0, 0, 0,
-                    attrVal("physicalAttack"), attrVal("magicAttack"),
-                    attrVal("physicalDefense"), attrVal("magicDefense"),
+                    0, 0, 0, 0,
                     attrVal("hp"), attrVal("mp"), attrVal("speed"),
                     0.0, 0.0, 0, 0, 0, 0, 0, 0, 0});
+                out.back().attackAdd =
+                    attrVal("physicalAttack") + attrVal("magicAttack");
+                out.back().defenseAdd =
+                    attrVal("physicalDefense") + attrVal("magicDefense");
             }
         }
     }
@@ -792,6 +809,8 @@ inline ::gamecore::state::Pill pillFromSpec(const PillTemplateSpec& tpl,
     e.duration = tpl.duration;
     e.cannotStack = tpl.cannotStack;
     e.physicalAttackAdd = tpl.physicalAttackAdd;
+    e.attackAdd = tpl.attackAdd;
+    e.defenseAdd = tpl.defenseAdd;
     e.magicAttackAdd = tpl.magicAttackAdd;
     e.physicalDefenseAdd = tpl.physicalDefenseAdd;
     e.magicDefenseAdd = tpl.magicDefenseAdd;
@@ -1058,6 +1077,8 @@ inline PillRecipeTemplate recipeFromTemplate(const PillTemplateSpec& t, int tier
     r.skillExpAdd = t.skillExpAdd;
     r.nurtureAdd = t.nurtureAdd;
     r.physicalAttackAdd = t.physicalAttackAdd;
+    r.attackAdd = t.attackAdd;
+    r.defenseAdd = t.defenseAdd;
     r.magicAttackAdd = t.magicAttackAdd;
     r.physicalDefenseAdd = t.physicalDefenseAdd;
     r.magicDefenseAdd = t.magicDefenseAdd;

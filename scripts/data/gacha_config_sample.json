@@ -9,12 +9,20 @@
         {
           "kind": "character_single",
           "weightPct": 11,
-          "templateIds": ["zhouming", "suqing"]
+          "templateIds": [
+            "zhouming",
+            "suqing"
+          ]
         },
         {
           "kind": "character_double",
           "weightPct": 10,
-          "templateIds": ["linxuetang", "xuhe", "xieche", "zhaoyan"]
+          "templateIds": [
+            "linxuetang",
+            "xuhe",
+            "xieche",
+            "zhaoyan"
+          ]
         },
         {
           "kind": "beast_material",
@@ -36,10 +44,22 @@
         }
       ],
       "itemRarityWeights": [
-        { "rarity": 4, "weightPct": 12 },
-        { "rarity": 3, "weightPct": 33 },
-        { "rarity": 2, "weightPct": 33 },
-        { "rarity": 1, "weightPct": 22 }
+        {
+          "rarity": 4,
+          "weightPct": 12
+        },
+        {
+          "rarity": 3,
+          "weightPct": 33
+        },
+        {
+          "rarity": 2,
+          "weightPct": 33
+        },
+        {
+          "rarity": 1,
+          "weightPct": 22
+        }
       ],
       "pity": {
         "pullThreshold": 10,
@@ -55,49 +75,71 @@
       "id": "zhouming",
       "name": "周明",
       "gender": "M",
-      "spiritRoots": ["metal"],
+      "spiritRoots": [
+        "metal"
+      ],
       "avatarKey": "avatar_zhouming",
-      "portraitKey": "portrait_zhouming"
+      "portraitKey": "portrait_zhouming",
+      "innateDamageType": "PHYSICAL"
     },
     {
       "id": "suqing",
       "name": "苏晴",
       "gender": "F",
-      "spiritRoots": ["water"],
+      "spiritRoots": [
+        "water"
+      ],
       "avatarKey": "avatar_suqing",
-      "portraitKey": "portrait_suqing"
+      "portraitKey": "portrait_suqing",
+      "innateDamageType": "MAGIC"
     },
     {
       "id": "linxuetang",
       "name": "林雪棠",
       "gender": "F",
-      "spiritRoots": ["wood", "water"],
+      "spiritRoots": [
+        "wood",
+        "water"
+      ],
       "avatarKey": "avatar_linxuetang",
-      "portraitKey": "portrait_linxuetang"
+      "portraitKey": "portrait_linxuetang",
+      "innateDamageType": "MAGIC"
     },
     {
       "id": "xuhe",
       "name": "许荷",
       "gender": "F",
-      "spiritRoots": ["wood", "earth"],
+      "spiritRoots": [
+        "wood",
+        "earth"
+      ],
       "avatarKey": "avatar_xuhe",
-      "portraitKey": "portrait_xuhe"
+      "portraitKey": "portrait_xuhe",
+      "innateDamageType": "MAGIC"
     },
     {
       "id": "xieche",
       "name": "谢澈",
       "gender": "M",
-      "spiritRoots": ["metal", "water"],
+      "spiritRoots": [
+        "metal",
+        "water"
+      ],
       "avatarKey": "avatar_xieche",
-      "portraitKey": "portrait_xieche"
+      "portraitKey": "portrait_xieche",
+      "innateDamageType": "PHYSICAL"
     },
     {
       "id": "zhaoyan",
       "name": "赵言",
       "gender": "M",
-      "spiritRoots": ["fire", "earth"],
+      "spiritRoots": [
+        "fire",
+        "earth"
+      ],
       "avatarKey": "avatar_zhaoyan",
-      "portraitKey": "portrait_zhaoyan"
+      "portraitKey": "portrait_zhaoyan",
+      "innateDamageType": "MAGIC"
     }
   ],
   "gachaDefaults": {

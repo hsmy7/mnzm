@@ -37,9 +37,11 @@ class DiffBattleTest {
     private fun zonesJson(
         damageAmplification: Double = 0.0, damageReduction: Double = 0.0,
         realmGapDamageAmplification: Double = 0.0, realmGapDamageReduction: Double = 0.0,
-        majorRealmDamageAmplification: Double = 0.0, attackBuffs: Double = 0.0,
+        majorRealmDamageAmplification: Double = 0.0, typeDamageBonus: Double = 0.0,
+        typeDamageReduction: Double = 0.0,
     ) = buildJsonObject {
-        put("attackBuffs", attackBuffs)
+        put("typeDamageBonus", typeDamageBonus)
+        put("typeDamageReduction", typeDamageReduction)
         put("damageAmplification", damageAmplification)
         put("damageReduction", damageReduction)
         put("realmGapDamageAmplification", realmGapDamageAmplification)
@@ -61,15 +63,15 @@ class DiffBattleTest {
         rawAttack: Int, defense: Int, skillMultiplier: Double,
         zones: com.xianxia.sect.core.util.DamageZones, isCrit: Boolean, variance: Double,
     ): Int {
-        val effectiveAttack = rawAttack * (1.0 + zones.attackBuffs)
+        val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
         return (preCritDamage * critMult
-            * (1.0 + zones.damageAmplification)
+            * (1.0 + zones.damageAmplification + zones.typeDamageBonus)
             * (1.0 + zones.realmGapDamageAmplification)
             * (1.0 + zones.majorRealmDamageAmplification)
-            * (1.0 - zones.damageReduction)
+            * (1.0 - zones.damageReduction - zones.typeDamageReduction)
             * (1.0 - zones.realmGapDamageReduction)
             * variance
         ).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
@@ -78,10 +80,11 @@ class DiffBattleTest {
     private fun kotlinZones(
         damageAmplification: Double = 0.0, damageReduction: Double = 0.0,
         realmGapDamageAmplification: Double = 0.0, realmGapDamageReduction: Double = 0.0,
-        majorRealmDamageAmplification: Double = 0.0, attackBuffs: Double = 0.0,
+        majorRealmDamageAmplification: Double = 0.0, typeDamageBonus: Double = 0.0,
+        typeDamageReduction: Double = 0.0,
     ) = com.xianxia.sect.core.util.DamageZones(
-        attackBuffs = attackBuffs,
         damageAmplification = damageAmplification, damageReduction = damageReduction,
+        typeDamageBonus = typeDamageBonus, typeDamageReduction = typeDamageReduction,
         realmGapDamageAmplification = realmGapDamageAmplification,
         realmGapDamageReduction = realmGapDamageReduction,
         majorRealmDamageAmplification = majorRealmDamageAmplification,
@@ -122,7 +125,7 @@ class DiffBattleTest {
         val z = zonesJson(
             damageAmplification = 0.5, damageReduction = 0.2,
             realmGapDamageAmplification = 0.3, realmGapDamageReduction = 0.15,
-            majorRealmDamageAmplification = 0.4, attackBuffs = 0.2,
+            majorRealmDamageAmplification = 0.4, typeDamageBonus = 0.2,
         )
         val op = finalDamageOp(200, 800, skillMultiplier = 1.5, zones = z, isCrit = true, variance = 1.1)
         val cpp = cppOp(op)
@@ -132,7 +135,7 @@ class DiffBattleTest {
                 kotlinZones(
                     damageAmplification = 0.5, damageReduction = 0.2,
                     realmGapDamageAmplification = 0.3, realmGapDamageReduction = 0.15,
-                    majorRealmDamageAmplification = 0.4, attackBuffs = 0.2,
+                    majorRealmDamageAmplification = 0.4, typeDamageBonus = 0.2,
                 ),
                 true, 1.1
             ),

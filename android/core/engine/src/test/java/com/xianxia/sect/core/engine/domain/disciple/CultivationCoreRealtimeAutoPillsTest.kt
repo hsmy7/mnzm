@@ -18,12 +18,12 @@ import com.xianxia.sect.core.model.pillCritRateBonus
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
 import com.xianxia.sect.core.model.pillHpBonus
-import com.xianxia.sect.core.model.pillMagicAttackBonus
-import com.xianxia.sect.core.model.pillMagicDefenseBonus
+import com.xianxia.sect.core.model.pillAttackBonus
+import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillMpBonus
 import com.xianxia.sect.core.model.pillNurtureSpeedBonus
-import com.xianxia.sect.core.model.pillPhysicalAttackBonus
-import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
+import com.xianxia.sect.core.model.pillAttackBonus
+import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -484,10 +484,8 @@ private object PillsRealtime {
         tables.teachings[id] = d.skills.teaching
         tables.moralities[id] = d.skills.morality
         tables.minings[id] = d.skills.mining
-        tables.pillPhysicalAttackBonuses[id] = d.pillEffects.pillPhysicalAttackBonus
-        tables.pillMagicAttackBonuses[id] = d.pillEffects.pillMagicAttackBonus
-        tables.pillPhysicalDefenseBonuses[id] = d.pillEffects.pillPhysicalDefenseBonus
-        tables.pillMagicDefenseBonuses[id] = d.pillEffects.pillMagicDefenseBonus
+        tables.pillAttackBonuses[id] = d.pillEffects.pillAttackBonus
+        tables.pillDefenseBonuses[id] = d.pillEffects.pillDefenseBonus
         tables.pillHpBonuses[id] = d.pillEffects.pillHpBonus
         tables.pillMpBonuses[id] = d.pillEffects.pillMpBonus
         tables.pillSpeedBonuses[id] = d.pillEffects.pillSpeedBonus

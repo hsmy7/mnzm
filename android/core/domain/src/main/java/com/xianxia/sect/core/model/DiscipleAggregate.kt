@@ -38,28 +38,32 @@ data class DiscipleAggregate(
         return "${com.xianxia.sect.core.GameConfig.Realm.getName(realm)}${realmLayer}层"
     }
     
+    /** 固有伤害属性 name（空串 = 存量旧弟子，展示层按模板/灵根派生兜底） */
+    val innateDamageType: String get() = combatStats?.let { cs ->
+        // DiscipleCombatStats 不含 innateDamageType（存量投影面），从 sourceRef 读
+        sourceRef?.combat?.innateDamageType ?: ""
+    } ?: (sourceRef?.combat?.innateDamageType ?: "")
+
+    /** 展示用固有伤害属性（空串时按模板/首灵根派生兜底，§15.3） */
+    val resolvedInnateDamageType: String
+        get() = innateDamageType.ifEmpty { InnateDamageType.derive(sourceRef?.templateId ?: "", spiritRootType) }
+
     val baseHp: Int get() = combatStats?.baseHp ?: DEFAULT_HP
     val baseMp: Int get() = combatStats?.baseMp ?: DEFAULT_MP
     val maxHp: Int get() = getBaseStats().maxHp
     val maxMp: Int get() = getBaseStats().maxMp
-    val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: DEFAULT_ATTACK
-    val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: DEFAULT_ATTACK
-    val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: DEFAULT_DEFENSE
-    val baseMagicDefense: Int get() = combatStats?.baseMagicDefense ?: DEFAULT_MAGIC_DEFENSE
+    val baseAttack: Int get() = combatStats?.baseAttack ?: DEFAULT_ATTACK
+    val baseDefense: Int get() = combatStats?.baseDefense ?: DEFAULT_DEFENSE
     val baseSpeed: Int get() = combatStats?.baseSpeed ?: DEFAULT_SPEED
-    
+
     val hpVariance: Int get() = combatStats?.hpVariance ?: 0
     val mpVariance: Int get() = combatStats?.mpVariance ?: 0
-    val physicalAttackVariance: Int get() = combatStats?.physicalAttackVariance ?: 0
-    val magicAttackVariance: Int get() = combatStats?.magicAttackVariance ?: 0
-    val physicalDefenseVariance: Int get() = combatStats?.physicalDefenseVariance ?: 0
-    val magicDefenseVariance: Int get() = combatStats?.magicDefenseVariance ?: 0
+    val attackVariance: Int get() = combatStats?.attackVariance ?: 0
+    val defenseVariance: Int get() = combatStats?.defenseVariance ?: 0
     val speedVariance: Int get() = combatStats?.speedVariance ?: 0
-    
-    val pillPhysicalAttackBonus: Int get() = combatStats?.pillPhysicalAttackBonus ?: 0
-    val pillMagicAttackBonus: Int get() = combatStats?.pillMagicAttackBonus ?: 0
-    val pillPhysicalDefenseBonus: Int get() = combatStats?.pillPhysicalDefenseBonus ?: 0
-    val pillMagicDefenseBonus: Int get() = combatStats?.pillMagicDefenseBonus ?: 0
+
+    val pillAttackBonus: Int get() = combatStats?.pillAttackBonus ?: 0
+    val pillDefenseBonus: Int get() = combatStats?.pillDefenseBonus ?: 0
     val pillHpBonus: Int get() = combatStats?.pillHpBonus ?: 0
     val pillMpBonus: Int get() = combatStats?.pillMpBonus ?: 0
     val pillSpeedBonus: Int get() = combatStats?.pillSpeedBonus ?: 0
@@ -144,18 +148,14 @@ data class DiscipleAggregate(
      * 物理攻击（基础值，不含装备/功法加成）
      * 与旧 Disciple.physicalAttack 保持一致：通过 getBaseStats() 计算
      */
-    val physicalAttack: Int get() = getBaseStats().physicalAttack
+    /** 攻击力（基础值，不含装备/功法加成） */
+    val attack: Int get() = getBaseStats().attack
 
-    /** 物理防御 */
-    val physicalDefense: Int get() = getBaseStats().physicalDefense
-
-    /** 法术攻击 */
-    val magicAttack: Int get() = getBaseStats().magicAttack
-
-    /** 法术防御 */
-    val magicDefense: Int get() = getBaseStats().magicDefense
+    /** 防御力 */
+    val defense: Int get() = getBaseStats().defense
 
     /** 速度 */
+
     val speed: Int get() = getBaseStats().speed
 
 /** 当前生命百分比 */
@@ -227,17 +227,14 @@ data class DiscipleAggregate(
     private fun toCombatAttributes(): CombatAttributes = CombatAttributes(
         baseHp = baseHp,
         baseMp = baseMp,
-        basePhysicalAttack = basePhysicalAttack,
-        baseMagicAttack = baseMagicAttack,
-        basePhysicalDefense = basePhysicalDefense,
-        baseMagicDefense = baseMagicDefense,
+        baseAttack = baseAttack,
+        baseDefense = baseDefense,
         baseSpeed = baseSpeed,
         hpVariance = hpVariance,
         mpVariance = mpVariance,
-        physicalAttackVariance = physicalAttackVariance,
-        magicAttackVariance = magicAttackVariance,
-        physicalDefenseVariance = physicalDefenseVariance,
-        magicDefenseVariance = magicDefenseVariance,
+        attackVariance = attackVariance,
+        defenseVariance = defenseVariance,
+
         speedVariance = speedVariance,
         totalCultivation = totalCultivation,
         breakthroughCount = breakthroughCount,
@@ -248,10 +245,8 @@ data class DiscipleAggregate(
 
     /** 丹药效果构建 */
     private fun toPillEffects(): PillEffects = PillEffects(
-        pillPhysicalAttackBonus = pillPhysicalAttackBonus,
-        pillMagicAttackBonus = pillMagicAttackBonus,
-        pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
-        pillMagicDefenseBonus = pillMagicDefenseBonus,
+        pillAttackBonus = pillAttackBonus,
+        pillDefenseBonus = pillDefenseBonus,
         pillHpBonus = pillHpBonus,
         pillMpBonus = pillMpBonus,
         pillSpeedBonus = pillSpeedBonus,
@@ -316,9 +311,9 @@ data class DiscipleAggregate(
     companion object {
         private const val DEFAULT_HP = 100
         private const val DEFAULT_MP = 50
-        private const val DEFAULT_ATTACK = 7
-        private const val DEFAULT_DEFENSE = 5
-        private const val DEFAULT_MAGIC_DEFENSE = 3
+        private const val DEFAULT_ATTACK = 12
+        private const val DEFAULT_DEFENSE = 9
+
         private const val DEFAULT_SPEED = 10
         private const val DEFAULT_SKILL = 50
 

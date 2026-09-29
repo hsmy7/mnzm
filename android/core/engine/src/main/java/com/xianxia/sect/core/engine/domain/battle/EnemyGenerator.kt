@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -181,20 +182,24 @@ object EnemyGenerator {
 
         fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
 
+        // 单列口径（B1 §15.4）：境界面物法两列各自 round 后相加（与 computeBaseStats 同式），
+        // 攻/防各一个方差；装备/功法段取和相加
         val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp + manualStats.hp
         val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp + manualStats.mp
-        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() +
-            equipmentStats.physicalAttack + manualStats.physicalAttack
-        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() +
-            equipmentStats.magicAttack + manualStats.magicAttack
-        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() +
-            equipmentStats.physicalDefense + manualStats.physicalDefense
-        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() +
-            equipmentStats.magicDefense + manualStats.magicDefense
+        val atkVar = rngVar()
+        val defVar = rngVar()
+        val attack = (realmConfig.basePhysicalAttack * atkVar * layerMult).toInt() +
+            (realmConfig.baseMagicAttack * atkVar * layerMult).toInt() +
+            equipmentStats.attack + manualStats.attack
+        val defense = (realmConfig.basePhysicalDefense * defVar * layerMult).toInt() +
+            (realmConfig.baseMagicDefense * defVar * layerMult).toInt() +
+            equipmentStats.defense + manualStats.defense
         val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed + manualStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements[rng.nextInt(5)]
+        // 散修敌人伤害类型按元素派生（金/土→物理、水/木/火→法术，§15.3 同弟子口径）
+        val innateType = if (element == "metal" || element == "earth") DamageType.PHYSICAL else DamageType.MAGIC
 
         val enemyNames = listOf("魔修", "邪修", "散修", "山匪", "暗杀者", "邪道修士")
 
@@ -206,10 +211,9 @@ object EnemyGenerator {
             maxHp = hp,
             mp = mp,
             maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
+            attack = attack,
+            defense = defense,
+            innateDamageType = innateType,
             speed = speed,
             // 基础暴击(与玩家 BASE_CRIT_RATE 一致) + 境界暴击 + 装备 + 功法暴击
             critRate = 0.05 + realm * 0.01 + equipmentStats.critChance + manualStats.critChance,
@@ -283,18 +287,15 @@ object EnemyGenerator {
      * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起），
      * critRate 为百分比值 ÷ 100。
      */
+    /** 功法属性累加器（单列口径 B1：物法攻/防相加进 attack/defense，Q2 结算层相加） */
     internal class ManualStatsAccumulator {
         var hp: Int = 0
             private set
         var mp: Int = 0
             private set
-        var physicalAttack: Int = 0
+        var attack: Int = 0
             private set
-        var magicAttack: Int = 0
-            private set
-        var physicalDefense: Int = 0
-            private set
-        var magicDefense: Int = 0
+        var defense: Int = 0
             private set
         var speed: Int = 0
             private set
@@ -307,23 +308,20 @@ object EnemyGenerator {
             val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
             hp += (hpValue * masteryBonus).toInt()
             mp += (mpValue * masteryBonus).toInt()
-            physicalAttack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
-            magicAttack += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
-            physicalDefense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
-            magicDefense += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+            attack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt() +
+                ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+            defense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
+                ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
             speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
             critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
         }
     }
 
+    /** 装备属性累加器（单列口径 B1：装备面板四列在累加层相加；装备模型本体 B3 退役） */
     private class EquipmentStatsAccumulator {
-        var physicalAttack: Int = 0
+        var attack: Int = 0
             private set
-        var magicAttack: Int = 0
-            private set
-        var physicalDefense: Int = 0
-            private set
-        var magicDefense: Int = 0
+        var defense: Int = 0
             private set
         var speed: Int = 0
             private set
@@ -335,10 +333,8 @@ object EnemyGenerator {
             private set
 
         fun add(stats: com.xianxia.sect.core.model.EquipmentStats) {
-            physicalAttack += stats.physicalAttack
-            magicAttack += stats.magicAttack
-            physicalDefense += stats.physicalDefense
-            magicDefense += stats.magicDefense
+            attack += stats.physicalAttack + stats.magicAttack
+            defense += stats.physicalDefense + stats.magicDefense
             speed += stats.speed
             hp += stats.hp
             mp += stats.mp

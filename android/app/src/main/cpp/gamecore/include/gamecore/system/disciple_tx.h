@@ -941,10 +941,8 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
         effect.nurtureSpeedPercent > 0;
     if (hasBattleOrSpeed) {
-        ds.pillPhysicalAttackBonuses[row] = effect.physicalAttackAdd;
-        ds.pillMagicAttackBonuses[row] = effect.magicAttackAdd;
-        ds.pillPhysicalDefenseBonuses[row] = effect.physicalDefenseAdd;
-        ds.pillMagicDefenseBonuses[row] = effect.magicDefenseAdd;
+        ds.pillAttackBonuses[row] = effect.AttackAddTotal();
+        ds.pillDefenseBonuses[row] = effect.DefenseAddTotal();
         ds.pillHpBonuses[row] = effect.hpAdd;
         ds.pillMpBonuses[row] = effect.mpAdd;
         ds.pillSpeedBonuses[row] = effect.speedAdd;
@@ -988,10 +986,8 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
 
     // ⑦ 清除所有临时效果
     if (effect.clearAll) {
-        ds.pillPhysicalAttackBonuses[row] = 0;
-        ds.pillMagicAttackBonuses[row] = 0;
-        ds.pillPhysicalDefenseBonuses[row] = 0;
-        ds.pillMagicDefenseBonuses[row] = 0;
+        ds.pillAttackBonuses[row] = 0;
+        ds.pillDefenseBonuses[row] = 0;
         ds.pillHpBonuses[row] = 0;
         ds.pillMpBonuses[row] = 0;
         ds.pillSpeedBonuses[row] = 0;

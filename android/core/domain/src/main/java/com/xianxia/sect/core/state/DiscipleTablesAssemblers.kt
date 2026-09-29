@@ -98,16 +98,13 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
 
 internal fun DiscipleTables.assembleCombat(id: Int) = CombatAttributes(
     baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
-    basePhysicalAttack = basePhysicalAttacks.getOrDefault(id, 0),
-    baseMagicAttack = baseMagicAttacks.getOrDefault(id, 0),
-    basePhysicalDefense = basePhysicalDefenses.getOrDefault(id, 0),
-    baseMagicDefense = baseMagicDefenses.getOrDefault(id, 0),
+    baseAttack = baseAttacks.getOrDefault(id, 0),
+    baseDefense = baseDefenses.getOrDefault(id, 0),
     baseSpeed = baseSpeeds.getOrDefault(id, 0),
     hpVariance = hpVariances.getOrDefault(id, 0), mpVariance = mpVariances.getOrDefault(id, 0),
-    physicalAttackVariance = physicalAttackVariances.getOrDefault(id, 0),
-    magicAttackVariance = magicAttackVariances.getOrDefault(id, 0),
-    physicalDefenseVariance = physicalDefenseVariances.getOrDefault(id, 0),
-    magicDefenseVariance = magicDefenseVariances.getOrDefault(id, 0),
+    attackVariance = attackVariances.getOrDefault(id, 0),
+    defenseVariance = defenseVariances.getOrDefault(id, 0),
+    innateDamageType = innateDamageTypes.getOrNull(id) ?: "",
     speedVariance = speedVariances.getOrDefault(id, 0),
     totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
     breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
@@ -117,10 +114,8 @@ internal fun DiscipleTables.assembleCombat(id: Int) = CombatAttributes(
 )
 
 internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(
-    pillPhysicalAttackBonus = pillPhysicalAttackBonuses.getOrDefault(id, 0),
-    pillMagicAttackBonus = pillMagicAttackBonuses.getOrDefault(id, 0),
-    pillPhysicalDefenseBonus = pillPhysicalDefenseBonuses.getOrDefault(id, 0),
-    pillMagicDefenseBonus = pillMagicDefenseBonuses.getOrDefault(id, 0),
+    pillAttackBonus = pillAttackBonuses.getOrDefault(id, 0),
+    pillDefenseBonus = pillDefenseBonuses.getOrDefault(id, 0),
     pillHpBonus = pillHpBonuses.getOrDefault(id, 0), pillMpBonus = pillMpBonuses.getOrDefault(id, 0),
     pillSpeedBonus = pillSpeedBonuses.getOrDefault(id, 0),
     pillEffectDuration = pillEffectDurations.getOrDefault(id, 0),

@@ -433,7 +433,7 @@ TEST(PhaseSettlementTest, TempBattlePillNotAutoConsumed) {
     battlePill.rarity = 2;
     battlePill.quantity = 1;
     battlePill.effect = state::ItemEffect{};
-    battlePill.effect->physicalAttackAdd = 20;
+    battlePill.effect->attackAdd = 20;
     d.storageBagItems.push_back(battlePill);
     st.disciples.appendDisciple(d);
 

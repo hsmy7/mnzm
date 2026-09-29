@@ -282,10 +282,8 @@ class ExplorationService @Inject constructor(
         val beastPreGenStats = if (level.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
             maxHp = level.beastMaxHp,
             maxMp = level.beastMaxMp,
-            physicalAttack = level.beastPhysicalAttack,
-            magicAttack = level.beastMagicAttack,
-            physicalDefense = level.beastPhysicalDefense,
-            magicDefense = level.beastMagicDefense,
+            attack = level.beastAttackTotal,
+            defense = level.beastDefenseTotal,
             speed = level.beastSpeed,
             realmLayer = level.realmLayer
         ) else null

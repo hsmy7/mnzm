@@ -581,10 +581,9 @@ inline gamecore::battle::Combatant secretRealmBeast(
     b.maxHp = b.hp;
     b.mp = std::max(pre.maxMp, 0);
     b.maxMp = b.mp;
-    b.physicalAttack = std::max(pre.physicalAttack, 0);
-    b.magicAttack = std::max(pre.magicAttack, 0);
-    b.physicalDefense = std::max(pre.physicalDefense, 0);
-    b.magicDefense = std::max(pre.magicDefense, 0);
+    // 单列口径（B1）
+    b.attack = std::max(pre.attack, 0);
+    b.defense = std::max(pre.defense, 0);
     b.speed = std::max(pre.speed, 0);
     b.critRate = 0.05 + realmIndex * 0.01;
     b.realm = realmIndex;

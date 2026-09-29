@@ -121,10 +121,8 @@ fun DiscipleStatCalculator.getFinalStats(
                 pillEffectDuration = it.pillEffectDuration,
                 pillHpBonus = it.pillHpBonus,
                 pillMpBonus = it.pillMpBonus,
-                pillPhysicalAttackBonus = it.pillPhysicalAttackBonus,
-                pillMagicAttackBonus = it.pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = it.pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = it.pillMagicDefenseBonus,
+                pillAttackBonus = it.pillAttackBonus,
+                pillDefenseBonus = it.pillDefenseBonus,
                 pillSpeedBonus = it.pillSpeedBonus,
                 pillCritRateBonus = it.pillCritRateBonus
             )

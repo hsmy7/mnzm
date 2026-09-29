@@ -117,10 +117,8 @@ class DiscipleStatCalculatorCombatBonusTest {
         realmLayer: Int = 1,
         baseHp: Int = 100,
         baseMp: Int = 50,
-        basePhysicalAttack: Int = 20,
-        baseMagicAttack: Int = 15,
-        basePhysicalDefense: Int = 10,
-        baseMagicDefense: Int = 8,
+        baseAttack: Int = 20,
+        baseDefense: Int = 10,
         baseSpeed: Int = 30,
         intelligence: Int = 50,
         charm: Int = 50,
@@ -135,10 +133,8 @@ class DiscipleStatCalculatorCombatBonusTest {
         pillEffectDuration: Int = 0,
         pillHpBonus: Int = 0,
         pillMpBonus: Int = 0,
-        pillPhysicalAttackBonus: Int = 0,
-        pillMagicAttackBonus: Int = 0,
-        pillPhysicalDefenseBonus: Int = 0,
-        pillMagicDefenseBonus: Int = 0,
+        pillAttackBonus: Int = 0,
+        pillDefenseBonus: Int = 0,
         pillSpeedBonus: Int = 0,
         discipleType: String = "inner",
         statusData: Map<String, String> = emptyMap(),
@@ -152,19 +148,15 @@ class DiscipleStatCalculatorCombatBonusTest {
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
-                basePhysicalAttack = basePhysicalAttack,
-                baseMagicAttack = baseMagicAttack,
-                basePhysicalDefense = basePhysicalDefense,
-                baseMagicDefense = baseMagicDefense,
+                baseAttack = baseAttack,
+                baseDefense = baseDefense,
                 baseSpeed = baseSpeed
             ),
             pillEffects = PillEffects(
                 pillHpBonus = pillHpBonus,
                 pillMpBonus = pillMpBonus,
-                pillPhysicalAttackBonus = pillPhysicalAttackBonus,
-                pillMagicAttackBonus = pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = pillMagicDefenseBonus,
+                pillAttackBonus = pillAttackBonus,
+                pillDefenseBonus = pillDefenseBonus,
                 pillSpeedBonus = pillSpeedBonus,
                 pillEffectDuration = pillEffectDuration
             ),
@@ -236,8 +228,8 @@ class DiscipleStatCalculatorCombatBonusTest {
         val disciple = createDisciple()
         val baseStats = DiscipleStatCalculator.getBaseStats(disciple)
         val equippedStats = DiscipleStatCalculator.getStatsWithEquipment(disciple, emptyMap())
-        assertEquals(baseStats.physicalAttack, equippedStats.physicalAttack)
-        assertEquals(baseStats.physicalDefense, equippedStats.physicalDefense)
+        assertEquals(baseStats.attack, equippedStats.attack)
+        assertEquals(baseStats.defense, equippedStats.defense)
     }
 
     // ── 内门/外门长老加成计算验证 ──

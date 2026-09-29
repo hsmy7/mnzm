@@ -563,10 +563,8 @@ inline void applyMonthlyDurationDecay(Disciple& d) {
     if (newDuration <= 0) {
         d.pillHpBonus = 0;
         d.pillMpBonus = 0;
-        d.pillPhysicalAttackBonus = 0;
-        d.pillMagicAttackBonus = 0;
-        d.pillPhysicalDefenseBonus = 0;
-        d.pillMagicDefenseBonus = 0;
+        d.pillAttackBonus = 0;
+        d.pillDefenseBonus = 0;
         d.pillSpeedBonus = 0;
         d.pillCritRateBonus = 0.0;
         d.pillCritEffectBonus = 0.0;
@@ -586,10 +584,8 @@ inline void applyMonthlyDurationDecay(Disciple& d) {
 inline void clearPillEffectBonuses(DiscipleStore& ds, std::size_t row) {
     ds.pillHpBonuses[row] = 0;
     ds.pillMpBonuses[row] = 0;
-    ds.pillPhysicalAttackBonuses[row] = 0;
-    ds.pillMagicAttackBonuses[row] = 0;
-    ds.pillPhysicalDefenseBonuses[row] = 0;
-    ds.pillMagicDefenseBonuses[row] = 0;
+    ds.pillAttackBonuses[row] = 0;
+    ds.pillDefenseBonuses[row] = 0;
     ds.pillSpeedBonuses[row] = 0;
     ds.pillCritRateBonuses[row] = 0.0;
     ds.pillCritEffectBonuses[row] = 0.0;
@@ -832,8 +828,7 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
 /// ⇒ 0 星 ⇒ 恒 ×1.00（口径 A，无需为它们特判）
 inline int64_t sectPowerOfDisciple(const state::Disciple& d, const state::GameData& gd) {
     const auto st = stats::baseStats(d);
-    return discipleCombatPowerWithStar(st.physicalAttack, st.magicAttack, st.maxHp,
-                                       st.physicalDefense, st.magicDefense, st.speed,
+    return discipleCombatPowerWithStar(st.attack, st.maxHp, st.defense, st.speed,
                                        resolveStar(gd, d.templateId));
 }
 
@@ -1177,8 +1172,7 @@ inline std::vector<std::string> collectQualifiedAiForBeast(
         if (aliveCount < kAiMinDisciplesForAttack) continue;
 
         const int64_t beastPower = beastCombatPower(
-            beast.beastMaxHp, beast.beastPhysicalAttack, beast.beastMagicAttack,
-            beast.beastPhysicalDefense, beast.beastMagicDefense, beast.beastSpeed);
+            beast.beastMaxHp, beast.beastAttack, beast.beastDefense, beast.beastSpeed);
 
         bool canAttack = false;
         if (beastPower <= 0) {

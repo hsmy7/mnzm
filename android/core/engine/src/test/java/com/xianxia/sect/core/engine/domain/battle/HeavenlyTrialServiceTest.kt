@@ -71,7 +71,7 @@ class HeavenlyTrialServiceTest {
         // 加上装备 (EquipmentDatabase.getTemplateByName 可能返回高 HP 装备)
         // 核心验证：属性 > 0 即可，数值合理性的精确验证依赖方差测试
         assertTrue("HP should be > 0", combatant.hp > 0)
-        assertTrue("Physical attack should be > 0", combatant.physicalAttack > 0)
+        assertTrue("Physical attack should be > 0", combatant.attack > 0)
     }
 
     @Test
@@ -90,10 +90,10 @@ class HeavenlyTrialServiceTest {
         assertTrue("HP ${combatant.hp} should be reasonable for realm 6",
             combatant.hp in 2000..5000)
 
-        // Realm 6 basePhysicalAttack=265, layer=1, variance ±30%
-        // min: 265 × 0.7 = 186, max: 265 × 1.3 = 345
-        assertTrue("Physical attack ${combatant.physicalAttack} should be reasonable",
-            combatant.physicalAttack in 150..400)
+        // Realm 6 单列（B1）：物攻 265 + 法攻 265 各自 ±30% 取和
+        // min: 265×0.7×2 = 371, max: 265×1.3×2 = 689
+        assertTrue("Attack ${combatant.attack} should be reasonable (single-column sum)",
+            combatant.attack in 350..700)
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -84,6 +85,10 @@ class HeavenlyTrialService @Inject constructor(
         )
 
         val beastSkills = buildBeastSkills(beastType = beastType)
+        // 妖兽伤害类型按种类元素固定（$15.3：金/土→物理、水/木/火→法术）
+        val innateType =
+            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
+            else DamageType.MAGIC
 
         val typeIndex = GameConfig.Beast.TYPES.indexOf(beastType)
 
@@ -95,10 +100,9 @@ class HeavenlyTrialService @Inject constructor(
             maxHp = stats.hp,
             mp = stats.mp,
             maxMp = stats.mp,
-            physicalAttack = stats.physicalAttack,
-            magicAttack = stats.magicAttack,
-            physicalDefense = stats.physicalDefense,
-            magicDefense = stats.magicDefense,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = innateType,
             speed = stats.speed,
             critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
             skills = beastSkills,
@@ -115,10 +119,8 @@ class HeavenlyTrialService @Inject constructor(
     internal data class BeastStats(
         val hp: Int,
         val mp: Int,
-        val physicalAttack: Int,
-        val magicAttack: Int,
-        val physicalDefense: Int,
-        val magicDefense: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int
     )
 
@@ -147,10 +149,9 @@ class HeavenlyTrialService @Inject constructor(
             maxHp = stats.hp,
             mp = stats.mp,
             maxMp = stats.mp,
-            physicalAttack = stats.physAtk,
-            magicAttack = stats.magAtk,
-            physicalDefense = stats.physDef,
-            magicDefense = stats.magDef,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = DamageType.PHYSICAL,
             speed = stats.speed,
             critRate = 0.05 + def.realm * 0.01 + stats.critChance,
             skills = buildTrialSkills(selected),
@@ -175,10 +176,8 @@ class HeavenlyTrialService @Inject constructor(
     internal data class TrialBaseStats(
         val hp: Int,
         val mp: Int,
-        val physAtk: Int,
-        val magAtk: Int,
-        val physDef: Int,
-        val magDef: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int,
         val critChance: Double
     )
@@ -186,8 +185,7 @@ class HeavenlyTrialService @Inject constructor(
     /** 试炼功法选取（buildDiscipleEnemy 提取）：固定 manualIds → 角色精选 → 随机 */
     internal data class StatBonus(
         val hp: Int = 0, val mp: Int = 0,
-        val physAtk: Int = 0, val magAtk: Int = 0,
-        val physDef: Int = 0, val magDef: Int = 0,
+        val attack: Int = 0, val defense: Int = 0,
         val speed: Int = 0, val critChance: Double = 0.0
     )
 

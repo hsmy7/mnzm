@@ -207,7 +207,7 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     EXPECT_EQ("虎力丹", b1->name);
     EXPECT_EQ("BATTLE", b1->category);
     EXPECT_EQ("凡品中品物攻丹，增加5点物攻，持续9旬", b1->description);
-    EXPECT_EQ(5, b1->physicalAttackAdd);
+    EXPECT_EQ(5, b1->attackAdd);
     ASSERT_EQ(2u, b1->materials.size());
     EXPECT_EQ(2, b1->materials.at("spiritGrass1"));
     EXPECT_EQ(2, b1->materials.at("spiritFlower2"));
@@ -216,7 +216,7 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     const auto b2 = pillRecipeById("physicalAttack_1_low");
     ASSERT_TRUE(b2.has_value());
     EXPECT_EQ("凡品下品物攻丹，增加3点物攻，持续9旬", b2->description);
-    EXPECT_EQ(3, b2->physicalAttackAdd);
+    EXPECT_EQ(3, b2->attackAdd);
 
     // 双属性：hpMp 上品（格式陷阱：描述用英文属性键）
     const auto b3 = pillRecipeById("hpMp_1_high");
@@ -232,8 +232,8 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     EXPECT_EQ("战体丹", b4->name);
     EXPECT_EQ("凡品下品物攻物防丹，增加2点physicalAttack和1点physicalDefense，持续9旬",
               b4->description);
-    EXPECT_EQ(2, b4->physicalAttackAdd);
-    EXPECT_EQ(1, b4->physicalDefenseAdd);
+    EXPECT_EQ(2, b4->attackAdd);
+    EXPECT_EQ(1, b4->defenseAdd);
 
     // 暴击率下品（0.03×0.5=0.015 → 1.5 → 2%）
     const auto b5 = pillRecipeById("critRate_1_low");

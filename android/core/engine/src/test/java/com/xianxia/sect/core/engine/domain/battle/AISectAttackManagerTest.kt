@@ -442,7 +442,7 @@ class AISectAttackManagerTest {
             side = CombatantSide.ATTACKER
         )
         assertTrue("玩家 Combatant 必须保留功法技能", playerCombatant.skills.isNotEmpty())
-        assertTrue("玩家 Combatant 必须包含装备攻击加成", playerCombatant.physicalAttack >= 5000)
+        assertTrue("玩家 Combatant 必须包含装备攻击加成", playerCombatant.attack >= 5000)
         assertTrue("玩家 Combatant 必须包含装备血量加成", playerCombatant.maxHp >= 20000)
 
         // AI 低境界守军（realm=7 金丹，无装备功法 → 白板）

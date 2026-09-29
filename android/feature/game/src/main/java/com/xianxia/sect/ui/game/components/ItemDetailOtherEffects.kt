@@ -259,10 +259,8 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
     if (pill.clearAll) add("  清除所有负面状态")
     if (pill.hpAdd > 0) add("  生命 +${pill.hpAdd}")
     if (pill.mpAdd > 0) add("  灵力 +${pill.mpAdd}")
-    if (pill.physicalAttackAdd > 0) add("  物理攻击 +${pill.physicalAttackAdd}")
-    if (pill.magicAttackAdd > 0) add("  法术攻击 +${pill.magicAttackAdd}")
-    if (pill.physicalDefenseAdd > 0) add("  物理防御 +${pill.physicalDefenseAdd}")
-    if (pill.magicDefenseAdd > 0) add("  法术防御 +${pill.magicDefenseAdd}")
+    if (pill.attackAdd > 0) add("  攻击力 +${pill.attackAdd}")
+    if (pill.defenseAdd > 0) add("  防御力 +${pill.defenseAdd}")
     if (pill.speedAdd > 0) add("  速度 +${pill.speedAdd}")
 }
 
@@ -281,10 +279,8 @@ private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemData
 
 /** 商人物品丹药战斗类效果 */
 private fun MutableList<String>.addBattlePillTemplateEffects(pill: ItemDatabase.PillTemplate) {
-    if (pill.physicalAttackAdd > 0) add("  物理攻击 +${pill.physicalAttackAdd}")
-    if (pill.magicAttackAdd > 0) add("  法术攻击 +${pill.magicAttackAdd}")
-    if (pill.physicalDefenseAdd > 0) add("  物理防御 +${pill.physicalDefenseAdd}")
-    if (pill.magicDefenseAdd > 0) add("  法术防御 +${pill.magicDefenseAdd}")
+    if (pill.attackAdd > 0) add("  攻击力 +${pill.attackAdd}")
+    if (pill.defenseAdd > 0) add("  防御力 +${pill.defenseAdd}")
     if (pill.hpAdd > 0) add("  生命 +${pill.hpAdd}")
     if (pill.mpAdd > 0) add("  灵力 +${pill.mpAdd}")
     if (pill.speedAdd > 0) add("  速度 +${pill.speedAdd}")

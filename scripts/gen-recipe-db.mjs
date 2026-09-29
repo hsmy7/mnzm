@@ -143,6 +143,12 @@ const REALM_NAME = {
   3: '合体', 2: '大乘', 1: '渡劫', 0: '仙人',
 };
 
+// ── B1 属性单列口径（方案 §15.4）：物法攻合并 attackAdd、物法防合并 defenseAdd
+// （pillType/文案保留物法身份，效果键归并；与 Kotlin ItemDatabase 生成逻辑一致）
+const ADD_KEY = { physicalAttack: 'attackAdd', magicAttack: 'attackAdd',
+  physicalDefense: 'defenseAdd', magicDefense: 'defenseAdd' };
+const addKeyOf = (a) => ADD_KEY[a] || `${a}Add`;
+
 // ── PillTemplate 生成（复刻 ItemDatabase.kt）─────────────────────────
 const pillTemplates = [];
 const mkPill = (id, name, description, fields) => {
@@ -156,10 +162,8 @@ const mkPill = (id, name, description, fields) => {
     cultivationAdd: fields.cultivationAdd ?? 0,
     skillExpAdd: fields.skillExpAdd ?? 0,
     nurtureAdd: fields.nurtureAdd ?? 0,
-    physicalAttackAdd: fields.physicalAttackAdd ?? 0,
-    magicAttackAdd: fields.magicAttackAdd ?? 0,
-    physicalDefenseAdd: fields.physicalDefenseAdd ?? 0,
-    magicDefenseAdd: fields.magicDefenseAdd ?? 0,
+    attackAdd: fields.attackAdd ?? 0,
+    defenseAdd: fields.defenseAdd ?? 0,
     hpAdd: fields.hpAdd ?? 0,
     mpAdd: fields.mpAdd ?? 0,
     speedAdd: fields.speedAdd ?? 0,
@@ -243,7 +247,7 @@ for (const [pillType, attrName] of Object.entries(ATTR_CN)) {
       const mult = GRADE_MULT[g];
       const val = rint(mediumVal * mult);
       const fields = {};
-      fields[`${pillType}Add`] = val;
+      fields[addKeyOf(pillType)] = val;
       mkPill(`${pillType}_${tier}_${GRADE_LOWER[g]}`, NAMES[pillType][tier],
         `${tierName}${GRADE_DISPLAY[g]}${attrName}丹，增加${val}点${attrName}，持续9旬`, fields);
     }
@@ -264,7 +268,8 @@ for (const [pillType, [attr1, attr2, descName]] of Object.entries(DUAL_CFG)) {
       const attrVal = (a) => (a === attr1 ? v1 : a === attr2 ? v2 : 0);
       const fields = {};
       for (const a of ['physicalAttack', 'magicAttack', 'physicalDefense', 'magicDefense', 'hp', 'mp', 'speed']) {
-        fields[`${a}Add`] = attrVal(a);
+        const k = addKeyOf(a);
+        fields[k] = (fields[k] || 0) + attrVal(a);
       }
       mkPill(`${pillType}_${tier}_${GRADE_LOWER[g]}`, NAMES[pillType][tier],
         `${tierName}${GRADE_DISPLAY[g]}${descName}丹，增加${v1}点${attr1}和${v2}点${attr2}，持续9旬`, fields);
@@ -436,7 +441,7 @@ const recipeFields = () => ({
   breakthroughChance: 0.0, targetRealm: 0,
   cultivationSpeedPercent: 0.0, skillExpSpeedPercent: 0.0, nurtureSpeedPercent: 0.0,
   cultivationAdd: 0, skillExpAdd: 0, nurtureAdd: 0,
-  physicalAttackAdd: 0, magicAttackAdd: 0, physicalDefenseAdd: 0, magicDefenseAdd: 0,
+  attackAdd: 0, defenseAdd: 0,
   hpAdd: 0, mpAdd: 0, speedAdd: 0, critRateAdd: 0.0, critEffectAdd: 0.0,
   intelligenceAdd: 0, charmAdd: 0, comprehensionAdd: 0,
   artifactRefiningAdd: 0, pillRefiningAdd: 0, spiritPlantingAdd: 0, teachingAdd: 0,
@@ -451,8 +456,7 @@ const mkRecipe = (tpl, tier, category, pillType, materials, breakthroughChance =
     cultivationSpeedPercent: tpl.cultivationSpeedPercent, skillExpSpeedPercent: tpl.skillExpSpeedPercent,
     nurtureSpeedPercent: tpl.nurtureSpeedPercent, cultivationAdd: tpl.cultivationAdd,
     skillExpAdd: tpl.skillExpAdd, nurtureAdd: tpl.nurtureAdd,
-    physicalAttackAdd: tpl.physicalAttackAdd, magicAttackAdd: tpl.magicAttackAdd,
-    physicalDefenseAdd: tpl.physicalDefenseAdd, magicDefenseAdd: tpl.magicDefenseAdd,
+    attackAdd: tpl.attackAdd, defenseAdd: tpl.defenseAdd,
     hpAdd: tpl.hpAdd, mpAdd: tpl.mpAdd, speedAdd: tpl.speedAdd,
     critRateAdd: tpl.critRateAdd, critEffectAdd: tpl.critEffectAdd,
     intelligenceAdd: tpl.intelligenceAdd, charmAdd: tpl.charmAdd,

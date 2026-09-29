@@ -1,30 +1,29 @@
 package com.xianxia.sect.data.serialization.unified
 
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.data.model.SaveData
-import kotlinx.serialization.encodeToByteArray
-import kotlinx.serialization.protobuf.ProtoBuf
 import kotlinx.serialization.protobuf.ProtoNumber
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 
 /**
- * E1 存档编号冻结守卫（装备系统重构 B0；冻结表唯一真源 = 方案 §四 WP0 +
- * `docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md` §1）。
+ * E1 存档编号冻结守卫（装备重构 B0 定稿 / B1 增量接线）。
  *
- * 冻结语义：
- * - **装备段**：`weaponId(17)` 复用为六部位的武器部位列（唯一复用号）；仓储列 28/30/31 不动。
+ * 冻结表（方案 §四 WP0 / 批次文档 §1 E1）：
+ * - **装备段**：`weaponId(17)` = 六部位唯一复用号（武器部位列）；`18/19/20/24..27/47/98/99`
+ *   退役在册（退役批落地前禁改指向）。
  * - **六部位新增段**：`headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)`
- *   （按显示序 头/身/手/脚/武/腿）+ `innateDamageType(117)`，只声明占号、不写入/不读取。
- * - **存量退役号**（reserved）不得被任何 `@ProtoNumber` 重新占用。
- * - **退役在册号**（18/19/20、24..27、47、98/99）在退役批落地前不得改指向（防 wire 漂移）。
- * - **SaveData**：`equipmentStacks(53)` 保持 53 锚点，其他字段不得抢占。
- * - **默认弟子序列化字节流不得出现 112..117**（B0 契约 = 声明占号，接线分属 B1(117)/B3(112..116)）。
+ *   （按显示序 头/身/手/脚/武/腿），**B3 接线**，只声明占号、不写入/不读取。
+ * - **B1 属性单列段**（本批接线）：`baseAttack(118)/baseDefense(119)/attackVariance(120)/`
+ *   `defenseVariance(121)/pillAttackBonus(122)/pillDefenseBonus(123)` + `innateDamageType(117)`
+ *   （B0 占号、B1 接线，String = DamageType.name）。
+ * - **旧双列归一化源**（B1 起只读不写）：`69..72`（物法攻防基值）、`62..65`（物法方差，均值
+ *   归一）、`36..39`（丹药四加成，取和归一）——旧档读取兼容面，禁复用号。
  *
  * 编号新增/变更的唯一合法路径：先改方案 §四 WP0 + 批次文档 §1 E1 冻结表并登记，
  * 再同步本守卫——禁止临时新增编号（E1）。
@@ -55,13 +54,20 @@ class EquipmentProtoNumberFrozenTest {
             "spiritStones" to 28,
             "storageBagItems" to 30,
             "storageBagSpiritStones" to 31,
-            // 六部位新增段（显示序 头/身/手/脚/武/腿）+ 固有伤害属性
+            // 六部位新增段（显示序 头/身/手/脚/武/腿；B3 接线）
             "headId" to 112,
             "bodyId" to 113,
             "handsId" to 114,
             "feetId" to 115,
             "legsId" to 116,
-            "innateDamageType" to 117
+            // B1 属性单列段（本批接线）
+            "innateDamageType" to 117,
+            "baseAttack" to 118,
+            "baseDefense" to 119,
+            "attackVariance" to 120,
+            "defenseVariance" to 121,
+            "pillAttackBonus" to 122,
+            "pillDefenseBonus" to 123
         )
         val missing = frozen.keys.filter { it !in numbers }
         val mismatched = frozen.mapNotNull { (name, number) ->
@@ -76,6 +82,36 @@ class EquipmentProtoNumberFrozenTest {
             "属性→编号与冻结表不一致：\n$mismatched\n" +
                 "处置：编号是存档 wire 契约，禁改号；确需变更先在方案 §四 WP0 + 批次文档 §1 E1 登记后再同步本表。",
             mismatched.isEmpty()
+        )
+    }
+
+    @Test
+    fun `b1 legacy columns stay pointed at normalization sources`() {
+        val numbers = protoNumbers(surrogate)
+        val legacy = mapOf(
+            // 旧物法攻防基值（69..72）——只读归一化源，写入面已迁 baseAttack(118)/baseDefense(119)
+            "basePhysicalAttack" to 69,
+            "baseMagicAttack" to 70,
+            "basePhysicalDefense" to 71,
+            "baseMagicDefense" to 72,
+            // 旧物法方差（62..65）——均值归一化源，写入面已迁 attackVariance(120)/defenseVariance(121)
+            "physicalAttackVariance" to 62,
+            "magicAttackVariance" to 63,
+            "physicalDefenseVariance" to 64,
+            "magicDefenseVariance" to 65,
+            // 旧丹药四加成（36..39）——取和归一化源，写入面已迁 pillAttackBonus(122)/pillDefenseBonus(123)
+            "pillPhysicalAttackBonus" to 36,
+            "pillMagicAttackBonus" to 37,
+            "pillPhysicalDefenseBonus" to 38,
+            "pillMagicDefenseBonus" to 39
+        )
+        val drifted = legacy.mapNotNull { (name, number) ->
+            if (numbers[name] != number) "$name 期望 $number 实际 ${numbers[name]}" else null
+        }
+        assertTrue(
+            "B1 旧双列归一化源号被改指向：\n$drifted\n" +
+                "处置：归一化源号是旧档读取兼容面，禁改号、禁复用；全部旧档迁移完成后方可按退役流程清理。",
+            drifted.isEmpty()
         )
     }
 
@@ -132,49 +168,33 @@ class EquipmentProtoNumberFrozenTest {
     }
 
     @Test
-    fun `new frozen section stays unwired in saved bytes`() {
-        val bytes = ProtoBuf.encodeToByteArray(Disciple.serializer(), Disciple(id = "b0", name = "编号冻结守卫"))
-        val newSection = setOf(112, 113, 114, 115, 116, 117)
-        val leaked = topLevelFieldNumbers(bytes).intersect(newSection)
+    fun `b3 section stays unwired in write path`() {
+        // B0 的字节流级断言在 B1 后失效：118/119（baseAttack/baseDefense 缺省 24/18 非
+        // 零）由 kotlinx protobuf 合法写出，全流 varint 分帧不再「只有 4 个顶层字段」。
+        // B1 起改守**写入面源码**：buildSurrogate（唯一写入口）不得引用 112..116
+        // 占号字段（接线属 B3）；117、118..123 为合法接线引用。
+        val serializerFile = generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
+            .map { File(it, "core/domain/src/main/java/com/xianxia/sect/core/model/" +
+                "DiscipleSerializer.kt") }
+            .firstOrNull { it.exists() }
+        val source = serializerFile?.readText()
+            ?: error("DiscipleSerializer.kt 未找到（cwd=" + System.getProperty("user.dir") + "）")
+        val writeSegment = source.substringAfter("private fun buildSurrogate")
+            .substringBefore("override fun deserialize")
+        val b3Fields = listOf("headId", "bodyId", "handsId", "feetId", "legsId")
+        val wired = b3Fields.filter { field ->
+            Regex("^[^\n]*[=(,]\\s*$field\\b", RegexOption.MULTILINE)
+                .containsMatchIn(writeSegment)
+        }
         assertTrue(
-            "新增段字段 $leaked 出现在存档字节流（B0 契约 = 只声明占号，不写入/不读取）。\n" +
-                "排查：buildSurrogate/with*Values 是否误接线，或新字段被加 @EncodeDefault(ALWAYS)；接线属 B1(117)/B3(112..116)。",
-            leaked.isEmpty()
+            "B3 六部位占号字段 $wired 在 buildSurrogate 写入路径被引用（接线属 B3，本批禁写）。\n" +
+                "排查：withEquipmentUsageFields/withCombatPillFields 是否误搬运 112..116。",
+            wired.isEmpty()
         )
-    }
-
-    /** 解析 Protobuf 顶层字段号（只解析第一层，不受消息体内容干扰） */
-    private fun topLevelFieldNumbers(bytes: ByteArray): Set<Int> {
-        var index = 0
-        fun readVarint(): Long {
-            var shift = 0
-            var value = 0L
-            while (index < bytes.size) {
-                val byte = bytes[index].toInt()
-                value = value or ((byte and 0x7F).toLong() shl shift)
-                index++
-                if (byte and 0x80 == 0) return value
-                shift += 7
-            }
-            error("varint 越过字节流末尾（index=$index size=${bytes.size}）")
-        }
-        val numbers = mutableSetOf<Int>()
-        while (index < bytes.size) {
-            val tag = readVarint()
-            numbers += ((tag ushr 3) and Int.MAX_VALUE.toLong()).toInt()
-            when ((tag and 0x7L).toInt()) {
-                0 -> readVarint()
-                1 -> index += 8
-                // 复合赋值会先取旧 index 再求值 RHS（readVarint 内部推进 index），
-                // 必须先落局部变量再跳，否则写入「旧+新」错值导致解析失步
-                2 -> {
-                    val length = readVarint().toInt()
-                    index += length
-                }
-                5 -> index += 4
-                else -> error("未知 wire type：tag=$tag index=$index size=${bytes.size}")
-            }
-        }
-        return numbers
+        // 117（innateDamageType）必须已接线（B1 契约，写面反向断言）
+        assertTrue(
+            "innateDamageType 未在 buildSurrogate 写入路径引用（B1 接线缺失）",
+            Regex("innateDamageType\\s*=").containsMatchIn(writeSegment)
+        )
     }
 }

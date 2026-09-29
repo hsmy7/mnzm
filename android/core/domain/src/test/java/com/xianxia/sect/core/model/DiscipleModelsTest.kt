@@ -55,10 +55,8 @@ class DiscipleModelsTest {
         assertEquals(0, stats.slotId)
         assertEquals(120, stats.baseHp)
         assertEquals(60, stats.baseMp)
-        assertEquals(12, stats.basePhysicalAttack)
-        assertEquals(12, stats.baseMagicAttack)
-        assertEquals(10, stats.basePhysicalDefense)
-        assertEquals(8, stats.baseMagicDefense)
+        assertEquals(24, stats.baseAttack)
+        assertEquals(18, stats.baseDefense)
         assertEquals(15, stats.baseSpeed)
         assertEquals(0, stats.hpVariance)
         assertEquals(0, stats.totalCultivation)
@@ -71,10 +69,8 @@ class DiscipleModelsTest {
     @Test
     fun discipleCombatStats_pillBonusDefaults() {
         val stats = DiscipleCombatStats()
-        assertEquals(0, stats.pillPhysicalAttackBonus)
-        assertEquals(0, stats.pillMagicAttackBonus)
-        assertEquals(0, stats.pillPhysicalDefenseBonus)
-        assertEquals(0, stats.pillMagicDefenseBonus)
+        assertEquals(0, stats.pillAttackBonus)
+        assertEquals(0, stats.pillDefenseBonus)
         assertEquals(0, stats.pillHpBonus)
         assertEquals(0, stats.pillMpBonus)
         assertEquals(0, stats.pillSpeedBonus)
@@ -116,10 +112,8 @@ class DiscipleModelsTest {
         val attrs = CombatAttributes()
         assertEquals(120, attrs.baseHp)
         assertEquals(60, attrs.baseMp)
-        assertEquals(12, attrs.basePhysicalAttack)
-        assertEquals(12, attrs.baseMagicAttack)
-        assertEquals(10, attrs.basePhysicalDefense)
-        assertEquals(8, attrs.baseMagicDefense)
+        assertEquals(24, attrs.baseAttack)
+        assertEquals(18, attrs.baseDefense)
         assertEquals(15, attrs.baseSpeed)
         assertEquals(0, attrs.hpVariance)
         assertEquals(0, attrs.totalCultivation)
@@ -133,18 +127,15 @@ class DiscipleModelsTest {
         val stats = CombatAttributes.calculateBaseStatsWithVariance(
             hpVariance = 10,
             mpVariance = -10,
-            physicalAttackVariance = 20,
-            magicAttackVariance = 0,
-            physicalDefenseVariance = -5,
-            magicDefenseVariance = 5,
+            attackVariance = 20,
+            defenseVariance = 0,
             speedVariance = 30
         )
         assertEquals((120 * 1.10).toInt(), stats.baseHp)
         assertEquals((60 * 0.90).toInt(), stats.baseMp)
-        assertEquals((12 * 1.20).toInt(), stats.basePhysicalAttack)
-        assertEquals((12 * 1.00).toInt(), stats.baseMagicAttack)
-        assertEquals((10 * 0.95).toInt(), stats.basePhysicalDefense)
-        assertEquals((8 * 1.05).toInt(), stats.baseMagicDefense)
+        // 单列口径（B1）：24 基值单方差（旧物法 12/12 各自方差已并）
+        assertEquals((24 * 1.20).toInt(), stats.baseAttack)
+        assertEquals((18 * 1.00).toInt(), stats.baseDefense)
         assertEquals((15 * 1.30).toInt(), stats.baseSpeed)
     }
 
@@ -153,10 +144,8 @@ class DiscipleModelsTest {
     @Test
     fun pillEffects_defaultConstruction() {
         val effects = PillEffects()
-        assertEquals(0, effects.pillPhysicalAttackBonus)
-        assertEquals(0, effects.pillMagicAttackBonus)
-        assertEquals(0, effects.pillPhysicalDefenseBonus)
-        assertEquals(0, effects.pillMagicDefenseBonus)
+        assertEquals(0, effects.pillAttackBonus)
+        assertEquals(0, effects.pillDefenseBonus)
         assertEquals(0, effects.pillHpBonus)
         assertEquals(0, effects.pillMpBonus)
         assertEquals(0, effects.pillSpeedBonus)
@@ -408,8 +397,7 @@ class DiscipleModelsTest {
         val stats = BaseCombatStats()
         assertEquals(120, stats.baseHp)
         assertEquals(60, stats.baseMp)
-        assertEquals(12, stats.basePhysicalAttack)
-        assertEquals(12, stats.baseMagicAttack)
-        assertEquals(10, stats.basePhysicalDefense)
+        assertEquals(24, stats.baseAttack)
+        assertEquals(18, stats.baseDefense)
     }
 }

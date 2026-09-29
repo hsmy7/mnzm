@@ -471,12 +471,15 @@ inline gamecore::battle::Combatant createBeast(int32_t beastRealm, int32_t index
     beast.maxHp = beast.hp;
     beast.mp = scaled(rs.mp, type.hpMod);
     beast.maxMp = beast.mp;
-    beast.physicalAttack = scaled(rs.attack, type.atkMod);
-    beast.magicAttack = scaled(rs.attack, type.atkMod);
-    beast.physicalDefense = scaled(rs.defense, type.defMod);
-    beast.magicDefense = scaled(rs.defense, type.defMod);
+    // 单列口径（B1）：物=法同源两半相加
+    beast.attack = scaled(rs.attack, type.atkMod) * 2;
+    beast.defense = scaled(rs.defense, type.defMod) * 2;
     beast.speed = scaled(rs.speed, type.speedMod);
     beast.critRate = 0.05 + realmIndex * 0.01;
+    beast.innateDamageType =
+        (type.element == "metal" || type.element == "earth")
+            ? gamecore::battle::DamageType::kPhysical
+            : gamecore::battle::DamageType::kMagic;
     beast.realm = realmIndex;
     beast.realmLayer = 5;
     beast.element = type.element;
@@ -564,10 +567,8 @@ inline gamecore::battle::Combatant discipleToCombatant(
     c.maxHp = stats.maxHp;
     c.mp = effectiveMp;
     c.maxMp = stats.maxMp;
-    c.physicalAttack = stats.physicalAttack;
-    c.magicAttack = stats.magicAttack;
-    c.physicalDefense = stats.physicalDefense;
-    c.magicDefense = stats.magicDefense;
+    c.attack = stats.attack;
+    c.defense = stats.defense;
     c.speed = stats.speed;
     c.critRate = stats.critRate;
     c.skills = std::move(skills);
@@ -622,7 +623,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         const int32_t equipmentCount = enemyRng.nextInt(5);
 
         // 装备属性累加器（Kotlin EquipmentStatsAccumulator）
-        int32_t eqHp = 0, eqMp = 0, eqPa = 0, eqMa = 0, eqPd = 0, eqMd = 0, eqSpd = 0;
+        int32_t eqHp = 0, eqMp = 0, eqPa = 0, eqPd = 0, eqSpd = 0;
         double eqCrit = 0.0;
         for (int32_t i = 0; i < equipmentCount; ++i) {
             const auto& slot = slots[static_cast<std::size_t>(i)];
@@ -663,10 +664,8 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
             inst.nurtureLevel = nurtureLevel;
             inst.minRealm = realmMinForRarity(tpl->rarity);
             const auto fs = gamecore::stats::equipmentFinalStats(inst);
-            eqPa += fs.physicalAttack;
-            eqMa += fs.magicAttack;
-            eqPd += fs.physicalDefense;
-            eqMd += fs.magicDefense;
+            eqPa += fs.attack;
+            eqPd += fs.defense;
             eqSpd += fs.speed;
             eqHp += fs.hp;
             eqMp += fs.mp;
@@ -674,7 +673,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         }
 
         // 功法：count + 逐条（类型 roll / 未用 rarity 抽取 / 模板生成 / 熟练度）
-        int32_t mHp = 0, mMp = 0, mPa = 0, mMa = 0, mPd = 0, mMd = 0, mSpd = 0;
+        int32_t mHp = 0, mMp = 0, mPa = 0, mPd = 0, mSpd = 0;
         double mCrit = 0.0;
         std::vector<gamecore::battle::CombatSkill> skills;
         const int32_t manualCount = enemyRng.nextInt(6);
@@ -717,13 +716,14 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
             const int32_t mpValue = statOf("mp", "maxMp");
             mHp += static_cast<int32_t>(static_cast<double>(hpValue) * bonus);
             mMp += static_cast<int32_t>(static_cast<double>(mpValue) * bonus);
+            // 单列口径（B1/Q2）：功法双列各自 round 后相加
             mPa += static_cast<int32_t>(
-                static_cast<double>(statOf("physicalAttack", "")) * bonus);
-            mMa += static_cast<int32_t>(
+                static_cast<double>(statOf("physicalAttack", "")) * bonus) +
+                static_cast<int32_t>(
                 static_cast<double>(statOf("magicAttack", "")) * bonus);
             mPd += static_cast<int32_t>(
-                static_cast<double>(statOf("physicalDefense", "")) * bonus);
-            mMd += static_cast<int32_t>(
+                static_cast<double>(statOf("physicalDefense", "")) * bonus) +
+                static_cast<int32_t>(
                 static_cast<double>(statOf("magicDefense", "")) * bonus);
             mSpd += static_cast<int32_t>(
                 static_cast<double>(statOf("speed", "")) * bonus);
@@ -754,14 +754,16 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         enemy.mp = static_cast<int32_t>(
                        static_cast<double>(rc.baseMp) * rngVar() * layerMult) + eqMp + mMp;
         enemy.maxMp = enemy.mp;
-        enemy.physicalAttack = static_cast<int32_t>(
-            static_cast<double>(rc.basePhysicalAttack) * rngVar() * layerMult) + eqPa + mPa;
-        enemy.magicAttack = static_cast<int32_t>(
-            static_cast<double>(rc.baseMagicAttack) * rngVar() * layerMult) + eqMa + mMa;
-        enemy.physicalDefense = static_cast<int32_t>(
-            static_cast<double>(rc.basePhysicalDefense) * rngVar() * layerMult) + eqPd + mPd;
-        enemy.magicDefense = static_cast<int32_t>(
-            static_cast<double>(rc.baseMagicDefense) * rngVar() * layerMult) + eqMd + mMd;
+        // 单列口径（B1）：物法两半各自 round 后相加（同一方差乘区）
+        const double atkVarE = rngVar();
+        enemy.attack = static_cast<int32_t>(
+            static_cast<double>(rc.basePhysicalAttack) * atkVarE * layerMult) +
+            static_cast<int32_t>(
+            static_cast<double>(rc.baseMagicAttack) * atkVarE * layerMult) + eqPa + mPa;
+        enemy.defense = static_cast<int32_t>(
+            static_cast<double>(rc.basePhysicalDefense) * rngVar() * layerMult) +
+            static_cast<int32_t>(
+            static_cast<double>(rc.baseMagicDefense) * rngVar() * layerMult) + eqPd + mPd;
         enemy.speed = static_cast<int32_t>(
             static_cast<double>(rc.baseSpeed) * rngVar() * layerMult) + eqSpd + mSpd;
         enemy.critRate = 0.05 + realm * 0.01 + eqCrit + mCrit;

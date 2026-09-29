@@ -223,10 +223,9 @@ class DiffSecretRealmTest {
             val d = r["data"]!!.jsonObject
             assertEquals("seed=${c.seed} maxHp", k.maxHp, int(d.getValue("maxHp")))
             assertEquals("seed=${c.seed} maxMp", k.maxMp, int(d.getValue("maxMp")))
-            assertEquals("seed=${c.seed} atk", k.physicalAttack, int(d.getValue("physicalAttack")))
-            assertEquals("seed=${c.seed} magicAtk", k.magicAttack, int(d.getValue("magicAttack")))
-            assertEquals("seed=${c.seed} def", k.physicalDefense, int(d.getValue("physicalDefense")))
-            assertEquals("seed=${c.seed} magicDef", k.magicDefense, int(d.getValue("magicDefense")))
+            // 单列口径（B1）：物=法同源两半相加
+            assertEquals("seed=${c.seed} atk", k.attack, int(d.getValue("attack")))
+            assertEquals("seed=${c.seed} def", k.defense, int(d.getValue("defense")))
             assertEquals("seed=${c.seed} speed", k.speed, int(d.getValue("speed")))
             assertEquals("seed=${c.seed} layer", k.realmLayer, int(d.getValue("realmLayer")))
         }

@@ -12,10 +12,14 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * 战斗伤害乘区（Damage Zone）。
  *
  * 遵循"乘区内加算、乘区间乘算"原则。
- * 各乘区含义：
- * - attackBuffs：攻防 Buff 对攻击力的影响（同类加算；由调用方按攻击类型注入 physical/magic 桶）
- * - physicalAttackBuffs / magicAttackBuffs：物理/魔法攻击 Buff 分桶（原合并加算会
- *   导致物理加成误加到魔法攻击上）
+ * 各乘区含义（属性单列口径，装备重构 B1 方案 §15.2/§15.6.1）：
+ * - physicalAttackBuffs / magicAttackBuffs：**类型增伤** buff 分桶（原物法攻
+ *   buff 语义迁移；PHYSICAL_ATTACK_BOOST 等 → 物理类型增伤，buildDamageZones 填充）
+ * - physicalDefenseBuffs / magicDefenseBuffs：**类型减伤** buff 分桶（原物法防
+ *   buff 语义迁移；守方，buildDamageZones 填充）
+ * - typeDamageBonus / typeDamageReduction：类型通道结算位（buildDamageZones
+ *   的 buff 分桶 + Combatant 固有类型桶按本次伤害类型选桶合并后的最终值；
+ *   calculateFinalDamage 消费。四桶全 0.0 时与无类型通道的基准公式逐位一致，S19）
  * - damageAmplification：增伤乘区（DAMAGE_BOOST 等）
  * - damageReduction：减伤乘区（DAMAGE_REDUCTION 等）
  *
@@ -25,12 +29,17 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * - majorRealmDamageAmplification：进攻方跨大境界增伤（每高 1 大境界 +100%，累加不封顶）
  */
 data class DamageZones(
-    val attackBuffs: Double = 0.0,
-    // 物理/魔法攻击 Buff 分桶（buildDamageZones 填充；调用方按攻击类型注入 attackBuffs）
+    // 物理/法术类型增伤 buff 分桶（buildDamageZones 填充；按本次伤害类型选桶进 typeDamageBonus）
     val physicalAttackBuffs: Double = 0.0,
     val magicAttackBuffs: Double = 0.0,
+    // 物理/法术类型减伤 buff 分桶（守方，buildDamageZones 填充；按本次伤害类型选桶进 typeDamageReduction）
+    val physicalDefenseBuffs: Double = 0.0,
+    val magicDefenseBuffs: Double = 0.0,
     val damageAmplification: Double = 0.0,
     val damageReduction: Double = 0.0,
+    // 类型通道结算位：选桶合并后的最终值（固有桶 + buff 桶），默认 0.0 时与基准公式逐位一致
+    val typeDamageBonus: Double = 0.0,
+    val typeDamageReduction: Double = 0.0,
     // 境界压制独立乘算因子（buildDamageZones 按层差填充；与 buff 乘区分开，独立乘算不衰减）
     val realmGapDamageAmplification: Double = 0.0,
     val realmGapDamageReduction: Double = 0.0,
@@ -39,6 +48,7 @@ data class DamageZones(
     val majorRealmDamageAmplification: Double = 0.0,
 )
 
+@Suppress("TooManyFunctions") // 伤害入口三臂（CombatantStats 版 / Combatant 版 / 估算）+ 概率常量：文件级函数数为公式域拆分的固有形态
 object BattleCalculator {
     // ── 技能选择概率常量 ──
     internal const val PROB_SUPPORT_LOW_HP = 0.80
@@ -87,18 +97,24 @@ object BattleCalculator {
     /**
      * 从 Combatant 的 Buff 列表构建战斗乘区。
      *
-     * @param attacker 进攻方（提供 attackBuffs/damageAmplification + 体质伤害加成/暴伤）
-     * @param defender 防守方（可选，提供 damageReduction + 体质减伤/防御加成）
+     * @param attacker 进攻方（提供类型增伤 buff 分桶 + 固有类型增伤桶、damageAmplification + 体质伤害加成/暴伤）
+     * @param defender 防守方（可选，提供类型减伤 buff 分桶 + 固有类型减伤桶、damageReduction + 防御加成）
      * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
      */
+    @Suppress("CyclomaticComplexMethod") // buff 八类 + 守方五类分桶：when 分桶清单，拆分遮蔽"逐类注入"完整性
     fun buildDamageZones(attacker: Combatant, defender: Combatant? = null,
         extraAmplification: Double = 0.0): DamageZones {
-        // 物理/魔法攻击 Buff 分桶求和：避免物理加成误加到魔法攻击。
+        // 类型增伤/减伤 buff 分桶求和：物法攻 buff（BOOST/REDUCE）迁移为类型增伤语义、
+        // 物法防 buff 迁移为类型减伤语义（B1 §15.2 改动点③）。
         // 单次 O(B) when 分桶累加——遍历序与累加序逐位一致，数学等价。
         var physBoost = 0.0
         var physReduce = 0.0
         var magBoost = 0.0
         var magReduce = 0.0
+        var physDefBoost = 0.0
+        var physDefReduce = 0.0
+        var magDefBoost = 0.0
+        var magDefReduce = 0.0
         var dmgBoost = 0.0
         for (buff in attacker.buffs) {
             when (buff.type) {
@@ -112,16 +128,23 @@ object BattleCalculator {
         }
         var dmgReduce = 0.0
         defender?.buffs?.forEach { buff ->
-            if (buff.type == BuffType.DAMAGE_REDUCTION) dmgReduce += buff.value
+            when (buff.type) {
+                BuffType.DAMAGE_REDUCTION -> dmgReduce += buff.value
+                BuffType.PHYSICAL_DEFENSE_BOOST -> physDefBoost += buff.value
+                BuffType.PHYSICAL_DEFENSE_REDUCE -> physDefReduce += buff.value
+                BuffType.MAGIC_DEFENSE_BOOST -> magDefBoost += buff.value
+                BuffType.MAGIC_DEFENSE_REDUCE -> magDefReduce += buff.value
+                else -> {}
+            }
         }
         // 境界压制因子：按攻击方/防守方小层差距计算（独立乘算，不进乘区）
         val realmGap = realmGapFactorsOf(attacker, defender)
 
         return DamageZones(
-            // attackBuffs 由调用方（calculateCombatantDamage/estimateDamage）按攻击类型注入对应分桶
-            attackBuffs = 0.0,
             physicalAttackBuffs = physBoost - physReduce,
             magicAttackBuffs = magBoost - magReduce,
+            physicalDefenseBuffs = physDefBoost - physDefReduce,
+            magicDefenseBuffs = magDefBoost - magDefReduce,
             damageAmplification = dmgBoost + extraAmplification,
             damageReduction = dmgReduce,
             realmGapDamageAmplification = realmGap.damageAmplification,
@@ -131,22 +154,34 @@ object BattleCalculator {
     }
 
     /**
+     * 类型通道选桶合并（固有桶 + buff 桶 → zones 结算位；双端同序同式）。
+     */
+    private fun mergeTypeChannels(zones: DamageZones, attacker: Combatant, defender: Combatant,
+        isPhysical: Boolean): DamageZones = zones.copy(
+        typeDamageBonus = zones.typeDamageBonus +
+            (if (isPhysical) attacker.physicalDamageBonus else attacker.magicDamageBonus) +
+            (if (isPhysical) zones.physicalAttackBuffs else zones.magicAttackBuffs),
+        typeDamageReduction = zones.typeDamageReduction +
+            (if (isPhysical) defender.physicalDamageReduction else defender.magicDamageReduction) +
+            (if (isPhysical) zones.physicalDefenseBuffs else zones.magicDefenseBuffs)
+    )
+
+    /**
      * 乘区法核心伤害计算。
      *
      * 公式：
      *   effectiveAtk × skillMult × (1 - 防御减伤率)
      *   × critMult × physiqueCritMult × affixCritMult
-     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤) × (1 + 境界压制增伤) × (1 + 大境界增伤)
-     *   × (1 - 减伤) × (1 - 体质减伤) × (1 - 词条减伤) × (1 - 境界压制减伤)
+     *   × (1 + 增伤 + 类型增伤) × (1 + 体质增伤) × (1 + 词条增伤) × (1 + 境界压制增伤) × (1 + 大境界增伤)
+     *   × (1 - 减伤 - 类型减伤) × (1 - 体质减伤) × (1 - 词条减伤) × (1 - 境界压制减伤)
      *   × 波动
      *
-     * 其中：
+     * 其中（属性单列口径，B1 方案 §15.2）：
      * - effectiveAtk = rawAttack × (1 + attackBuffs)
-     * - 防御减伤率 = effectiveDefense / (effectiveDefense + DEFENSE_CONSTANT)
-     *   effectiveDefense 已叠加体质/词条防御加成（各自独立乘算）
+     * - 防御减伤率 = defense / (defense + DEFENSE_CONSTANT)（单列，与类型无关）
+     * - 类型增伤/减伤 = zones.typeDamageBonus / typeDamageReduction（类型通道结算位，
+     *   默认 0.0 时与无类型通道的基准公式逐位一致，S19）
      * - critMult = 暴击时 (1 + 基础暴伤)，非暴击时 1.0
-     * - physiqueCritMult = 暴击时 (1 + 体质暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
-     * - affixCritMult = 暴击时 (1 + 词条暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
      * - 境界压制增伤/减伤：独立乘算因子（不进任何加算乘区被稀释），
      *   由 buildDamageZones 按双方小层差距填充，至多一个因子生效
      * - 大境界增伤：独立乘算因子（不进任何加算乘区被稀释），每高 1 大境界 +100%（累加不封顶），
@@ -160,7 +195,7 @@ object BattleCalculator {
         isCrit: Boolean,
         variance: Double
     ): Int {
-        val effectiveAttack = rawAttack * (1.0 + zones.attackBuffs)
+        val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) {
@@ -169,10 +204,10 @@ object BattleCalculator {
             1.0
         }
         return (preCritDamage * critMult
-            * (1.0 + zones.damageAmplification)
+            * (1.0 + zones.damageAmplification + zones.typeDamageBonus)
             * (1.0 + zones.realmGapDamageAmplification)
             * (1.0 + zones.majorRealmDamageAmplification)
-            * (1.0 - zones.damageReduction)
+            * (1.0 - zones.damageReduction - zones.typeDamageReduction)
             * (1.0 - zones.realmGapDamageReduction)
             * variance
         ).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
@@ -218,10 +253,10 @@ object BattleCalculator {
     )
 
     interface CombatantStats {
-        val physicalAttack: Int
-        val magicAttack: Int
-        val physicalDefense: Int
-        val magicDefense: Int
+        val attack: Int
+        val defense: Int
+        /** 普攻伤害类型（无技能时的 isPhysical 判定源；单列口径 B1） */
+        val innateDamageType: DamageType get() = DamageType.PHYSICAL
         val speed: Int
         val critRate: Double
         val realm: Int
@@ -266,9 +301,10 @@ object BattleCalculator {
             )
         }
 
-        val usePhysical = isPhysicalAttack ?: (attacker.physicalAttack >= attacker.magicAttack)
-        val attack = if (usePhysical) attacker.physicalAttack else attacker.magicAttack
-        val defense = if (usePhysical) defender.physicalDefense else defender.magicDefense
+        // 单列口径（B1）：无技能时按攻击方固有伤害属性判定（原按物攻≥法攻启发式判定退役）
+        val usePhysical = isPhysicalAttack ?: (attacker.innateDamageType == DamageType.PHYSICAL)
+        val attack = attacker.attack
+        val defense = defender.defense
 
         val isCrit = rng.nextDouble() < attacker.effectiveCritRate
         // 境界压制因子独立乘算（不进乘区），注入 zones 的独立因子槽位
@@ -336,7 +372,7 @@ object BattleCalculator {
             return null
         }
         val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
-            else attacker.physicalAttack >= attacker.magicAttack
+            else attacker.innateDamageType == DamageType.PHYSICAL
         return DamageResult(
             // maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
             damage = defender.maxHp.coerceAtLeast(0),
@@ -349,7 +385,7 @@ object BattleCalculator {
         )
     }
 
-    /** 正常伤害管线（calculateCombatantDamage 提取）：暴击抽数 → 波动抽数 → 分桶注入 → 段数钳制 */
+    /** 正常伤害管线（calculateCombatantDamage 提取）：暴击抽数 → 波动抽数 → 类型通道合并 → 段数钳制 */
     private fun computeDamagePipeline(
         attacker: Combatant,
         defender: Combatant,
@@ -359,23 +395,26 @@ object BattleCalculator {
         isSkillAttack: Boolean,
         rng: DeterministicRng
     ): DamageResult {
+        // 单列口径（B1）：技能按 skill.damageType、普攻按固有伤害属性
         val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
-        else attacker.physicalAttack >= attacker.magicAttack
-        val attack = if (isPhysical) attacker.physicalAttack else attacker.magicAttack
-        val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
+        else attacker.innateDamageType == DamageType.PHYSICAL
+        val attack = attacker.attack
+        val defense = defender.defense
 
         val isCrit = rng.nextDouble() < attacker.effectiveCritRate
         val skillMultiplier = skill?.damageMultiplier ?: 1.0
         val variance = calculateDamageVariance(rng)
 
         val baseZones = zones ?: buildDamageZones(attacker, defender)
-        // 攻击 Buff 按攻击类型注入分桶（物理/魔法互不干扰）
-        val damageZones = baseZones.copy(
-            attackBuffs = baseZones.attackBuffs +
-                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs),
-            // damageModifier 相当于一个额外的全局增伤/减伤乘区
-            damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
-        )
+        // 类型通道选桶合并（固有类型桶 + 物理/法术 buff 分桶 → 结算位）；
+        // damageModifier 相当于一个额外的全局增伤/减伤乘区
+        val damageZones = baseZones
+            .let { mergeTypeChannels(it, attacker, defender, isPhysical) }
+            .copy(
+                // damageModifier 注入（与 estimateDamage 同式），
+                // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
+                damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
+            )
 
         // 多段技能总伤害 = 单段伤害 × 段数（与 estimateDamage 的 AI 估算一致）。
         // hits 篡改为 0/负值时钳制为 1（否则 0 伤害/负伤害回血），
@@ -415,17 +454,11 @@ object BattleCalculator {
         damageModifier: Double = 1.0
     ): Int {
         val isPhysical = skill.damageType == DamageType.PHYSICAL
-        val atk = if (isPhysical)
-            attacker.physicalAttack
-        else attacker.magicAttack
-        val def = if (isPhysical)
-            defender.effectivePhysicalDefense
-        else defender.effectiveMagicDefense
-        // 攻击 Buff 按攻击类型注入分桶（与 calculateCombatantDamage 实际伤害一致）
+        val atk = attacker.attack
+        val def = defender.defense
+        // 类型通道选桶合并（固有类型桶 + 物理/法术 buff 分桶 → 结算位；与实际伤害一致）
         val baseZones = zones ?: buildDamageZones(attacker, defender)
-        val damageZones = baseZones.copy(
-            attackBuffs = baseZones.attackBuffs +
-                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs),
+        val damageZones = mergeTypeChannels(baseZones, attacker, defender, isPhysical).copy(
             // damageModifier 注入（与 calculateCombatantDamage 同式），
             // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
             damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
@@ -439,13 +472,13 @@ object BattleCalculator {
         val reduction = def /
             (def + GameConfig.Battle.DEFENSE_CONSTANT)
 
-        val preCritDmg = atk.toDouble() * (1.0 + damageZones.attackBuffs) *
+        val preCritDmg = atk.toDouble() *
             skill.damageMultiplier * (1.0 - reduction)
         val rawDmg = preCritDmg * avgCritMult *
-            (1.0 + damageZones.damageAmplification) *
+            (1.0 + damageZones.damageAmplification + damageZones.typeDamageBonus) *
             (1.0 + damageZones.realmGapDamageAmplification) *
             (1.0 + damageZones.majorRealmDamageAmplification) *
-            (1.0 - damageZones.damageReduction) *
+            (1.0 - damageZones.damageReduction - damageZones.typeDamageReduction) *
             (1.0 - damageZones.realmGapDamageReduction) * skill.hits
         return rawDmg.toInt()
             .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)

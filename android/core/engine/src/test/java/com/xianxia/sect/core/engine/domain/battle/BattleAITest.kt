@@ -20,8 +20,7 @@ class BattleAITest {
         id: String = "u1",
         hp: Int = 800, maxHp: Int = 1000,
         mp: Int = 500, maxMp: Int = 500,
-        physAtk: Int = 100, magAtk: Int = 80,
-        physDef: Int = 60, magDef: Int = 50,
+        attack: Int = 180, defense: Int = 110,
         speed: Int = 100,
         skills: List<CombatSkill> = emptyList(),
         buffs: List<CombatBuff> = emptyList(),
@@ -30,8 +29,7 @@ class BattleAITest {
         id = id, name = id, side = side,
         hp = hp, maxHp = maxHp,
         mp = mp, maxMp = maxMp,
-        physicalAttack = physAtk, magicAttack = magAtk,
-        physicalDefense = physDef, magicDefense = magDef,
+        attack = attack, defense = defense,
         speed = speed, critRate = 0.1,
         skills = skills, buffs = buffs
     )
@@ -234,7 +232,7 @@ class BattleAITest {
         )
         val lowEnemy = combatant(
             id = "tanky_low", hp = 150, maxHp = 600,
-            physDef = 500, // 高防御
+            defense = 500, // 高防御
             side = CombatantSide.ATTACKER
         )
         // 伤害不足以斩杀 → 掉入后续层（可能仍是攻击，但不应是斩杀目标）
@@ -407,10 +405,10 @@ class BattleAITest {
     @Test
     fun `estimate damage is deterministic`() {
         val attacker = combatant(
-            id = "attacker", physAtk = 200
+            id = "attacker", attack = 200
         )
         val defender = combatant(
-            id = "defender", physDef = 100
+            id = "defender", defense = 100
         )
         val skill = attackSkill("测试", dmgMult = 1.5)
 

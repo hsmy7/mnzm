@@ -25,13 +25,12 @@ object DiscipleStatCalculator {
      * 战斗属性方差输入组（computeBaseStats 参数收拢——满足 detekt
      * LongParameterList 阈值约束）。
      */
+    /** 单列口径（B1）：攻/防各一个方差 */
     internal data class VarianceInputs(
         val hpVariance: Int,
         val mpVariance: Int,
-        val physicalAttackVariance: Int,
-        val magicAttackVariance: Int,
-        val physicalDefenseVariance: Int,
-        val magicDefenseVariance: Int,
+        val attackVariance: Int,
+        val defenseVariance: Int,
         val speedVariance: Int
     )
 

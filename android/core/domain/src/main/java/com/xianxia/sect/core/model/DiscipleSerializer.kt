@@ -77,18 +77,15 @@ object DiscipleSerializer : KSerializer<Disciple> {
             // ===== CombatAttributes @Embedded =====
             baseHp = value.combat.baseHp,
             baseMp = value.combat.baseMp,
-            basePhysicalAttack = value.combat.basePhysicalAttack,
-            baseMagicAttack = value.combat.baseMagicAttack,
-            basePhysicalDefense = value.combat.basePhysicalDefense,
-            baseMagicDefense = value.combat.baseMagicDefense,
+            baseAttack = value.combat.baseAttack,
+            baseDefense = value.combat.baseDefense,
             baseSpeed = value.combat.baseSpeed,
             hpVariance = value.combat.hpVariance,
             mpVariance = value.combat.mpVariance,
-            physicalAttackVariance = value.combat.physicalAttackVariance,
-            magicAttackVariance = value.combat.magicAttackVariance,
-            physicalDefenseVariance = value.combat.physicalDefenseVariance,
-            magicDefenseVariance = value.combat.magicDefenseVariance,
+            attackVariance = value.combat.attackVariance,
+            defenseVariance = value.combat.defenseVariance,
             speedVariance = value.combat.speedVariance,
+            innateDamageType = value.combat.innateDamageType,
             totalCultivation = value.combat.totalCultivation,
             breakthroughCount = value.combat.breakthroughCount,
             breakthroughFailCount = value.combat.breakthroughFailCount,
@@ -96,10 +93,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
             currentMp = value.combat.currentMp,
 
             // ===== PillEffects @Embedded =====
-            pillPhysicalAttackBonus = value.pillEffects.pillPhysicalAttackBonus,
-            pillMagicAttackBonus = value.pillEffects.pillMagicAttackBonus,
-            pillPhysicalDefenseBonus = value.pillEffects.pillPhysicalDefenseBonus,
-            pillMagicDefenseBonus = value.pillEffects.pillMagicDefenseBonus,
+            pillAttackBonus = value.pillEffects.pillAttackBonus,
+            pillDefenseBonus = value.pillEffects.pillDefenseBonus,
             pillHpBonus = value.pillEffects.pillHpBonus,
             pillMpBonus = value.pillEffects.pillMpBonus,
             pillSpeedBonus = value.pillEffects.pillSpeedBonus,
@@ -200,24 +195,24 @@ object DiscipleSerializer : KSerializer<Disciple> {
         return disciple
     }
 
-    /** 战斗属性 + 丹药效果段 */
+    /** 战斗属性 + 丹药效果段（读面：旧物法双列经线性归一化并入新单列——
+     *  新档旧号恒缺省 0，归一化对两代存档皆正确；口径与 Room v62 迁移回填一致） */
     private fun withCombatPillValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             combat = CombatAttributes(
                 baseHp = surrogate.baseHp,
                 baseMp = surrogate.baseMp,
-                basePhysicalAttack = surrogate.basePhysicalAttack,
-                baseMagicAttack = surrogate.baseMagicAttack,
-                basePhysicalDefense = surrogate.basePhysicalDefense,
-                baseMagicDefense = surrogate.baseMagicDefense,
+                baseAttack = surrogate.baseAttack + surrogate.basePhysicalAttack + surrogate.baseMagicAttack,
+                baseDefense = surrogate.baseDefense + surrogate.basePhysicalDefense + surrogate.baseMagicDefense,
                 baseSpeed = surrogate.baseSpeed,
                 hpVariance = surrogate.hpVariance,
                 mpVariance = surrogate.mpVariance,
-                physicalAttackVariance = surrogate.physicalAttackVariance,
-                magicAttackVariance = surrogate.magicAttackVariance,
-                physicalDefenseVariance = surrogate.physicalDefenseVariance,
-                magicDefenseVariance = surrogate.magicDefenseVariance,
+                attackVariance = surrogate.attackVariance +
+                    (surrogate.physicalAttackVariance + surrogate.magicAttackVariance) / 2,
+                defenseVariance = surrogate.defenseVariance +
+                    (surrogate.physicalDefenseVariance + surrogate.magicDefenseVariance) / 2,
                 speedVariance = surrogate.speedVariance,
+                innateDamageType = surrogate.innateDamageType,
                 totalCultivation = surrogate.totalCultivation,
                 breakthroughCount = surrogate.breakthroughCount,
                 breakthroughFailCount = surrogate.breakthroughFailCount,
@@ -225,10 +220,10 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 currentMp = surrogate.currentMp
             ),
             pillEffects = PillEffects(
-                pillPhysicalAttackBonus = surrogate.pillPhysicalAttackBonus,
-                pillMagicAttackBonus = surrogate.pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = surrogate.pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = surrogate.pillMagicDefenseBonus,
+                pillAttackBonus = surrogate.pillAttackBonus +
+                    surrogate.pillPhysicalAttackBonus + surrogate.pillMagicAttackBonus,
+                pillDefenseBonus = surrogate.pillDefenseBonus +
+                    surrogate.pillPhysicalDefenseBonus + surrogate.pillMagicDefenseBonus,
                 pillHpBonus = surrogate.pillHpBonus,
                 pillMpBonus = surrogate.pillMpBonus,
                 pillSpeedBonus = surrogate.pillSpeedBonus,
@@ -335,20 +330,37 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 1,
 
         // ===== CombatAttributes @Embedded =====
+        // 属性单列段（B1，方案 §15 / E1 冻结表增量登记）：
+        // 新写入 baseAttack(118)/baseDefense(119)/attackVariance(120)/defenseVariance(121)
+        // /innateDamageType(117 接线)；旧双列 69–72 与旧方差 62–65 保留声明仅作
+        // 旧档归一化读取（不再写入，退役号禁复用；守卫 EquipmentProtoNumberFrozenTest）。
         @ProtoNumber(67) val baseHp: Int = 120,
         @ProtoNumber(68) val baseMp: Int = 60,
-        @ProtoNumber(69) val basePhysicalAttack: Int = 12,
-        @ProtoNumber(70) val baseMagicAttack: Int = 12,
-        @ProtoNumber(71) val basePhysicalDefense: Int = 10,
-        @ProtoNumber(72) val baseMagicDefense: Int = 8,
+        @Deprecated("旧物攻基值，仅旧档归一化读取；写入走 baseAttack(118)")
+        @ProtoNumber(69) val basePhysicalAttack: Int = 0,
+        @Deprecated("旧法攻基值，仅旧档归一化读取")
+        @ProtoNumber(70) val baseMagicAttack: Int = 0,
+        @Deprecated("旧物防基值，仅旧档归一化读取；写入走 baseDefense(119)")
+        @ProtoNumber(71) val basePhysicalDefense: Int = 0,
+        @Deprecated("旧法防基值，仅旧档归一化读取")
+        @ProtoNumber(72) val baseMagicDefense: Int = 0,
+        @ProtoNumber(118) val baseAttack: Int = 0,
+        @ProtoNumber(119) val baseDefense: Int = 0,
         @ProtoNumber(73) val baseSpeed: Int = 15,
         @ProtoNumber(60) val hpVariance: Int = 0,
         @ProtoNumber(61) val mpVariance: Int = 0,
+        @Deprecated("旧物攻方差，仅旧档归一化读取；写入走 attackVariance(120)")
         @ProtoNumber(62) val physicalAttackVariance: Int = 0,
+        @Deprecated("旧法攻方差，仅旧档归一化读取")
         @ProtoNumber(63) val magicAttackVariance: Int = 0,
+        @Deprecated("旧物防方差，仅旧档归一化读取；写入走 defenseVariance(121)")
         @ProtoNumber(64) val physicalDefenseVariance: Int = 0,
+        @Deprecated("旧法防方差，仅旧档归一化读取")
         @ProtoNumber(65) val magicDefenseVariance: Int = 0,
+        @ProtoNumber(120) val attackVariance: Int = 0,
+        @ProtoNumber(121) val defenseVariance: Int = 0,
         @ProtoNumber(66) val speedVariance: Int = 0,
+        @ProtoNumber(117) val innateDamageType: String = "",
         @ProtoNumber(81) val totalCultivation: Long = 0,
         @ProtoNumber(82) val breakthroughCount: Int = 0,
         @ProtoNumber(83) val breakthroughFailCount: Int = 0,
@@ -356,10 +368,18 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(80) val currentMp: Int = -1,
 
         // ===== PillEffects @Embedded =====
+        // 新写入 pillAttackBonus(122)/pillDefenseBonus(123)；旧四列 36–39 保留声明
+        // 仅作旧档归一化读取（不再写入）。
+        @Deprecated("旧丹药物攻加成，仅旧档归一化读取；写入走 pillAttackBonus(122)")
         @ProtoNumber(36) val pillPhysicalAttackBonus: Int = 0,
+        @Deprecated("旧丹药法攻加成，仅旧档归一化读取")
         @ProtoNumber(37) val pillMagicAttackBonus: Int = 0,
+        @Deprecated("旧丹药物防加成，仅旧档归一化读取；写入走 pillDefenseBonus(123)")
         @ProtoNumber(38) val pillPhysicalDefenseBonus: Int = 0,
+        @Deprecated("旧丹药法防加成，仅旧档归一化读取")
         @ProtoNumber(39) val pillMagicDefenseBonus: Int = 0,
+        @ProtoNumber(122) val pillAttackBonus: Int = 0,
+        @ProtoNumber(123) val pillDefenseBonus: Int = 0,
         @ProtoNumber(40) val pillHpBonus: Int = 0,
         @ProtoNumber(41) val pillMpBonus: Int = 0,
         @ProtoNumber(42) val pillSpeedBonus: Int = 0,
@@ -390,14 +410,14 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(28) val spiritStones: Int = 0,
 
         // ===== 六部位新增段（E1 冻结表，B0 占号定稿：112..116 部位列按显示序 头/身/手/脚/武/腿，117 固有伤害属性） =====
-        // 本段只声明占号，不写入/不读取（旧档读到默认值，二进制向后兼容）；接线分属 B1(117)/B3(112..116)，
+        // 112..116 只声明占号，不写入/不读取（B3 装备体系替换批接线，旧档读到默认值）；
+        // 117 innateDamageType 已于 B1 接线（存弟子固有伤害属性 DamageType.name，空串=未派生）。
         // 后续批只允许使用已冻结编号，禁临时新增、禁改号（守卫 EquipmentProtoNumberFrozenTest）。
         @ProtoNumber(112) val headId: String = "",
         @ProtoNumber(113) val bodyId: String = "",
         @ProtoNumber(114) val handsId: String = "",
         @ProtoNumber(115) val feetId: String = "",
         @ProtoNumber(116) val legsId: String = "",
-        @ProtoNumber(117) val innateDamageType: String = "",
 
         // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
         // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）

@@ -26,10 +26,10 @@ internal fun DiscipleStatCalculator.computeBaseStats(
     val realmConfig = GameConfig.Realm.get(realm)
     val layerMult = safeLayerMult(realmLayer)
 
-    val paVar = safeVarianceMultiplier(variances.physicalAttackVariance)
-    val maVar = safeVarianceMultiplier(variances.magicAttackVariance)
-    val pdVar = safeVarianceMultiplier(variances.physicalDefenseVariance)
-    val mdVar = safeVarianceMultiplier(variances.magicDefenseVariance)
+    // 单列口径（B1 §15.4/Q2）：境界面物法两列各自 round 后相加进单列——
+    // 同一方差乘区作用于物法两半，与战力取和公式线性一致（迁移前后战力不变）
+    val atkVar = safeVarianceMultiplier(variances.attackVariance)
+    val defVar = safeVarianceMultiplier(variances.defenseVariance)
     val spdVar = safeVarianceMultiplier(variances.speedVariance)
 
     // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
@@ -42,10 +42,10 @@ internal fun DiscipleStatCalculator.computeBaseStats(
         maxHp = maxHp,
         mp = maxMp,
         maxMp = maxMp,
-        physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult).roundToInt(),
-        magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult).roundToInt(),
-        physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult).roundToInt(),
-        magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult).roundToInt(),
+        attack = (realmConfig.basePhysicalAttack * atkVar * layerMult).roundToInt() +
+            (realmConfig.baseMagicAttack * atkVar * layerMult).roundToInt(),
+        defense = (realmConfig.basePhysicalDefense * defVar * layerMult).roundToInt() +
+            (realmConfig.baseMagicDefense * defVar * layerMult).roundToInt(),
         speed = (realmConfig.baseSpeed * spdVar * layerMult).roundToInt(),
         critRate = BASE_CRIT_RATE,
         intelligence = skills.intelligence,
@@ -71,10 +71,8 @@ fun DiscipleStatCalculator.getBaseStats(
         variances = VarianceInputs(
             hpVariance = c.hpVariance,
             mpVariance = c.mpVariance,
-            physicalAttackVariance = c.physicalAttackVariance,
-            magicAttackVariance = c.magicAttackVariance,
-            physicalDefenseVariance = c.physicalDefenseVariance,
-            magicDefenseVariance = c.magicDefenseVariance,
+            attackVariance = c.attackVariance,
+            defenseVariance = c.defenseVariance,
             speedVariance = c.speedVariance
         ),
         skills = SkillInputs(
@@ -96,10 +94,8 @@ fun DiscipleStatCalculator.getBaseStats(
 internal fun DiscipleStatCalculator.varianceInputsOf(cs: DiscipleCombatStats?): VarianceInputs = VarianceInputs(
     hpVariance = cs?.hpVariance ?: 0,
     mpVariance = cs?.mpVariance ?: 0,
-    physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
-    magicAttackVariance = cs?.magicAttackVariance ?: 0,
-    physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
-    magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+    attackVariance = cs?.attackVariance ?: 0,
+    defenseVariance = cs?.defenseVariance ?: 0,
     speedVariance = cs?.speedVariance ?: 0
 )
 
@@ -249,15 +245,16 @@ internal fun DiscipleStatCalculator.applyManualStats(
 
             val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
             val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+            // 功法保留物法双列数据（Q2：150+ 功法数据与 codegen 一字不改），结算层相加进单列
             val manualStats = DiscipleStats(
                 hp = (hpValue * masteryBonus).toInt(),
                 maxHp = (hpValue * masteryBonus).toInt(),
                 mp = (mpValue * masteryBonus).toInt(),
                 maxMp = (mpValue * masteryBonus).toInt(),
-                physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
-                magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
-                physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
-                magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
+                attack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt() +
+                    ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
+                defense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
+                    ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
                 speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
                 critRate = 1.0
             )
@@ -277,10 +274,8 @@ internal fun DiscipleStatCalculator.applyPillStats(acc: StatAccum, pillEffects: 
         maxHp = pillEffects.pillHpBonus,
         mp = pillEffects.pillMpBonus,
         maxMp = pillEffects.pillMpBonus,
-        physicalAttack = pillEffects.pillPhysicalAttackBonus,
-        magicAttack = pillEffects.pillMagicAttackBonus,
-        physicalDefense = pillEffects.pillPhysicalDefenseBonus,
-        magicDefense = pillEffects.pillMagicDefenseBonus,
+        attack = pillEffects.pillAttackBonus,
+        defense = pillEffects.pillDefenseBonus,
         speed = pillEffects.pillSpeedBonus,
         critRate = pillEffects.pillCritRateBonus
     )

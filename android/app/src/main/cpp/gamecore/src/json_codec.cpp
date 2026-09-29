@@ -250,21 +250,19 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, manualCompletionMonth); GC_TO(v, j, manualCompletionPhase);
     GC_TO(v, j, equipmentNurturingCompletionMonth);
     GC_TO(v, j, equipmentNurturingCompletionPhase);
-    // CombatAttributes
+    // CombatAttributes（单列口径 B1：只写新键；旧物法双列键退役不再写出）
     GC_TO(v, j, baseHp); GC_TO(v, j, baseMp);
-    GC_TO(v, j, basePhysicalAttack); GC_TO(v, j, baseMagicAttack);
-    GC_TO(v, j, basePhysicalDefense); GC_TO(v, j, baseMagicDefense);
+    GC_TO(v, j, baseAttack); GC_TO(v, j, baseDefense);
     GC_TO(v, j, baseSpeed);
     GC_TO(v, j, hpVariance); GC_TO(v, j, mpVariance);
-    GC_TO(v, j, physicalAttackVariance); GC_TO(v, j, magicAttackVariance);
-    GC_TO(v, j, physicalDefenseVariance); GC_TO(v, j, magicDefenseVariance);
+    GC_TO(v, j, attackVariance); GC_TO(v, j, defenseVariance);
+    GC_TO(v, j, innateDamageType);
     GC_TO(v, j, speedVariance);
     GC_TO(v, j, totalCultivation);
     GC_TO(v, j, breakthroughCount); GC_TO(v, j, breakthroughFailCount);
     GC_TO(v, j, currentHp); GC_TO(v, j, currentMp);
-    // PillEffects
-    GC_TO(v, j, pillPhysicalAttackBonus); GC_TO(v, j, pillMagicAttackBonus);
-    GC_TO(v, j, pillPhysicalDefenseBonus); GC_TO(v, j, pillMagicDefenseBonus);
+    // PillEffects（单列口径 B1：只写新键）
+    GC_TO(v, j, pillAttackBonus); GC_TO(v, j, pillDefenseBonus);
     GC_TO(v, j, pillHpBonus); GC_TO(v, j, pillMpBonus);
     GC_TO(v, j, pillSpeedBonus);
     GC_TO(v, j, pillCritRateBonus); GC_TO(v, j, pillCritEffectBonus);
@@ -307,22 +305,31 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, manualCompletionMonth); GC_FROM(j, v, manualCompletionPhase);
     GC_FROM(j, v, equipmentNurturingCompletionMonth);
     GC_FROM(j, v, equipmentNurturingCompletionPhase);
-    // CombatAttributes
+    // CombatAttributes（单列口径 B1：新键直读；旧档物法双列键取和/均值归一化，
+    // 与 DiscipleSerializer 读面、Room v62 迁移回填逐条同口径）
     GC_FROM(j, v, baseHp); GC_FROM(j, v, baseMp);
-    GC_FROM(j, v, basePhysicalAttack); GC_FROM(j, v, baseMagicAttack);
-    GC_FROM(j, v, basePhysicalDefense); GC_FROM(j, v, baseMagicDefense);
+    GC_FROM(j, v, baseAttack); GC_FROM(j, v, baseDefense);
     GC_FROM(j, v, baseSpeed);
     GC_FROM(j, v, hpVariance); GC_FROM(j, v, mpVariance);
-    GC_FROM(j, v, physicalAttackVariance); GC_FROM(j, v, magicAttackVariance);
-    GC_FROM(j, v, physicalDefenseVariance); GC_FROM(j, v, magicDefenseVariance);
+    GC_FROM(j, v, attackVariance); GC_FROM(j, v, defenseVariance);
     GC_FROM(j, v, speedVariance);
+    GC_FROM(j, v, innateDamageType);
+    v.baseAttack += j.value("basePhysicalAttack", 0) + j.value("baseMagicAttack", 0);
+    v.baseDefense += j.value("basePhysicalDefense", 0) + j.value("baseMagicDefense", 0);
+    v.attackVariance += (j.value("physicalAttackVariance", 0) +
+                         j.value("magicAttackVariance", 0)) / 2;
+    v.defenseVariance += (j.value("physicalDefenseVariance", 0) +
+                          j.value("magicDefenseVariance", 0)) / 2;
     GC_FROM(j, v, totalCultivation);
     GC_FROM(j, v, breakthroughCount); GC_FROM(j, v, breakthroughFailCount);
     GC_FROM(j, v, currentHp); GC_FROM(j, v, currentMp);
-    // PillEffects
-    GC_FROM(j, v, pillPhysicalAttackBonus); GC_FROM(j, v, pillMagicAttackBonus);
-    GC_FROM(j, v, pillPhysicalDefenseBonus); GC_FROM(j, v, pillMagicDefenseBonus);
+    // PillEffects（单列口径 B1：新键直读 + 旧四列归一化）
+    GC_FROM(j, v, pillAttackBonus); GC_FROM(j, v, pillDefenseBonus);
     GC_FROM(j, v, pillHpBonus); GC_FROM(j, v, pillMpBonus);
+    v.pillAttackBonus += j.value("pillPhysicalAttackBonus", 0) +
+                         j.value("pillMagicAttackBonus", 0);
+    v.pillDefenseBonus += j.value("pillPhysicalDefenseBonus", 0) +
+                          j.value("pillMagicDefenseBonus", 0);
     GC_FROM(j, v, pillSpeedBonus);
     GC_FROM(j, v, pillCritRateBonus); GC_FROM(j, v, pillCritEffectBonus);
     GC_FROM(j, v, pillCultivationSpeedBonus); GC_FROM(j, v, pillSkillExpSpeedBonus);
@@ -821,8 +828,8 @@ void to_json(nlohmann::json& j, const WorldLevel& v) {
     GC_TO(v, j, expiryYear); GC_TO(v, j, expiryMonth);
     GC_TO(v, j, count); GC_TO(v, j, caveImageIndex); GC_TO(v, j, defeated);
     GC_TO(v, j, beastMaxHp); GC_TO(v, j, beastMaxMp);
-    GC_TO(v, j, beastPhysicalAttack); GC_TO(v, j, beastMagicAttack);
-    GC_TO(v, j, beastPhysicalDefense); GC_TO(v, j, beastMagicDefense);
+    GC_TO(v, j, beastAttack); GC_TO(v, j, beastDefense);
+    
     GC_TO(v, j, beastSpeed);
 }
 void from_json(const nlohmann::json& j, WorldLevel& v) {
@@ -834,8 +841,10 @@ void from_json(const nlohmann::json& j, WorldLevel& v) {
     GC_FROM(j, v, expiryYear); GC_FROM(j, v, expiryMonth);
     GC_FROM(j, v, count); GC_FROM(j, v, caveImageIndex); GC_FROM(j, v, defeated);
     GC_FROM(j, v, beastMaxHp); GC_FROM(j, v, beastMaxMp);
-    GC_FROM(j, v, beastPhysicalAttack); GC_FROM(j, v, beastMagicAttack);
-    GC_FROM(j, v, beastPhysicalDefense); GC_FROM(j, v, beastMagicDefense);
+    GC_FROM(j, v, beastAttack); GC_FROM(j, v, beastDefense);
+    v.beastAttack += j.value("beastPhysicalAttack", 0) + j.value("beastMagicAttack", 0);
+    v.beastDefense += j.value("beastPhysicalDefense", 0) + j.value("beastMagicDefense", 0);
+    
     GC_FROM(j, v, beastSpeed);
 }
 
@@ -1060,6 +1069,7 @@ void to_json(nlohmann::json& j, const ItemEffect& v) {
     GC_TO(v, j, hpAdd); GC_TO(v, j, mpAdd); GC_TO(v, j, extendLife);
     GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
     GC_TO(v, j, physicalDefenseAdd); GC_TO(v, j, magicDefenseAdd);
+    GC_TO(v, j, attackAdd); GC_TO(v, j, defenseAdd);
     GC_TO(v, j, speedAdd); GC_TO(v, j, critRateAdd); GC_TO(v, j, critEffectAdd);
     GC_TO(v, j, intelligenceAdd); GC_TO(v, j, charmAdd);
     GC_TO(v, j, comprehensionAdd); GC_TO(v, j, artifactRefiningAdd);
@@ -1078,6 +1088,7 @@ void from_json(const nlohmann::json& j, ItemEffect& v) {
     GC_FROM(j, v, healMaxHpPercent); GC_FROM(j, v, mpRecoverMaxMpPercent);
     GC_FROM(j, v, hpAdd); GC_FROM(j, v, mpAdd); GC_FROM(j, v, extendLife);
     GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
+    GC_FROM(j, v, attackAdd); GC_FROM(j, v, defenseAdd);
     GC_FROM(j, v, physicalDefenseAdd); GC_FROM(j, v, magicDefenseAdd);
     GC_FROM(j, v, speedAdd); GC_FROM(j, v, critRateAdd); GC_FROM(j, v, critEffectAdd);
     GC_FROM(j, v, intelligenceAdd); GC_FROM(j, v, charmAdd);
@@ -1118,6 +1129,7 @@ void to_json(nlohmann::json& j, const PillEffect& v) {
     GC_TO(v, j, duration); GC_TO(v, j, cannotStack);
     GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
     GC_TO(v, j, physicalDefenseAdd); GC_TO(v, j, magicDefenseAdd);
+    GC_TO(v, j, attackAdd); GC_TO(v, j, defenseAdd);
     GC_TO(v, j, hpAdd); GC_TO(v, j, mpAdd); GC_TO(v, j, speedAdd);
     GC_TO(v, j, critRateAdd); GC_TO(v, j, critEffectAdd); GC_TO(v, j, extendLife);
     GC_TO(v, j, intelligenceAdd); GC_TO(v, j, charmAdd);
@@ -1134,6 +1146,7 @@ void from_json(const nlohmann::json& j, PillEffect& v) {
     GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd); GC_FROM(j, v, nurtureAdd);
     GC_FROM(j, v, duration); GC_FROM(j, v, cannotStack);
     GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
+    GC_FROM(j, v, attackAdd); GC_FROM(j, v, defenseAdd);
     GC_FROM(j, v, physicalDefenseAdd); GC_FROM(j, v, magicDefenseAdd);
     GC_FROM(j, v, hpAdd); GC_FROM(j, v, mpAdd); GC_FROM(j, v, speedAdd);
     GC_FROM(j, v, critRateAdd); GC_FROM(j, v, critEffectAdd); GC_FROM(j, v, extendLife);

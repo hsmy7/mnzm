@@ -131,9 +131,8 @@ class AISectBeastAttackProcessor @Inject constructor(
         // AI 宗门名册：弟子无角色模板 id，星级恒 0，故显式传空账本
         val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples, emptyMap())
         val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = beast.beastMaxHp, physicalAttack = beast.beastPhysicalAttack,
-            magicAttack = beast.beastMagicAttack, physicalDefense = beast.beastPhysicalDefense,
-            magicDefense = beast.beastMagicDefense, speed = beast.beastSpeed
+            maxHp = beast.beastMaxHp, attack = beast.beastAttackTotal,
+            defense = beast.beastDefenseTotal, speed = beast.beastSpeed
         )
 
         val canAttack = if (beastPower <= 0) true
@@ -455,8 +454,7 @@ class AISectBeastAttackProcessor @Inject constructor(
             beastCount = beast.count,
             beastPreGenStats = BattleSystem.BeastPreGenStats(
                 maxHp = beast.beastMaxHp, maxMp = beast.beastMaxMp,
-                physicalAttack = beast.beastPhysicalAttack, magicAttack = beast.beastMagicAttack,
-                physicalDefense = beast.beastPhysicalDefense, magicDefense = beast.beastMagicDefense,
+                attack = beast.beastAttackTotal, defense = beast.beastDefenseTotal,
                 speed = beast.beastSpeed, realmLayer = beast.realmLayer
             ),
             manualProficiencies = prepared.proficiencies

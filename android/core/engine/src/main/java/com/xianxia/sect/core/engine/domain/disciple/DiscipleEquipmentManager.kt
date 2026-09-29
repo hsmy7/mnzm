@@ -3,15 +3,15 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.system.BagItemReconstructor
 import com.xianxia.sect.core.engine.system.ReconstructedBagStack
 import com.xianxia.sect.core.engine.system.StackUpdate
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.accessoryId
 import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.basePhysicalAttack
 import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.StorageBagUtils
@@ -85,9 +85,12 @@ class DiscipleEquipmentManager @Inject constructor() {
         val source: EquipSource
     )
 
-    /** 攻击类型匹配度（物攻 ≥ 法攻偏好物理） */
+    /**
+     * 攻击类型匹配度（属性单列口径 B1 §15.4：物法倾向由**固有伤害属性**表达）——
+     * 固有物理的弟子优先物理系装备、固有法术的优先法术系装备。
+     */
     private fun typeMatch(disciple: Disciple, candidate: EquipCandidate): Int {
-        val prefersPhysical = disciple.basePhysicalAttack >= disciple.baseMagicAttack
+        val prefersPhysical = disciple.resolvedInnateDamageType() == DamageType.PHYSICAL
         return if (prefersPhysical && candidate.hasPhysical) 1
         else if (!prefersPhysical && candidate.hasMagic) 1
         else 0

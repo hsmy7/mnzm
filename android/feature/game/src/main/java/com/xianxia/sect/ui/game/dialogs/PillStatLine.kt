@@ -19,10 +19,8 @@ internal fun pillDetailStatLines(
     }
     if (recipe.cultivationSpeedPercent > 0) add(PillStatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))
     if (recipe.cultivationAdd > 0) add(PillStatLine("修为", intRange { it.cultivationAdd }))
-    if (recipe.physicalAttackAdd > 0) add(PillStatLine("物理攻击", intRange { it.physicalAttackAdd }))
-    if (recipe.magicAttackAdd > 0) add(PillStatLine("法术攻击", intRange { it.magicAttackAdd }))
-    if (recipe.physicalDefenseAdd > 0) add(PillStatLine("物理防御", intRange { it.physicalDefenseAdd }))
-    if (recipe.magicDefenseAdd > 0) add(PillStatLine("法术防御", intRange { it.magicDefenseAdd }))
+    if (recipe.attackAdd > 0) add(PillStatLine("攻击力", intRange { it.attackAdd }))
+    if (recipe.defenseAdd > 0) add(PillStatLine("防御力", intRange { it.defenseAdd }))
     if (recipe.hpAdd > 0) add(PillStatLine("生命值", intRange { it.hpAdd }))
     if (recipe.mpAdd > 0) add(PillStatLine("灵力容量", intRange { it.mpAdd }))
     if (recipe.speedAdd > 0) add(PillStatLine("身法", intRange { it.speedAdd }))

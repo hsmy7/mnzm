@@ -120,14 +120,12 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         std::count(d.spiritRootType.begin(), d.spiritRootType.end(), ','));
     // 3. 悟性（1×nextInt）
     const int32_t comprehension = aiRollByRootCount(rng, rootCount);
-    // 4. 六维方差（7×nextGaussian = 14×nextDouble——AI 版非 gaussianInt）
+    // 4. 五维方差（5×nextGaussian = 10×nextDouble——AI 版非 gaussianInt；单列 B1）
     const double kVarianceSigma = 16.667;
     d.hpVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.mpVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.physicalAttackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.magicAttackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.physicalDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.magicDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
+    d.attackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
+    d.defenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.speedVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     // 5. 肖像（1×nextInt——male 20 / female 17 池）
     const auto& portraits =
@@ -151,10 +149,8 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         DiscipleRolls rolls;  // 复用聚合结构（值来自 AI 版 variance）
         rolls.hpVariance = d.hpVariance;
         rolls.mpVariance = d.mpVariance;
-        rolls.physicalAttackVariance = d.physicalAttackVariance;
-        rolls.magicAttackVariance = d.magicAttackVariance;
-        rolls.physicalDefenseVariance = d.physicalDefenseVariance;
-        rolls.magicDefenseVariance = d.magicDefenseVariance;
+        rolls.attackVariance = d.attackVariance;
+        rolls.defenseVariance = d.defenseVariance;
         rolls.speedVariance = d.speedVariance;
         applyBaseStats(d, rolls);
     }
@@ -301,10 +297,8 @@ inline std::vector<state::Disciple> truncateToAiLimit(
     std::stable_sort(disciples.begin(), disciples.end(),
                      [](const state::Disciple& a, const state::Disciple& b) {
                          if (a.isAlive != b.isAlive) return a.isAlive > b.isAlive;
-                         const int64_t pa = static_cast<int64_t>(a.basePhysicalAttack) +
-                                            a.baseMagicAttack + a.baseHp;
-                         const int64_t pb = static_cast<int64_t>(b.basePhysicalAttack) +
-                                            b.baseMagicAttack + b.baseHp;
+                         const int64_t pa = static_cast<int64_t>(a.baseAttack) + a.baseHp;
+                         const int64_t pb = static_cast<int64_t>(b.baseAttack) + b.baseHp;
                          return pa > pb;
                      });
     disciples.resize(static_cast<std::size_t>(kAiDisciplesPerSectLimit));

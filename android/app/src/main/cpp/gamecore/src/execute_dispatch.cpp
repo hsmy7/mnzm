@@ -378,10 +378,8 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.realmLayer = params.value("realmLayer", 1);
             in.hpVariance = params.value("hpVariance", 0);
             in.mpVariance = params.value("mpVariance", 0);
-            in.physicalAttackVariance = params.value("physicalAttackVariance", 0);
-            in.magicAttackVariance = params.value("magicAttackVariance", 0);
-            in.physicalDefenseVariance = params.value("physicalDefenseVariance", 0);
-            in.magicDefenseVariance = params.value("magicDefenseVariance", 0);
+            in.attackVariance = params.value("attackVariance", 0);
+            in.defenseVariance = params.value("defenseVariance", 0);
             in.speedVariance = params.value("speedVariance", 0);
             in.intelligence = params.value("intelligence", 0);
             in.charm = params.value("charm", 0);
@@ -394,8 +392,7 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.pillRefining = params.value("pillRefining", 0);
             const auto s = gamecore::disciple::computeBaseStats(in);
             return ok({{"maxHp", s.maxHp}, {"maxMp", s.maxMp},
-                       {"physicalAttack", s.physicalAttack}, {"magicAttack", s.magicAttack},
-                       {"physicalDefense", s.physicalDefense}, {"magicDefense", s.magicDefense},
+                       {"attack", s.attack}, {"defense", s.defense},
                        {"speed", s.speed}, {"critRate", s.critRate}});
         }
         case action::DISCIPLE_CULTIVATION_PER_PHASE: {
@@ -486,7 +483,6 @@ nlohmann::json handleBattle(int32_t actionId, const nlohmann::json& params) {
             DamageZones zones;
             if (params.contains("zones")) {
                 const auto& z = params.at("zones");
-                zones.attackBuffs = z.value("attackBuffs", 0.0);
                 zones.damageAmplification = z.value("damageAmplification", 0.0);
                 zones.damageReduction = z.value("damageReduction", 0.0);
                 zones.realmGapDamageAmplification = z.value("realmGapDamageAmplification", 0.0);
@@ -869,30 +865,26 @@ nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
         case action::SECT_POWER_DISCIPLE: {
             // star 缺省 0 ⇒ 恒 ×1.00：与 Kotlin calculateDisciplePower(aggregate, star)
             // 同参同式（属性加权和先算、星级乘数后乘、最后向零截断）
+            // 单列口径（B1）：attack/defense 单参
             return ok({{"power", gamecore::system::discipleCombatPowerWithStar(
-                                     params.at("physicalAttack").get<int32_t>(),
-                                     params.at("magicAttack").get<int32_t>(),
+                                     params.at("attack").get<int32_t>(),
                                      params.at("maxHp").get<int32_t>(),
-                                     params.at("physicalDefense").get<int32_t>(),
-                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("defense").get<int32_t>(),
                                      params.at("speed").get<int32_t>(),
                                      params.value("star", 0))}});
         }
         case action::SECT_POWER_BEAST: {
             return ok({{"power", gamecore::system::beastCombatPower(
                                      params.at("maxHp").get<int32_t>(),
-                                     params.at("physicalAttack").get<int32_t>(),
-                                     params.at("magicAttack").get<int32_t>(),
-                                     params.at("physicalDefense").get<int32_t>(),
-                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("attack").get<int32_t>(),
+                                     params.at("defense").get<int32_t>(),
                                      params.at("speed").get<int32_t>())}});
         }
         case action::SECT_POWER_FINGERPRINT: {
             const int32_t fp = gamecore::system::sectPowerFingerprint(
                 params.at("realm").get<int32_t>(), params.at("realmLayer").get<int32_t>(),
-                params.value("hpVariance", 0), params.value("physicalAttackVariance", 0),
-                params.value("magicAttackVariance", 0), params.value("physicalDefenseVariance", 0),
-                params.value("magicDefenseVariance", 0), params.value("speedVariance", 0));
+                params.value("hpVariance", 0), params.value("attackVariance", 0),
+                params.value("defenseVariance", 0), params.value("speedVariance", 0));
             return ok({{"fingerprint", fp}});
         }
         case action::SECT_RARITY_ROLL: {
@@ -996,8 +988,7 @@ nlohmann::json handleSecretRealm(GameCore* core, int32_t actionId,
                 params.value("beastLayer", 1));
             return ok({
                 {"maxHp", stats.maxHp}, {"maxMp", stats.maxMp},
-                {"physicalAttack", stats.physicalAttack}, {"magicAttack", stats.magicAttack},
-                {"physicalDefense", stats.physicalDefense}, {"magicDefense", stats.magicDefense},
+                {"attack", stats.attack}, {"defense", stats.defense},
                 {"speed", stats.speed}, {"realmLayer", stats.realmLayer},
             });
         }

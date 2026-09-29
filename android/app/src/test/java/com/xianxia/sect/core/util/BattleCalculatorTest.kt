@@ -10,20 +10,16 @@ class BattleCalculatorTest {
     private val rng = DeterministicRng(42L)
 
     private fun createCombatant(
-        physicalAttack: Int = 100,
-        magicAttack: Int = 80,
-        physicalDefense: Int = 50,
-        magicDefense: Int = 40,
+        attack: Int = 100,
+        defense: Int = 50,
         speed: Int = 50,
         critRate: Double = 0.1,
         realm: Int = 5,
         element: String = "metal"
     ): CombatantStats {
         return object : CombatantStats {
-            override val physicalAttack = physicalAttack
-            override val magicAttack = magicAttack
-            override val physicalDefense = physicalDefense
-            override val magicDefense = magicDefense
+            override val attack = attack
+            override val defense = defense
             override val speed = speed
             override val critRate = critRate
             override val realm = realm
@@ -39,8 +35,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage - physical attack damage correct`() {
-        val attacker = createCombatant(physicalAttack = 200, magicAttack = 50)
-        val defender = createCombatant(physicalDefense = 50)
+        val attacker = createCombatant(attack = 200)
+        val defender = createCombatant(defense = 50)
         var totalDamage = 0
         var count = 0
         repeat(1000) {
@@ -62,9 +58,11 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - magic attack damage correct`() {
-        val attacker = createCombatant(physicalAttack = 50, magicAttack = 200)
-        val defender = createCombatant(physicalDefense = 50, magicDefense = 30)
+    fun `calculateDamage - flagged magic attack damage correct`() {
+        // 单列口径（B1）：isPhysicalAttack=false 仅置 DamageResult.isPhysical 标志，
+        // 伤害仍走单列 attack/defense（期望公式与物理一致，attacker 默认 attack=100/defense 默认 50）
+        val attacker = createCombatant(attack = 50)
+        val defender = createCombatant(defense = 50)
         var totalDamage = 0
         var count = 0
         repeat(1000) {
@@ -80,14 +78,14 @@ class BattleCalculatorTest {
         }
         assertTrue(count > 900)
         val avgDamage = totalDamage.toDouble() / count
-        val expected = expectedDamage(200, 30)
+        val expected = expectedDamage(50, 50)
         assertTrue("avgDamage $avgDamage should be near $expected",
             avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
     fun `calculateDamage - auto select higher attack type`() {
-        val attacker = createCombatant(physicalAttack = 200, magicAttack = 50)
+        val attacker = createCombatant(attack = 200)
         val defender = createCombatant()
         val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
@@ -98,21 +96,23 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - auto select magic attack`() {
-        val attacker = createCombatant(physicalAttack = 50, magicAttack = 200)
+    fun `calculateDamage - auto select follows innate damage type`() {
+        // 单列口径（B1）：isPhysicalAttack 缺省时按攻击方固有伤害属性判定——
+        // CombatantStats 简化面缺省 PHYSICAL ⇒ 缺省路径恒物理
+        val attacker = createCombatant(attack = 50)
         val defender = createCombatant()
         val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
             isPhysicalAttack = null,
             dodgeChanceModifier = 0.0
         )
-        assertFalse(result.isPhysical)
+        assertTrue(result.isPhysical)
     }
 
     @Test
     fun `calculateDamage - skill multiplier affects damage`() {
-        val attacker = createCombatant(physicalAttack = 200)
-        val defender = createCombatant(physicalDefense = 50)
+        val attacker = createCombatant(attack = 200)
+        val defender = createCombatant(defense = 50)
         var normalTotal = 0
         var boostedTotal = 0
         var normalCount = 0
@@ -133,8 +133,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage - crit increases damage`() {
-        val attacker = createCombatant(physicalAttack = 200, critRate = 1.0)
-        val defender = createCombatant(physicalDefense = 50)
+        val attacker = createCombatant(attack = 200, critRate = 1.0)
+        val defender = createCombatant(defense = 50)
         val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertTrue(result.isCrit)
         val expected = expectedDamage(200, 50, critMultiplier = 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER)
@@ -143,16 +143,16 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage - no crit when critRate is 0`() {
-        val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
-        val defender = createCombatant(physicalDefense = 50)
+        val attacker = createCombatant(attack = 200, critRate = 0.0)
+        val defender = createCombatant(defense = 50)
         val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertFalse(result.isCrit)
     }
 
     @Test
     fun `calculateDamage - minimum damage is 1`() {
-        val attacker = createCombatant(physicalAttack = 1)
-        val defender = createCombatant(physicalDefense = 9999)
+        val attacker = createCombatant(attack = 1)
+        val defender = createCombatant(defense = 9999)
         val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 1)
     }
@@ -244,8 +244,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage isPhysicalAttack true - basic physical damage`() {
-        val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
-        val defender = createCombatant(physicalDefense = 50)
+        val attacker = createCombatant(attack = 200, critRate = 0.0)
+        val defender = createCombatant(defense = 50)
         var totalDamage = 0
         var count = 0
         repeat(1000) {
@@ -262,8 +262,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage isPhysicalAttack true - low attack vs high defense still deals damage`() {
-        val attacker = createCombatant(physicalAttack = 1, critRate = 0.0)
-        val defender = createCombatant(physicalDefense = 9999)
+        val attacker = createCombatant(attack = 1, critRate = 0.0)
+        val defender = createCombatant(defense = 9999)
         val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
             dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 0)
@@ -271,8 +271,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage isPhysicalAttack false - basic magic damage`() {
-        val attacker = createCombatant(magicAttack = 200, critRate = 0.0)
-        val defender = createCombatant(magicDefense = 30)
+        val attacker = createCombatant(attack = 200, critRate = 0.0)
+        val defender = createCombatant(defense = 30)
         var totalDamage = 0
         var count = 0
         repeat(1000) {
@@ -470,8 +470,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage - damage variance between 0_8 and 1_2`() {
-        val attacker = createCombatant(physicalAttack = 1000, critRate = 0.0)
-        val defender = createCombatant(physicalDefense = 0)
+        val attacker = createCombatant(attack = 1000, critRate = 0.0)
+        val defender = createCombatant(defense = 0)
         val damages = mutableListOf<Int>()
         repeat(1000) {
             val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
@@ -488,9 +488,9 @@ class BattleCalculatorTest {
 
     @Test
     fun `defense percentage reduction works correctly`() {
-        val attacker = createCombatant(physicalAttack = 100, critRate = 0.0)
-        val lowDefender = createCombatant(physicalDefense = 100)
-        val highDefender = createCombatant(physicalDefense = 900)
+        val attacker = createCombatant(attack = 100, critRate = 0.0)
+        val lowDefender = createCombatant(defense = 100)
+        val highDefender = createCombatant(defense = 900)
         var lowTotal = 0
         var highTotal = 0
         repeat(500) {
@@ -533,15 +533,15 @@ class BattleCalculatorTest {
         isCrit: Boolean = false,
         variance: Double = 1.0
     ): Double {
-        val effectiveAttack = rawAttack * (1.0 + zones.attackBuffs)
+        val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
         return preCritDamage * critMult *
-            (1.0 + zones.damageAmplification) *
+            (1.0 + zones.damageAmplification + zones.typeDamageBonus) *
             (1.0 + zones.realmGapDamageAmplification) *
             (1.0 + zones.majorRealmDamageAmplification) *
-            (1.0 - zones.damageReduction) *
+            (1.0 - zones.damageReduction - zones.typeDamageReduction) *
             (1.0 - zones.realmGapDamageReduction) *
             variance
     }
@@ -550,8 +550,8 @@ class BattleCalculatorTest {
         this.coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
     @Test
-    fun `attackBuffs - 攻击 buff 作用于 effectiveAttack`() {
-        val zones = baseZones().copy(attackBuffs = 0.50)
+    fun `typeDamageBonus - 类型增伤作用于伤害乘区`() {
+        val zones = baseZones().copy(typeDamageBonus = 0.50)
         val expected = expectedFinalDamage(rawAttack = 1000, zones = zones).toInt().toClampedMin()
         val actual = baseFinal(rawAttack = 1000, zones = zones)
         assertEquals(expected, actual)
@@ -560,7 +560,7 @@ class BattleCalculatorTest {
     @Test
     fun `all zones combined - 全乘区组合验证`() {
         val allZones = DamageZones(
-            attackBuffs = 0.20,
+            typeDamageBonus = 0.20,
             damageAmplification = 0.15,
             damageReduction = 0.10,
             realmGapDamageAmplification = 0.50, // 境界压制增伤，独立乘算（等价 ×1.5）
@@ -655,9 +655,9 @@ class BattleCalculatorTest {
     fun `calculateDamage - CombatantStats 路径注入大境界加成`() {
         // 筑基一层(8,1) 打 炼气一层(9,1)：伤害 = 基线 × (1+2.7) × (1+1.0) = ×7.4
         // （CombatantStats.realmLayer 默认 0 → safeLayer 回退初层 1；critRate=0 无暴击、同速无闪避，仅波动）
-        val attackerHigh = createCombatant(physicalAttack = 200, critRate = 0.0, realm = 8)
-        val attackerBase = createCombatant(physicalAttack = 200, critRate = 0.0, realm = 9)
-        val defender = createCombatant(physicalDefense = 50, realm = 9)
+        val attackerHigh = createCombatant(attack = 200, critRate = 0.0, realm = 8)
+        val attackerBase = createCombatant(attack = 200, critRate = 0.0, realm = 9)
+        val defender = createCombatant(defense = 50, realm = 9)
         var totalMajor = 0
         var totalBase = 0
         var count = 0

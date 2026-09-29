@@ -106,27 +106,22 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::EquipmentNurturingCompletionPhase: return "equipmentNurturingCompletionPhase";
         case DiscipleColumn::BaseHp: return "baseHp";
         case DiscipleColumn::BaseMp: return "baseMp";
-        case DiscipleColumn::BasePhysicalAttack: return "basePhysicalAttack";
-        case DiscipleColumn::BaseMagicAttack: return "baseMagicAttack";
-        case DiscipleColumn::BasePhysicalDefense: return "basePhysicalDefense";
-        case DiscipleColumn::BaseMagicDefense: return "baseMagicDefense";
+        case DiscipleColumn::BaseAttack: return "baseAttack";
+        case DiscipleColumn::BaseDefense: return "baseDefense";
         case DiscipleColumn::BaseSpeed: return "baseSpeed";
         case DiscipleColumn::HpVariance: return "hpVariance";
         case DiscipleColumn::MpVariance: return "mpVariance";
-        case DiscipleColumn::PhysicalAttackVariance: return "physicalAttackVariance";
-        case DiscipleColumn::MagicAttackVariance: return "magicAttackVariance";
-        case DiscipleColumn::PhysicalDefenseVariance: return "physicalDefenseVariance";
-        case DiscipleColumn::MagicDefenseVariance: return "magicDefenseVariance";
+        case DiscipleColumn::AttackVariance: return "attackVariance";
+        case DiscipleColumn::DefenseVariance: return "defenseVariance";
+        case DiscipleColumn::InnateDamageType: return "innateDamageType";
         case DiscipleColumn::SpeedVariance: return "speedVariance";
         case DiscipleColumn::TotalCultivation: return "totalCultivation";
         case DiscipleColumn::BreakthroughCount: return "breakthroughCount";
         case DiscipleColumn::BreakthroughFailCount: return "breakthroughFailCount";
         case DiscipleColumn::CurrentHp: return "currentHp";
         case DiscipleColumn::CurrentMp: return "currentMp";
-        case DiscipleColumn::PillPhysicalAttackBonus: return "pillPhysicalAttackBonus";
-        case DiscipleColumn::PillMagicAttackBonus: return "pillMagicAttackBonus";
-        case DiscipleColumn::PillPhysicalDefenseBonus: return "pillPhysicalDefenseBonus";
-        case DiscipleColumn::PillMagicDefenseBonus: return "pillMagicDefenseBonus";
+        case DiscipleColumn::PillAttackBonus: return "pillAttackBonus";
+        case DiscipleColumn::PillDefenseBonus: return "pillDefenseBonus";
         case DiscipleColumn::PillHpBonus: return "pillHpBonus";
         case DiscipleColumn::PillMpBonus: return "pillMpBonus";
         case DiscipleColumn::PillSpeedBonus: return "pillSpeedBonus";
@@ -228,32 +223,19 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             break;
         case DiscipleColumn::BaseHp: row["baseHp"] = ds.baseHps[r]; break;
         case DiscipleColumn::BaseMp: row["baseMp"] = ds.baseMps[r]; break;
-        case DiscipleColumn::BasePhysicalAttack:
-            row["basePhysicalAttack"] = ds.basePhysicalAttacks[r];
-            break;
-        case DiscipleColumn::BaseMagicAttack:
-            row["baseMagicAttack"] = ds.baseMagicAttacks[r];
-            break;
-        case DiscipleColumn::BasePhysicalDefense:
-            row["basePhysicalDefense"] = ds.basePhysicalDefenses[r];
-            break;
-        case DiscipleColumn::BaseMagicDefense:
-            row["baseMagicDefense"] = ds.baseMagicDefenses[r];
-            break;
+        case DiscipleColumn::BaseAttack: row["baseAttack"] = ds.baseAttacks[r]; break;
+        case DiscipleColumn::BaseDefense: row["baseDefense"] = ds.baseDefenses[r]; break;
         case DiscipleColumn::BaseSpeed: row["baseSpeed"] = ds.baseSpeeds[r]; break;
         case DiscipleColumn::HpVariance: row["hpVariance"] = ds.hpVariances[r]; break;
         case DiscipleColumn::MpVariance: row["mpVariance"] = ds.mpVariances[r]; break;
-        case DiscipleColumn::PhysicalAttackVariance:
-            row["physicalAttackVariance"] = ds.physicalAttackVariances[r];
+        case DiscipleColumn::AttackVariance:
+            row["attackVariance"] = ds.attackVariances[r];
             break;
-        case DiscipleColumn::MagicAttackVariance:
-            row["magicAttackVariance"] = ds.magicAttackVariances[r];
+        case DiscipleColumn::DefenseVariance:
+            row["defenseVariance"] = ds.defenseVariances[r];
             break;
-        case DiscipleColumn::PhysicalDefenseVariance:
-            row["physicalDefenseVariance"] = ds.physicalDefenseVariances[r];
-            break;
-        case DiscipleColumn::MagicDefenseVariance:
-            row["magicDefenseVariance"] = ds.magicDefenseVariances[r];
+        case DiscipleColumn::InnateDamageType:
+            row["innateDamageType"] = ds.innateDamageTypes[r];
             break;
         case DiscipleColumn::SpeedVariance: row["speedVariance"] = ds.speedVariances[r]; break;
         case DiscipleColumn::TotalCultivation:
@@ -267,17 +249,11 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             break;
         case DiscipleColumn::CurrentHp: row["currentHp"] = ds.currentHps[r]; break;
         case DiscipleColumn::CurrentMp: row["currentMp"] = ds.currentMps[r]; break;
-        case DiscipleColumn::PillPhysicalAttackBonus:
-            row["pillPhysicalAttackBonus"] = ds.pillPhysicalAttackBonuses[r];
+        case DiscipleColumn::PillAttackBonus:
+            row["pillAttackBonus"] = ds.pillAttackBonuses[r];
             break;
-        case DiscipleColumn::PillMagicAttackBonus:
-            row["pillMagicAttackBonus"] = ds.pillMagicAttackBonuses[r];
-            break;
-        case DiscipleColumn::PillPhysicalDefenseBonus:
-            row["pillPhysicalDefenseBonus"] = ds.pillPhysicalDefenseBonuses[r];
-            break;
-        case DiscipleColumn::PillMagicDefenseBonus:
-            row["pillMagicDefenseBonus"] = ds.pillMagicDefenseBonuses[r];
+        case DiscipleColumn::PillDefenseBonus:
+            row["pillDefenseBonus"] = ds.pillDefenseBonuses[r];
             break;
         case DiscipleColumn::PillHpBonus: row["pillHpBonus"] = ds.pillHpBonuses[r]; break;
         case DiscipleColumn::PillMpBonus: row["pillMpBonus"] = ds.pillMpBonuses[r]; break;

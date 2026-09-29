@@ -3,9 +3,11 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -117,10 +119,9 @@ object CaveExplorationSystem {
             maxHp = stats.maxHp,
             mp = effectiveMp,
             maxMp = stats.maxMp,
-            physicalAttack = stats.physicalAttack,
-            magicAttack = stats.magicAttack,
-            physicalDefense = stats.physicalDefense,
-            magicDefense = stats.magicDefense,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = disciple.resolvedInnateDamageType(),
             speed = stats.speed,
             critRate = stats.critRate,
             skills = skills,
@@ -148,13 +149,15 @@ object CaveExplorationSystem {
 
         val hp = (stats.hp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
         val mp = (stats.mp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
-        val physicalAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
-        val magicAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
-        val physicalDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
-        val magicDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val attack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val defense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
         val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
 
         val beastSkills = createBeastSkills(beastType = beastType)
+        // 妖兽伤害类型按种类元素固定（§15.3：金/土→物理、水/木/火→法术）
+        val innateType =
+            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
+            else DamageType.MAGIC
 
         val guardianName =
             if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"
@@ -167,10 +170,9 @@ object CaveExplorationSystem {
             maxHp = hp,
             mp = mp,
             maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
+            attack = attack,
+            defense = defense,
+            innateDamageType = innateType,
             speed = speed,
             critRate = 0.05 + realmIndex * 0.01 + if (isBoss) 0.1 else 0.0,
             skills = beastSkills,

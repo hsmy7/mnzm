@@ -196,14 +196,10 @@ class AutoPillService @Inject constructor(
         tables.moralities[id] = d.skills.morality
         tables.minings[id] = d.skills.mining
         // PillEffects 字段
-        tables.pillPhysicalAttackBonuses[id] =
-            d.pillEffects.pillPhysicalAttackBonus
-        tables.pillMagicAttackBonuses[id] =
-            d.pillEffects.pillMagicAttackBonus
-        tables.pillPhysicalDefenseBonuses[id] =
-            d.pillEffects.pillPhysicalDefenseBonus
-        tables.pillMagicDefenseBonuses[id] =
-            d.pillEffects.pillMagicDefenseBonus
+        tables.pillAttackBonuses[id] =
+            d.pillEffects.pillAttackBonus
+        tables.pillDefenseBonuses[id] =
+            d.pillEffects.pillDefenseBonus
         tables.pillHpBonuses[id] = d.pillEffects.pillHpBonus
         tables.pillMpBonuses[id] = d.pillEffects.pillMpBonus
         tables.pillSpeedBonuses[id] = d.pillEffects.pillSpeedBonus

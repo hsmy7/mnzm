@@ -27,55 +27,50 @@
 // ============================================================
 namespace gamecore::system {
 
-/// 弟子战力（Kotlin calculateDiscipleCombatPower；stats 为永久基础属性）
-inline int64_t discipleCombatPower(int32_t physicalAttack, int32_t magicAttack,
-                                   int32_t maxHp, int32_t physicalDefense,
-                                   int32_t magicDefense, int32_t speed) {
-    return (static_cast<int64_t>(physicalAttack) + static_cast<int64_t>(magicAttack)) * 5 +
+/// 弟子战力（Kotlin calculateDiscipleCombatPower；stats 为永久基础属性；
+/// 单列口径 B1——旧双列入参口径 = (物攻+法攻)，与单列 attack 线性等价，
+/// 与 Kotlin SectCombatPowerCalculator.attack 单参版同式）
+inline int64_t discipleCombatPower(int32_t attack, int32_t maxHp,
+                                   int32_t defense, int32_t speed) {
+    return static_cast<int64_t>(attack) * 5 +
            static_cast<int64_t>(maxHp) * 4 +
-           (static_cast<int64_t>(physicalDefense) + static_cast<int64_t>(magicDefense)) * 3 +
+           static_cast<int64_t>(defense) * 3 +
            static_cast<int64_t>(speed) * 2;
 }
 
 /// 弟子战力（含星级乘区；先求加权和再乘、最后向零截断——Kotlin 同式）
-inline int64_t discipleCombatPowerWithStar(int32_t physicalAttack, int32_t magicAttack,
-                                           int32_t maxHp, int32_t physicalDefense,
-                                           int32_t magicDefense, int32_t speed,
+inline int64_t discipleCombatPowerWithStar(int32_t attack, int32_t maxHp,
+                                           int32_t defense, int32_t speed,
                                            int32_t star) {
-    const int64_t base = discipleCombatPower(physicalAttack, magicAttack, maxHp,
-                                             physicalDefense, magicDefense, speed);
+    const int64_t base = discipleCombatPower(attack, maxHp, defense, speed);
     return static_cast<int64_t>(static_cast<double>(base) * starZoneOf(star).battleMult);
 }
 
 /// 妖兽战力（Kotlin calculateBeastCombatPower；含 coerceAtLeast(0) 防篡改）
-inline int64_t beastCombatPower(int32_t maxHp, int32_t physicalAttack, int32_t magicAttack,
-                                int32_t physicalDefense, int32_t magicDefense, int32_t speed) {
+inline int64_t beastCombatPower(int32_t maxHp, int32_t attack,
+                                int32_t defense, int32_t speed) {
     const int32_t hp = std::max(maxHp, 0);
-    const int32_t patk = std::max(physicalAttack, 0);
-    const int32_t matk = std::max(magicAttack, 0);
-    const int32_t pdef = std::max(physicalDefense, 0);
-    const int32_t mdef = std::max(magicDefense, 0);
+    const int32_t atk = std::max(attack, 0);
+    const int32_t def = std::max(defense, 0);
     const int32_t spd = std::max(speed, 0);
-    return (static_cast<int64_t>(patk) + static_cast<int64_t>(matk)) * 5 +
+    return static_cast<int64_t>(atk) * 5 +
            static_cast<int64_t>(hp) * 4 +
-           (static_cast<int64_t>(pdef) + static_cast<int64_t>(mdef)) * 3 +
+           static_cast<int64_t>(def) * 3 +
            static_cast<int64_t>(spd) * 2;
 }
 
 /// 永久基础属性缓存指纹（Kotlin computeFingerprint；Java hashCode 语义）
+/// 战力缓存指纹（单列口径 B1：攻/防各一个方差，与 Kotlin computeFingerprint 同式）
 inline int32_t sectPowerFingerprint(int32_t realm, int32_t realmLayer, int32_t hpVariance,
-                                    int32_t physicalAttackVariance, int32_t magicAttackVariance,
-                                    int32_t physicalDefenseVariance, int32_t magicDefenseVariance,
+                                    int32_t attackVariance, int32_t defenseVariance,
                                     int32_t speedVariance) {
     uint32_t result = 1;
     auto mix = [&result](int32_t v) { result = result * 31u + static_cast<uint32_t>(v); };
     mix(realm);
     mix(realmLayer);
     mix(hpVariance);
-    mix(physicalAttackVariance);
-    mix(magicAttackVariance);
-    mix(physicalDefenseVariance);
-    mix(magicDefenseVariance);
+    mix(attackVariance);
+    mix(defenseVariance);
     mix(speedVariance);
     return static_cast<int32_t>(result);
 }

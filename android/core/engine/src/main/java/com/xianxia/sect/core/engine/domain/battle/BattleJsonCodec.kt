@@ -31,10 +31,13 @@ internal object BattleJsonCodec {
         put("maxHp", c.maxHp)
         put("mp", c.mp)
         put("maxMp", c.maxMp)
-        put("physicalAttack", c.physicalAttack)
-        put("magicAttack", c.magicAttack)
-        put("physicalDefense", c.physicalDefense)
-        put("magicDefense", c.magicDefense)
+        put("attack", c.attack)
+        put("defense", c.defense)
+        put("innateDamageType", c.innateDamageType.name)
+        put("physicalDamageBonus", c.physicalDamageBonus)
+        put("magicDamageBonus", c.magicDamageBonus)
+        put("physicalDamageReduction", c.physicalDamageReduction)
+        put("magicDamageReduction", c.magicDamageReduction)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -97,10 +100,17 @@ internal object BattleJsonCodec {
             maxHp = j.int("maxHp"),
             mp = j.int("mp"),
             maxMp = j.int("maxMp"),
-            physicalAttack = j.int("physicalAttack"),
-            magicAttack = j.int("magicAttack"),
-            physicalDefense = j.int("physicalDefense"),
-            magicDefense = j.int("magicDefense"),
+            attack = j.int("attack"),
+            defense = j.int("defense"),
+            innateDamageType = try {
+                DamageType.valueOf(j.str("innateDamageType", "PHYSICAL"))
+            } catch (_: IllegalArgumentException) {
+                DamageType.PHYSICAL
+            },
+            physicalDamageBonus = j.dbl("physicalDamageBonus", 0.0),
+            magicDamageBonus = j.dbl("magicDamageBonus", 0.0),
+            physicalDamageReduction = j.dbl("physicalDamageReduction", 0.0),
+            magicDamageReduction = j.dbl("magicDamageReduction", 0.0),
             speed = j.int("speed"),
             critRate = j.dbl("critRate", 0.05),
             skills = skills,
