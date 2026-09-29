@@ -154,6 +154,7 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
 
+- **2026-09-30（EQ-B3 恢复实施会话一 → 上下文收敛，二阶段交接落盘）**：🟢 **EQ-B3 恢复实施大幅推进，增量交接 `docs/design/equipment-batches/HANDOVER-B3-R2.md` 落盘 worktree（随收官笔入库）**。① **C++ 主库零错达成**：`game-core` 目标 100% BUILD（上份交接最大缺口），旧符号 grep 清零；三新头（equipment_entries 72 条展开/equipment_factory 词条逐位移植/equipment_tx 1486-1487 事务）+ 上份交接 §三.1 剩余 21 文件全部收口（json_codec 残留=注释、disciple_tx/inventory 前代理已完）；critDamageBonus 战斗全链双端接线（C++ 三路径+json，Kotlin BattleCalculator 补消费——原只声明未消费，途中发现）。② Kotlin 测试面：domain 138 错+data 6 锚点清零（ForgeRecipeDatabaseTest 整文件重写、SaveValidatorTest 六处含「堆叠引用=孤立」语义改写、StackRebuildTest/EquipmentFinalStatsCacheTest 删），core:data/domain 单测编译实测绿。③ UI 面 198→进行中（44 错已清后级联浮现，实时快照=worktree `ui-errs-r2-snapshot.txt`）。④ 本会话仍零提交（HEAD=fa36109fc 未动，树 ~215 文件）。⑤ 恢复方式：读 HANDOVER-B3-R2.md，按 §三 顺序（UI 清零→C++ GTest/ctest/JNI→Kotlin 测试面→门禁→报告收官）；§四 新增 6 条决策勿翻案。**看护仍 paused；子代理若复用注意账号 5h 配额窗口。**
 - **2026-09-29（EQ-B3 实施会话 → 用户叫停，交接落盘）**：🔴 **EQ-B3 实施被用户中途叫停，全量交接文档已落盘 worktree：`docs/design/equipment-batches/HANDOVER-B3.md`（未跟踪文件，随收官笔入库）**。① **现场状态**：worktree feat/equipment-set HEAD=fa36109fc 未动，**184 文件已改未提交 + 静态四表等 untracked 新文件**（中断现场原样保留，未还原未提交）；Kotlin `:core:domain/:core:data/:core:engine` 编译绿、`:feature:game` 189 错、C++ 编译红。② **已完成**：写面 A 全部（含 gen-templates D9/D10 收口四表幂等+中性源复合结构+game-data 适配）、写面 B 全部（V64 七步迁移含影子表方案）、写面 C 主体（core:engine 绿）、F 部分V63To64Test/FrozenTest⑥ 翻转/core:data 测试 11 文件适配/ui-read-surface 登记。③ **未完成**：C++ 全链（json_codec/inventory/disciple_tx/auto_gear/disciple_stats/ai_*/equipment_tx.h 新建/phase_settlement/mission_completion/execute_dispatch/data_inject/battle critDamageBonus+GTest，cmake 红）、UI 面 189 错（写面 E 主体）、其余测试面编译驱动修、新增守卫/单测群、三对拍、门禁全套、报告+收官。④ **关键决策已固化在 HANDOVER §五**（影子表方案/EQ 卸装语义=实例保留表内/ForgeRecipe 不分 tier/proto 六列号 67-70+122/123/ActionId 1486-1487/EquipmentStack @Deprecated 载体保留等 10 条），恢复会话勿翻案。⑤ 恢复方式：新会话读 HANDOVER-B3.md 全文，从 §三.1（C++）与 §三.2（UI）并行开工；本会话已停，两台后台代理已停。**本会话零提交**（用户叫停时未到收官点，现场原样保留）。
 - **2026-09-29（装备设计会话 → 致 EQ-B0 实施会话与看护）**：🔴 **`batch-EQ-B0.md` 的存档编号表已过期，按新稿重装配后再开工**。
   ① **变更源**：用户在设计会话中两次调整部位集，最终定为 **六部位 = 头 / 身 / 手 / 脚 / 武器 / 腿部**（**移除饰品位**、腿部回归；武器第 5 位、腿部第 6 位）。
@@ -224,7 +225,7 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 | EQ-B0 | 存档编号规划与冻结守卫 | ✅ accepted（03:4x 看护亲验） | 5280d1b46 | reports/report-B0.md | 通过：FrozenTest 亲跑+jni-count 87/87+agent-instructions 绿；4 文件 +269/−1、schema 零变更、版本未动、树净 |
 | EQ-B1 | 属性机制重构（单列+类型通道+固有伤害属性） | ✅ accepted（09:2x 看护亲验） | 9068049a1（amend 后） | reports/report-B1.md | 通过：S20 测试+ctest 1481/1481 亲跑+jni-count 87/87；199 文件、Room v62 真实校验绿、G0 修正语义遵守 |
 | EQ-B2 | 孕养丹退役+补偿 | ✅ accepted（14:4x 看护亲验，needs-fix 修正后） | fa36109fc（amend 后） | reports/report-B2.md | 通过：game-data.json 归零亲测+S13 剩余 20 文件全豁免类+RecipeDbTest/NurturePillRetirementTest 亲跑绿；79 文件 +6566/−4143、双 changelog 归 B5 已背书登记 |
-| EQ-B3 | 装备体系原子替换（最大·原子） | 🔄 在途（14:4x 看护派发） | | | |
+| EQ-B3 | 装备体系原子替换（最大·原子） | 🔄 在途（09-30 恢复会话一：C++ 主库绿+domain/data 测试绿+UI 198 错进行中；二阶段交接 HANDOVER-B3-R2.md） | | | |
 | EQ-B4 | 数值对齐与验收 | ⏳ | | | |
 | EQ-B5 | 文档/ADR/双日志/债登记 | ⏳ | | | |
 
