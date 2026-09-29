@@ -570,7 +570,6 @@ inline void applyMonthlyDurationDecay(Disciple& d) {
         d.pillCritEffectBonus = 0.0;
         d.pillCultivationSpeedBonus = 0.0;
         d.pillSkillExpSpeedBonus = 0.0;
-        d.pillNurtureSpeedBonus = 0.0;
         d.activePillCategory.clear();
         d.activePillTypes.clear();
         d.pillEffectDuration = 0;
@@ -591,7 +590,6 @@ inline void clearPillEffectBonuses(DiscipleStore& ds, std::size_t row) {
     ds.pillCritEffectBonuses[row] = 0.0;
     ds.pillCultivationSpeedBonuses[row] = 0.0;
     ds.pillSkillExpSpeedBonuses[row] = 0.0;
-    ds.pillNurtureSpeedBonuses[row] = 0.0;
     ds.activePillCategories[row].clear();
     ds.activePillTypes[row].clear();
     ds.pillEffectDurations[row] = 0;

@@ -469,48 +469,6 @@ TEST(PhaseSettlementTest, CultivationPillSkippedAtFullCultivation) {
     EXPECT_DOUBLE_EQ(490.0, after.cultivation);        // 累积封顶仍 490
 }
 
-TEST(PhaseSettlementTest, NurturePillDistributesToEquippedInstances) {
-    // A2：孕养度丹 100 均分到 2 件已装备实例（每件 +50，余数 0）；
-    // 升级需 100 → 未升级
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple d = baseDisciple("1");
-    d.cultivation = 10.0;
-    d.weaponId = "w1";
-    d.armorId = "a1";
-    st.disciples.appendDisciple(d);
-
-    state::EquipmentInstance w1;
-    w1.id = "w1";
-    w1.name = "木剑";
-    w1.rarity = 1;
-    state::EquipmentInstance a1;
-    a1.id = "a1";
-    a1.name = "布衣";
-    a1.rarity = 1;
-    st.equipmentInstances.push_back(w1);
-    st.equipmentInstances.push_back(a1);
-
-    StorageBagItem nPill;
-    nPill.itemId = "n1";
-    nPill.itemType = "pill";
-    nPill.name = "蕴器丹";
-    nPill.rarity = 3;
-    nPill.quantity = 1;
-    nPill.effect = state::ItemEffect{};
-    nPill.effect->pillType = "nurtureAdd";
-    nPill.effect->nurtureAdd = 100;
-    d.storageBagItems.push_back(nPill);
-    st.disciples.appendDisciple(d);
-
-    core->advancePhases(1);
-    EXPECT_TRUE(st.disciples.materialize(0).storageBagItems.empty());
-    // 丹药 100 均分 2 件（每件 +50）+ 本旬孕养自然增长（每件 +10）= 60
-    EXPECT_DOUBLE_EQ(60.0, st.equipmentInstances[0].nurtureProgress);
-    EXPECT_DOUBLE_EQ(60.0, st.equipmentInstances[1].nurtureProgress);
-    EXPECT_EQ(0, st.equipmentInstances[0].nurtureLevel);
-}
-
 // ── 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换） ──
 
 TEST(PhaseSettlementTest, AutoEquipFromWarehouseFillsEmptySlot) {

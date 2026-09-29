@@ -54,6 +54,9 @@ class RoomMigrationV61To62Test {
         /** v62 的 disciples 列数（= 89 − 12 + 7）。 */
         private const val V62_DISCIPLES_COLUMN_COUNT = 84
 
+        /** 全链升到当前 DATABASE_VERSION（v63，R11 删 pillNurtureSpeedBonus）后的终版列数。 */
+        private const val FINAL_DISCIPLES_COLUMN_COUNT = 83
+
         /** 灵根 → 期望固有属性（首灵根派生口径，与迁移 SQL CASE 逐条一致）。 */
         private val ROOT_EXPECTATION = listOf(
             "metal" to "PHYSICAL",
@@ -90,8 +93,8 @@ class RoomMigrationV61To62Test {
                 RoomMigrationSupport.columnExists(migrated, "disciples", "baseAttack")
             )
             assertEquals(
-                "真实 Room 升级后 disciples 列数应是 $V62_DISCIPLES_COLUMN_COUNT",
-                V62_DISCIPLES_COLUMN_COUNT,
+                "真实 Room 升级到终版（v63）后 disciples 列数应是 $FINAL_DISCIPLES_COLUMN_COUNT",
+                FINAL_DISCIPLES_COLUMN_COUNT,
                 RoomMigrationSupport.tableColumns(migrated, "disciples").size
             )
             db.close()

@@ -21,7 +21,6 @@ import com.xianxia.sect.core.model.pillHpBonus
 import com.xianxia.sect.core.model.pillAttackBonus
 import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillMpBonus
-import com.xianxia.sect.core.model.pillNurtureSpeedBonus
 import com.xianxia.sect.core.model.pillAttackBonus
 import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillRefining
@@ -493,7 +492,6 @@ private object PillsRealtime {
         tables.pillCritEffectBonuses[id] = d.pillEffects.pillCritEffectBonus
         tables.pillCultivationSpeedBonuses[id] = d.pillEffects.pillCultivationSpeedBonus
         tables.pillSkillExpSpeedBonuses[id] = d.pillEffects.pillSkillExpSpeedBonus
-        tables.pillNurtureSpeedBonuses[id] = d.pillEffects.pillNurtureSpeedBonus
         tables.pillEffectDurations[id] = d.pillEffects.pillEffectDuration
         tables.activePillTypes[id] = d.pillEffects.activePillTypes
         tables.usedPermanentPillKeys[id] = d.usage.usedPermanentPillKeys

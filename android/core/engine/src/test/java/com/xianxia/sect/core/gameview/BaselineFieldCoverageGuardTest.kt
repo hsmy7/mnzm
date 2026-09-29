@@ -40,6 +40,8 @@ class BaselineFieldCoverageGuardTest {
         "aiCaveTeams",         // 同上（洞府 AI 队；C++ 走独立顶层域）
         "lastYearSpiritStoneIncome", // 缺陷 #3 退役：C++ models/json_codec 已除名，
                                       // 年贡改读 annualTotalIncome；Kotlin 字段保留仅存档 schema 稳定
+        "nurturePillsRetired", // EQ-B2/R11 孕养丹退役补偿幂等标记：纯 Kotlin 读档链
+                               // （NurturePillRetirementRule）消费，C++ GameData 未建模
     )
 
     /** Gradle 测试工作目录 = android/core/engine；C++ 源在 ../../app */

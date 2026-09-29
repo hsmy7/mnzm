@@ -409,12 +409,12 @@ data class ItemEffect(
     @ProtoNumber(38) val tier: Int = 0,  // 丹药品阶，用于永久属性丹去重
     @ProtoNumber(1) val cultivationSpeedPercent: Double = 0.0,
     @ProtoNumber(2) val skillExpSpeedPercent: Double = 0.0,
-    @ProtoNumber(3) val nurtureSpeedPercent: Double = 0.0,
+    // reserved 3,8;（nurtureSpeedPercent/nurtureAdd 孕养类加成丹效果，R11 退役——
+    // 旧档字节按未知字段忽略，禁复用）
     @ProtoNumber(4) val breakthroughChance: Double = 0.0,
     @ProtoNumber(5) val targetRealm: Int = 0,
     @ProtoNumber(6) val cultivationAdd: Int = 0,
     @ProtoNumber(7) val skillExpAdd: Int = 0,
-    @ProtoNumber(8) val nurtureAdd: Int = 0,
     @ProtoNumber(9) val healMaxHpPercent: Double = 0.0,
     @ProtoNumber(10) val mpRecoverMaxMpPercent: Double = 0.0,
     @ProtoNumber(11) val hpAdd: Int = 0,

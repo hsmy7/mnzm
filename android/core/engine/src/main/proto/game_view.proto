@@ -183,7 +183,7 @@ message DiscipleRow {
   optional double pillCritEffectBonus = 60;
   optional double pillCultivationSpeedBonus = 61;
   optional double pillSkillExpSpeedBonus = 62;
-  optional double pillNurtureSpeedBonus = 63;
+  // reserved 63;（pillNurtureSpeedBonus 孕养丹速度加成，EQ-B2 退役，禁复用）
   optional int32 pillEffectDuration = 64;
   repeated string activePillTypes = 65;
   optional string activePillCategory = 66;

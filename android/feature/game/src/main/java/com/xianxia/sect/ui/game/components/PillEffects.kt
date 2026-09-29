@@ -42,7 +42,6 @@ internal fun isPillInstant(item: Pill): Boolean = item.category == PillCategory.
     (item.category == PillCategory.CULTIVATION && item.pillType == "breakthrough") ||
     item.cultivationAdd > 0 ||
     item.skillExpAdd > 0 ||
-    item.nurtureAdd > 0 ||
     item.extendLife > 0 ||
     item.healMaxHpPercent > 0 ||
     item.mpRecoverMaxMpPercent > 0 ||
@@ -94,10 +93,8 @@ internal fun MutableList<String>.addFunctionalPillEffects(item: Pill) {
 internal fun MutableList<String>.addCultivationPillEffects(item: Pill) {
     if (item.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(item.cultivationSpeedPercent)}")
     if (item.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(item.skillExpSpeedPercent)}")
-    if (item.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(item.nurtureSpeedPercent)}")
     if (item.cultivationAdd > 0) add("  修为 +${item.cultivationAdd}")
     if (item.skillExpAdd > 0) add("  功法熟练度 +${item.skillExpAdd}")
-    if (item.nurtureAdd > 0) add("  孕养值 +${item.nurtureAdd}")
     if (item.breakthroughChance > 0) {
         add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
     }

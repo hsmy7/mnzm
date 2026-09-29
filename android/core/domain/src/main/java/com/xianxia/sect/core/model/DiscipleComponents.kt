@@ -75,10 +75,11 @@ data class CombatAttributes(
 
 /**
  * 丹药效果组件
- * 包含丹药临时属性加成和持续时间，共12个字段
+ * 包含丹药临时属性加成和持续时间，共11个字段
  *
  * 攻防加成单列口径（B1）：[pillAttackBonus]/[pillDefenseBonus] 各一列；
  * 旧物法四列（36–39 号段）退役为只读归一化源（见 [DiscipleSerializer]）。
+ * 孕养速度加成（pillNurtureSpeedBonus，47 号）已随 R11 孕养丹退役删除。
  */
 @Keep
 @Serializable
@@ -95,7 +96,6 @@ data class PillEffects(
     var pillCritEffectBonus: Double = 0.0,
     var pillCultivationSpeedBonus: Double = 0.0,
     var pillSkillExpSpeedBonus: Double = 0.0,
-    var pillNurtureSpeedBonus: Double = 0.0,
     var pillEffectDuration: Int = 0,
     // 当前生效中的临时/持续丹药效果，按 pillType 记录
     @Ignore

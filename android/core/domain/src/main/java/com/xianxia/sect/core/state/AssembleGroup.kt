@@ -45,7 +45,6 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "pillCritEffectBonuses" to AssembleGroup.PILL,
             "pillCultivationSpeedBonuses" to AssembleGroup.PILL,
             "pillSkillExpSpeedBonuses" to AssembleGroup.PILL,
-            "pillNurtureSpeedBonuses" to AssembleGroup.PILL,
             "activePillCategories" to AssembleGroup.PILL,
             "activePillTypes" to AssembleGroup.PILL,
             // assembleEquipment 读取列

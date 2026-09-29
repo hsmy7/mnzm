@@ -129,7 +129,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::PillCritEffectBonus: return "pillCritEffectBonus";
         case DiscipleColumn::PillCultivationSpeedBonus: return "pillCultivationSpeedBonus";
         case DiscipleColumn::PillSkillExpSpeedBonus: return "pillSkillExpSpeedBonus";
-        case DiscipleColumn::PillNurtureSpeedBonus: return "pillNurtureSpeedBonus";
         case DiscipleColumn::PillEffectDuration: return "pillEffectDuration";
         case DiscipleColumn::ActivePillTypes: return "activePillTypes";
         case DiscipleColumn::ActivePillCategory: return "activePillCategory";
@@ -269,9 +268,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             break;
         case DiscipleColumn::PillSkillExpSpeedBonus:
             row["pillSkillExpSpeedBonus"] = ds.pillSkillExpSpeedBonuses[r];
-            break;
-        case DiscipleColumn::PillNurtureSpeedBonus:
-            row["pillNurtureSpeedBonus"] = ds.pillNurtureSpeedBonuses[r];
             break;
         case DiscipleColumn::PillEffectDuration:
             row["pillEffectDuration"] = ds.pillEffectDurations[r];

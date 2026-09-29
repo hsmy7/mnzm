@@ -811,12 +811,10 @@ inline gamecore::state::ItemEffect facadeItemEffect(const Pill& pill) {
     const gamecore::state::PillEffect& f = pill.effects;
     e.cultivationSpeedPercent = f.cultivationSpeedPercent;
     e.skillExpSpeedPercent = f.skillExpSpeedPercent;
-    e.nurtureSpeedPercent = f.nurtureSpeedPercent;
     e.breakthroughChance = f.breakthroughChance;
     e.targetRealm = f.targetRealm;
     e.cultivationAdd = f.cultivationAdd;
     e.skillExpAdd = f.skillExpAdd;
-    e.nurtureAdd = f.nurtureAdd;
     e.healMaxHpPercent = f.healMaxHpPercent;
     e.mpRecoverMaxMpPercent = f.mpRecoverMaxMpPercent;
     e.hpAdd = f.hpAdd;
@@ -938,8 +936,7 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
 
     // ⑤ 战斗/速率持续加成（整体覆写 + 时长取最大 + SUSTAINED/TEMP 登记）
     const bool hasBattleOrSpeed = gamecore::pill::hasAnyBattleAttrAdd(ie) ||
-        effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-        effect.nurtureSpeedPercent > 0;
+        effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0;
     if (hasBattleOrSpeed) {
         ds.pillAttackBonuses[row] = effect.AttackAddTotal();
         ds.pillDefenseBonuses[row] = effect.DefenseAddTotal();
@@ -950,7 +947,6 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.pillCritEffectBonuses[row] = effect.critEffectAdd;
         ds.pillCultivationSpeedBonuses[row] = effect.cultivationSpeedPercent;
         ds.pillSkillExpSpeedBonuses[row] = effect.skillExpSpeedPercent;
-        ds.pillNurtureSpeedBonuses[row] = effect.nurtureSpeedPercent;
         // 以旬为单位（facade：不再 *30）
         ds.pillEffectDurations[row] = effect.duration > 0
             ? std::max(ds.pillEffectDurations[row], effect.duration)
@@ -967,8 +963,7 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.cultivationSpeedDurations[row] = 0;
         // 速率变化点同步 checkpoint（facade：速率列被改时必须同步，否则
         // getEffectiveCultivation 用旧速率推导）
-        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-            effect.nurtureSpeedPercent > 0) {
+        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0) {
             ds.cultivationCheckpoints[row] = ds.cultivations[row];
             ds.cultivationCheckpointGameMonths[row] =
                 state.gameData.gameYear * 12 + state.gameData.gameMonth;
@@ -996,7 +991,6 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.pillCritEffectBonuses[row] = 0.0;
         ds.pillCultivationSpeedBonuses[row] = 0.0;
         ds.pillSkillExpSpeedBonuses[row] = 0.0;
-        ds.pillNurtureSpeedBonuses[row] = 0.0;
         ds.activePillCategories[row] = "";
         ds.activePillTypes[row].clear();
     }

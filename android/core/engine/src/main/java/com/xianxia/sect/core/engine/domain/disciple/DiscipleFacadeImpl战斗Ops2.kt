@@ -30,7 +30,6 @@ internal fun MutableGameState.applyBattleAttrEffects(id: Int, effect: PillEffect
     discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
     discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
     discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
-    discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
     // 以旬为单位，不再 *30
     val currentDuration = discipleTables.pillEffectDurations[id]
     discipleTables.pillEffectDurations[id] = if (effect.duration > 0)
@@ -54,9 +53,7 @@ internal fun MutableGameState.applyBattleAttrEffects(id: Int, effect: PillEffect
     // 速率变化点必须同步 checkpoint：
     // 修炼速度丹修改 pillCultivationSpeedBonuses 影响速率，
     // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
-    if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-        effect.nurtureSpeedPercent > 0
-    ) {
+    if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0) {
         discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
     }
 }
@@ -84,7 +81,6 @@ internal fun MutableGameState.applyClearAllEffect(id: Int) {
     discipleTables.pillCritEffectBonuses[id] = 0.0
     discipleTables.pillCultivationSpeedBonuses[id] = 0.0
     discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
-    discipleTables.pillNurtureSpeedBonuses[id] = 0.0
     discipleTables.activePillCategories[id] = ""
     discipleTables.activePillTypes[id] = emptySet()
 }

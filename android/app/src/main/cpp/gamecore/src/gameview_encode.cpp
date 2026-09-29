@@ -171,7 +171,7 @@ constexpr RowField kDiscipleRowFields[] = {
     {"pillCritEffectBonus", 60, RowKind::kDouble},
     {"pillCultivationSpeedBonus", 61, RowKind::kDouble},
     {"pillSkillExpSpeedBonus", 62, RowKind::kDouble},
-    {"pillNurtureSpeedBonus", 63, RowKind::kDouble},
+    // 孕养丹速度加成退役（EQ-B2/R11）：tag 63 退役（proto reserved），禁复用
     {"pillEffectDuration", 64, RowKind::kInt32},
     {"activePillTypes", 65, RowKind::kStringList},
     {"activePillCategory", 66, RowKind::kString},

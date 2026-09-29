@@ -464,9 +464,11 @@ class OverflowMailSenderTest {
         /** 引擎生产源根：来源字面量的 Kotlin 侧登记点 */
         val engineMainSourceRoots: List<File> = listOf(File(androidRoot(), "core/engine/src/main/java"))
 
-        /** 反向守卫的扫描根：引擎 Kotlin + C++ gamecore 生产源 */
+        /** 反向守卫的扫描根：引擎 Kotlin + C++ gamecore + 数据层完整性规则生产源 */
         val productionSourceRoots: List<File> =
-            engineMainSourceRoots + File(androidRoot(), "app/src/main/cpp/gamecore")
+            engineMainSourceRoots + File(androidRoot(), "app/src/main/cpp/gamecore") +
+                // EQ-B2 起 core/data 的 NurturePillRetirementRule 直构补偿邮件（来源点）
+                File(androidRoot(), "core/data/src/main/java")
 
         /** 参与扫描的源文件扩展名 */
         val sourceFileExtensions: Set<String> = setOf("kt", "cpp", "h", "hpp")

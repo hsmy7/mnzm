@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.PillRule
@@ -51,45 +50,11 @@ class AutoPillService @Inject constructor(
             }
 
             val disciple = tables.assemble(id)
-            val result = pillManager.processAutoUsePills(
-                disciple,
-                // 孕养度丹效果——装备实例均分（余数给第一件）
-                nurtureEffect = { amount -> applyNurtureAddToEquipped(state, id, amount) }
-            )
+            val result = pillManager.processAutoUsePills(disciple)
             if (result.disciple != disciple) {
                 writePillResultToTables(id, result.disciple, tables)
                 // Checkpoint：丹药可能改变修炼速率（持续加速/瞬间增长），同步检查点
                 tables.checkpointDisciple(id, currentMonth)
-            }
-        }
-    }
-
-    /**
-     * 孕养度丹效果：N 点均分到已装备装备实例
-     * （向下取整，余数给第一件；满级装备跳过，该件增益不累积）。
-     * 无装备实例时零效果（丹药照常扣除，与 C++ auto_gear 同源语义）。
-     */
-    private fun applyNurtureAddToEquipped(
-        state: MutableGameState,
-        discipleId: Int,
-        amount: Int
-    ) {
-        if (amount <= 0) return
-        val disciple = state.discipleTables.assemble(discipleId)
-        val equippedIds = listOfNotNull(
-            disciple.equipment.weaponId.takeIf { it.isNotEmpty() },
-            disciple.equipment.armorId.takeIf { it.isNotEmpty() },
-            disciple.equipment.bootsId.takeIf { it.isNotEmpty() },
-            disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }
-        )
-        if (equippedIds.isEmpty()) return
-        val per = amount / equippedIds.size
-        val remainder = amount % equippedIds.size
-        equippedIds.forEachIndexed { index, eqId ->
-            val gain = per + if (index == 0) remainder else 0
-            if (gain <= 0) return@forEachIndexed
-            state.equipmentInstances.update(eqId) { eq ->
-                EquipmentNurtureSystem.updateNurtureExp(eq, gain.toDouble()).equipment
             }
         }
     }
@@ -211,8 +176,6 @@ class AutoPillService @Inject constructor(
             d.pillEffects.pillCultivationSpeedBonus
         tables.pillSkillExpSpeedBonuses[id] =
             d.pillEffects.pillSkillExpSpeedBonus
-        tables.pillNurtureSpeedBonuses[id] =
-            d.pillEffects.pillNurtureSpeedBonus
         tables.pillEffectDurations[id] =
             d.pillEffects.pillEffectDuration
         tables.activePillTypes[id] = d.pillEffects.activePillTypes

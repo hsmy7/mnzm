@@ -63,7 +63,9 @@ class GameDataFieldPatchGuardTest {
      *   annualTotalIncome；字段保留仅为存档 schema 稳定（Room 列/Proto 95 位）。
      * 新增退役字段时在此登记并注明缘由；除此之外序列化面必须与写入器键集双射。
      */
-    private val intentionallyUnmirrored: Set<String> = setOf("lastYearSpiritStoneIncome")
+    // nurturePillsRetired：EQ-B2/R11 补偿幂等标记，纯 Kotlin 读档链消费（不进镜像面）
+    private val intentionallyUnmirrored: Set<String> =
+        setOf("lastYearSpiritStoneIncome", "nurturePillsRetired")
 
     @Test
     fun `写入器键集与 GameData 序列化面双射（漏登记即红）`() {

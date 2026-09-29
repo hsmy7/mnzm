@@ -475,7 +475,6 @@ internal object GameViewMirrorCodec {
             { it.pillCultivationSpeedBonus },
         ),
         dbl("pillSkillExpSpeedBonus", { it.hasPillSkillExpSpeedBonus() }, { it.pillSkillExpSpeedBonus }),
-        dbl("pillNurtureSpeedBonus", { it.hasPillNurtureSpeedBonus() }, { it.pillNurtureSpeedBonus }),
         i32("pillEffectDuration", { it.hasPillEffectDuration() }, { it.pillEffectDuration }),
         sl("activePillTypes", { it.activePillTypesList }),
         str("activePillCategory", { it.hasActivePillCategory() }, { it.activePillCategory }),

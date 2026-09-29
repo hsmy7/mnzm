@@ -72,7 +72,6 @@ data class DiscipleAggregate(
     val pillCritEffectBonus: Double get() = combatStats?.pillCritEffectBonus ?: 0.0
     val pillCultivationSpeedBonus: Double get() = combatStats?.pillCultivationSpeedBonus ?: 0.0
     val pillSkillExpSpeedBonus: Double get() = combatStats?.pillSkillExpSpeedBonus ?: 0.0
-    val pillNurtureSpeedBonus: Double get() = combatStats?.pillNurtureSpeedBonus ?: 0.0
     val activePillCategory: String get() = combatStats?.activePillCategory ?: ""
     // activePillTypes 为 @Ignore 字段，不在 DiscipleCombatStats Room 实体中。
     // Aggregate 路径无法访问此跨实体字段，需要时请通过 Disciple StateFlow 获取。
@@ -254,7 +253,6 @@ data class DiscipleAggregate(
         pillCritEffectBonus = pillCritEffectBonus,
         pillCultivationSpeedBonus = pillCultivationSpeedBonus,
         pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
-        pillNurtureSpeedBonus = pillNurtureSpeedBonus,
         pillEffectDuration = pillEffectDuration,
         activePillCategory = activePillCategory,
         activePillTypes = activePillTypes

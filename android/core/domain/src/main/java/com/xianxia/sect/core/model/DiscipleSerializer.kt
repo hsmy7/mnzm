@@ -102,7 +102,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             pillCritEffectBonus = value.pillEffects.pillCritEffectBonus,
             pillCultivationSpeedBonus = value.pillEffects.pillCultivationSpeedBonus,
             pillSkillExpSpeedBonus = value.pillEffects.pillSkillExpSpeedBonus,
-            pillNurtureSpeedBonus = value.pillEffects.pillNurtureSpeedBonus,
             pillEffectDuration = value.pillEffects.pillEffectDuration,
             activePillCategory = value.pillEffects.activePillCategory,
             activePillTypes = value.pillEffects.activePillTypes.toList()
@@ -231,7 +230,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 pillCritEffectBonus = surrogate.pillCritEffectBonus,
                 pillCultivationSpeedBonus = surrogate.pillCultivationSpeedBonus,
                 pillSkillExpSpeedBonus = surrogate.pillSkillExpSpeedBonus,
-                pillNurtureSpeedBonus = surrogate.pillNurtureSpeedBonus,
                 pillEffectDuration = surrogate.pillEffectDuration,
                 activePillCategory = surrogate.activePillCategory,
                 activePillTypes = surrogate.activePillTypes.toSet()
@@ -387,8 +385,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(44) val pillCritEffectBonus: Double = 0.0,
         @ProtoNumber(45) val pillCultivationSpeedBonus: Double = 0.0,
         @ProtoNumber(46) val pillSkillExpSpeedBonus: Double = 0.0,
-        // E1 退役清单在册（孕养丹速度加成，B2 孕养丹退役批退役）：禁改指向，退役后号禁复用
-        @ProtoNumber(47) val pillNurtureSpeedBonus: Double = 0.0,
+        // reserved 47;（pillNurtureSpeedBonus 孕养丹速度加成，B2/EQ-B2 退役——旧档字节
+        // 按未知字段忽略，禁复用；列式删除见 MIGRATION_62_63）
         @ProtoNumber(48) val pillEffectDuration: Int = 0,
         @ProtoNumber(49) val activePillCategory: String = "",
         @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),

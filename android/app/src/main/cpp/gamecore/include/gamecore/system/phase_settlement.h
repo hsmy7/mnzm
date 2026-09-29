@@ -429,32 +429,6 @@ inline bool applyNurtureExp(EquipmentInstance& eq, double gain) {
     return true;
 }
 
-/// 孕养度丹应用：N 点均分到已装备装备实例
-/// （向下取整，余数给第一件；满级装备跳过——该件增益不累积）。
-/// 无装备实例时零效果（丹药照常扣除，与 Kotlin 镜像一致）。
-inline void applyNurtureEffect(state::GameState& state, Disciple& d,
-                               int32_t nurtureAdd) {
-    if (nurtureAdd <= 0) return;
-    std::vector<std::string> equippedIds;
-    if (!d.weaponId.empty()) equippedIds.push_back(d.weaponId);
-    if (!d.armorId.empty()) equippedIds.push_back(d.armorId);
-    if (!d.bootsId.empty()) equippedIds.push_back(d.bootsId);
-    if (!d.accessoryId.empty()) equippedIds.push_back(d.accessoryId);
-    if (equippedIds.empty()) return;
-    const int32_t per = nurtureAdd / static_cast<int32_t>(equippedIds.size());
-    const int32_t remainder =
-        nurtureAdd % static_cast<int32_t>(equippedIds.size());
-    for (std::size_t i = 0; i < equippedIds.size(); ++i) {
-        const int32_t gain = per + (i == 0 ? remainder : 0);
-        if (gain <= 0) continue;
-        for (state::EquipmentInstance& eq : state.equipmentInstances) {
-            if (eq.id != equippedIds[i]) continue;
-            applyNurtureExp(eq, static_cast<double>(gain));
-            break;
-        }
-    }
-}
-
 /// 步骤 4：单弟子四槽孕养增长（批量模式：从入口桶视图读原值，
 /// 更新累积到 updates——与 Kotlin settleNurtureInPlace 读写面一致；
 /// DiscipleStore 行版——原对象版无调用方，随桶迁移删除）
@@ -570,8 +544,6 @@ inline bool autoUsePills(Disciple& d, state::GameState& state) {
             }
             if (skip) continue;
         }
-        // A2：孕养度丹均分至已装备装备实例（nurtureAdd>0 才生效）
-        if (e.nurtureAdd > 0) applyNurtureEffect(state, working, e.nurtureAdd);
         pill::applyToDisciple(working, *item);
         working.storageBagItems = pill::decreaseItemQuantity(
             working.storageBagItems, item->itemId, 1);
@@ -610,7 +582,6 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.pillCritEffectBonus = r.pillCritEffectBonus;
     d.pillCultivationSpeedBonus = r.pillCultivationSpeedBonus;
     d.pillSkillExpSpeedBonus = r.pillSkillExpSpeedBonus;
-    d.pillNurtureSpeedBonus = r.pillNurtureSpeedBonus;
     d.pillEffectDuration = r.pillEffectDuration;
     d.activePillTypes = r.activePillTypes;
     // 使用追踪

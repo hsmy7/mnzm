@@ -109,8 +109,7 @@ internal object MirrorProtoFeedFixture {
         pillDefenseBonus = 13,
         pillHpBonus = 15, pillMpBonus = 16, pillSpeedBonus = 17,
         pillCritRateBonus = 0.05, pillCritEffectBonus = 0.06,
-        pillCultivationSpeedBonus = 0.07, pillSkillExpSpeedBonus = 0.08,
-        pillNurtureSpeedBonus = 0.09, pillEffectDuration = 3,
+        pillCultivationSpeedBonus = 0.07, pillSkillExpSpeedBonus = 0.08, pillEffectDuration = 3,
         activePillTypes = setOf("dan1"), activePillCategory = "cultivation",
     )
 

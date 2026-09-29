@@ -215,10 +215,8 @@ inline state::SecretRealmBackpack instantiateRewards(
             p.effects.isAscension = tpl->isAscension;
             p.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
             p.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-            p.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
             p.effects.cultivationAdd = tpl->cultivationAdd;
             p.effects.skillExpAdd = tpl->skillExpAdd;
-            p.effects.nurtureAdd = tpl->nurtureAdd;
             p.effects.duration = tpl->duration;
             p.effects.cannotStack = tpl->cannotStack;
             p.effects.physicalAttackAdd = tpl->physicalAttackAdd;
@@ -423,10 +421,8 @@ inline bool reconstructStackedItem(const state::StorageBagItem& item,
         p.effects.isAscension = tpl->isAscension;
         p.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
         p.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-        p.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
         p.effects.cultivationAdd = tpl->cultivationAdd;
         p.effects.skillExpAdd = tpl->skillExpAdd;
-        p.effects.nurtureAdd = tpl->nurtureAdd;
         p.effects.duration = tpl->duration;
         p.effects.cannotStack = tpl->cannotStack;
         p.effects.physicalAttackAdd = tpl->physicalAttackAdd;

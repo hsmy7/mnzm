@@ -78,9 +78,6 @@ var Disciple.pillCultivationSpeedBonus: kotlin.Double get() = pillEffects
 /** @deprecated 请改用 [pillEffects.pillSkillExpSpeedBonus] */
 var Disciple.pillSkillExpSpeedBonus: kotlin.Double get() = pillEffects.pillSkillExpSpeedBonus; set(value) { pillEffects
     .pillSkillExpSpeedBonus = value }
-/** @deprecated 请改用 [pillEffects.pillNurtureSpeedBonus] */
-var Disciple.pillNurtureSpeedBonus: kotlin.Double get() = pillEffects.pillNurtureSpeedBonus; set(value) { pillEffects
-    .pillNurtureSpeedBonus = value }
 /** @deprecated 请改用 [pillEffects.activePillCategory] */
 var Disciple.activePillCategory: kotlin.String get() = pillEffects.activePillCategory; set(value) { pillEffects
     .activePillCategory = value }

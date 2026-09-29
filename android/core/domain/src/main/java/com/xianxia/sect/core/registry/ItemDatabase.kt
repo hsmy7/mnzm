@@ -28,10 +28,8 @@ object ItemDatabase {
         val isAscension: Boolean = false,
         val cultivationSpeedPercent: Double = 0.0,
         val skillExpSpeedPercent: Double = 0.0,
-        val nurtureSpeedPercent: Double = 0.0,
         val cultivationAdd: Int = 0,
         val skillExpAdd: Int = 0,
-        val nurtureAdd: Int = 0,
         val duration: Int = 3,
         val cannotStack: Boolean = true,
         // 攻防加成单列口径（B1）：物法攻合并进 attackAdd、物法防合并进 defenseAdd；
@@ -95,10 +93,8 @@ object ItemDatabase {
         val pills = mutableListOf<PillTemplate>()
         val speedNames = mapOf(1 to "引灵丹", 2 to "聚灵丹", 3 to "凝元丹", 4 to "炼气丹", 5 to "混元丹", 6 to "仙灵丹")
         val skillSpeedNames = mapOf(1 to "悟法丹", 2 to "通法丹", 3 to "玄法丹", 4 to "道法丹", 5 to "天法丹", 6 to "仙法丹")
-        val nurtureSpeedNames = mapOf(1 to "养器丹", 2 to "灵养丹", 3 to "宝养丹", 4 to "玄养丹", 5 to "地养丹", 6 to "天养丹")
         val cultAddNames = mapOf(1 to "增元丹", 2 to "培元丹", 3 to "固元丹", 4 to "真元丹", 5 to "玄元丹", 6 to "仙元丹")
         val skillAddNames = mapOf(1 to "悟道丹", 2 to "明心丹", 3 to "通玄丹", 4 to "慧灵丹", 5 to "道悟丹", 6 to "天机丹")
-        val nurtureAddNames = mapOf(1 to "蕴器丹", 2 to "灵蕴丹", 3 to "宝蕴丹", 4 to "玄蕴丹", 5 to "地蕴丹", 6 to "天蕴丹")
 
         for (tier in 1..6) {
             val rarity = TIER_RARITY.getValue(tier)
@@ -111,8 +107,7 @@ object ItemDatabase {
                 rarity = rarity,
                 speedPct = speedPct,
                 speedNames = speedNames,
-                skillSpeedNames = skillSpeedNames,
-                nurtureSpeedNames = nurtureSpeedNames
+                skillSpeedNames = skillSpeedNames
             )
             addCultivationValueGradePills(
                 pills = pills,
@@ -120,8 +115,7 @@ object ItemDatabase {
                 rarity = rarity,
                 baseCult = baseCult,
                 cultAddNames = cultAddNames,
-                skillAddNames = skillAddNames,
-                nurtureAddNames = nurtureAddNames
+                skillAddNames = skillAddNames
             )
         }
 
@@ -129,15 +123,14 @@ object ItemDatabase {
         return pills
     }
 
-    /** 修炼速度类丹药：引灵/悟法/养器三系速度丹 */
+    /** 修炼速度类丹药：引灵/悟法两系速度丹 */
     private fun addCultivationSpeedGradePills(
         pills: MutableList<PillTemplate>,
         tier: Int,
         rarity: Int,
         speedPct: Double,
         speedNames: Map<Int, String>,
-        skillSpeedNames: Map<Int, String>,
-        nurtureSpeedNames: Map<Int, String>
+        skillSpeedNames: Map<Int, String>
     ) {
         for (grade in PillGrade.entries) {
             val g = grade.displayName
@@ -175,33 +168,17 @@ object ItemDatabase {
                 minRealm = tierMinRealm(tier)
             ))
 
-            pills.add(PillTemplate(
-                id = "nurtureSpeed_${tier}_${grade.name.lowercase()}",
-                name = nurtureSpeedNames.getValue(tier),
-                category = PillCategory.CULTIVATION,
-                grade = grade,
-                rarity = rarity,
-                pillType = "nurtureSpeed",
-                description =
-                    "${tierName}${g}孕养速度丹，提升装备孕养等级修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
-                price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
-                nurtureSpeedPercent = applyGrade(speedPct, grade),
-                duration = 9,
-                cannotStack = true,
-                minRealm = tierMinRealm(tier)
-            ))
         }
     }
 
-    /** 修为/熟练度直接增加值丹药：增元/悟道/蕴器三系加值丹 */
+    /** 修为/熟练度直接增加值丹药：增元/悟道两系加值丹 */
     private fun addCultivationValueGradePills(
         pills: MutableList<PillTemplate>,
         tier: Int,
         rarity: Int,
         baseCult: Int,
         cultAddNames: Map<Int, String>,
-        skillAddNames: Map<Int, String>,
-        nurtureAddNames: Map<Int, String>
+        skillAddNames: Map<Int, String>
     ) {
         for (grade in PillGrade.entries) {
             val g = grade.displayName
@@ -232,21 +209,6 @@ object ItemDatabase {
                 description = "${tierName}${g}功法熟练丹，立即增加${skillAddVal}点功法熟练度",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 skillExpAdd = skillAddVal,
-                duration = 0,
-                cannotStack = false,
-                minRealm = tierMinRealm(tier)
-            ))
-            val nurtureAddVal = applyGrade(listOf(50, 100, 200, 400, 800, 1600)[tier - 1], grade)
-            pills.add(PillTemplate(
-                id = "nurtureAdd_${tier}_${grade.name.lowercase()}",
-                name = nurtureAddNames.getValue(tier),
-                category = PillCategory.CULTIVATION,
-                grade = grade,
-                rarity = rarity,
-                pillType = "nurtureAdd",
-                description = "${tierName}${g}孕养度丹，立即增加${nurtureAddVal}点装备孕养度",
-                price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
-                nurtureAdd = nurtureAddVal,
                 duration = 0,
                 cannotStack = false,
                 minRealm = tierMinRealm(tier)
@@ -680,10 +642,8 @@ object ItemDatabase {
                 isAscension = template.isAscension,
                 cultivationSpeedPercent = template.cultivationSpeedPercent,
                 skillExpSpeedPercent = template.skillExpSpeedPercent,
-                nurtureSpeedPercent = template.nurtureSpeedPercent,
                 cultivationAdd = template.cultivationAdd,
                 skillExpAdd = template.skillExpAdd,
-                nurtureAdd = template.nurtureAdd,
                 duration = template.duration,
                 cannotStack = template.cannotStack,
                 attackAdd = template.attackAdd,

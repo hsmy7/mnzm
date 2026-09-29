@@ -283,7 +283,6 @@ tables.pillDefenseBonuses[id] = 0
                 tables.pillCritEffectBonuses[id] = 0.0
                 tables.pillCultivationSpeedBonuses[id] = 0.0
                 tables.pillSkillExpSpeedBonuses[id] = 0.0
-                tables.pillNurtureSpeedBonuses[id] = 0.0
                 tables.activePillCategories[id] = ""
                 tables.activePillTypes[id] = emptySet()
                 tables.pillEffectDurations[id] = 0

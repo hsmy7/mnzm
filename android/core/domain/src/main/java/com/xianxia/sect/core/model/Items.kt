@@ -802,10 +802,8 @@ data class Pill(
     val isAscension: Boolean get() = effects.isAscension
     val cultivationSpeedPercent: Double get() = effects.cultivationSpeedPercent
     val skillExpSpeedPercent: Double get() = effects.skillExpSpeedPercent
-    val nurtureSpeedPercent: Double get() = effects.nurtureSpeedPercent
     val cultivationAdd: Int get() = effects.cultivationAdd
     val skillExpAdd: Int get() = effects.skillExpAdd
-    val nurtureAdd: Int get() = effects.nurtureAdd
     val duration: Int get() = effects.duration
     val cannotStack: Boolean get() = effects.cannotStack
     val attackAdd: Int get() = effects.attackAddTotal
@@ -891,10 +889,10 @@ data class PillEffect(
     @ProtoNumber(3) val isAscension: Boolean = false,
     @ProtoNumber(4) val cultivationSpeedPercent: Double = 0.0,
     @ProtoNumber(5) val skillExpSpeedPercent: Double = 0.0,
-    @ProtoNumber(6) val nurtureSpeedPercent: Double = 0.0,
+    // reserved 6,9;（nurtureSpeedPercent/nurtureAdd 孕养类加成丹效果，R11 退役——
+    // 旧档字节按未知字段忽略，禁复用）
     @ProtoNumber(7) val cultivationAdd: Int = 0,
     @ProtoNumber(8) val skillExpAdd: Int = 0,
-    @ProtoNumber(9) val nurtureAdd: Int = 0,
     @ProtoNumber(10) val duration: Int = 3,
     @ProtoNumber(11) val cannotStack: Boolean = true,
     // ── 攻防加成单列口径（B1，方案 §15.4）──

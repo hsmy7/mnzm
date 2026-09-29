@@ -140,7 +140,6 @@ class MerchantItemConverter @Inject constructor() {
                     duration = template.duration,
                     cultivationAdd = template.cultivationAdd,
                     skillExpAdd = template.skillExpAdd,
-                    nurtureAdd = template.nurtureAdd,
                     attackAdd = template.attackAdd,
                     defenseAdd = template.defenseAdd,
                     hpAdd = template.hpAdd,

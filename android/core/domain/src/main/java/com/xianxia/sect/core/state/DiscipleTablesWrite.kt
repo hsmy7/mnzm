@@ -37,7 +37,6 @@ import com.xianxia.sect.core.model.pillAttackBonus
 import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillHpBonus
 import com.xianxia.sect.core.model.pillMpBonus
-import com.xianxia.sect.core.model.pillNurtureSpeedBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -118,7 +117,6 @@ internal fun DiscipleTables.writePillFields(id: Int, disciple: Disciple) {
     pillCritEffectBonuses[id] = p.pillCritEffectBonus
     pillCultivationSpeedBonuses[id] = p.pillCultivationSpeedBonus
     pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
-    pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
     activePillCategories[id] = p.activePillCategory; activePillTypes[id] = p.activePillTypes
 }
 

@@ -118,7 +118,8 @@ class EquipmentProtoNumberFrozenTest {
     @Test
     fun `existing reserved proto numbers stay unclaimed`() {
         val claimed = protoNumbers(surrogate).values.toSet()
-        val reserved = listOf(7, 8, 11, 12, 13, 14, 15, 16, 22, 29, 50, 76, 88, 93, 95, 102, 104, 105, 110)
+        // 47 = pillNurtureSpeedBonus（EQ-B2 孕养丹退役批退役）
+        val reserved = listOf(7, 8, 11, 12, 13, 14, 15, 16, 22, 29, 47, 50, 76, 88, 93, 95, 102, 104, 105, 110)
         val reused = reserved.filter { it in claimed }
         assertTrue(
             "存量退役号 $reused 被 @ProtoNumber 重新占用（reserved 禁复用——旧档字节会按新语义解码）。\n" +
@@ -138,7 +139,6 @@ class EquipmentProtoNumberFrozenTest {
             "armorNurture" to 25,
             "bootsNurture" to 26,
             "accessoryNurture" to 27,
-            "pillNurtureSpeedBonus" to 47,
             "equipmentNurturingCompletionMonth" to 98,
             "equipmentNurturingCompletionPhase" to 99
         )
@@ -147,7 +147,7 @@ class EquipmentProtoNumberFrozenTest {
         }
         assertTrue(
             "E1 退役在册号被改指向：\n$drifted\n" +
-                "处置：退役在册号在退役批落地前禁改指向（47→B2，其余→B3）、退役后禁复用。",
+                "处置：退役在册号在退役批落地前禁改指向（其余→B3）、退役后禁复用。",
             drifted.isEmpty()
         )
     }

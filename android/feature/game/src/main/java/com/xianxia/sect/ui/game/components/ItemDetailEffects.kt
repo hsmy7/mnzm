@@ -20,7 +20,6 @@ import java.util.Locale
 private val STAT_DISPLAY_NAMES: Map<String, String> = mapOf(
     "cultivationSpeedPercent" to "修炼速度",
     "skillExpSpeedPercent" to "功法熟练度速度",
-    "nurtureSpeedPercent" to "孕养速度",
     "physicalAttack" to "物理攻击",
     "magicAttack" to "法术攻击",
     "physicalDefense" to "物理防御",

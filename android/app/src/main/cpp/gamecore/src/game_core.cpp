@@ -289,7 +289,6 @@ void GameCore::markMonthYearBoundaryColumns() {
         state::DiscipleColumn::PillCritEffectBonus,
         state::DiscipleColumn::PillCultivationSpeedBonus,
         state::DiscipleColumn::PillSkillExpSpeedBonus,
-        state::DiscipleColumn::PillNurtureSpeedBonus,
         state::DiscipleColumn::PillEffectDuration,
         state::DiscipleColumn::ActivePillTypes,
         state::DiscipleColumn::ActivePillCategory,

@@ -67,7 +67,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     DoubleTableRef(pillCultivationSpeedBonuses, DiscipleTables::pillCultivationSpeedBonuses,
         "pillCultivationSpeedBonuses"),
     DoubleTableRef(pillSkillExpSpeedBonuses, DiscipleTables::pillSkillExpSpeedBonuses, "pillSkillExpSpeedBonuses"),
-    DoubleTableRef(pillNurtureSpeedBonuses, DiscipleTables::pillNurtureSpeedBonuses, "pillNurtureSpeedBonuses"),
 
     // ── Long 表（值不可变，浅拷贝安全） ──
     RefTableRef(totalCultivations, DiscipleTables::totalCultivations, "totalCultivations"),

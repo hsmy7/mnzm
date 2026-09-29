@@ -78,7 +78,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
     MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57,
     MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61,
-    MIGRATION_61_62
+    MIGRATION_61_62, MIGRATION_62_63
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -93,7 +93,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 62
+    const val DATABASE_VERSION = 63
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -220,6 +220,10 @@ object GameDatabaseConfig {
     // disciples 删 12 列（物法攻防基值/方差/丹药加成）增 7 列（baseAttack/baseDefense/
     // innateDamageType/attackVariance/defenseVariance/pillAttackBonus/pillDefenseBonus），
     // 回填取和（Q7，k=1）+ 固有属性按首灵根派生；详见该迁移 KDoc
+    // v63: MIGRATION_62_63 孕养类加成丹药退役（装备重构 B2/R11，方案 §5.7）——
+    // disciples 删 pillNurtureSpeedBonus 一列（生效中孕养速度临时效果随列清零，不补偿）、
+    // game_data 增 nurture_pills_retired 补偿幂等标记列、recipes 表清孕养配方行；
+    // 详见该迁移 KDoc
     // v58: MIGRATION_57_58 字段链删列（G04）——disciples 删除 talentIds/physiqueIds/
     // affixIds/aptitude 四列（comprehension 悟性列保留）；game_data 删除血炼四列
     // bloodRefinements/activeBloodRefinements/bloodRefinementBonusTotals/

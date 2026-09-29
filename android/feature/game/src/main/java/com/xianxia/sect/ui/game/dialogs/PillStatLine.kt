@@ -27,7 +27,6 @@ internal fun pillDetailStatLines(
     if (recipe.critRateAdd > 0) add(PillStatLine("暴击率", pctRange { it.critRateAdd }))
     if (recipe.critEffectAdd > 0) add(PillStatLine("暴击效果", pctRange { it.critEffectAdd }))
     if (recipe.skillExpAdd > 0) add(PillStatLine("功法熟练度", intRange { it.skillExpAdd }))
-    if (recipe.nurtureAdd > 0) add(PillStatLine("孕育值", intRange { it.nurtureAdd }))
     if (recipe.intelligenceAdd > 0) add(PillStatLine("悟性", intRange { it.intelligenceAdd }))
     if (recipe.charmAdd > 0) add(PillStatLine("魅力", intRange { it.charmAdd }))
     if (recipe.comprehensionAdd > 0) add(PillStatLine("领悟", intRange { it.comprehensionAdd }))

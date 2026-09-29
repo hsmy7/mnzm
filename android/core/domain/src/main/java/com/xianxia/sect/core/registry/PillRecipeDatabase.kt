@@ -28,10 +28,8 @@ object PillRecipeDatabase {
         val targetRealm: Int = 0,
         val cultivationSpeedPercent: Double = 0.0,
         val skillExpSpeedPercent: Double = 0.0,
-        val nurtureSpeedPercent: Double = 0.0,
         val cultivationAdd: Int = 0,
         val skillExpAdd: Int = 0,
-        val nurtureAdd: Int = 0,
         // 攻防加成单列口径（B1）：物法攻合并 attackAdd、物法防合并 defenseAdd
         val attackAdd: Int = 0,
         val defenseAdd: Int = 0,
@@ -90,10 +88,9 @@ object PillRecipeDatabase {
     /** 常规修炼配方：六系修炼/加值丹配方 */
     @Suppress("SpreadOperator") // herbMat 调用点: 内部表驱动 DSL，模板数组经 vararg 形参散布填充（定义侧同理由）
     private fun addCultivationStandardRecipes(recipes: MutableList<PillRecipe>) {
-        val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "nurtureSpeed", "cultivationAdd", "skillExpAdd",
-            "nurtureAdd")
+        val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "cultivationAdd", "skillExpAdd")
         val herbPatterns = listOf(
-            listOf(0, 3), listOf(1, 6), listOf(2, 4), listOf(0, 7), listOf(5, 8), listOf(3, 7)
+            listOf(0, 3), listOf(1, 6), listOf(0, 7), listOf(5, 8)
         )
 
         for (tier in 1..6) {
@@ -119,10 +116,8 @@ object PillRecipeDatabase {
                         successRate = successRate,
                         cultivationSpeedPercent = template.cultivationSpeedPercent,
                         skillExpSpeedPercent = template.skillExpSpeedPercent,
-                        nurtureSpeedPercent = template.nurtureSpeedPercent,
                         cultivationAdd = template.cultivationAdd,
-                        skillExpAdd = template.skillExpAdd,
-                        nurtureAdd = template.nurtureAdd
+                        skillExpAdd = template.skillExpAdd
                     ))
                 }
             }

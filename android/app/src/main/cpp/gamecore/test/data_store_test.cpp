@@ -110,7 +110,8 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
     EXPECT_EQ(540u, manualTemplates().size());
     EXPECT_EQ(192u, beastMaterialTemplates().size());
     EXPECT_EQ(72u, forgeRecipes().size());
-    EXPECT_EQ(660u, pillRecipes().size());
+    // R11 孕养丹退役：660 − 36 = 624
+    EXPECT_EQ(624u, pillRecipes().size());
 
     // price 回填抽样：注入后 pillRecipes 的 price 必须等于 C++ 同一构建器的
     // 派生值（派生逻辑保持 C++ 侧的红线实证；全量等价由上面的逐字段比对锁定）

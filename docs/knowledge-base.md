@@ -698,6 +698,7 @@ fun watchAdForNewFeature() {
 | 产（源） | 宗门交易/商人 | 出售物品/灵石商品 | `SectTradeDialog`、`MerchantAndRecruitService.kt` |
 | 产（源） | 运营发放 | 兑换码/节日邮件/白名单 1000 万灵石邮件（每日签到已移除 2026-08-07） | `RedeemCodeService`、`BuiltinMailConfig` |
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
+| 产（源） | **孕养丹退役补偿**（装备重构 B2/R11，**纯新增源**、一次性） | 旧档存量孕养类丹药（`nurtureSpeed_*`/`nurtureAdd_*` 两族 36 id）按退役时刻价格快照 100% 折算灵石，单封补偿邮件发放（source=`nurture_pill_retirement`，永久有效）；**单档上限 2000 万灵石**，超出按比例截断并记日志；幂等标记 `GameData.nurturePillsRetired`(168) 同事务；额度量级=存量×原价（tier6 中品单颗 2688 万必触上限），**产出缺口**：奖励池/商店/兑换码的孕养丹条目随模板退役移除，原孕养丹产出通道灵石消耗同步消失（负向缺口已随体系退役，无需补位） | `NurturePillRetirementRule`（core/data integrity，order=26） |
 | **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
 | 耗（汇） | 住所升级 | 初级住所→中级住所差价（单人 30000/多人 50000，目标造价-源造价动态计算，要求中型宗门） | `BuildingFacadeImpl.upgradeBuildings`、`BuildingUpgradeRegistry` |
 | 耗（汇） | 生产投入 | 炼丹/锻造/种植材料 | `ProductionProcessor`、`AlchemySystem` |

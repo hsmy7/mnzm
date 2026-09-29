@@ -139,12 +139,10 @@ struct ItemEffect {
     int32_t tier = 0;                     // 丹药品阶（永久属性丹去重）
     double cultivationSpeedPercent = 0.0;
     double skillExpSpeedPercent = 0.0;
-    double nurtureSpeedPercent = 0.0;
     double breakthroughChance = 0.0;
     int32_t targetRealm = 0;
     int32_t cultivationAdd = 0;
     int32_t skillExpAdd = 0;
-    int32_t nurtureAdd = 0;
     double healMaxHpPercent = 0.0;
     double mpRecoverMaxMpPercent = 0.0;
     int32_t hpAdd = 0;
@@ -211,10 +209,8 @@ struct PillEffect {
     bool isAscension = false;
     double cultivationSpeedPercent = 0.0;
     double skillExpSpeedPercent = 0.0;
-    double nurtureSpeedPercent = 0.0;
     int32_t cultivationAdd = 0;
     int32_t skillExpAdd = 0;
-    int32_t nurtureAdd = 0;
     int32_t duration = 3;
     bool cannotStack = true;
     // 单列口径（B1）：旧物法四字段保留（归一化读取源），消费点用 AttackAddTotal
@@ -373,7 +369,6 @@ struct Disciple {
     double pillCritEffectBonus = 0.0;
     double pillCultivationSpeedBonus = 0.0;
     double pillSkillExpSpeedBonus = 0.0;
-    double pillNurtureSpeedBonus = 0.0;
     int32_t pillEffectDuration = 0;
     std::vector<std::string> activePillTypes;   // 生效中丹药 pillType 集合
     std::string activePillCategory;             // 旧字段，仅旧存档兼容

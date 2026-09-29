@@ -860,6 +860,12 @@ data class GameData(
     @ColumnInfo(name = "gacha_history", defaultValue = "[]")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gachaHistory: List<GachaHistoryEntry> = emptyList(),
+
+    // 孕养类加成丹药（R11）退役补偿已发放幂等标记——与补偿发放同事务落盘
+    //（NurturePillRetirementRule），true 后规则恒 Passed 不再补偿
+    @ProtoNumber(168)
+    @ColumnInfo(name = "nurture_pills_retired", defaultValue = "0")
+    var nurturePillsRetired: Boolean = false,
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

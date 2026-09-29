@@ -162,7 +162,6 @@ class DiscipleTables {
     val pillCritEffectBonuses = DoubleComponentTable()
     val pillCultivationSpeedBonuses = DoubleComponentTable()
     val pillSkillExpSpeedBonuses = DoubleComponentTable()
-    val pillNurtureSpeedBonuses = DoubleComponentTable()
     val activePillCategories = ComponentTable<String>()
     val activePillTypes = ComponentTable<Set<String>>()
 

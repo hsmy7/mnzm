@@ -296,10 +296,8 @@ inline bool producePill(GameState& state, const ProductionSlot& slot,
     pill.effects.isAscension = tpl->isAscension;
     pill.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
     pill.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-    pill.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
     pill.effects.cultivationAdd = tpl->cultivationAdd;
     pill.effects.skillExpAdd = tpl->skillExpAdd;
-    pill.effects.nurtureAdd = tpl->nurtureAdd;
     pill.effects.duration = tpl->duration;
     pill.effects.cannotStack = tpl->cannotStack;
     pill.effects.physicalAttackAdd = tpl->physicalAttackAdd;

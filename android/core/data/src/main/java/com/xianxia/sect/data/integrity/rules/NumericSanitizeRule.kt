@@ -109,8 +109,7 @@ object NumericSanitizeRule : SaveValidationRule {
             pill.pillCritRateBonus,
             pill.pillCritEffectBonus,
             pill.pillCultivationSpeedBonus,
-            pill.pillSkillExpSpeedBonus,
-            pill.pillNurtureSpeedBonus
+            pill.pillSkillExpSpeedBonus
         )
         if (pillFields.any { it.isInvalid(MAX_MULTIPLIER) }) {
             repairs.add("$label.pillEffects 含非法加成（非有限/负值/超上限），已重置")
@@ -118,8 +117,7 @@ object NumericSanitizeRule : SaveValidationRule {
                 pillCritRateBonus = pill.pillCritRateBonus.sanitize(MAX_MULTIPLIER),
                 pillCritEffectBonus = pill.pillCritEffectBonus.sanitize(MAX_MULTIPLIER),
                 pillCultivationSpeedBonus = pill.pillCultivationSpeedBonus.sanitize(MAX_MULTIPLIER),
-                pillSkillExpSpeedBonus = pill.pillSkillExpSpeedBonus.sanitize(MAX_MULTIPLIER),
-                pillNurtureSpeedBonus = pill.pillNurtureSpeedBonus.sanitize(MAX_MULTIPLIER)
+                pillSkillExpSpeedBonus = pill.pillSkillExpSpeedBonus.sanitize(MAX_MULTIPLIER)
             )
             modified = true
         }
@@ -146,8 +144,7 @@ object NumericSanitizeRule : SaveValidationRule {
             pill.pillCritRateBonus,
             pill.pillCritEffectBonus,
             pill.pillCultivationSpeedBonus,
-            pill.pillSkillExpSpeedBonus,
-            pill.pillNurtureSpeedBonus
+            pill.pillSkillExpSpeedBonus
         )
         return cultivation.isInvalid(MAX_CULTIVATION) || cultivationCheckpoint.isInvalid(MAX_CULTIVATION) ||
             cultivationSpeedBonus.isInvalid(MAX_MULTIPLIER) || pillFields.any { it.isInvalid(MAX_MULTIPLIER) }

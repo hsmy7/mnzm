@@ -534,12 +534,10 @@ inline ItemEffect pillToItemEffect(const Pill& pill) {
     out.tier = pill.rarity;
     out.cultivationSpeedPercent = e.cultivationSpeedPercent;
     out.skillExpSpeedPercent = e.skillExpSpeedPercent;
-    out.nurtureSpeedPercent = e.nurtureSpeedPercent;
     out.breakthroughChance = e.breakthroughChance;
     out.targetRealm = e.targetRealm;
     out.cultivationAdd = e.cultivationAdd;
     out.skillExpAdd = e.skillExpAdd;
-    out.nurtureAdd = e.nurtureAdd;
     out.healMaxHpPercent = e.healMaxHpPercent;
     out.mpRecoverMaxMpPercent = e.mpRecoverMaxMpPercent;
     out.hpAdd = e.hpAdd;

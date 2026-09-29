@@ -123,7 +123,6 @@ internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(
     pillCritEffectBonus = pillCritEffectBonuses.getOrDefault(id, 0.0),
     pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
     pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
-    pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
     activePillCategory = activePillCategories.getOrNull(id) ?: "",
     activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
 )

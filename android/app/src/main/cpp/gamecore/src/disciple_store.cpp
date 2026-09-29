@@ -81,7 +81,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.pillCritEffectBonus = pillCritEffectBonuses[row];
     d.pillCultivationSpeedBonus = pillCultivationSpeedBonuses[row];
     d.pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses[row];
-    d.pillNurtureSpeedBonus = pillNurtureSpeedBonuses[row];
     d.pillEffectDuration = pillEffectDurations[row];
     d.activePillTypes = activePillTypes[row];
     d.activePillCategory = activePillCategories[row];
@@ -193,7 +192,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     pillCritEffectBonuses.push_back(d.pillCritEffectBonus);
     pillCultivationSpeedBonuses.push_back(d.pillCultivationSpeedBonus);
     pillSkillExpSpeedBonuses.push_back(d.pillSkillExpSpeedBonus);
-    pillNurtureSpeedBonuses.push_back(d.pillNurtureSpeedBonus);
     pillEffectDurations.push_back(d.pillEffectDuration);
     activePillTypes.push_back(d.activePillTypes);
     activePillCategories.push_back(d.activePillCategory);
@@ -297,7 +295,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     pillCritEffectBonuses.reserve(n);
     pillCultivationSpeedBonuses.reserve(n);
     pillSkillExpSpeedBonuses.reserve(n);
-    pillNurtureSpeedBonuses.reserve(n);
     pillEffectDurations.reserve(n);
     activePillTypes.reserve(n);
     activePillCategories.reserve(n);
@@ -436,7 +433,6 @@ void DiscipleStore::clear() {
     pillCritEffectBonuses.clear();
     pillCultivationSpeedBonuses.clear();
     pillSkillExpSpeedBonuses.clear();
-    pillNurtureSpeedBonuses.clear();
     pillEffectDurations.clear();
     activePillTypes.clear();
     activePillCategories.clear();
@@ -530,7 +526,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     pillCritEffectBonuses.erase(pillCritEffectBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     pillCultivationSpeedBonuses.erase(pillCultivationSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     pillSkillExpSpeedBonuses.erase(pillSkillExpSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
-    pillNurtureSpeedBonuses.erase(pillNurtureSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     pillEffectDurations.erase(pillEffectDurations.begin() + static_cast<std::ptrdiff_t>(row));
     activePillTypes.erase(activePillTypes.begin() + static_cast<std::ptrdiff_t>(row));
     activePillCategories.erase(activePillCategories.begin() + static_cast<std::ptrdiff_t>(row));
@@ -642,7 +637,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(pillCritEffectBonuses[a], pillCritEffectBonuses[b]);
     swap(pillCultivationSpeedBonuses[a], pillCultivationSpeedBonuses[b]);
     swap(pillSkillExpSpeedBonuses[a], pillSkillExpSpeedBonuses[b]);
-    swap(pillNurtureSpeedBonuses[a], pillNurtureSpeedBonuses[b]);
     swap(pillEffectDurations[a], pillEffectDurations[b]);
     swap(activePillTypes[a], activePillTypes[b]);
     swap(activePillCategories[a], activePillCategories[b]);

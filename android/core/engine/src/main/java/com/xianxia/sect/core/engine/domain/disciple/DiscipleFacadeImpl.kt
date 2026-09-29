@@ -216,8 +216,7 @@ class DiscipleFacadeImpl @Inject constructor(
         val rule = DisciplePillManager.classify(itemEffect)
 
         val hasBattleOrSpeedEffect = DisciplePillManager.hasAnyBattleAttrAdd(itemEffect) ||
-            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-            effect.nurtureSpeedPercent > 0
+            effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0
         if (hasBattleOrSpeedEffect) {
             applyBattleAttrEffects(id = id, effect = effect, pill = pill, rule = rule)
         }

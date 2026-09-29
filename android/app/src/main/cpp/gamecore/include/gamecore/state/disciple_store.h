@@ -87,7 +87,6 @@ enum class DiscipleColumn : uint16_t {
     PillCritEffectBonus,
     PillCultivationSpeedBonus,
     PillSkillExpSpeedBonus,
-    PillNurtureSpeedBonus,
     PillEffectDuration,
     ActivePillTypes,
     ActivePillCategory,
@@ -200,7 +199,6 @@ public:
     std::vector<double> pillCritEffectBonuses;
     std::vector<double> pillCultivationSpeedBonuses;
     std::vector<double> pillSkillExpSpeedBonuses;
-    std::vector<double> pillNurtureSpeedBonuses;
     std::vector<int32_t> pillEffectDurations;
     std::vector<std::vector<std::string>> activePillTypes;
     std::vector<std::string> activePillCategories;

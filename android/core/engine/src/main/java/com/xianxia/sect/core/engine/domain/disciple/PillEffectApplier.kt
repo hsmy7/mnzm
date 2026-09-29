@@ -21,7 +21,6 @@ import com.xianxia.sect.core.model.pillAttackBonus
 import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillHpBonus
 import com.xianxia.sect.core.model.pillMpBonus
-import com.xianxia.sect.core.model.pillNurtureSpeedBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -143,8 +142,7 @@ class PillEffectApplier @Inject constructor() {
     ): Disciple {
         val noBattleOrSpeedEffect = !DisciplePillManager.hasAnyBattleAttrAdd(effect) &&
             effect.cultivationSpeedPercent <= 0 &&
-            effect.skillExpSpeedPercent <= 0 &&
-            effect.nurtureSpeedPercent <= 0
+            effect.skillExpSpeedPercent <= 0
         if (noBattleOrSpeedEffect) return disciple
 
         val isStackingRule = rule == PillRule.SUSTAINED_SPEED ||
@@ -162,7 +160,6 @@ class PillEffectApplier @Inject constructor() {
                 pillCritEffectBonus = effect.critEffectAdd,
                 pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
                 pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
-                pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
                 pillEffectDuration = if (effect.duration > 0)
                     maxOf(disciple.pillEffects.pillEffectDuration, effect.duration)
                 else disciple.pillEffects.pillEffectDuration,

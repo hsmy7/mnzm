@@ -78,7 +78,6 @@ class DiscipleModelsTest {
         assertEquals(0.0, stats.pillCritEffectBonus, 0.001)
         assertEquals(0.0, stats.pillCultivationSpeedBonus, 0.001)
         assertEquals(0.0, stats.pillSkillExpSpeedBonus, 0.001)
-        assertEquals(0.0, stats.pillNurtureSpeedBonus, 0.001)
         assertEquals(0, stats.pillEffectDuration)
         assertEquals("", stats.activePillCategory)
     }
@@ -153,7 +152,6 @@ class DiscipleModelsTest {
         assertEquals(0.0, effects.pillCritEffectBonus, 0.001)
         assertEquals(0.0, effects.pillCultivationSpeedBonus, 0.001)
         assertEquals(0.0, effects.pillSkillExpSpeedBonus, 0.001)
-        assertEquals(0.0, effects.pillNurtureSpeedBonus, 0.001)
         assertEquals(0, effects.pillEffectDuration)
         assertEquals("", effects.activePillCategory)
     }

@@ -288,7 +288,6 @@ inline Pill toPill(const MerchantItem& item) {
         p.effects.duration = tpl->duration;
         p.effects.cultivationAdd = tpl->cultivationAdd;
         p.effects.skillExpAdd = tpl->skillExpAdd;
-        p.effects.nurtureAdd = tpl->nurtureAdd;
         p.effects.physicalAttackAdd = tpl->physicalAttackAdd;
         p.effects.magicAttackAdd = tpl->magicAttackAdd;
         p.effects.physicalDefenseAdd = tpl->physicalDefenseAdd;
@@ -326,7 +325,6 @@ inline Pill toPill(const MerchantItem& item) {
     p.effects.duration = chosen.duration;
     p.effects.cultivationAdd = chosen.cultivationAdd;
     p.effects.skillExpAdd = chosen.skillExpAdd;
-    p.effects.nurtureAdd = chosen.nurtureAdd;
     p.effects.physicalAttackAdd = chosen.physicalAttackAdd;
     p.effects.magicAttackAdd = chosen.magicAttackAdd;
     p.effects.physicalDefenseAdd = chosen.physicalDefenseAdd;

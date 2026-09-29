@@ -267,7 +267,7 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, pillSpeedBonus);
     GC_TO(v, j, pillCritRateBonus); GC_TO(v, j, pillCritEffectBonus);
     GC_TO(v, j, pillCultivationSpeedBonus); GC_TO(v, j, pillSkillExpSpeedBonus);
-    GC_TO(v, j, pillNurtureSpeedBonus); GC_TO(v, j, pillEffectDuration);
+    GC_TO(v, j, pillEffectDuration);
     GC_TO(v, j, activePillTypes); GC_TO(v, j, activePillCategory);
     // EquipmentSet
     GC_TO(v, j, weaponId); GC_TO(v, j, armorId);
@@ -333,7 +333,7 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, pillSpeedBonus);
     GC_FROM(j, v, pillCritRateBonus); GC_FROM(j, v, pillCritEffectBonus);
     GC_FROM(j, v, pillCultivationSpeedBonus); GC_FROM(j, v, pillSkillExpSpeedBonus);
-    GC_FROM(j, v, pillNurtureSpeedBonus); GC_FROM(j, v, pillEffectDuration);
+    GC_FROM(j, v, pillEffectDuration);
     GC_FROM(j, v, activePillTypes); GC_FROM(j, v, activePillCategory);
     // EquipmentSet
     GC_FROM(j, v, weaponId); GC_FROM(j, v, armorId);
@@ -1062,9 +1062,9 @@ void to_json(nlohmann::json& j, const ItemEffect& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, tier);
     GC_TO(v, j, cultivationSpeedPercent); GC_TO(v, j, skillExpSpeedPercent);
-    GC_TO(v, j, nurtureSpeedPercent); GC_TO(v, j, breakthroughChance);
+    GC_TO(v, j, breakthroughChance);
     GC_TO(v, j, targetRealm);
-    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd); GC_TO(v, j, nurtureAdd);
+    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd);
     GC_TO(v, j, healMaxHpPercent); GC_TO(v, j, mpRecoverMaxMpPercent);
     GC_TO(v, j, hpAdd); GC_TO(v, j, mpAdd); GC_TO(v, j, extendLife);
     GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
@@ -1082,9 +1082,9 @@ void to_json(nlohmann::json& j, const ItemEffect& v) {
 void from_json(const nlohmann::json& j, ItemEffect& v) {
     GC_FROM(j, v, tier);
     GC_FROM(j, v, cultivationSpeedPercent); GC_FROM(j, v, skillExpSpeedPercent);
-    GC_FROM(j, v, nurtureSpeedPercent); GC_FROM(j, v, breakthroughChance);
+    GC_FROM(j, v, breakthroughChance);
     GC_FROM(j, v, targetRealm);
-    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd); GC_FROM(j, v, nurtureAdd);
+    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd);
     GC_FROM(j, v, healMaxHpPercent); GC_FROM(j, v, mpRecoverMaxMpPercent);
     GC_FROM(j, v, hpAdd); GC_FROM(j, v, mpAdd); GC_FROM(j, v, extendLife);
     GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
@@ -1124,8 +1124,7 @@ void to_json(nlohmann::json& j, const PillEffect& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, breakthroughChance); GC_TO(v, j, targetRealm); GC_TO(v, j, isAscension);
     GC_TO(v, j, cultivationSpeedPercent); GC_TO(v, j, skillExpSpeedPercent);
-    GC_TO(v, j, nurtureSpeedPercent);
-    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd); GC_TO(v, j, nurtureAdd);
+    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd);
     GC_TO(v, j, duration); GC_TO(v, j, cannotStack);
     GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
     GC_TO(v, j, physicalDefenseAdd); GC_TO(v, j, magicDefenseAdd);
@@ -1142,8 +1141,7 @@ void to_json(nlohmann::json& j, const PillEffect& v) {
 void from_json(const nlohmann::json& j, PillEffect& v) {
     GC_FROM(j, v, breakthroughChance); GC_FROM(j, v, targetRealm); GC_FROM(j, v, isAscension);
     GC_FROM(j, v, cultivationSpeedPercent); GC_FROM(j, v, skillExpSpeedPercent);
-    GC_FROM(j, v, nurtureSpeedPercent);
-    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd); GC_FROM(j, v, nurtureAdd);
+    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd);
     GC_FROM(j, v, duration); GC_FROM(j, v, cannotStack);
     GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
     GC_FROM(j, v, attackAdd); GC_FROM(j, v, defenseAdd);

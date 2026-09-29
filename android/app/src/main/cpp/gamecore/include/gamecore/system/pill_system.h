@@ -82,10 +82,10 @@ inline bool hasAnyHealingEffect(const ItemEffect& e) {
 inline PillRule classify(const ItemEffect& e) {
     const std::string& t = e.pillType;
     if (t == "extendLife") return PillRule::kPermanentLife;
-    if (t == "cultivationAdd" || t == "skillExpAdd" || t == "nurtureAdd") {
+    if (t == "cultivationAdd" || t == "skillExpAdd") {
         return PillRule::kInstantCultivation;
     }
-    if (t == "cultivationSpeed" || t == "skillExpSpeed" || t == "nurtureSpeed") {
+    if (t == "cultivationSpeed" || t == "skillExpSpeed") {
         return PillRule::kSustainedSpeed;
     }
     if (t == "breakthrough") return PillRule::kBreakthrough;
@@ -230,7 +230,7 @@ inline void applyUsageTracking(Disciple& d, const ItemEffect& e, PillRule rule) 
 /// 战斗临时/持续加成（applyBattleAttrAndTemp；整体覆盖写语义保留）
 inline void applyBattleAttrAndTemp(Disciple& d, const ItemEffect& e, PillRule rule) {
     if (!hasAnyBattleAttrAdd(e) && e.cultivationSpeedPercent <= 0 &&
-        e.skillExpSpeedPercent <= 0 && e.nurtureSpeedPercent <= 0) {
+        e.skillExpSpeedPercent <= 0) {
         return;
     }
     // 单列口径（B1）：旧物法四列经 AttackAddTotal/DefenseAddTotal 归一化
@@ -243,7 +243,6 @@ inline void applyBattleAttrAndTemp(Disciple& d, const ItemEffect& e, PillRule ru
     d.pillCritEffectBonus = e.critEffectAdd;
     d.pillCultivationSpeedBonus = e.cultivationSpeedPercent;
     d.pillSkillExpSpeedBonus = e.skillExpSpeedPercent;
-    d.pillNurtureSpeedBonus = e.nurtureSpeedPercent;
     d.pillEffectDuration = e.duration > 0
         ? std::max(d.pillEffectDuration, e.duration)
         : d.pillEffectDuration;
@@ -292,7 +291,6 @@ inline void applyClearAll(Disciple& d, const ItemEffect& e) {
     d.pillCritEffectBonus = 0.0;
     d.pillCultivationSpeedBonus = 0.0;
     d.pillSkillExpSpeedBonus = 0.0;
-    d.pillNurtureSpeedBonus = 0.0;
     d.pillEffectDuration = 0;
     d.activePillTypes.clear();
     d.activePillCategory = "";

@@ -223,7 +223,6 @@ private fun merchantPillIsInstant(pill: ItemDatabase.PillTemplate): Boolean =
     (pill.category == PillCategory.CULTIVATION && pill.pillType == "breakthrough") ||
     pill.cultivationAdd > 0 ||
     pill.skillExpAdd > 0 ||
-    pill.nurtureAdd > 0 ||
     pill.healMaxHpPercent > 0 ||
     pill.mpRecoverMaxMpPercent > 0 ||
     pill.revive ||
@@ -268,10 +267,8 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
 private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemDatabase.PillTemplate) {
     if (pill.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(pill.cultivationSpeedPercent)}")
     if (pill.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(pill.skillExpSpeedPercent)}")
-    if (pill.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(pill.nurtureSpeedPercent)}")
     if (pill.cultivationAdd > 0) add("  修为 +${pill.cultivationAdd}")
     if (pill.skillExpAdd > 0) add("  功法熟练度 +${pill.skillExpAdd}")
-    if (pill.nurtureAdd > 0) add("  孕养值 +${pill.nurtureAdd}")
     if (pill.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pill.breakthroughChance)}")
     if (pill.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(pill.targetRealm)}")
     if (pill.isAscension) add("  可用于渡劫")
@@ -535,7 +532,6 @@ private fun storageBagPillIsInstant(effect: ItemEffect): Boolean =
     (effect.pillCategory == PillCategory.CULTIVATION.name && effect.pillType == "breakthrough") ||
     effect.cultivationAdd > 0 ||
     effect.skillExpAdd > 0 ||
-    effect.nurtureAdd > 0 ||
     effect.extendLife > 0 ||
     effect.healMaxHpPercent > 0 ||
     effect.mpRecoverMaxMpPercent > 0 ||
@@ -584,10 +580,8 @@ private fun MutableList<String>.addStorageBagFunctionalPillEffects(effect: ItemE
 private fun MutableList<String>.addStorageBagCultivationPillEffects(effect: ItemEffect) {
     if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
     if (effect.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")
-    if (effect.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(effect.nurtureSpeedPercent)}")
     if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
     if (effect.skillExpAdd > 0) add("  功法熟练度 +${effect.skillExpAdd}")
-    if (effect.nurtureAdd > 0) add("  孕养值 +${effect.nurtureAdd}")
     if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
     if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
     if (effect.isAscension) add("  可用于渡劫")

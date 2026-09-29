@@ -117,7 +117,6 @@ internal object GameViewDiscipleRows {
         "pillCritEffectBonus" to DiscipleRow::hasPillCritEffectBonus,
         "pillCultivationSpeedBonus" to DiscipleRow::hasPillCultivationSpeedBonus,
         "pillSkillExpSpeedBonus" to DiscipleRow::hasPillSkillExpSpeedBonus,
-        "pillNurtureSpeedBonus" to DiscipleRow::hasPillNurtureSpeedBonus,
         "pillEffectDuration" to DiscipleRow::hasPillEffectDuration,
         "activePillCategory" to DiscipleRow::hasActivePillCategory,
         "weaponId" to DiscipleRow::hasWeaponId,
@@ -232,7 +231,6 @@ internal object GameViewDiscipleRows {
                 pillCritEffectBonus = row.pillCritEffectBonus,
                 pillCultivationSpeedBonus = row.pillCultivationSpeedBonus,
                 pillSkillExpSpeedBonus = row.pillSkillExpSpeedBonus,
-                pillNurtureSpeedBonus = row.pillNurtureSpeedBonus,
                 pillEffectDuration = row.pillEffectDuration,
                 activePillCategory = row.activePillCategory,
                 activePillTypes = row.activePillTypesList.toSet()
@@ -536,9 +534,6 @@ internal object GameViewDiscipleRows {
         if (row.hasPillSkillExpSpeedBonus()) {
             pillSkillExpSpeedBonuses[id] = row.pillSkillExpSpeedBonus
         }
-        if (row.hasPillNurtureSpeedBonus()) {
-            pillNurtureSpeedBonuses[id] = row.pillNurtureSpeedBonus
-        }
         if (row.hasActivePillCategory()) activePillCategories[id] = row.activePillCategory
         if (row.activePillTypesCount > 0) activePillTypes[id] = row.activePillTypesList.toSet()
     }
@@ -706,7 +701,6 @@ internal object GameViewDiscipleRows {
         b.pillCritEffectBonus = d.pillEffects.pillCritEffectBonus
         b.pillCultivationSpeedBonus = d.pillEffects.pillCultivationSpeedBonus
         b.pillSkillExpSpeedBonus = d.pillEffects.pillSkillExpSpeedBonus
-        b.pillNurtureSpeedBonus = d.pillEffects.pillNurtureSpeedBonus
         b.pillEffectDuration = d.pillEffects.pillEffectDuration
         b.addAllActivePillTypes(d.pillEffects.activePillTypes.toList())
         b.activePillCategory = d.pillEffects.activePillCategory
