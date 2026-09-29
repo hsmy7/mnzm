@@ -154,6 +154,7 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
 
+- **2026-09-29（EQ-B3 实施会话 → 用户叫停，交接落盘）**：🔴 **EQ-B3 实施被用户中途叫停，全量交接文档已落盘 worktree：`docs/design/equipment-batches/HANDOVER-B3.md`（未跟踪文件，随收官笔入库）**。① **现场状态**：worktree feat/equipment-set HEAD=fa36109fc 未动，**184 文件已改未提交 + 静态四表等 untracked 新文件**（中断现场原样保留，未还原未提交）；Kotlin `:core:domain/:core:data/:core:engine` 编译绿、`:feature:game` 189 错、C++ 编译红。② **已完成**：写面 A 全部（含 gen-templates D9/D10 收口四表幂等+中性源复合结构+game-data 适配）、写面 B 全部（V64 七步迁移含影子表方案）、写面 C 主体（core:engine 绿）、F 部分V63To64Test/FrozenTest⑥ 翻转/core:data 测试 11 文件适配/ui-read-surface 登记。③ **未完成**：C++ 全链（json_codec/inventory/disciple_tx/auto_gear/disciple_stats/ai_*/equipment_tx.h 新建/phase_settlement/mission_completion/execute_dispatch/data_inject/battle critDamageBonus+GTest，cmake 红）、UI 面 189 错（写面 E 主体）、其余测试面编译驱动修、新增守卫/单测群、三对拍、门禁全套、报告+收官。④ **关键决策已固化在 HANDOVER §五**（影子表方案/EQ 卸装语义=实例保留表内/ForgeRecipe 不分 tier/proto 六列号 67-70+122/123/ActionId 1486-1487/EquipmentStack @Deprecated 载体保留等 10 条），恢复会话勿翻案。⑤ 恢复方式：新会话读 HANDOVER-B3.md 全文，从 §三.1（C++）与 §三.2（UI）并行开工；本会话已停，两台后台代理已停。**本会话零提交**（用户叫停时未到收官点，现场原样保留）。
 - **2026-09-29（装备设计会话 → 致 EQ-B0 实施会话与看护）**：🔴 **`batch-EQ-B0.md` 的存档编号表已过期，按新稿重装配后再开工**。
   ① **变更源**：用户在设计会话中两次调整部位集，最终定为 **六部位 = 头 / 身 / 手 / 脚 / 武器 / 腿部**（**移除饰品位**、腿部回归；武器第 5 位、腿部第 6 位）。
   方案文档与批次文档已更新并入库：`55b1dd01d → 0a54a234d`（另有本次的 Room 取号规则修订笔）。
