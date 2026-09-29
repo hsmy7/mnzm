@@ -220,7 +220,7 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 |---|---|---|---|---|---|
 | EQ-B0 | 存档编号规划与冻结守卫 | ✅ accepted（03:4x 看护亲验） | 5280d1b46 | reports/report-B0.md | 通过：FrozenTest 亲跑+jni-count 87/87+agent-instructions 绿；4 文件 +269/−1、schema 零变更、版本未动、树净 |
 | EQ-B1 | 属性机制重构（单列+类型通道+固有伤害属性） | ✅ accepted（09:2x 看护亲验） | 9068049a1（amend 后） | reports/report-B1.md | 通过：S20 测试+ctest 1481/1481 亲跑+jni-count 87/87；199 文件、Room v62 真实校验绿、G0 修正语义遵守 |
-| EQ-B2 | 孕养丹退役+补偿 | 🔄 待派（09:2x 派发件已装配） | | | |
+| EQ-B2 | 孕养丹退役+补偿 | ✅ accepted（14:4x 看护亲验，needs-fix 修正后） | fa36109fc（amend 后） | reports/report-B2.md | 通过：game-data.json 归零亲测+S13 剩余 20 文件全豁免类+RecipeDbTest/NurturePillRetirementTest 亲跑绿；79 文件 +6566/−4143、双 changelog 归 B5 已背书登记 |
 | EQ-B3 | 装备体系原子替换（最大·原子） | ⏳ | | | |
 | EQ-B4 | 数值对齐与验收 | ⏳ | | | |
 | EQ-B5 | 文档/ADR/双日志/债登记 | ⏳ | | | |
