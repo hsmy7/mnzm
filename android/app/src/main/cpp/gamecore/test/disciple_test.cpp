@@ -50,7 +50,7 @@ TEST(BaseStatsTest, LianqiBaseStats) {
     EXPECT_EQ(s.attack, 32);
     EXPECT_EQ(s.defense, 23);
     EXPECT_EQ(s.speed, 15);
-    EXPECT_DOUBLE_EQ(s.critRate, 0.05);
+    EXPECT_DOUBLE_EQ(s.critRate, 0.0);  // 暴击系统口径：基础暴击率归零
 }
 
 TEST(BaseStatsTest, LayerMultiplierScalesStats) {

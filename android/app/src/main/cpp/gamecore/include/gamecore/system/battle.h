@@ -118,7 +118,7 @@ struct CombatantStats {
     /// 普攻伤害类型（角色配置驱动；当前全部角色设定物理）
     DamageType innateDamageType = DamageType::kPhysical;
     int32_t speed = 0;
-    double critRate = 0.05;
+    double critRate = 0.0;
     int32_t realm = 9;       // 0=仙人 … 9=炼气
     int32_t realmLayer = 1;  // 1~9
     int32_t maxHp = 0;

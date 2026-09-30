@@ -1,5 +1,31 @@
 ## [4.01.16] - 2026-09-22
 
+### 暴击系统口径调整——基础暴击率归零 · 暴伤接线生效 · 面板双暴显示 — `feat(crit)`（2026-09-30 单批交付）
+
+> 需求拍板：基础暴击率 5%→0%（所有角色）；敌人暴击（含境界成长/Boss 加成）一并归零——敌人永不暴击；
+> 装备/丹药「暴击伤害加成」由存而不算（D3 预留）接线为真实生效，弟子面板显示最终值。版本号不自增
+> （4.01.16 原值并入本条）；零 Room 迁移、零存档 schema 变更（暴击为派生值，读档重算即得）。
+
+- **基础暴击率归零（双端 17 处）**：Kotlin `BASE_CRIT_RATE` / C++ `kBaseCritRate` 0.05→0.0——弟子管线
+  （玩家 + AI 宗门弟子）装备/功法/丹药暴击加成保留；`battle.h`/`battle_calculator.h` 结构体默认值与
+  `BattleJsonCodec`/`battle_json.h` 解码兜底同步 0.0；合成敌人整体归零（人形敌/妖兽/天劫两臂/洞府守卫
+  含 Boss 档/C++ 探索、秘境、AI 宗门妖兽），敌方暴击累加管线（`eqCrit`/`mCrit`、`critChance`、
+  试炼 `StatBonus.critChance`）孤儿化删除。
+- **暴击伤害接线（D3 清偿）**：`DiscipleStats.critDamageBonus` 新列（追加字段尾防 kotlinx-proto 隐式号
+  漂移）；属性管线装备段累加 `EquipBonus.critDamage`、丹药段累加 `pillCritEffectBonus`（丹药「暴击效果」
+  一并激活，消除半接线；无调用方的 `critDamageBonusOf` 退役）；`calculateFinalDamage`/`estimateDamage`
+  增暴伤项（`1 + CRIT_BASE_MULTIPLIER + bonus`），与 C++ 计算器（本已消费）恢复逐位对称；三条弟子装配线
+  （BattleSystem/AISectAttackManager/CaveExplorationSystem）+ C++ `discipleToCombatant`（`outEquipBonus`
+  旁路 + 丹药暴击效果，加法序两端一致：装备先丹药后）写入 `Combatant.critDamageBonus`；JNI `finalDamage`
+  op（GameCoreJni/execute_dispatch）载荷补参；`BattleJsonCodec` 补编解码键（消除与 `battle_json.h` 的既有不对称）。
+- **弟子面板双暴显示**：战斗属性区新增「暴击率」「暴击伤害」两格（`DetailCombatSection`，纯 Kotlin 派生
+  面板值，零镜像协议/Room/proto 改动）；文案沿用装备词条字典口径，格式复用 `formatPercentValue`。
+- **测试**：修红 4 处（`disciple_test.cpp`、`mission_completion_test.cpp` 妖兽黄金值 0.13→0、
+  `DiffDiscipleTest` ×2）；新增 `DiscipleStatCalculatorCritTest` 四臂（基础 0 / 装备+丹药汇总 /
+  暴击率词条 / 丹药失效期）、`battle_test.cpp` CritDamageBonus 只进暴击用例、`DiffBattleTest` 暴伤载荷
+  对拍（暴击/非暴击双臂）、`BattleCalculatorTest` 暴伤倍率用例、`BattleSystemTest` estimateDamage 暴伤
+  用例、`EnemyGeneratorTest` 敌人恒 0 断言；测试孤儿参数（`critRatePercent`）随管线同步清理。
+
 ### 五行属性伤害系统（2026-09-30 单批交付）——DamageType 六值化 · 灵根 gate · 六套 36 部件 — `feat(elemental)`
 
 > 批次依据：`docs/design/elemental-damage-system-plan.md`（P1–P9 / E1–E12 权威方案）；决策记录

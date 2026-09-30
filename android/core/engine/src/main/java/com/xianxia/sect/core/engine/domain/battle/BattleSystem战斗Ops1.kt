@@ -41,7 +41,7 @@ internal fun BattleSystem.createBeast(
         attack = stats.attack,
         defense = stats.defense,
         speed = stats.speed,
-        critRate = 0.05 + realmIndex * 0.01,
+        critRate = 0.0,
         skills = beastSkills,
         realm = realmIndex,
         realmName = GameConfig.Realm.getName(realmIndex),

@@ -15,6 +15,7 @@ class BattleCalculatorTest {
         defense: Int = 50,
         speed: Int = 50,
         critRate: Double = 0.1,
+        critDamageBonus: Double = 0.0,
         realm: Int = 5,
         element: String = "metal"
     ): CombatantStats {
@@ -23,6 +24,7 @@ class BattleCalculatorTest {
             override val defense = defense
             override val speed = speed
             override val critRate = critRate
+            override val critDamageBonus = critDamageBonus
             override val realm = realm
             override val element = element
         }
@@ -148,6 +150,25 @@ class BattleCalculatorTest {
         val defender = createCombatant(defense = 50)
         val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertFalse(result.isCrit)
+    }
+
+    @Test
+    fun `calculateFinalDamage - crit damage bonus applies only on crit`() {
+        // 暴击伤害接线：倍率 = 1 + 基础暴伤 + 暴伤加成；非暴击逐位不受影响
+        val bonus = 0.35
+        assertEquals(
+            expectedFinalDamage(isCrit = true, critDamageBonus = bonus).toInt(),
+            baseFinal(isCrit = true, critDamageBonus = bonus)
+        )
+        assertEquals(
+            expectedFinalDamage(isCrit = false, critDamageBonus = bonus).toInt(),
+            baseFinal(isCrit = false, critDamageBonus = bonus)
+        )
+        assertEquals(
+            "非暴击伤害与零加成逐位一致",
+            baseFinal(isCrit = false),
+            baseFinal(isCrit = false, critDamageBonus = bonus)
+        )
     }
 
     @Test
@@ -526,14 +547,16 @@ class BattleCalculatorTest {
         skillMultiplier: Double = 1.0,
         zones: DamageZones = baseZones(),
         isCrit: Boolean = false,
-        variance: Double = 1.0
+        variance: Double = 1.0,
+        critDamageBonus: Double = 0.0
     ): Int = BattleCalculator.calculateFinalDamage(
         rawAttack = rawAttack,
         defense = defense,
         skillMultiplier = skillMultiplier,
         zones = zones,
         isCrit = isCrit,
-        variance = variance
+        variance = variance,
+        critDamageBonus = critDamageBonus
     )
 
     /** 复制 calculateFinalDamage 公式的浮点期望值计算，避免 Int 截断误差 */
@@ -543,12 +566,17 @@ class BattleCalculatorTest {
         skillMultiplier: Double = 1.0,
         zones: DamageZones = baseZones(),
         isCrit: Boolean = false,
-        variance: Double = 1.0
+        variance: Double = 1.0,
+        critDamageBonus: Double = 0.0
     ): Double {
         val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
-        val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
+        val critMult = if (isCrit) {
+            1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + critDamageBonus
+        } else {
+            1.0
+        }
         return preCritDamage * critMult *
             (1.0 + zones.damageAmplification + zones.typeDamageBonus) *
             (1.0 + zones.realmGapDamageAmplification) *

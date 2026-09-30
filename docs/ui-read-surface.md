@@ -116,6 +116,13 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 | `offlineReturnReport`（云游归来报告，B7——仅展示面，不含注入数值）| 非镜像运行态：引擎线程 StateFlow（threading-contract 表四离线行），展示后 ack 清空 |
 | disciples / aliveDisciples / discipleAggregates / sectCombatPower / aiSectCombatPowers | `disciples` 表 + 镜像 `aiSectDisciples` |
 
+> 暴击面板口径（暴击系统批 2026-09-30）：弟子详情「战斗属性」的暴击率/暴击伤害为 Kotlin 侧
+> `DiscipleStatCalculator` 派生面板值（**非镜像新列**）——输入 = 镜像 `pillCritRateBonus(59)` /
+> `pillCritEffectBonus(60)` + `equipmentInstances` 词条；暴击伤害显示 = `1 + CRIT_BASE_MULTIPLIER +
+> critDamageBonus`。战斗装配消费同源值（三条弟子装配线读 `stats.critDamageBonus`；C++
+> `discipleToCombatant` 走 `outEquipBonus.critDamage` + 丹药暴击效果，加法序一致），面板显示与战斗一致；
+> 禁 UI 自造第二份暴伤派生。
+
 ### 3.3 个体 Field StateFlow
 `gameData、disciples、equipmentInstances、manualStacks、manualInstances、
 pills、materials、herbs、seeds、storageBags`（全部在 §2.2 集合面内；B3 起

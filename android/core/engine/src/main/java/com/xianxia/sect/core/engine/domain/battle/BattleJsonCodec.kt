@@ -49,6 +49,7 @@ internal object BattleJsonCodec {
         put("earthDamageReduction", c.earthDamageReduction)
         put("speed", c.speed)
         put("critRate", c.critRate)
+        put("critDamageBonus", c.critDamageBonus)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
         putJsonArray("buffs") { c.buffs.forEach { add(buffJson(it)) } }
         put("realm", c.realm)
@@ -129,7 +130,8 @@ internal object BattleJsonCodec {
             fireDamageReduction = j.dbl("fireDamageReduction", 0.0),
             earthDamageReduction = j.dbl("earthDamageReduction", 0.0),
             speed = j.int("speed"),
-            critRate = j.dbl("critRate", 0.05),
+            critRate = j.dbl("critRate", 0.0),
+            critDamageBonus = j.dbl("critDamageBonus", 0.0),
             skills = skills,
             buffs = buffs,
             realm = j.int("realm", 9),

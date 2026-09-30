@@ -32,6 +32,14 @@ TEST(FinalDamageTest, CritMultiplier) {
     EXPECT_EQ(calculateFinalDamage(100, 0, 1.0, zones, true, 1.0), 150);
 }
 
+TEST(FinalDamageTest, CritDamageBonusAppliesOnlyOnCrit) {
+    DamageZones zones;
+    // 暴击伤害接线：暴击倍率 = 1 + 基础暴伤 0.5 + 暴伤加成 0.5 = ×2.0
+    EXPECT_EQ(calculateFinalDamage(100, 0, 1.0, zones, true, 1.0, 0.5), 200);
+    // 非暴击不消费暴伤加成（与加成 0 逐位一致）
+    EXPECT_EQ(calculateFinalDamage(100, 0, 1.0, zones, false, 1.0, 0.5), 100);
+}
+
 TEST(FinalDamageTest, AmplificationAndReduction) {
     DamageZones zones;
     zones.damageAmplification = 0.5;

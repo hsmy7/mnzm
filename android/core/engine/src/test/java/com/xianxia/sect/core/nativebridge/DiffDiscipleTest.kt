@@ -56,7 +56,7 @@ class DiffDiscipleTest {
         assertEquals(rc.baseHp, cpp["maxHp"]!!.toString().toInt())
         assertEquals(rc.baseMp, cpp["maxMp"]!!.toString().toInt())
         assertEquals(rc.baseSpeed, cpp["speed"]!!.toString().toInt())
-        assertEquals(0.05, cpp["critRate"]!!.toString().toDouble(), 1e-12)
+        assertEquals(0.0, cpp["critRate"]!!.toString().toDouble(), 1e-12)
     }
 
     @Test
@@ -77,7 +77,7 @@ class DiffDiscipleTest {
                 kotlin.math.round(rc.baseMagicAttack * layerMult).toInt(),
             cpp["attack"]!!.toString().toInt()
         )
-        assertEquals(0.05, cpp["critRate"]!!.toString().toDouble(), 1e-12)
+        assertEquals(0.0, cpp["critRate"]!!.toString().toDouble(), 1e-12)
     }
 
     @Test

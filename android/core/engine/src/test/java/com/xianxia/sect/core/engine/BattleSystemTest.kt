@@ -428,6 +428,30 @@ class BattleSystemTest {
     }
 
     @Test
+    fun `estimateDamage - crit damage bonus raises expected damage for full-crit attacker`() {
+        // 暴击伤害接线：满暴击攻击方期望倍率 = 1 + 基础暴伤 + 暴伤加成
+        val skill = CombatSkill(
+            name = "斩", skillType = SkillType.ATTACK, damageType = DamageType.PHYSICAL,
+            damageMultiplier = 1.0, mpCost = 0, cooldown = 0
+        )
+        fun fighter(critDamageBonus: Double) = Combatant(
+            id = "test", name = "Test", side = CombatantSide.ATTACKER,
+            hp = 100, maxHp = 100, mp = 50, maxMp = 50,
+            attack = 200, defense = 10,
+            speed = 10, critRate = 1.0, critDamageBonus = critDamageBonus, skills = emptyList()
+        )
+        val defender = Combatant(
+            id = "def", name = "Def", side = CombatantSide.DEFENDER,
+            hp = 100, maxHp = 100, mp = 50, maxMp = 50,
+            attack = 10, defense = 50,
+            speed = 10, critRate = 0.0, skills = emptyList()
+        )
+        val base = BattleCalculator.estimateDamage(fighter(0.0), defender, skill)
+        val boosted = BattleCalculator.estimateDamage(fighter(0.5), defender, skill)
+        assertTrue("暴伤加成应提高期望伤害（$boosted > $base）", boosted > base)
+    }
+
+    @Test
     fun `Combatant - effectiveSpeed with buff`() {
         val buff = CombatBuff(BuffType.SPEED_BOOST, 0.3, 2)
         val combatant = Combatant(

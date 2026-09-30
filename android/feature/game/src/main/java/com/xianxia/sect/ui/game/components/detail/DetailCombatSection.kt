@@ -8,11 +8,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.formatPercentValue
 
 @Composable
 fun AttributesSection(disciple: DiscipleAggregate) {
@@ -115,6 +117,21 @@ fun CombatStatsSection(
         ) {
             StatItem("速度", finalStats.speed, Modifier.weight(1f))
             StatItem("普攻属性", innateLabel, Modifier.weight(1f))
+        }
+
+        // 暴击两列（暴击系统口径）：基础暴击率全员 0%、暴伤倍率 = 1 + 基础暴伤 + 加成
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatItem("暴击率", formatPercentValue(finalStats.critRate), Modifier.weight(1f))
+            StatItem(
+                "暴击伤害",
+                formatPercentValue(
+                    1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + finalStats.critDamageBonus
+                ),
+                Modifier.weight(1f)
+            )
         }
     }
 }

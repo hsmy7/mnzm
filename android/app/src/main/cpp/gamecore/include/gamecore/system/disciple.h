@@ -27,7 +27,7 @@ namespace gamecore::disciple {
 // ── 基础常量（与 Kotlin GameConfig/DiscipleStatCalculator 对齐）─────
 
 constexpr double kLayerMultiplier = 0.1;         // LAYER_MULTIPLIER
-constexpr double kBaseCritRate = 0.05;           // BASE_CRIT_RATE
+constexpr double kBaseCritRate = 0.0;            // BASE_CRIT_RATE（暴击全来自装备/功法/丹药加成）
 constexpr double kMinCultivationPerPhase = 1.0;  // MIN_CULTIVATION_PER_PHASE
 constexpr int32_t kBaseManualSlots = 6;          // BASE_MANUAL_SLOTS
 
