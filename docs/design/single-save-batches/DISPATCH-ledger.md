@@ -255,6 +255,14 @@ SS0 ─┬─ SS1 ──────────────┐
 | V4 | 后续义务 | **SS10 收口**：SS0–SS9 的玩家可见变更并入**同一 `4.2.00` 条目**（同版本禁止新建第二条目，`rules/version-release.md` §2 合并规则） |
 | V5 | 已知过期引用 | `docs/gacha-watch/BATCH-PLAN-ALL.md:1028,1038` 与 `docs/design/gacha-batches/TASKBOOK-G14.md:63,73` 仍写 `X.XX.XX`——属 G 批已收官过程档案，**不回改**，新批次以规则为准 |
 
+### 6.6 清理边界（第三次拍板：有风险就不删）
+
+用户 2026-10-01 判定「**有风险就不删了**」⇒ SS0 的清理边界钉死：
+
+- 🔴 **提供可恢复性的一律保留**：文件层（`.sav`/`.bak`/`.tmp`/tombstone）、启动前快照、启动恢复、`pruneMigrationBackups`、`SaveFileFormat` 格式本体
+- **仍删**（只做兼容、不提供冗余）：`OldSaveFormatDeserializer` + `OldSerializableSaveData` 整包、`SaveDataVersionMigrator` 旧版本迁移分支、无版本后缀旧备份的兼容分支
+- **判据**：清理后可恢复路径数量**不得少于**清理前（本地事务 / 文件层 / 启动快照 / 云端，至少留三条且不全在同一故障域）
+
 ---
 
 ## 7. 交付形态与汇报

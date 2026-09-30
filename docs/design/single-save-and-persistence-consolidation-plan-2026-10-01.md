@@ -82,6 +82,25 @@
 > `docs/design/gacha-batches/TASKBOOK-G14.md:63,73` 的验收判据仍写 `X.XX.XX`。二者属 G 批**已收官**的
 > 过程档案（`docs/AGENTS.md`：批次档案不回改），故保留原文；**新增批次一律以 `rules/version-release.md` 为准**。
 
+### 0.5.6 清理边界：冗余一律不删（风险规避，第三次拍板）
+
+用户 2026-10-01 判定「**有风险就不删了**」。据此把"清理旧存档兼容代码"的边界钉死为：
+
+| 类别 | 处置 | 理由 |
+|---|---|---|
+| **提供"可恢复性"的实现** | 🔴 **一律保留** | 删档解决的是"旧数据留不留"，**不解决"新数据会不会坏"** |
+| └ `SaveFileManager` 文件层（`.sav`/`.bak`/`.tmp`/tombstone） | 保留 | DB 损坏时的本地兜底 |
+| └ `backupDatabaseForMigration` 启动前快照 | 保留（去掉 "migration" 语义表述，功能不动） | 拦截 destructive 误触发的唯一本地手段 |
+| └ `restoreFromBackupIfNeeded` 启动恢复 + `pruneMigrationBackups` | 保留 | 同上 |
+| └ `SaveFileFormat` 格式本体（帧头 / CRC / 版本字段） | 保留 | 属完整性校验，非版本兼容 |
+| **只做兼容、不提供冗余的分支** | **删** | 删掉不降低任何一条可恢复路径 |
+| └ `OldSaveFormatDeserializer` + `OldSerializableSaveData` 整包 | 删 | 纯旧字节读取 |
+| └ `SaveDataVersionMigrator` 的旧版本迁移分支 | 删 | 删档后不存在需要迁移的旧档 |
+| └ 无版本后缀旧备份兼容分支（`GameDatabase.kt:868-873` 的 `legacy`） | 删 | 带版本后缀的快照仍在，冗余不减 |
+| └ 迁移前备份的**历史文件残留**（设备上已有的 `.pre_migrate_backup*`） | 删（W6） | 含旧档实体，属隐私残留；**机制保留、文件清理** |
+
+**判据（写入 SS0 验收）**：清理完成后，**可恢复路径数量不得少于清理前**——本地 DB 事务 / 文件层 `.sav`+`.bak` / 启动前快照 / 云端，四条中至少保留三条（且不得全为同一故障域）。
+
 ---
 
 ## 一、决策分级与需求

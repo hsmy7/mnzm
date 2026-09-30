@@ -26,7 +26,7 @@
 | 验收⑬ | 🔴 **编译器背书**：删完 `compileReleaseKotlin` **零错误**（编译错误即"遗漏引用"的权威清单）+ 相关模块 `testReleaseUnitTest` 全绿（兜住"编译得过但已死"的残留） |
 | 验收⑭ | 🔴 **反向守卫**：新增 `DeadCompatRemovalGuardTest`——断言处置表"删除"列的每个路径**已不存在**，且全仓生产源码 **零** `MIGRATION_` / `backwardcompat` / `SaveDataVersionMigrator` / `cloud_migration_` 命中（白名单**显式声明**并注明理由）。**未过此守卫 = 未完成** |
 | 验收⑮ | 🔴 **独立第二遍差分复核**：由**独立会话/子代理**用同一锚点集重扫，与处置表对**差集**；差集非空即打回。复核结论须写进报告 |
-| **不做** | **不删槽位维度**（SS1）；不碰 C++ 协议字段；不删 `SaveValidator` 的运行期完整性规则；不删 `SaveFileManager` 的原子写/`.bak` 轮转（那是崩溃应急，不是版本兼容） |
+| **不做** | **不删槽位维度**（SS1）；不碰 C++ 协议字段；不删 `SaveValidator` 的运行期完整性规则；**不碰任何与"可恢复性"相关的实现**（见 D-9） |
 
 ---
 
@@ -110,6 +110,7 @@
 | **D-6** | **删档触发 = 首次启动自动清（幂等标记）+ 开发入口** | 玩家无感完成；测试期可能反复重置，故保留可重复入口 |
 | **D-7** | **`SaveValidator` 逐条判定并出处置表** | 混删会丢掉运行期防异常数据的防线（如数值消毒、引用一致性、上限钳制） |
 | **D-8** | **加 CI 守卫防将来静默删档** | 删光迁移后，忘写迁移 = 玩家档被静默重建。守卫是本批的**必要配套**，不是可选项 |
+| **D-9** | 🔴 **冗余相关的实现一律保留**（用户 2026-10-01 第三次拍板：「有风险就不删了」）。<br>**保留**：`SaveFileManager` 文件层（`.sav`/`.bak`/`.tmp`/tombstone）、`backupDatabaseForMigration` 启动前快照、`restoreFromBackupIfNeeded` 启动恢复、`pruneMigrationBackups`、`SaveFileFormat` 格式本体。<br>**仍删**：**只做兼容、不提供冗余**的部分——`OldSaveFormatDeserializer` + `OldSerializableSaveData` 整包、`SaveDataVersionMigrator` 的旧版本迁移分支、无版本后缀旧备份的兼容分支（`GameDatabase.kt:868-873` 的 `legacy` 分支）。 | 删档解决的是"旧数据留不留"，不解决"新数据会不会坏"。`destructive fallback` + 本地零冗余 = 一次忘写迁移就静默清档且不可恢复。**判据：删完不得降低任何一条可恢复路径**——提供冗余的一律不碰，只删纯读旧数据的分支 |
 
 ---
 
