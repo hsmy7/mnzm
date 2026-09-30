@@ -3,18 +3,23 @@ package com.xianxia.sect.core.registry
 import com.xianxia.sect.core.model.EquipmentSlot
 
 /**
- * 装备静态数据单一真源（装备重构 B3，方案 §3.2/D1）。
+ * 装备静态数据单一真源（五行属性伤害系统，方案 §3.4）。
  *
  * ## 结构
- * 套装部件模板（[SetPieceTemplate]，**12 条** = 2 套 × 6 部位）× 品阶 1..6
- * 展开 = **72 条**可生成条目（[EquipPieceEntry]）。数值全部来自 codegen
- * 中性源 `scripts/data/equipment_db_sample.json`（E4/E6：本文件只做转发与
+ * 套装部件模板（[SetPieceTemplate]，**36 条** = 6 套 × 6 部位）× 品阶 1..6
+ * 展开 = **216 条**可生成条目（[EquipPieceEntry]）。数值全部来自 codegen
+ * 中性源 `scripts/data/equipment_db_sample.json`（本文件只做转发与
  * 展开，禁写字面量数值表——`EquipmentSingleSourceGuardTest` 源码扫描拦截）。
  *
  * ## 单源链条
  * 中性源 JSON → `scripts/gen-templates.mjs` → C++ `equipment_db.h` +
  * 测试快照 → 本文件的 [entries]（启动时从生成器产物装载；数值守卫 =
  * `TemplateRegistryGuardTest` 三方逐条比对）。
+ *
+ * ## 36 部件命名
+ * 物理套保留装备重构部件名（头冠/重铠/战手/战靴/战刃/胫甲）；5 元素套
+ * 统一后缀表（灵冠/法袍/灵护/云履/护胫/灵兵 = 头/身/手/脚/腿/武器），
+ * 前缀 = 套名——36 个名字由 1 张后缀表 × 6 个套名完全确定。
  *
  * 主词条部位池真源在 [EquipMainStatPool]，套装效果真源在 [EquipmentSetDatabase]，
  * 副词条池真源在 [EquipAffixPool]——三者与部件表同由 codegen 产出对偶 C++ 表。
@@ -36,7 +41,7 @@ object EquipmentDatabase {
         val minRealmByRarity: List<Int>
     )
 
-    /** 部件 × 品阶展开后的可生成条目（72 条） */
+    /** 部件 × 品阶展开后的可生成条目（216 条） */
     data class EquipPieceEntry(
         val id: String,
         /** 所属部件 id（`{setId}_{part}`） */
@@ -65,34 +70,62 @@ object EquipmentDatabase {
     internal val RARITY_MIN_REALMS = listOf(9, 7, 6, 5, 4, 2)
 
     /**
-     * 12 条套装部件声明表——本表是 **Kotlin 侧唯一**的装备模板字面量（D1 单源收口）：
+     * 36 条套装部件声明表——本表是 **Kotlin 侧唯一**的装备模板字面量（D1 单源收口）：
      * 与 codegen 中性源 `scripts/data/equipment_db_sample.json`、C++ `equipment_db.h`、
      * 测试快照四方逐条比对（`TemplateRegistryGuardTest` /
      * `StaticDataSingleSourceGuardTest` / `equipment_db_test.cpp` 三重守卫）。
-     * `EquipmentRegistry` 自 B3 起只做纯转发，禁止再写第二份字面量
+     * `EquipmentRegistry` 只做纯转发，禁止再写第二份字面量
      * （`EquipmentSingleSourceGuardTest` 源码扫描拦截）。
      */
     private val DEFAULT_SET_PIECES = listOf(
-        // 套装 A：物理套「裂天罡煞」（lietian）
+        // 套装 1：物理套「裂天罡煞」（lietian，保留装备重构部件名）
         piece("lietian_HEAD", "lietian", EquipmentSlot.HEAD, "裂天罡煞·头冠", "裂天罡煞套装头冠，罡煞之气护持识海"),
         piece("lietian_BODY", "lietian", EquipmentSlot.BODY, "裂天罡煞·重铠", "裂天罡煞套装重铠，煞气凝甲坚不可摧"),
         piece("lietian_HANDS", "lietian", EquipmentSlot.HANDS, "裂天罡煞·战手", "裂天罡煞套装护手，罡风附刃裂石开碑"),
         piece("lietian_FEET", "lietian", EquipmentSlot.FEET, "裂天罡煞·战靴", "裂天罡煞套装战靴，踏罡步斗势如奔雷"),
         piece("lietian_WEAPON", "lietian", EquipmentSlot.WEAPON, "裂天罡煞·战刃", "裂天罡煞套装战刃，煞刃出鞘天地震动"),
         piece("lietian_LEGS", "lietian", EquipmentSlot.LEGS, "裂天罡煞·胫甲", "裂天罡煞套装胫甲，罡气缠腿稳若山岳"),
-        // 套装 B：法术套「紫府玄冥」（zifu）
-        piece("zifu_HEAD", "zifu", EquipmentSlot.HEAD, "紫府玄冥·灵冠", "紫府玄冥套装灵冠，玄冥紫气灌顶凝神"),
-        piece("zifu_BODY", "zifu", EquipmentSlot.BODY, "紫府玄冥·玄袍", "紫府玄冥套装玄袍，玄冥之雾不侵五行"),
-        piece("zifu_HANDS", "zifu", EquipmentSlot.HANDS, "紫府玄冥·灵手", "紫府玄冥套装灵手，灵韵凝掌法随念动"),
-        piece("zifu_FEET", "zifu", EquipmentSlot.FEET, "紫府玄冥·云履", "紫府玄冥套装云履，踏云御风玄冥相随"),
-        piece("zifu_WEAPON", "zifu", EquipmentSlot.WEAPON, "紫府玄冥·灵剑", "紫府玄冥套装灵剑，紫电青霜斩尽妖邪"),
-        piece("zifu_LEGS", "zifu", EquipmentSlot.LEGS, "紫府玄冥·灵甲", "紫府玄冥套装灵甲，玄光护腿百法不侵")
+        // 套装 2：金套「庚金白虎」（gengjin）
+        piece("gengjin_HEAD", "gengjin", EquipmentSlot.HEAD, "庚金白虎·灵冠", "庚金白虎套装灵冠，白虎金睛洞察秋毫"),
+        piece("gengjin_BODY", "gengjin", EquipmentSlot.BODY, "庚金白虎·法袍", "庚金白虎套装法袍，金气织体刀兵不侵"),
+        piece("gengjin_HANDS", "gengjin", EquipmentSlot.HANDS, "庚金白虎·灵护", "庚金白虎套装灵护，锐金凝爪裂金断玉"),
+        piece("gengjin_FEET", "gengjin", EquipmentSlot.FEET, "庚金白虎·云履", "庚金白虎套装云履，虎啸风生金戈疾行"),
+        piece("gengjin_WEAPON", "gengjin", EquipmentSlot.WEAPON, "庚金白虎·灵兵", "庚金白虎套装灵兵，庚金锋芒斩伐万邪"),
+        piece("gengjin_LEGS", "gengjin", EquipmentSlot.LEGS, "庚金白虎·护胫", "庚金白虎套装护胫，金甲裹腿坚逾精钢"),
+        // 套装 3：木套「青木长生」（qingmu）
+        piece("qingmu_HEAD", "qingmu", EquipmentSlot.HEAD, "青木长生·灵冠", "青木长生套装灵冠，青木灵韵清心明神"),
+        piece("qingmu_BODY", "qingmu", EquipmentSlot.BODY, "青木长生·法袍", "青木长生套装法袍，生生不息缠枝为衣"),
+        piece("qingmu_HANDS", "qingmu", EquipmentSlot.HANDS, "青木长生·灵护", "青木长生套装灵护，藤蔓缠腕生机盎然"),
+        piece("qingmu_FEET", "qingmu", EquipmentSlot.FEET, "青木长生·云履", "青木长生套装云履，踏叶而行轻若春风"),
+        piece("qingmu_WEAPON", "qingmu", EquipmentSlot.WEAPON, "青木长生·灵兵", "青木长生套装灵兵，万木之灵催芽成兵"),
+        piece("qingmu_LEGS", "qingmu", EquipmentSlot.LEGS, "青木长生·护胫", "青木长生套装护胫，根须盘结稳如古树"),
+        // 套装 4：水套「玄水寒渊」（xuanshui）
+        piece("xuanshui_HEAD", "xuanshui", EquipmentSlot.HEAD, "玄水寒渊·灵冠", "玄水寒渊套装灵冠，寒渊之息凝神静念"),
+        piece("xuanshui_BODY", "xuanshui", EquipmentSlot.BODY, "玄水寒渊·法袍", "玄水寒渊套装法袍，玄水环身百法不沾"),
+        piece("xuanshui_HANDS", "xuanshui", EquipmentSlot.HANDS, "玄水寒渊·灵护", "玄水寒渊套装灵护，寒潮覆掌冻结万机"),
+        piece("xuanshui_FEET", "xuanshui", EquipmentSlot.FEET, "玄水寒渊·云履", "玄水寒渊套装云履，凌波微步踏水无痕"),
+        piece("xuanshui_WEAPON", "xuanshui", EquipmentSlot.WEAPON, "玄水寒渊·灵兵", "玄水寒渊套装灵兵，玄冰凝刃寒光凛冽"),
+        piece("xuanshui_LEGS", "xuanshui", EquipmentSlot.LEGS, "玄水寒渊·护胫", "玄水寒渊套装护胫，渊水绕腿暗流涌动"),
+        // 套装 5：火套「离火焚天」（lihuo）
+        piece("lihuo_HEAD", "lihuo", EquipmentSlot.HEAD, "离火焚天·灵冠", "离火焚天套装灵冠，离火真焰炼神涤魄"),
+        piece("lihuo_BODY", "lihuo", EquipmentSlot.BODY, "离火焚天·法袍", "离火焚天套装法袍，炎纹织体烈焰随身"),
+        piece("lihuo_HANDS", "lihuo", EquipmentSlot.HANDS, "离火焚天·灵护", "离火焚天套装灵护，火灵附掌焚尽八荒"),
+        piece("lihuo_FEET", "lihuo", EquipmentSlot.FEET, "离火焚天·云履", "离火焚天套装云履，踏火而行燎原疾影"),
+        piece("lihuo_WEAPON", "lihuo", EquipmentSlot.WEAPON, "离火焚天·灵兵", "离火焚天套装灵兵，焚天之焰斩灭诸邪"),
+        piece("lihuo_LEGS", "lihuo", EquipmentSlot.LEGS, "离火焚天·护胫", "离火焚天套装护胫，火甲缠腿烈焰不熄"),
+        // 套装 6：土套「厚土镇岳」（houtu）
+        piece("houtu_HEAD", "houtu", EquipmentSlot.HEAD, "厚土镇岳·灵冠", "厚土镇岳套装灵冠，厚土之德沉稳心神"),
+        piece("houtu_BODY", "houtu", EquipmentSlot.BODY, "厚土镇岳·法袍", "厚土镇岳套装法袍，山岳之甲岿然不动"),
+        piece("houtu_HANDS", "houtu", EquipmentSlot.HANDS, "厚土镇岳·灵护", "厚土镇岳套装灵护，镇岳之力撼地崩山"),
+        piece("houtu_FEET", "houtu", EquipmentSlot.FEET, "厚土镇岳·云履", "厚土镇岳套装云履，踏地生根移山填谷"),
+        piece("houtu_WEAPON", "houtu", EquipmentSlot.WEAPON, "厚土镇岳·灵兵", "厚土镇岳套装灵兵，崩岳之锋无坚不摧"),
+        piece("houtu_LEGS", "houtu", EquipmentSlot.LEGS, "厚土镇岳·护胫", "厚土镇岳套装护胫，大地之基重若千钧")
     )
 
-    /** 12 条套装部件（声明表 = 中性源快照，四方守卫逐条比对） */
+    /** 36 条套装部件（声明表 = 中性源快照，四方守卫逐条比对） */
     val setPieces: List<SetPieceTemplate> = DEFAULT_SET_PIECES
 
-    /** 72 条展开条目（12 部件 × 品阶 1..6），id → entry */
+    /** 216 条展开条目（36 部件 × 品阶 1..6），id → entry */
     val entries: Map<String, EquipPieceEntry> by lazy {
         setPieces.flatMap { piece -> expand(piece) }.associateBy { it.id }
     }

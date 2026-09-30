@@ -28,28 +28,31 @@ constexpr int32_t kRarityPrices[6] = {4000, 16000, 80000, 480000, 3360000, 26880
 constexpr int32_t kRarityMinRealms[6] = {9, 7, 6, 5, 4, 2};
 
 TEST(EquipmentDbTest, PieceTemplateCount) {
-    // Kotlin EquipmentDatabase.setPieces：2 套 × 6 部位 = 12 条部件模板
-    EXPECT_EQ(12u, setPieceTemplates().size());
+    // Kotlin EquipmentDatabase.setPieces：6 套 × 6 部位 = 36 条部件模板
+    EXPECT_EQ(36u, setPieceTemplates().size());
 }
 
 TEST(EquipmentDbTest, SetCountAndSchool) {
-    // Kotlin EquipmentSetDatabase.sets：lietian(物理) / zifu(法术)
+    // Kotlin EquipmentSetDatabase.sets：物理 + 五行六套（同构骨架，方案 §3.4）
     const auto& sets = equipmentSetDefs();
-    ASSERT_EQ(2u, sets.size());
+    ASSERT_EQ(6u, sets.size());
     EXPECT_EQ("lietian", sets[0].id);
     EXPECT_EQ("裂天罡煞", sets[0].name);
     EXPECT_EQ("PHYSICAL", sets[0].school);
-    EXPECT_EQ("zifu", sets[1].id);
-    EXPECT_EQ("紫府玄冥", sets[1].name);
-    EXPECT_EQ("MAGIC", sets[1].school);
+    EXPECT_EQ("gengjin", sets[1].id);
+    EXPECT_EQ("庚金白虎", sets[1].name);
+    EXPECT_EQ("METAL", sets[1].school);
+    EXPECT_EQ("houtu", sets[5].id);
+    EXPECT_EQ("厚土镇岳", sets[5].name);
+    EXPECT_EQ("EARTH", sets[5].school);
 }
 
 TEST(EquipmentDbTest, ExpandedEntryCount) {
-    // 12 部件 × 品阶 1..6 = 72 条展开条目
-    EXPECT_EQ(72u, equipmentEntries().size());
-    // 每套每部位 × 6 品阶：按部位过滤面各 12 条
+    // 36 部件 × 品阶 1..6 = 216 条展开条目
+    EXPECT_EQ(216u, equipmentEntries().size());
+    // 每套每部位 × 6 品阶：按部位过滤面各 36 条
     for (const char* part : {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
-        EXPECT_EQ(12u, equipmentEntriesByPart(part).size()) << part;
+        EXPECT_EQ(36u, equipmentEntriesByPart(part).size()) << part;
     }
 }
 
@@ -58,22 +61,22 @@ TEST(EquipmentDbTest, PieceTemplateSevenFieldSurface) {
     // priceByRarity/minRealmByRarity）：抽样断言首尾条目 + 全量价格/门槛表校验
     const auto& pieces = setPieceTemplates();
     const SetPieceTemplate* lietianHead = nullptr;
-    const SetPieceTemplate* zifuLegs = nullptr;
+    const SetPieceTemplate* lihuoLegs = nullptr;
     for (const auto& p : pieces) {
         if (p.id == "lietian_HEAD") lietianHead = &p;
-        if (p.id == "zifu_LEGS") zifuLegs = &p;
+        if (p.id == "lihuo_LEGS") lihuoLegs = &p;
     }
     ASSERT_NE(nullptr, lietianHead);
     EXPECT_EQ("lietian", lietianHead->setId);
     EXPECT_EQ("HEAD", lietianHead->part);
     EXPECT_EQ("裂天罡煞·头冠", lietianHead->name);
     EXPECT_EQ("裂天罡煞套装头冠，罡煞之气护持识海", lietianHead->description);
-    ASSERT_NE(nullptr, zifuLegs);
-    EXPECT_EQ("zifu", zifuLegs->setId);
-    EXPECT_EQ("LEGS", zifuLegs->part);
-    EXPECT_EQ("紫府玄冥·灵甲", zifuLegs->name);
+    ASSERT_NE(nullptr, lihuoLegs);
+    EXPECT_EQ("lihuo", lihuoLegs->setId);
+    EXPECT_EQ("LEGS", lihuoLegs->part);
+    EXPECT_EQ("离火焚天·护胫", lihuoLegs->name);
 
-    // 全量 12 条：六部位各 2 条；价格/门槛两表逐品阶一致（表常量引用，无魔法数字）
+    // 全量 36 条：六套部件；价格/门槛两表逐品阶一致（表常量引用，无魔法数字）
     std::set<std::string> parts;
     for (const auto& p : pieces) {
         parts.insert(p.part);
@@ -95,7 +98,7 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
     const EquipPieceEntry* last = nullptr;
     for (const auto& e : equipmentEntries()) {
         if (e.id == "lietian_HEAD_r1") first = &e;
-        if (e.id == "zifu_LEGS_r6") last = &e;
+        if (e.id == "houtu_LEGS_r6") last = &e;
     }
     ASSERT_NE(nullptr, first);
     EXPECT_EQ("lietian_HEAD", first->pieceId);
@@ -106,7 +109,7 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
     EXPECT_EQ(kRarityPrices[0], first->price);
     EXPECT_EQ(kRarityMinRealms[0], first->minRealm);
     ASSERT_NE(nullptr, last);
-    EXPECT_EQ("zifu_LEGS", last->pieceId);
+    EXPECT_EQ("houtu_LEGS", last->pieceId);
     EXPECT_EQ(6, last->rarity);
     EXPECT_EQ(kRarityPrices[5], last->price);
     EXPECT_EQ(kRarityMinRealms[5], last->minRealm);
@@ -114,7 +117,7 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
 
 TEST(EquipmentDbTest, EntryLookupAndMiss) {
     // equipmentEntryById 命中/未命中（Kotlin getById null 臂）
-    const EquipPieceEntry* hit = equipmentEntryById("zifu_WEAPON_r3");
+    const EquipPieceEntry* hit = equipmentEntryById("lihuo_WEAPON_r3");
     ASSERT_NE(nullptr, hit);
     EXPECT_EQ(3, hit->rarity);
     EXPECT_EQ("WEAPON", hit->part);
@@ -154,15 +157,15 @@ TEST(EquipmentDbTest, MainStatPoolSurface) {
 }
 
 TEST(EquipmentDbTest, SubAffixPoolSurface) {
-    // 7 项副词条池、权重合计 100（equip_affix_db.h equipAffixTotalWeight）
-    EXPECT_EQ(7u, equipAffixes().size());
+    // 11 项副词条池（物理 7 + 五行各 6）、权重合计 100（equip_affix_db.h equipAffixTotalWeight）
+    EXPECT_EQ(11u, equipAffixes().size());
     EXPECT_EQ(100, equipAffixTotalWeight());
     std::set<std::string> stats;
     for (const auto& a : equipAffixes()) {
         EXPECT_GT(a.weight, 0) << a.stat;
         stats.insert(a.stat);
     }
-    EXPECT_EQ(7u, stats.size());
+    EXPECT_EQ(11u, stats.size());
 }
 
 }  // namespace

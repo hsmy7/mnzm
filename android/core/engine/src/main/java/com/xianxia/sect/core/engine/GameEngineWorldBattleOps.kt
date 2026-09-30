@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
@@ -328,7 +329,7 @@ private fun GameEngine.grantSingleCaveReward(
         1 -> {
             // B3 实例轨：EquipmentFactory 产实例直入实例轨（装备不走溢出邮件）
             val kr = gameRngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
-            val setId = if (kr.nextBoolean()) "lietian" else "zifu"
+            val setId = EquipmentSetDatabase.ALL_IDS.random(kr)
             val equip = com.xianxia.sect.core.engine.domain.EquipmentFactory.create(
                 setId, com.xianxia.sect.core.engine.domain.EquipmentFactory.pickPart(setId, kr), rarity, kr)
             val result = inventorySystem.withTrackingSource("cave_world") {

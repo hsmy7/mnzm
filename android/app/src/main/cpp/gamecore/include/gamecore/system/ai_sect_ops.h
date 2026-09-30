@@ -465,11 +465,7 @@ inline gamecore::battle::BattleState aiCreateBattle(
     b.attack = std::max(beast.beastAttack, 0);
     b.defense = std::max(beast.beastDefense, 0);
     b.speed = std::max(beast.beastSpeed, 0);
-    // 妖兽伤害类型按种类元素固定（§15.3）
-    b.innateDamageType =
-        (type.element == "metal" || type.element == "earth")
-            ? gamecore::battle::DamageType::kPhysical
-            : gamecore::battle::DamageType::kMagic;
+    // 普攻恒物理（五行属性伤害系统 P3）：innateDamageType 退役段不再派生
     b.critRate = 0.05 + realmIndex * 0.01;
     b.realm = realmIndex;
     b.realmLayer = beast.realmLayer;

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.battle
 
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.asKotlinRandom
@@ -141,7 +142,7 @@ private fun addWarEquipment(
             // EquipmentFactory 产实例（词条 EQUIPMENT 分区 roll）
             val kr = rng.asKotlinRandom()
             val rarity = (config.minRarity..config.maxRarity).random(kr)
-            val setId = if (kr.nextBoolean()) "lietian" else "zifu"
+            val setId = EquipmentSetDatabase.ALL_IDS.random(kr)
             val instance = com.xianxia.sect.core.engine.domain.EquipmentFactory.create(
                 setId, com.xianxia.sect.core.engine.domain.EquipmentFactory.pickPart(setId, kr), rarity, kr
             )

@@ -75,24 +75,24 @@ class EquipmentSetBonusTest {
     }
 
     @Test
-    fun `法术套通道独立`() {
-        val six = parts.map { setPiece("zifu", it) }
+    fun `火套通道独立`() {
+        val six = parts.map { setPiece("lihuo", it) }
         val bonus6 = EquipStatResolver.resolveSetBonus(six)
-        assertEquals(0.30, bonus6.magicDamageBonus, 1e-12)
-        assertEquals(0.25, bonus6.critDamage, 1e-12)
+        assertEquals(0.30, bonus6.fireDamageBonus, 1e-12)
+        assertEquals("4 件档统一暴击率", 0.12, bonus6.critRate, 1e-12)
         assertEquals("物理通道零串扰", 0.0, bonus6.physicalDamageBonus, 1e-12)
+        assertEquals("其余元素零串扰", 0.0, bonus6.waterDamageBonus, 1e-12)
     }
 
     @Test
     fun `两套混穿按各自件数独立计档`() {
-        // 2 件裂天（物理 +10%）+ 4 件紫府（法术 +10%、暴伤 +25%）
+        // 2 件裂天（物理 +10%）+ 4 件离火（火 +10%、暴率 +12%）
         val mixed = parts.take(2).map { setPiece("lietian", it) } +
-            parts.take(4).map { setPiece("zifu", it, id = "zifu-${it.name}") }
+            parts.take(4).map { setPiece("lihuo", it, id = "lihuo-${it.name}") }
         val bonus = EquipStatResolver.resolveSetBonus(mixed)
         assertEquals(0.10, bonus.physicalDamageBonus, 1e-12)
-        assertEquals(0.10, bonus.magicDamageBonus, 1e-12)
-        assertEquals(0.25, bonus.critDamage, 1e-12)
-        assertEquals("裂天未达 4 件档不产暴率", 0.0, bonus.critRate, 1e-12)
+        assertEquals(0.10, bonus.fireDamageBonus, 1e-12)
+        assertEquals("离火达 4 件档产暴率", 0.12, bonus.critRate, 1e-12)
     }
 
     @Test

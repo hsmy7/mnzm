@@ -117,9 +117,9 @@ TEST(SingleColumnStat, PhysicalBonusBucketAppliesOnPhysical) {
     EXPECT_EQ(static_cast<int32_t>(exact), boosted);
     EXPECT_EQ(517, boosted);
 
-    // 法术伤害加成对物理技能不生效
+    // 火伤害加成对物理技能不生效（类型通道互不串扰，E5）
     attacker.physicalDamageBonus = 0.0;
-    attacker.magicDamageBonus = 0.5;
+    attacker.fireDamageBonus = 0.5;
     EXPECT_EQ(baseline, battle::estimateDamage(attacker, defender, skill));
 }
 
@@ -136,9 +136,9 @@ TEST(SingleColumnStat, DefenseTypeReductionBucketAppliesOnMatchingType) {
     const int32_t reduced = battle::estimateDamage(attacker, defender, skill);
     EXPECT_DOUBLE_EQ(baseline * 0.75, static_cast<double>(reduced));
 
-    // 法术减伤对物理技能不生效
+    // 火减伤对物理技能不生效（6 桶互不串扰，E6）
     defender.physicalDamageReduction = 0.0;
-    defender.magicDamageReduction = 0.25;
+    defender.fireDamageReduction = 0.25;
     EXPECT_EQ(baseline, battle::estimateDamage(attacker, defender, skill));
 }
 
@@ -166,39 +166,40 @@ TEST(SingleColumnStat, DefenseBuffMigratesToTypeReductionBucket) {
     EXPECT_DOUBLE_EQ(baseline * 0.75, static_cast<double>(reduced));
 }
 
-// ── 4. 伤害类型判定：普攻按 innateDamageType、技能按 skill.damageType ──
+// ── 4. 伤害类型判定：普攻恒物理、技能按 skill.damageType（五行属性伤害系统 P3/E2/E3） ──
 
-TEST(SingleColumnStat, InnateTypeDrivesBasicAttackAndSkillOverrides) {
+TEST(SingleColumnStat, NormalAttackAlwaysPhysicalAndSkillTypeFollowsSkill) {
     auto attacker = baseFighter();
+    // innateDamageType 已退役（普攻恒物理）：设为任何值都不影响普攻类型
     attacker.innateDamageType = DamageType::kMagic;
     auto defender = baseFighter();
     defender.defense = 80;
 
     // 技能类型跟随 skill.damageType（estimateDamage 契约）：
-    // 法术技能吃法术减伤 50% ⇒ 减半；物理技能不吃
-    CombatSkill magicSkill = plainPhysicalSkill();
-    magicSkill.damageType = DamageType::kMagic;
-    defender.magicDamageReduction = 0.5;
-    const int32_t magicReduced = battle::estimateDamage(attacker, defender, magicSkill);
-    defender.magicDamageReduction = 0.0;
-    const int32_t magicPlain = battle::estimateDamage(attacker, defender, magicSkill);
-    EXPECT_EQ(magicPlain / 2, magicReduced);
-    EXPECT_EQ(magicPlain, battle::estimateDamage(attacker, defender, plainPhysicalSkill()));
+    // 火技能吃火减伤 50% ⇒ 减半；物理技能不吃
+    CombatSkill fireSkill = plainPhysicalSkill();
+    fireSkill.damageType = DamageType::kFire;
+    defender.fireDamageReduction = 0.5;
+    const int32_t fireReduced = battle::estimateDamage(attacker, defender, fireSkill);
+    defender.fireDamageReduction = 0.0;
+    const int32_t firePlain = battle::estimateDamage(attacker, defender, fireSkill);
+    EXPECT_EQ(firePlain / 2, fireReduced);
+    EXPECT_EQ(firePlain, battle::estimateDamage(attacker, defender, plainPhysicalSkill()));
 
-    // 普攻（无技能）类型走 innateDamageType（calculateCombatantDamage 契约）：
-    // 攻方固有法术 ⇒ DamageResult.isPhysical == false（RNG 消耗存在，仅断言类型位）
+    // 普攻（无技能）恒物理（calculateCombatantDamage 契约）：
+    // 即便攻方 innateDamageType = kMagic，DamageResult.damageType 仍恒 kPhysical
     rng::DeterministicRng rng(42);
-    defender.magicDamageReduction = 0.0;
     const auto r =
         battle::calculateCombatantDamage(rng, attacker, defender, nullptr);
-    EXPECT_FALSE(r.isPhysical);
+    EXPECT_TRUE(r.isPhysical());
+    EXPECT_EQ(DamageType::kPhysical, r.damageType);
 
-    // 对照：固有物理 ⇒ isPhysical == true
+    // 对照：innateDamageType 默认值同样恒物理
     auto physicalAttacker = baseFighter();
     rng::DeterministicRng rng2(42);
     const auto r2 =
         battle::calculateCombatantDamage(rng2, physicalAttacker, defender, nullptr);
-    EXPECT_TRUE(r2.isPhysical);
+    EXPECT_TRUE(r2.isPhysical());
 }
 
 // ── 5. 旧物法四列归一化（*Total 线性合并；新档旧列恒 0 时即新列本身） ──

@@ -151,8 +151,10 @@ class BattleExecutionRouterTest {
         val required = setOf(
             "id", "name", "side", "hp", "maxHp", "mp", "maxMp",
             "attack", "defense", "innateDamageType",
-            "physicalDamageBonus", "magicDamageBonus",
-            "physicalDamageReduction", "magicDamageReduction",
+            "physicalDamageBonus", "metalDamageBonus", "woodDamageBonus",
+            "waterDamageBonus", "fireDamageBonus", "earthDamageBonus",
+            "physicalDamageReduction", "metalDamageReduction", "woodDamageReduction",
+            "waterDamageReduction", "fireDamageReduction", "earthDamageReduction",
             "speed", "critRate", "skills", "buffs", "realm", "realmLayer",
             "element"
         )

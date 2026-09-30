@@ -120,8 +120,14 @@ struct EquipBonus {
     double pctAttack = 0.0;
     double critRate = 0.0;
     double critDamage = 0.0;
+    /// 物理伤害加成（不受灵根 gate）
     double physicalDamageBonus = 0.0;
-    double magicDamageBonus = 0.0;
+    /// 金/木/水/火/土伤害加成（gate 前原始值；弟子侧汇总时按灵根折算）
+    double metalDamageBonus = 0.0;
+    double woodDamageBonus = 0.0;
+    double waterDamageBonus = 0.0;
+    double fireDamageBonus = 0.0;
+    double earthDamageBonus = 0.0;
 };
 
 inline EquipBonus operator+(const EquipBonus& a, const EquipBonus& b) {
@@ -133,7 +139,11 @@ inline EquipBonus operator+(const EquipBonus& a, const EquipBonus& b) {
     r.critRate = a.critRate + b.critRate;
     r.critDamage = a.critDamage + b.critDamage;
     r.physicalDamageBonus = a.physicalDamageBonus + b.physicalDamageBonus;
-    r.magicDamageBonus = a.magicDamageBonus + b.magicDamageBonus;
+    r.metalDamageBonus = a.metalDamageBonus + b.metalDamageBonus;
+    r.woodDamageBonus = a.woodDamageBonus + b.woodDamageBonus;
+    r.waterDamageBonus = a.waterDamageBonus + b.waterDamageBonus;
+    r.fireDamageBonus = a.fireDamageBonus + b.fireDamageBonus;
+    r.earthDamageBonus = a.earthDamageBonus + b.earthDamageBonus;
     return r;
 }
 
@@ -146,7 +156,13 @@ inline void plusEquipStat(EquipBonus& current, const state::EquipStatValue& sv) 
     else if (sv.stat == "CRIT_DAMAGE") current.critDamage += sv.value;
     else if (sv.stat == "ATTACK_PCT") current.pctAttack += sv.value;
     else if (sv.stat == "PHYSICAL_DAMAGE_PCT") current.physicalDamageBonus += sv.value;
-    else if (sv.stat == "MAGIC_DAMAGE_PCT") current.magicDamageBonus += sv.value;
+    // 退役段（MAGIC_DAMAGE_PCT）：禁新产出；旧档残留词条不再并入任何通道
+    else if (sv.stat == "MAGIC_DAMAGE_PCT") { /* 退役段 */ }
+    else if (sv.stat == "METAL_DAMAGE_PCT") current.metalDamageBonus += sv.value;
+    else if (sv.stat == "WOOD_DAMAGE_PCT") current.woodDamageBonus += sv.value;
+    else if (sv.stat == "WATER_DAMAGE_PCT") current.waterDamageBonus += sv.value;
+    else if (sv.stat == "FIRE_DAMAGE_PCT") current.fireDamageBonus += sv.value;
+    else if (sv.stat == "EARTH_DAMAGE_PCT") current.earthDamageBonus += sv.value;
 }
 
 /// 单实例 totalBonus（Kotlin EquipmentInstance.totalBonus = growth.affix.totalBonus(level)：

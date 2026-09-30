@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.RedeemRewardType
 import com.xianxia.sect.core.model.RewardSelectedItem
@@ -114,8 +115,8 @@ internal fun RedeemCodeManager.addManualPackRewards(
 
 internal fun RedeemCodeManager.generateRandomEquipment(rarity: Int,
     random: kotlin.random.Random): EquipmentInstance {
-    // B3：装备产出唯一入口 EquipmentFactory（品阶指定、套装二选一）
-    val setId = if (random.nextBoolean()) "lietian" else "zifu"
+    // 装备产出唯一入口 EquipmentFactory（品阶指定、套装六选一，五行属性伤害系统）
+    val setId = EquipmentSetDatabase.ALL_IDS.random(random)
     return EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, random), rarity, random)
 }
 

@@ -28,6 +28,8 @@ import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.typeDamageBonusesOf
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.diplomacy.buildEquipmentMapForDisciple
 import com.xianxia.sect.core.engine.domain.diplomacy.buildManualDataForDisciple
@@ -362,6 +364,11 @@ object AISectAttackManager {
             .takeIf { it.isNotEmpty() }
             ?.let { equipmentMap[it]?.name }
 
+        // 类型伤害加成六路（装备/套装词条，五行路已按灵根 gate 折算；方案 §3.7②）
+        val typeBonuses = DiscipleStatCalculator.typeDamageBonusesOf(
+            disciple, equipmentMap, disciple.equipment.equippedItemIds
+        )
+
         return Combatant(
             id = disciple.id,
             name = disciple.name,
@@ -372,7 +379,12 @@ object AISectAttackManager {
             maxMp = stats.maxMp,
             attack = stats.attack,
             defense = stats.defense,
-            innateDamageType = disciple.resolvedInnateDamageType(),
+            physicalDamageBonus = typeBonuses.physical,
+            metalDamageBonus = typeBonuses.metal,
+            woodDamageBonus = typeBonuses.wood,
+            waterDamageBonus = typeBonuses.water,
+            fireDamageBonus = typeBonuses.fire,
+            earthDamageBonus = typeBonuses.earth,
             speed = stats.speed,
             critRate = stats.critRate,
             realm = disciple.realm,

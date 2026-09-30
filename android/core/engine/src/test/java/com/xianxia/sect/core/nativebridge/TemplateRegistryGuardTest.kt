@@ -80,7 +80,7 @@ class TemplateRegistryGuardTest {
     fun `展开条目与快照部件展开一致`() {
         val root = loadSample() ?: return
         val pieces = root.getValue("setPieces").jsonArray
-        // 12 部件 × 品阶 1..6 = 72 条；展开口径逐部件核对 id/价格/门槛
+        // 36 部件 × 品阶 1..6 = 216 条；展开口径逐部件核对 id/价格/门槛
         var expectedCount = 0
         pieces.forEach { element ->
             val obj = element.jsonObject
@@ -99,8 +99,8 @@ class TemplateRegistryGuardTest {
                 assertEquals("$entryId.minRealm", minRealms[index], entry.minRealm)
             }
         }
-        assertEquals("展开条目总数应为 72", 72, EquipmentDatabase.entries.size)
-        assertEquals(72, expectedCount)
+        assertEquals("展开条目总数应为 216", 216, EquipmentDatabase.entries.size)
+        assertEquals(216, expectedCount)
     }
 
     @Test
@@ -164,7 +164,7 @@ class TemplateRegistryGuardTest {
     fun `副词条池快照一致`() {
         val root = loadSample() ?: return
         val affixes = root.getValue("subAffixes").jsonArray
-        assertEquals("副词条池 7 项", 7, affixes.size)
+        assertEquals("副词条池 11 项", 11, affixes.size)
         assertEquals(
             "池声明序",
             affixes.map { EquipStat.valueOf(it.jsonObject.getValue("stat").jsonPrimitive.content) },

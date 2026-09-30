@@ -4,6 +4,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.EquipStat
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -101,9 +102,9 @@ object EnemyGenerator {
             val part = equipmentSlots[i]
             // 品阶沿用旧口径：在 [minRarity, maxRarity] 均匀抽取
             val rarity = minRarity + rng.nextInt(maxRarity + 1 - minRarity)
-            // 套装随机二选一（"lietian" 物理 / "zifu" 法术）；适配器接 ENEMY_GEN 分区
+            // 套装随机六选一（物理 + 五行，EquipmentSetDatabase.ALL_IDS 单一真源）；接 ENEMY_GEN 分区
             //（与旧 generateRandomBySlot 同一确定性来源）
-            val setId = if (rng.nextDouble() < 0.5) "lietian" else "zifu"
+            val setId = EquipmentSetDatabase.ALL_IDS[rng.nextInt(EquipmentSetDatabase.ALL_IDS.size)]
             val instance = EquipmentFactory.create(setId, part, rarity, RngRandomAdapter(rng))
             equipmentInstances.add(instance)
             equipmentStatsAccumulator.add(instance)
@@ -195,8 +196,6 @@ object EnemyGenerator {
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements[rng.nextInt(5)]
-        // 散修敌人伤害类型按元素派生（金/土→物理、水/木/火→法术，§15.3 同弟子口径）
-        val innateType = if (element == "metal" || element == "earth") DamageType.PHYSICAL else DamageType.MAGIC
 
         val enemyNames = listOf("魔修", "邪修", "散修", "山匪", "暗杀者", "邪道修士")
 
@@ -210,7 +209,6 @@ object EnemyGenerator {
             maxMp = mp,
             attack = attack,
             defense = defense,
-            innateDamageType = innateType,
             speed = speed,
             // 基础暴击(与玩家 BASE_CRIT_RATE 一致) + 境界暴击 + 装备 + 功法暴击
             critRate = 0.05 + realm * 0.01 + equipmentStats.critRate + manualStats.critChance,

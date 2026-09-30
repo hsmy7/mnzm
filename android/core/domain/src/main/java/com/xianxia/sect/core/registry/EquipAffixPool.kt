@@ -5,12 +5,17 @@ import com.xianxia.sect.core.model.EquipStatValue
 import kotlin.random.Random
 
 /**
- * 副词条池（装备重构 B3，方案 §3.4.3/§15.6——**单一真源**）。
+ * 副词条池（五行属性伤害系统，方案 §3.5——**单一真源**）。
  *
- * 7 项全局池、与流派无关；权重即概率（合计 100 = 直接概率）：
- * 攻击力 13 / 防御力 13 / 血量 14 / 暴击率 15 / 暴击伤害 15 /
- * 物理伤害加成 15 / 法术伤害加成 15。生成时按权重**不放回**抽 3 条
- * （天然去重，S5）；单次强化收益 = 档位值 × 1（每 3 级 +1，最多 11 次）。
+ * 11 项全局池、与流派无关；权重即概率（合计 100 = 直接概率）：
+ * 攻击力 12 / 防御力 12 / 血量 13 / 暴击率 13 / 暴击伤害 13 /
+ * 物理伤害加成 7 / 金 6 / 木 6 / 水 6 / 火 6 / 土 6。
+ * 生成时按权重**不放回**抽 3 条（天然去重，S5）；
+ * 单次强化收益 = 档位值 × 1（每 3 级 +1，最多 11 次）。
+ *
+ * 6 条类型伤害加成（物理 + 五行）同档位值（×1.5 补偿档，方案 §3.5；
+ * 最终由 E12 数值校准判定）。物理词条不受灵根 gate（人人有效），
+ * 五行词条受 gate（弟子灵根含该元素才生效）。
  *
  * **声明序参与权重前缀和比较，禁止重排**——重排会改变同种子抽取序列，
  * 破坏跨端对拍与既有存档确定性（方案 §3.4.3；C++ 对偶表逐位同序）。
@@ -28,14 +33,21 @@ object EquipAffixPool {
         val tierValues: List<Double>
     )
 
+    /** 类型伤害加成共用档位值（品阶 1..6；物理 + 五行同档，方案 §3.5） */
+    private val DAMAGE_PCT_TIERS = listOf(0.006, 0.009, 0.012, 0.018, 0.024, 0.030)
+
     private val AFFIXES: List<AffixDef> = listOf(
-        AffixDef(EquipStat.ATTACK, 13, listOf(1.0, 3.0, 8.0, 21.0, 64.0, 195.0)),
-        AffixDef(EquipStat.DEFENSE, 13, listOf(1.0, 3.0, 6.0, 14.0, 43.0, 130.0)),
-        AffixDef(EquipStat.HP, 14, listOf(14.0, 40.0, 106.0, 280.0, 860.0, 2600.0)),
-        AffixDef(EquipStat.CRIT_RATE, 15, listOf(0.002, 0.003, 0.004, 0.006, 0.008, 0.010)),
-        AffixDef(EquipStat.CRIT_DAMAGE, 15, listOf(0.004, 0.006, 0.008, 0.012, 0.016, 0.020)),
-        AffixDef(EquipStat.PHYSICAL_DAMAGE_PCT, 15, listOf(0.004, 0.006, 0.008, 0.012, 0.016, 0.020)),
-        AffixDef(EquipStat.MAGIC_DAMAGE_PCT, 15, listOf(0.004, 0.006, 0.008, 0.012, 0.016, 0.020))
+        AffixDef(EquipStat.ATTACK, 12, listOf(1.0, 3.0, 8.0, 21.0, 64.0, 195.0)),
+        AffixDef(EquipStat.DEFENSE, 12, listOf(1.0, 3.0, 6.0, 14.0, 43.0, 130.0)),
+        AffixDef(EquipStat.HP, 13, listOf(14.0, 40.0, 106.0, 280.0, 860.0, 2600.0)),
+        AffixDef(EquipStat.CRIT_RATE, 13, listOf(0.002, 0.003, 0.004, 0.006, 0.008, 0.010)),
+        AffixDef(EquipStat.CRIT_DAMAGE, 13, listOf(0.004, 0.006, 0.008, 0.012, 0.016, 0.020)),
+        AffixDef(EquipStat.PHYSICAL_DAMAGE_PCT, 7, DAMAGE_PCT_TIERS),
+        AffixDef(EquipStat.METAL_DAMAGE_PCT, 6, DAMAGE_PCT_TIERS),
+        AffixDef(EquipStat.WOOD_DAMAGE_PCT, 6, DAMAGE_PCT_TIERS),
+        AffixDef(EquipStat.WATER_DAMAGE_PCT, 6, DAMAGE_PCT_TIERS),
+        AffixDef(EquipStat.FIRE_DAMAGE_PCT, 6, DAMAGE_PCT_TIERS),
+        AffixDef(EquipStat.EARTH_DAMAGE_PCT, 6, DAMAGE_PCT_TIERS)
     )
 
     /** 每件装备副词条条数 */

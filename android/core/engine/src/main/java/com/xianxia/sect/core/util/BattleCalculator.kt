@@ -14,12 +14,13 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * 遵循"乘区内加算、乘区间乘算"原则。
  * 各乘区含义（属性单列口径，装备重构 B1 方案 §15.2/§15.6.1）：
  * - physicalAttackBuffs / magicAttackBuffs：**类型增伤** buff 分桶（原物法攻
- *   buff 语义迁移；PHYSICAL_ATTACK_BOOST 等 → 物理类型增伤，buildDamageZones 填充）
- * - physicalDefenseBuffs / magicDefenseBuffs：**类型减伤** buff 分桶（原物法防
- *   buff 语义迁移；守方，buildDamageZones 填充）
- * - typeDamageBonus / typeDamageReduction：类型通道结算位（buildDamageZones
- *   的 buff 分桶 + Combatant 固有类型桶按本次伤害类型选桶合并后的最终值；
- *   calculateFinalDamage 消费。四桶全 0.0 时与无类型通道的基准公式逐位一致，S19）
+ *   buff 语义迁移；PHYSICAL_ATTACK_BOOST → 物理类型增伤；法术桶为退役段，
+ *   MAGIC 类型已随五行化退役，仅存档兼容——元素伤害 buff 无对应 BuffType，
+ *   元素加成全部走 Combatant 六路固有桶）
+ * - physicalDefenseBuffs / magicDefenseBuffs：**类型减伤** buff 分桶（守方，同上）
+ * - typeDamageBonus / typeDamageReduction：类型通道结算位（六路固有桶按本次
+ *   伤害类型选桶 + buff 桶合并后的最终值；calculateFinalDamage 消费。
+ *   十二桶全 0.0 时与无类型通道的基准公式逐位一致，S19）
  * - damageAmplification：增伤乘区（DAMAGE_BOOST 等）
  * - damageReduction：减伤乘区（DAMAGE_REDUCTION 等）
  *
@@ -29,15 +30,16 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * - majorRealmDamageAmplification：进攻方跨大境界增伤（每高 1 大境界 +100%，累加不封顶）
  */
 data class DamageZones(
-    // 物理/法术类型增伤 buff 分桶（buildDamageZones 填充；按本次伤害类型选桶进 typeDamageBonus）
+    // 物理/法术类型增伤 buff 分桶（buildDamageZones 填充；物理桶进 typeDamageBonus，
+    // 法术桶为退役段——元素伤害加成走 Combatant 六路固有桶，不经 buff 分桶）
     val physicalAttackBuffs: Double = 0.0,
     val magicAttackBuffs: Double = 0.0,
-    // 物理/法术类型减伤 buff 分桶（守方，buildDamageZones 填充；按本次伤害类型选桶进 typeDamageReduction）
+    // 物理/法术类型减伤 buff 分桶（守方，buildDamageZones 填充；同上退役口径）
     val physicalDefenseBuffs: Double = 0.0,
     val magicDefenseBuffs: Double = 0.0,
     val damageAmplification: Double = 0.0,
     val damageReduction: Double = 0.0,
-    // 类型通道结算位：选桶合并后的最终值（固有桶 + buff 桶），默认 0.0 时与基准公式逐位一致
+    // 类型通道结算位：选桶合并后的最终值（六路固有桶 + buff 桶），默认 0.0 时与基准公式逐位一致
     val typeDamageBonus: Double = 0.0,
     val typeDamageReduction: Double = 0.0,
     // 境界压制独立乘算因子（buildDamageZones 按层差填充；与 buff 乘区分开，独立乘算不衰减）
@@ -78,9 +80,9 @@ object BattleCalculator {
     class BattleCalculatorWithRng(internal val rng: DeterministicRng) {
         fun calculateDamageVariance(): Double = BattleCalculator.calculateDamageVariance(rng)
         fun calculateDamage(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0,
-            isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1,
+            damageType: DamageType? = null, skillName: String? = null, skillHits: Int = 1,
                 dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones()): DamageResult =
-            BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName,
+            BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, damageType, skillName,
                 skillHits, dodgeChanceModifier, zones, rng)
         fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null,
             damageModifier: Double = 1.0, zones: DamageZones? = null,
@@ -154,16 +156,23 @@ object BattleCalculator {
     }
 
     /**
-     * 类型通道选桶合并（固有桶 + buff 桶 → zones 结算位；双端同序同式）。
+     * 类型通道选桶合并（六路固有桶 + buff 桶 → zones 结算位；双端同序同式）。
+     *
+     * 六类型按 [DamageType] 一一索引选桶（物理/五行各自独立通道，互不串扰）；
+     * 物理桶附加物理 buff 分桶（PHYSICAL_ATTACK_BOOST 等八类 buff 语义不变）；
+     * 五行类型无 buff 分桶（元素加成全部来自固有桶），退役段 [DamageType.MAGIC]
+     * 无固有桶、仅遗留法术 buff 桶（新代码不再产出 MAGIC 类型伤害）。
      */
     private fun mergeTypeChannels(zones: DamageZones, attacker: Combatant, defender: Combatant,
-        isPhysical: Boolean): DamageZones = zones.copy(
+        damageType: DamageType): DamageZones = zones.copy(
         typeDamageBonus = zones.typeDamageBonus +
-            (if (isPhysical) attacker.physicalDamageBonus else attacker.magicDamageBonus) +
-            (if (isPhysical) zones.physicalAttackBuffs else zones.magicAttackBuffs),
+            attacker.typeDamageBonusOf(damageType) +
+            (if (damageType == DamageType.PHYSICAL) zones.physicalAttackBuffs
+            else if (damageType == DamageType.MAGIC) zones.magicAttackBuffs else 0.0),
         typeDamageReduction = zones.typeDamageReduction +
-            (if (isPhysical) defender.physicalDamageReduction else defender.magicDamageReduction) +
-            (if (isPhysical) zones.physicalDefenseBuffs else zones.magicDefenseBuffs)
+            defender.typeDamageReductionOf(damageType) +
+            (if (damageType == DamageType.PHYSICAL) zones.physicalDefenseBuffs
+            else if (damageType == DamageType.MAGIC) zones.magicDefenseBuffs else 0.0)
     )
 
     /**
@@ -231,12 +240,16 @@ object BattleCalculator {
     data class DamageResult(
         val damage: Int,
         val isCrit: Boolean,
-        val isPhysical: Boolean,
+        /** 本次伤害的类型（普攻恒 PHYSICAL、技能按功法元素；6 活跃值之一） */
+        val damageType: DamageType,
         val isDodged: Boolean = false,
         val skillName: String? = null,
         val hits: Int = 1,
         val isInstantKill: Boolean = false
-    )
+    ) {
+        /** 兼容视图：物理类型判定（= [damageType] 是否 [DamageType.PHYSICAL]） */
+        val isPhysical: Boolean get() = damageType.isPhysical
+    }
 
     data class DotResult(
         val combatant: Combatant,
@@ -255,7 +268,7 @@ object BattleCalculator {
     interface CombatantStats {
         val attack: Int
         val defense: Int
-        /** 普攻伤害类型（无技能时的 isPhysical 判定源；单列口径 B1） */
+        /** 退役段（普攻恒物理，五行属性伤害系统 P3；兼容保留，判定不再读取） */
         val innateDamageType: DamageType get() = DamageType.PHYSICAL
         val speed: Int
         val critRate: Double
@@ -282,7 +295,7 @@ object BattleCalculator {
         attacker: CombatantStats,
         defender: CombatantStats,
         skillDamageMultiplier: Double = 1.0,
-        isPhysicalAttack: Boolean? = null,
+        damageType: DamageType? = null,
         skillName: String? = null,
         skillHits: Int = 1,
         dodgeChanceModifier: Double = 0.5,
@@ -294,15 +307,15 @@ object BattleCalculator {
             return DamageResult(
                 damage = 0,
                 isCrit = false,
-                isPhysical = isPhysicalAttack ?: true,
+                damageType = damageType ?: DamageType.PHYSICAL,
                 isDodged = true,
                 skillName = skillName,
                 hits = skillHits
             )
         }
 
-        // 单列口径（B1）：无技能时按攻击方固有伤害属性判定（原按物攻≥法攻启发式判定退役）
-        val usePhysical = isPhysicalAttack ?: (attacker.innateDamageType == DamageType.PHYSICAL)
+        // 五行属性伤害系统（P3）：普攻恒物理；显式 damageType（技能）优先
+        val resolvedType = damageType ?: DamageType.PHYSICAL
         val attack = attacker.attack
         val defense = defender.defense
 
@@ -330,7 +343,7 @@ object BattleCalculator {
         return DamageResult(
             damage = finalDamage,
             isCrit = isCrit,
-            isPhysical = usePhysical,
+            damageType = resolvedType,
             isDodged = false,
             skillName = skillName,
             hits = skillHits
@@ -371,13 +384,11 @@ object BattleCalculator {
             defender.realmLayer)) {
             return null
         }
-        val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
-            else attacker.innateDamageType == DamageType.PHYSICAL
         return DamageResult(
             // maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
             damage = defender.maxHp.coerceAtLeast(0),
             isCrit = false,
-            isPhysical = isPhysical,
+            damageType = skill?.damageType ?: DamageType.PHYSICAL,
             isDodged = false,
             skillName = skill?.name,
             hits = skill?.hits ?: 1,
@@ -395,9 +406,8 @@ object BattleCalculator {
         isSkillAttack: Boolean,
         rng: DeterministicRng
     ): DamageResult {
-        // 单列口径（B1）：技能按 skill.damageType、普攻按固有伤害属性
-        val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
-        else attacker.innateDamageType == DamageType.PHYSICAL
+        // 五行属性伤害系统（P3/E3）：普攻恒物理（与灵根无关），技能按功法自带元素（6 值）
+        val damageType = if (isSkillAttack) skill?.damageType ?: DamageType.PHYSICAL else DamageType.PHYSICAL
         val attack = attacker.attack
         val defense = defender.defense
 
@@ -406,10 +416,10 @@ object BattleCalculator {
         val variance = calculateDamageVariance(rng)
 
         val baseZones = zones ?: buildDamageZones(attacker, defender)
-        // 类型通道选桶合并（固有类型桶 + 物理/法术 buff 分桶 → 结算位）；
+        // 类型通道选桶合并（六路固有桶 + 物理/法术 buff 分桶 → 结算位）；
         // damageModifier 相当于一个额外的全局增伤/减伤乘区
         val damageZones = baseZones
-            .let { mergeTypeChannels(it, attacker, defender, isPhysical) }
+            .let { mergeTypeChannels(it, attacker, defender, damageType) }
             .copy(
                 // damageModifier 注入（与 estimateDamage 同式），
                 // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
@@ -434,7 +444,7 @@ object BattleCalculator {
         return DamageResult(
             damage = finalDamage,
             isCrit = isCrit,
-            isPhysical = isPhysical,
+            damageType = damageType,
             isDodged = false,
             skillName = skill?.name,
             hits = skill?.hits ?: 1
@@ -453,12 +463,12 @@ object BattleCalculator {
         zones: DamageZones? = null,
         damageModifier: Double = 1.0
     ): Int {
-        val isPhysical = skill.damageType == DamageType.PHYSICAL
+        val damageType = skill.damageType
         val atk = attacker.attack
         val def = defender.defense
-        // 类型通道选桶合并（固有类型桶 + 物理/法术 buff 分桶 → 结算位；与实际伤害一致）
+        // 类型通道选桶合并（六路固有桶 + buff 分桶 → 结算位；与实际伤害一致）
         val baseZones = zones ?: buildDamageZones(attacker, defender)
-        val damageZones = mergeTypeChannels(baseZones, attacker, defender, isPhysical).copy(
+        val damageZones = mergeTypeChannels(baseZones, attacker, defender, damageType).copy(
             // damageModifier 注入（与 calculateCombatantDamage 同式），
             // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
             damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)

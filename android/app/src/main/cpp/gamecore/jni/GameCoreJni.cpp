@@ -1046,7 +1046,7 @@ using gamecore::battle::skillToJson;
 /// DamageResult → JSON（对拍输出键与 Kotlin DamageResult 字段对应）
 nlohmann::json damageResultToJson(const gamecore::battle::DamageResult& r) {
     return {
-        {"damage", r.damage}, {"isCrit", r.isCrit}, {"isPhysical", r.isPhysical},
+        {"damage", r.damage}, {"isCrit", r.isCrit}, {"isPhysical", r.isPhysical()},
         {"isDodged", r.isDodged}, {"isInstantKill", r.isInstantKill}, {"hits", r.hits},
     };
 }

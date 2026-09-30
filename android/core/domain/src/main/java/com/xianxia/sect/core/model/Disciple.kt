@@ -273,6 +273,18 @@ data class SpiritRoot(
 ) {
     val types: List<String> get() = type.split(",")
 
+    /**
+     * 五行伤害加成的灵根 gate（唯一实现入口，五行属性伤害系统方案 §3.3）：
+     * 灵根集合**含该元素 → 全额生效（1.0）；不含 → 完全不生效（0.0）**。
+     * 纯乘性开关，不做按灵根数量的线性折算；[element] 为 null（物理）恒 1.0——
+     * 物理伤害加成不受灵根 gate（普攻人人物理）。
+     * 空串/未知元素按"不含"处理（0.0）。
+     */
+    fun elementGate(element: String?): Double {
+        if (element == null) return 1.0
+        return if (types.any { it.trim() == element }) 1.0 else 0.0
+    }
+
     val name: String get() {
         val rootNames = types.map { GameConfig.SpiritRoot.get(it.trim()).name }
         return when (rootNames.size) {

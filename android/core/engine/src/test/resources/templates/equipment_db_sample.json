@@ -1,5 +1,5 @@
 {
- "pieceCount": 12,
+ "pieceCount": 36,
  "setPieces": [
   {
    "id": "lietian_HEAD",
@@ -140,11 +140,11 @@
    ]
   },
   {
-   "id": "zifu_HEAD",
-   "setId": "zifu",
+   "id": "gengjin_HEAD",
+   "setId": "gengjin",
    "part": "HEAD",
-   "name": "紫府玄冥·灵冠",
-   "description": "紫府玄冥套装灵冠，玄冥紫气灌顶凝神",
+   "name": "庚金白虎·灵冠",
+   "description": "庚金白虎套装灵冠，白虎金睛洞察秋毫",
    "priceByRarity": [
     4000,
     16000,
@@ -163,11 +163,11 @@
    ]
   },
   {
-   "id": "zifu_BODY",
-   "setId": "zifu",
+   "id": "gengjin_BODY",
+   "setId": "gengjin",
    "part": "BODY",
-   "name": "紫府玄冥·玄袍",
-   "description": "紫府玄冥套装玄袍，玄冥之雾不侵五行",
+   "name": "庚金白虎·法袍",
+   "description": "庚金白虎套装法袍，金气织体刀兵不侵",
    "priceByRarity": [
     4000,
     16000,
@@ -186,11 +186,11 @@
    ]
   },
   {
-   "id": "zifu_HANDS",
-   "setId": "zifu",
+   "id": "gengjin_HANDS",
+   "setId": "gengjin",
    "part": "HANDS",
-   "name": "紫府玄冥·灵手",
-   "description": "紫府玄冥套装灵手，灵韵凝掌法随念动",
+   "name": "庚金白虎·灵护",
+   "description": "庚金白虎套装灵护，锐金凝爪裂金断玉",
    "priceByRarity": [
     4000,
     16000,
@@ -209,11 +209,11 @@
    ]
   },
   {
-   "id": "zifu_FEET",
-   "setId": "zifu",
+   "id": "gengjin_FEET",
+   "setId": "gengjin",
    "part": "FEET",
-   "name": "紫府玄冥·云履",
-   "description": "紫府玄冥套装云履，踏云御风玄冥相随",
+   "name": "庚金白虎·云履",
+   "description": "庚金白虎套装云履，虎啸风生金戈疾行",
    "priceByRarity": [
     4000,
     16000,
@@ -232,11 +232,11 @@
    ]
   },
   {
-   "id": "zifu_WEAPON",
-   "setId": "zifu",
+   "id": "gengjin_WEAPON",
+   "setId": "gengjin",
    "part": "WEAPON",
-   "name": "紫府玄冥·灵剑",
-   "description": "紫府玄冥套装灵剑，紫电青霜斩尽妖邪",
+   "name": "庚金白虎·灵兵",
+   "description": "庚金白虎套装灵兵，庚金锋芒斩伐万邪",
    "priceByRarity": [
     4000,
     16000,
@@ -255,11 +255,563 @@
    ]
   },
   {
-   "id": "zifu_LEGS",
-   "setId": "zifu",
+   "id": "gengjin_LEGS",
+   "setId": "gengjin",
    "part": "LEGS",
-   "name": "紫府玄冥·灵甲",
-   "description": "紫府玄冥套装灵甲，玄光护腿百法不侵",
+   "name": "庚金白虎·护胫",
+   "description": "庚金白虎套装护胫，金甲裹腿坚逾精钢",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_HEAD",
+   "setId": "qingmu",
+   "part": "HEAD",
+   "name": "青木长生·灵冠",
+   "description": "青木长生套装灵冠，青木灵韵清心明神",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_BODY",
+   "setId": "qingmu",
+   "part": "BODY",
+   "name": "青木长生·法袍",
+   "description": "青木长生套装法袍，生生不息缠枝为衣",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_HANDS",
+   "setId": "qingmu",
+   "part": "HANDS",
+   "name": "青木长生·灵护",
+   "description": "青木长生套装灵护，藤蔓缠腕生机盎然",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_FEET",
+   "setId": "qingmu",
+   "part": "FEET",
+   "name": "青木长生·云履",
+   "description": "青木长生套装云履，踏叶而行轻若春风",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_WEAPON",
+   "setId": "qingmu",
+   "part": "WEAPON",
+   "name": "青木长生·灵兵",
+   "description": "青木长生套装灵兵，万木之灵催芽成兵",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "qingmu_LEGS",
+   "setId": "qingmu",
+   "part": "LEGS",
+   "name": "青木长生·护胫",
+   "description": "青木长生套装护胫，根须盘结稳如古树",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_HEAD",
+   "setId": "xuanshui",
+   "part": "HEAD",
+   "name": "玄水寒渊·灵冠",
+   "description": "玄水寒渊套装灵冠，寒渊之息凝神静念",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_BODY",
+   "setId": "xuanshui",
+   "part": "BODY",
+   "name": "玄水寒渊·法袍",
+   "description": "玄水寒渊套装法袍，玄水环身百法不沾",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_HANDS",
+   "setId": "xuanshui",
+   "part": "HANDS",
+   "name": "玄水寒渊·灵护",
+   "description": "玄水寒渊套装灵护，寒潮覆掌冻结万机",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_FEET",
+   "setId": "xuanshui",
+   "part": "FEET",
+   "name": "玄水寒渊·云履",
+   "description": "玄水寒渊套装云履，凌波微步踏水无痕",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_WEAPON",
+   "setId": "xuanshui",
+   "part": "WEAPON",
+   "name": "玄水寒渊·灵兵",
+   "description": "玄水寒渊套装灵兵，玄冰凝刃寒光凛冽",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "xuanshui_LEGS",
+   "setId": "xuanshui",
+   "part": "LEGS",
+   "name": "玄水寒渊·护胫",
+   "description": "玄水寒渊套装护胫，渊水绕腿暗流涌动",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_HEAD",
+   "setId": "lihuo",
+   "part": "HEAD",
+   "name": "离火焚天·灵冠",
+   "description": "离火焚天套装灵冠，离火真焰炼神涤魄",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_BODY",
+   "setId": "lihuo",
+   "part": "BODY",
+   "name": "离火焚天·法袍",
+   "description": "离火焚天套装法袍，炎纹织体烈焰随身",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_HANDS",
+   "setId": "lihuo",
+   "part": "HANDS",
+   "name": "离火焚天·灵护",
+   "description": "离火焚天套装灵护，火灵附掌焚尽八荒",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_FEET",
+   "setId": "lihuo",
+   "part": "FEET",
+   "name": "离火焚天·云履",
+   "description": "离火焚天套装云履，踏火而行燎原疾影",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_WEAPON",
+   "setId": "lihuo",
+   "part": "WEAPON",
+   "name": "离火焚天·灵兵",
+   "description": "离火焚天套装灵兵，焚天之焰斩灭诸邪",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "lihuo_LEGS",
+   "setId": "lihuo",
+   "part": "LEGS",
+   "name": "离火焚天·护胫",
+   "description": "离火焚天套装护胫，火甲缠腿烈焰不熄",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_HEAD",
+   "setId": "houtu",
+   "part": "HEAD",
+   "name": "厚土镇岳·灵冠",
+   "description": "厚土镇岳套装灵冠，厚土之德沉稳心神",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_BODY",
+   "setId": "houtu",
+   "part": "BODY",
+   "name": "厚土镇岳·法袍",
+   "description": "厚土镇岳套装法袍，山岳之甲岿然不动",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_HANDS",
+   "setId": "houtu",
+   "part": "HANDS",
+   "name": "厚土镇岳·灵护",
+   "description": "厚土镇岳套装灵护，镇岳之力撼地崩山",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_FEET",
+   "setId": "houtu",
+   "part": "FEET",
+   "name": "厚土镇岳·云履",
+   "description": "厚土镇岳套装云履，踏地生根移山填谷",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_WEAPON",
+   "setId": "houtu",
+   "part": "WEAPON",
+   "name": "厚土镇岳·灵兵",
+   "description": "厚土镇岳套装灵兵，崩岳之锋无坚不摧",
+   "priceByRarity": [
+    4000,
+    16000,
+    80000,
+    480000,
+    3360000,
+    26880000
+   ],
+   "minRealmByRarity": [
+    9,
+    7,
+    6,
+    5,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "houtu_LEGS",
+   "setId": "houtu",
+   "part": "LEGS",
+   "name": "厚土镇岳·护胫",
+   "description": "厚土镇岳套装护胫，大地之基重若千钧",
    "priceByRarity": [
     4000,
     16000,
@@ -303,24 +855,116 @@
    ]
   },
   {
-   "id": "zifu",
-   "name": "紫府玄冥",
-   "school": "MAGIC",
+   "id": "gengjin",
+   "name": "庚金白虎",
+   "school": "METAL",
    "bonus2": [
     {
-     "stat": "MAGIC_DAMAGE_PCT",
+     "stat": "METAL_DAMAGE_PCT",
      "value": 0.1
     }
    ],
    "bonus4": [
     {
-     "stat": "CRIT_DAMAGE",
-     "value": 0.25
+     "stat": "CRIT_RATE",
+     "value": 0.12
     }
    ],
    "bonus6": [
     {
-     "stat": "MAGIC_DAMAGE_PCT",
+     "stat": "METAL_DAMAGE_PCT",
+     "value": 0.2
+    }
+   ]
+  },
+  {
+   "id": "qingmu",
+   "name": "青木长生",
+   "school": "WOOD",
+   "bonus2": [
+    {
+     "stat": "WOOD_DAMAGE_PCT",
+     "value": 0.1
+    }
+   ],
+   "bonus4": [
+    {
+     "stat": "CRIT_RATE",
+     "value": 0.12
+    }
+   ],
+   "bonus6": [
+    {
+     "stat": "WOOD_DAMAGE_PCT",
+     "value": 0.2
+    }
+   ]
+  },
+  {
+   "id": "xuanshui",
+   "name": "玄水寒渊",
+   "school": "WATER",
+   "bonus2": [
+    {
+     "stat": "WATER_DAMAGE_PCT",
+     "value": 0.1
+    }
+   ],
+   "bonus4": [
+    {
+     "stat": "CRIT_RATE",
+     "value": 0.12
+    }
+   ],
+   "bonus6": [
+    {
+     "stat": "WATER_DAMAGE_PCT",
+     "value": 0.2
+    }
+   ]
+  },
+  {
+   "id": "lihuo",
+   "name": "离火焚天",
+   "school": "FIRE",
+   "bonus2": [
+    {
+     "stat": "FIRE_DAMAGE_PCT",
+     "value": 0.1
+    }
+   ],
+   "bonus4": [
+    {
+     "stat": "CRIT_RATE",
+     "value": 0.12
+    }
+   ],
+   "bonus6": [
+    {
+     "stat": "FIRE_DAMAGE_PCT",
+     "value": 0.2
+    }
+   ]
+  },
+  {
+   "id": "houtu",
+   "name": "厚土镇岳",
+   "school": "EARTH",
+   "bonus2": [
+    {
+     "stat": "EARTH_DAMAGE_PCT",
+     "value": 0.1
+    }
+   ],
+   "bonus4": [
+    {
+     "stat": "CRIT_RATE",
+     "value": 0.12
+    }
+   ],
+   "bonus6": [
+    {
+     "stat": "EARTH_DAMAGE_PCT",
      "value": 0.2
     }
    ]
@@ -417,7 +1061,7 @@
  "subAffixes": [
   {
    "stat": "ATTACK",
-   "weight": 13,
+   "weight": 12,
    "tierValues": [
     1,
     3,
@@ -429,7 +1073,7 @@
   },
   {
    "stat": "DEFENSE",
-   "weight": 13,
+   "weight": 12,
    "tierValues": [
     1,
     3,
@@ -441,7 +1085,7 @@
   },
   {
    "stat": "HP",
-   "weight": 14,
+   "weight": 13,
    "tierValues": [
     14,
     40,
@@ -453,7 +1097,7 @@
   },
   {
    "stat": "CRIT_RATE",
-   "weight": 15,
+   "weight": 13,
    "tierValues": [
     0.002,
     0.003,
@@ -465,7 +1109,7 @@
   },
   {
    "stat": "CRIT_DAMAGE",
-   "weight": 15,
+   "weight": 13,
    "tierValues": [
     0.004,
     0.006,
@@ -477,26 +1121,74 @@
   },
   {
    "stat": "PHYSICAL_DAMAGE_PCT",
-   "weight": 15,
+   "weight": 7,
    "tierValues": [
-    0.004,
     0.006,
-    0.008,
+    0.009,
     0.012,
-    0.016,
-    0.02
+    0.018,
+    0.024,
+    0.03
    ]
   },
   {
-   "stat": "MAGIC_DAMAGE_PCT",
-   "weight": 15,
+   "stat": "METAL_DAMAGE_PCT",
+   "weight": 6,
    "tierValues": [
-    0.004,
     0.006,
-    0.008,
+    0.009,
     0.012,
-    0.016,
-    0.02
+    0.018,
+    0.024,
+    0.03
+   ]
+  },
+  {
+   "stat": "WOOD_DAMAGE_PCT",
+   "weight": 6,
+   "tierValues": [
+    0.006,
+    0.009,
+    0.012,
+    0.018,
+    0.024,
+    0.03
+   ]
+  },
+  {
+   "stat": "WATER_DAMAGE_PCT",
+   "weight": 6,
+   "tierValues": [
+    0.006,
+    0.009,
+    0.012,
+    0.018,
+    0.024,
+    0.03
+   ]
+  },
+  {
+   "stat": "FIRE_DAMAGE_PCT",
+   "weight": 6,
+   "tierValues": [
+    0.006,
+    0.009,
+    0.012,
+    0.018,
+    0.024,
+    0.03
+   ]
+  },
+  {
+   "stat": "EARTH_DAMAGE_PCT",
+   "weight": 6,
+   "tierValues": [
+    0.006,
+    0.009,
+    0.012,
+    0.018,
+    0.024,
+    0.03
    ]
   }
  ]

@@ -85,9 +85,9 @@ fun BattleCalculator.generateBattleMessage(
         return "$targetName 闪避了 $attackerName 的攻击！"
     }
 
-    val damageType = if (result.isPhysical) "物理" else "法术"
+    val damageTypeName = result.damageType.displayName
     val skillPrefix = result.skillName?.let { "使用[$it] " } ?: ""
-    var message = "$attackerName ${skillPrefix}对 $targetName 造成 ${result.damage} 点${damageType}伤害"
+    var message = "$attackerName ${skillPrefix}对 $targetName 造成 ${result.damage} 点${damageTypeName}伤害"
 
     if (result.isCrit) message += "（暴击！）"
     if (result.hits > 1) message += "（${result.hits}连击）"

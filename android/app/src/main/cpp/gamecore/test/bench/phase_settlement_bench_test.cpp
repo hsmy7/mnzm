@@ -95,9 +95,13 @@ Disciple makeBenchDisciple(int32_t n) {
 /// 全量场景：每弟子 1 功法实例 + 2 件已装备实例（实例 id 全局唯一——
 /// 实例 id 唯一不变量；修炼/熟练度/孕养全链路活跃）
 void populateInstances(GameState& state) {
-    state.disciples.manualIds.resize(kBenchDisciples);
-    state.disciples.weaponIds.resize(kBenchDisciples);
-    for (int32_t n = 1; n <= kBenchDisciples; ++n) {
+    // 列长必须 == 弟子行数（DiscipleStore 等长列不变量）——按 ids 实际行数取，
+    // TimingPerPhase 以 n=100/1000/5000 复用本装配（此前固定 5000 与小场景列长不匹配）
+    const int32_t dn = static_cast<int32_t>(state.disciples.ids.size());
+    state.disciples.manualIds.resize(dn);
+    state.disciples.weaponIds.resize(dn);
+    state.disciples.bodyIds.resize(dn);
+    for (int32_t n = 1; n <= dn; ++n) {
         const std::string id = std::to_string(n);
 
         ManualInstance mn;

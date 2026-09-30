@@ -31,7 +31,7 @@ inline nlohmann::json skillToJson(const CombatSkill& s) {
     nlohmann::json j = {
         {"name", s.name}, {"skillType", s.skillType == SkillType::kAttack ? "ATTACK"
                                                                           : "SUPPORT"},
-        {"damageType", s.damageType == DamageType::kPhysical ? "PHYSICAL" : "MAGIC"},
+        {"damageType", damageTypeName(s.damageType)},
         {"damageMultiplier", s.damageMultiplier}, {"mpCost", s.mpCost},
         {"cooldown", s.cooldown}, {"hits", s.hits}, {"healPercent", s.healPercent},
         {"healFixed", s.healFixed}, {"healType", s.healType == HealType::kHp ? "HP" : "MP"},
@@ -58,10 +58,17 @@ inline nlohmann::json combatantToJson(const Combatant& c) {
         {"side", c.side == CombatantSide::kAttacker ? "ATTACKER" : "DEFENDER"},
         {"hp", c.hp}, {"maxHp", c.maxHp}, {"mp", c.mp}, {"maxMp", c.maxMp},
         {"attack", c.attack}, {"defense", c.defense},
-        {"innateDamageType", c.innateDamageType == DamageType::kMagic ? "MAGIC" : "PHYSICAL"},
-        {"physicalDamageBonus", c.physicalDamageBonus}, {"magicDamageBonus", c.magicDamageBonus},
+        {"innateDamageType", damageTypeName(c.innateDamageType)},
+        // 类型通道 12 桶（物理 + 五行 × 增伤/减伤；与 Kotlin BattleJsonCodec 逐键对应）
+        {"physicalDamageBonus", c.physicalDamageBonus}, {"metalDamageBonus", c.metalDamageBonus},
+        {"woodDamageBonus", c.woodDamageBonus}, {"waterDamageBonus", c.waterDamageBonus},
+        {"fireDamageBonus", c.fireDamageBonus}, {"earthDamageBonus", c.earthDamageBonus},
         {"physicalDamageReduction", c.physicalDamageReduction},
-        {"magicDamageReduction", c.magicDamageReduction},
+        {"metalDamageReduction", c.metalDamageReduction},
+        {"woodDamageReduction", c.woodDamageReduction},
+        {"waterDamageReduction", c.waterDamageReduction},
+        {"fireDamageReduction", c.fireDamageReduction},
+        {"earthDamageReduction", c.earthDamageReduction},
         {"speed", c.speed}, {"critRate", c.critRate},
         {"critDamageBonus", c.critDamageBonus},
         {"realm", c.realm}, {"realmLayer", c.realmLayer}, {"element", c.element},
@@ -93,8 +100,7 @@ inline CombatSkill skillFromJson(const nlohmann::json& j) {
     s.name = j.value("name", "");
     s.skillType = j.value("skillType", "ATTACK") == "SUPPORT" ? SkillType::kSupport
                                                               : SkillType::kAttack;
-    s.damageType = j.value("damageType", "PHYSICAL") == "MAGIC" ? DamageType::kMagic
-                                                                : DamageType::kPhysical;
+    s.damageType = damageTypeFromName(j.value("damageType", "PHYSICAL"));
     s.damageMultiplier = j.value("damageMultiplier", 1.0);
     s.mpCost = j.value("mpCost", 0);
     s.cooldown = j.value("cooldown", 0);
@@ -135,13 +141,19 @@ inline Combatant combatantFromJson(const nlohmann::json& j) {    Combatant c;
     c.maxMp = j.value("maxMp", 0);
     c.attack = j.value("attack", 0);
     c.defense = j.value("defense", 0);
-    c.innateDamageType =
-        j.value("innateDamageType", "PHYSICAL") == "MAGIC" ? DamageType::kMagic
-                                                           : DamageType::kPhysical;
+    c.innateDamageType = damageTypeFromName(j.value("innateDamageType", "PHYSICAL"));
     c.physicalDamageBonus = j.value("physicalDamageBonus", 0.0);
-    c.magicDamageBonus = j.value("magicDamageBonus", 0.0);
+    c.metalDamageBonus = j.value("metalDamageBonus", 0.0);
+    c.woodDamageBonus = j.value("woodDamageBonus", 0.0);
+    c.waterDamageBonus = j.value("waterDamageBonus", 0.0);
+    c.fireDamageBonus = j.value("fireDamageBonus", 0.0);
+    c.earthDamageBonus = j.value("earthDamageBonus", 0.0);
     c.physicalDamageReduction = j.value("physicalDamageReduction", 0.0);
-    c.magicDamageReduction = j.value("magicDamageReduction", 0.0);
+    c.metalDamageReduction = j.value("metalDamageReduction", 0.0);
+    c.woodDamageReduction = j.value("woodDamageReduction", 0.0);
+    c.waterDamageReduction = j.value("waterDamageReduction", 0.0);
+    c.fireDamageReduction = j.value("fireDamageReduction", 0.0);
+    c.earthDamageReduction = j.value("earthDamageReduction", 0.0);
     c.speed = j.value("speed", 0);
     c.critRate = j.value("critRate", 0.05);
     c.critDamageBonus = j.value("critDamageBonus", 0.0);

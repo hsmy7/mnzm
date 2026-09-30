@@ -169,8 +169,13 @@ inline CombatSkill manualCombatSkill(const gamecore::state::ManualBase& manual) 
     CombatSkill s;
     s.name = manual.skillName.value_or("");
     s.skillType = manual.skillType == "support" ? SkillType::kSupport : SkillType::kAttack;
-    s.damageType = manual.skillDamageType == "magic" ? DamageType::kMagic
-                                                     : DamageType::kPhysical;
+    // 功法自带元素（五行属性伤害系统 P3，静态表值域小写）；未知与退役段（"magic"）兜底物理
+    s.damageType = manual.skillDamageType == "metal" ? DamageType::kMetal
+        : manual.skillDamageType == "wood" ? DamageType::kWood
+        : manual.skillDamageType == "water" ? DamageType::kWater
+        : manual.skillDamageType == "fire" ? DamageType::kFire
+        : manual.skillDamageType == "earth" ? DamageType::kEarth
+        : DamageType::kPhysical;
     s.damageMultiplier = manual.skillDamageMultiplier;
     s.mpCost = manual.skillMpCost;
     s.cooldown = manual.skillCooldown;
@@ -425,10 +430,7 @@ inline gamecore::battle::Combatant createBeast(int32_t beastRealm, int32_t index
     beast.defense = scaled(rs.defense, type.defMod) * 2;
     beast.speed = scaled(rs.speed, type.speedMod);
     beast.critRate = 0.05 + realmIndex * 0.01;
-    beast.innateDamageType =
-        (type.element == "metal" || type.element == "earth")
-            ? gamecore::battle::DamageType::kPhysical
-            : gamecore::battle::DamageType::kMagic;
+    // 普攻恒物理（五行属性伤害系统 P3）：innateDamageType 退役段不再派生
     beast.realm = realmIndex;
     beast.realmLayer = 5;
     beast.element = type.element;

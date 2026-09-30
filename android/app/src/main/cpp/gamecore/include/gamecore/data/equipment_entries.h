@@ -1,5 +1,6 @@
-// 装备 72 条展开条目（B3）——派生逻辑头（非生成件：由 equipment_db.h 的
-// 12 部件 × 品阶 1..6 展开，展开式与 Kotlin EquipmentDatabase.expand 逐字段一致）。
+// 装备 216 条展开条目（五行属性伤害系统）——派生逻辑头（非生成件：由
+// equipment_db.h 的 36 部件 × 品阶 1..6 展开，展开式与 Kotlin
+// EquipmentDatabase.expand 逐字段一致）。
 // AI 轻量实例 / 按部位选件 / 商店与外交贸易查询共用此面。
 #pragma once
 
@@ -11,7 +12,7 @@
 
 namespace gamecore::data {
 
-/// 部件 × 品阶展开后的可生成条目（72 条；Kotlin EquipPieceEntry 镜像）
+/// 部件 × 品阶展开后的可生成条目（216 条；Kotlin EquipPieceEntry 镜像）
 struct EquipPieceEntry {
     std::string id;        // "{pieceId}_r{rarity}"
     std::string pieceId;   // 所属部件 id
@@ -56,7 +57,7 @@ inline const std::vector<EquipPieceEntry>& equipmentEntries() {
     return kEntries;
 }
 
-/// 条目 id → 条目（未命中返回 nullptr；线性扫，72 条规模）
+/// 条目 id → 条目（未命中返回 nullptr；线性扫，216 条规模）
 inline const EquipPieceEntry* equipmentEntryById(const std::string& id) {
     if (id.empty()) return nullptr;
     for (const EquipPieceEntry& e : equipmentEntries()) {

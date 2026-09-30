@@ -55,7 +55,7 @@ TEST(BattleCalculator, GoldenSequenceBasicAttackSeed42) {
     // 黄金值（Kotlin BattleCalculator 同种子输出，DiffBattleCalculatorTest 对拍确认）
     EXPECT_EQ(132, r.damage);
     EXPECT_TRUE(r.isCrit);
-    EXPECT_TRUE(r.isPhysical);
+    EXPECT_TRUE(r.isPhysical());
     EXPECT_FALSE(r.isDodged);
     EXPECT_EQ(1, r.hits);
 }
@@ -93,7 +93,7 @@ TEST(BattleCalculator, GoldenSequenceSkillSeed7) {
     const auto r = gamecore::battle::calculateCombatantDamage(rng, attacker, defender, &skill);
     EXPECT_EQ(452, r.damage);
     EXPECT_FALSE(r.isCrit);
-    EXPECT_TRUE(r.isPhysical);
+    EXPECT_TRUE(r.isPhysical());
     EXPECT_FALSE(r.isDodged);
     EXPECT_EQ(2, r.hits);
 }

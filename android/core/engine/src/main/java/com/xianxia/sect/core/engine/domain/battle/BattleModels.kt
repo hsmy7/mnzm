@@ -33,13 +33,13 @@ data class CombatBuff(
 )
 
 /**
- * 战斗单位（属性单列口径，装备重构 B1 方案 §15）：
- * - 攻防各一列 [attack]/[defense]，物理/法术之分由三条通道承载：
- *   普攻 [innateDamageType]、技能 damageType、类型增伤/减伤分桶
- *   （[physicalDamageBonus]/[magicDamageBonus] + [physicalDamageReduction]/
- *   [magicDamageReduction]，默认 0.0 ⇒ 未配置时与旧公式逐位一致，S19）；
- * - 物法命名的攻防 Buff（PHYSICAL_ATTACK_BOOST 等八类）结算位置迁移为
- *   类型增伤/减伤语义（枚举名不变，见 BattleCalculator.buildDamageZones）。
+ * 战斗单位（属性单列口径，装备重构 B1 方案 §15；五行属性伤害系统扩 6 类型通道）：
+ * - 攻防各一列 [attack]/[defense]，伤害类型由两条通道承载：
+ *   普攻恒 [DamageType.PHYSICAL]、技能按 skill.damageType（功法自带元素，6 值）；
+ * - 类型增伤/减伤各 **6 路**（物理 + 金木水火土，[physicalDamageBonus]..
+ *   [earthDamageReduction]，默认 0.0 ⇒ 未配置时与基准公式逐位一致，S19）。
+ *   五行加成路为灵根 gate 后的生效值（构造期折算）；物法 buff 八类结算语义不变
+ *   （枚举名不变，见 BattleCalculator.buildDamageZones；法术桶为退役段）。
  */
 data class Combatant(
     val id: String,
@@ -51,16 +51,32 @@ data class Combatant(
     val maxMp: Int,
     val attack: Int,
     val defense: Int,
-    /** 普攻伤害类型（弟子按固有属性、妖兽/敌人按种类固定；技能另按 skill.damageType） */
+    /** 退役段（普攻恒物理，方案 P3；旧档兼容保留，禁新读取） */
     val innateDamageType: DamageType = DamageType.PHYSICAL,
-    /** 物理伤害加成（类型增伤桶，攻方；装备/套装等来源，B1 默认 0.0） */
+    /** 物理伤害加成（类型增伤桶，攻方；不受灵根 gate） */
     val physicalDamageBonus: Double = 0.0,
-    /** 法术伤害加成（类型增伤桶，攻方；同上） */
-    val magicDamageBonus: Double = 0.0,
-    /** 物理伤害减免（类型减伤桶，守方；妖兽类型抗性等来源，B1 默认 0.0） */
+    /** 金伤害加成（类型增伤桶，攻方；gate 后值） */
+    val metalDamageBonus: Double = 0.0,
+    /** 木伤害加成（类型增伤桶，攻方；gate 后值） */
+    val woodDamageBonus: Double = 0.0,
+    /** 水伤害加成（类型增伤桶，攻方；gate 后值） */
+    val waterDamageBonus: Double = 0.0,
+    /** 火伤害加成（类型增伤桶，攻方；gate 后值） */
+    val fireDamageBonus: Double = 0.0,
+    /** 土伤害加成（类型增伤桶，攻方；gate 后值） */
+    val earthDamageBonus: Double = 0.0,
+    /** 物理伤害减免（类型减伤桶，守方；妖兽类型抗性等来源） */
     val physicalDamageReduction: Double = 0.0,
-    /** 法术伤害减免（类型减伤桶，守方；同上） */
-    val magicDamageReduction: Double = 0.0,
+    /** 金伤害减免（类型减伤桶，守方） */
+    val metalDamageReduction: Double = 0.0,
+    /** 木伤害减免（类型减伤桶，守方） */
+    val woodDamageReduction: Double = 0.0,
+    /** 水伤害减免（类型减伤桶，守方） */
+    val waterDamageReduction: Double = 0.0,
+    /** 火伤害减免（类型减伤桶，守方） */
+    val fireDamageReduction: Double = 0.0,
+    /** 土伤害减免（类型减伤桶，守方） */
+    val earthDamageReduction: Double = 0.0,
     val speed: Int,
     val critRate: Double,
     /** 暴击伤害加成（B3 接线 D3：暴击时 `critMult = 1 + kCritBaseMultiplier + critDamageBonus`） */
@@ -85,6 +101,28 @@ data class Combatant(
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0
     val mpPercent: Double get() = if (maxMp > 0) mp.toDouble() / maxMp else 0.0
     val hasControlEffect: Boolean get() = buffs.any { it.type == BuffType.STUN || it.type == BuffType.FREEZE }
+
+    /** 按伤害类型取进攻方类型增伤桶（6 路选桶；退役段返回 0.0） */
+    fun typeDamageBonusOf(type: DamageType): Double = when (type) {
+        DamageType.PHYSICAL -> physicalDamageBonus
+        DamageType.METAL -> metalDamageBonus
+        DamageType.WOOD -> woodDamageBonus
+        DamageType.WATER -> waterDamageBonus
+        DamageType.FIRE -> fireDamageBonus
+        DamageType.EARTH -> earthDamageBonus
+        DamageType.MAGIC -> 0.0
+    }
+
+    /** 按伤害类型取防守方类型减伤桶（6 路选桶；退役段返回 0.0） */
+    fun typeDamageReductionOf(type: DamageType): Double = when (type) {
+        DamageType.PHYSICAL -> physicalDamageReduction
+        DamageType.METAL -> metalDamageReduction
+        DamageType.WOOD -> woodDamageReduction
+        DamageType.WATER -> waterDamageReduction
+        DamageType.FIRE -> fireDamageReduction
+        DamageType.EARTH -> earthDamageReduction
+        DamageType.MAGIC -> 0.0
+    }
 
     val effectiveCritRate: Double get() {
         val boost = buffs.filter { it.type == BuffType.CRIT_RATE_BOOST }.sumOf { it.value }
@@ -130,7 +168,8 @@ data class AttackResult(
     val target: Combatant,
     val damage: Int,
     val isCrit: Boolean,
-    val isPhysical: Boolean,
+    /** 本次攻击伤害类型（普攻恒 PHYSICAL、技能按功法元素） */
+    val damageType: DamageType = DamageType.PHYSICAL,
     val isDodged: Boolean = false,
     val isInstantKill: Boolean = false,
     val skillName: String? = null,
@@ -144,7 +183,10 @@ data class AttackResult(
     val newBuffs: List<CombatBuff> = emptyList(),
     val teamBuffs: Map<String, List<CombatBuff>> = emptyMap(),
     val turnAdvancePercent: Double = 0.0
-)
+) {
+    /** 兼容视图：物理类型判定（= [damageType] 是否 [DamageType.PHYSICAL]） */
+    val isPhysical: Boolean get() = damageType.isPhysical
+}
 
 data class BattleSystemResult(
     val battle: Battle,

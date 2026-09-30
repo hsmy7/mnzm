@@ -3,8 +3,8 @@ package com.xianxia.sect.core.registry
 import com.xianxia.sect.core.model.EquipmentSlot
 
 /**
- * 锻造配方（装备重构 B3，方案 §3.8）：旧 73 条部位变体配方收敛为
- * **12 条套装部件配方**（2 套 × 6 部位），按品阶产出。
+ * 锻造配方（装备重构 B3 §3.8；五行属性伤害系统扩 6 套）：部位变体配方收敛为
+ * **36 条套装部件配方**（6 套 × 6 部位），按品阶产出。
  *
  * 产出品阶 = 锻造槽位 tier（由工作弟子锻造职业等级决定），并经
  * `EquipmentFactory.create` 的境界约束单点钳制（0.2-5）；
@@ -57,7 +57,8 @@ object ForgeRecipeDatabase {
 
     private fun m(vararg pairs: Pair<String, Int>): Map<String, Int> = mapOf(*pairs)
 
-    /** 12 条配方（材料表按品阶 1..6；部位材料族沿用旧锻造体系的同族兽材） */
+    /** 36 条配方（6 套 × 6 部位；材料表按品阶 1..6；部位材料族沿用旧锻造体系的同族兽材，
+     *  与套无关——五行属性伤害系统扩 6 套后材料表逐部位同构复用） */
     private val allRecipes = listOf(
         // ── 物理套「裂天罡煞」 ──
         recipe("lietian_HEAD", EquipmentSlot.HEAD, listOf(
@@ -102,43 +103,219 @@ object ForgeRecipeDatabase {
             m("snakeScale4" to 5, "snakeBlood4" to 4, "dragonScale4" to 2),
             m("snakeScale5" to 6, "snakeBlood5" to 5, "dragonScale5" to 3)
         )),
-        // ── 法术套「紫府玄冥」（两套部件的部位池同构 ⇒ 材料表同构，方案 §3.4.2） ──
-        recipe("zifu_HEAD", EquipmentSlot.HEAD, listOf(
+        // ── 金套「庚金白虎」（部位材料族与物理套同构，方案 §3.8） ──
+        recipe("gengjin_HEAD", EquipmentSlot.HEAD, listOf(
             m("bearHide0" to 3, "bearBone0" to 2), m("bearHide1" to 4, "bearBone1" to 3),
             m("bearHide2" to 5, "bearBone2" to 3, "bearCore2" to 2),
             m("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3),
             m("bearHide4" to 6, "bearBone4" to 4, "bearCore4" to 2, "dragonScale4" to 2),
             m("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3)
         )),
-        recipe("zifu_BODY", EquipmentSlot.BODY, listOf(
+        recipe("gengjin_BODY", EquipmentSlot.BODY, listOf(
             m("bearHide0" to 4, "bearBone0" to 2), m("bearHide1" to 5, "bearBone1" to 2),
             m("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2),
             m("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2),
             m("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2),
             m("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3)
         )),
-        recipe("zifu_HANDS", EquipmentSlot.HANDS, listOf(
+        recipe("gengjin_HANDS", EquipmentSlot.HANDS, listOf(
             m("eagleClaw0" to 3, "eagleFeather0" to 2), m("eagleClaw1" to 4, "eagleFeather1" to 3),
             m("eagleFeather2" to 5, "eagleClaw2" to 3, "eagleCore2" to 2),
             m("eagleFeather3" to 6, "eagleClaw3" to 4, "eagleCore3" to 2),
             m("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2),
             m("eagleFeather5" to 7, "eagleClaw5" to 5, "eagleCore5" to 3, "dragonCore5" to 3)
         )),
-        recipe("zifu_FEET", EquipmentSlot.FEET, listOf(
+        recipe("gengjin_FEET", EquipmentSlot.FEET, listOf(
             m("wolfHide0" to 3, "wolfBone0" to 2), m("wolfHide1" to 4, "wolfBone1" to 2),
             m("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2),
             m("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 2),
             m("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2),
             m("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3)
         )),
-        recipe("zifu_WEAPON", EquipmentSlot.WEAPON, listOf(
+        recipe("gengjin_WEAPON", EquipmentSlot.WEAPON, listOf(
             m("tigerBlood0" to 3, "tigerTooth0" to 2), m("tigerBlood1" to 4, "tigerTooth1" to 3),
             m("tigerBlood2" to 5, "tigerTooth2" to 3, "tigerCore2" to 2),
             m("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2),
             m("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2),
             m("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3)
         )),
-        recipe("zifu_LEGS", EquipmentSlot.LEGS, listOf(
+        recipe("gengjin_LEGS", EquipmentSlot.LEGS, listOf(
+            m("snakeBlood0" to 3, "snakeCore0" to 2), m("snakeBlood1" to 4, "snakeCore1" to 2),
+            m("snakeScale2" to 4, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 5, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 5, "snakeBlood4" to 4, "dragonScale4" to 2),
+            m("snakeScale5" to 6, "snakeBlood5" to 5, "dragonScale5" to 3)
+        )),
+
+        // ── 木套「青木长生」（部位材料族与物理套同构，方案 §3.8） ──
+        recipe("qingmu_HEAD", EquipmentSlot.HEAD, listOf( // MARK151
+            m("bearHide0" to 3, "bearBone0" to 2), m("bearHide1" to 4, "bearBone1" to 3),
+            m("bearHide2" to 5, "bearBone2" to 3, "bearCore2" to 2),
+            m("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3),
+            m("bearHide4" to 6, "bearBone4" to 4, "bearCore4" to 2, "dragonScale4" to 2),
+            m("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3)
+        )),
+        recipe("qingmu_BODY", EquipmentSlot.BODY, listOf(
+            m("bearHide0" to 4, "bearBone0" to 2), m("bearHide1" to 5, "bearBone1" to 2),
+            m("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2),
+            m("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("qingmu_HANDS", EquipmentSlot.HANDS, listOf(
+            m("eagleClaw0" to 3, "eagleFeather0" to 2), m("eagleClaw1" to 4, "eagleFeather1" to 3),
+            m("eagleFeather2" to 5, "eagleClaw2" to 3, "eagleCore2" to 2),
+            m("eagleFeather3" to 6, "eagleClaw3" to 4, "eagleCore3" to 2),
+            m("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2),
+            m("eagleFeather5" to 7, "eagleClaw5" to 5, "eagleCore5" to 3, "dragonCore5" to 3)
+        )),
+        recipe("qingmu_FEET", EquipmentSlot.FEET, listOf(
+            m("wolfHide0" to 3, "wolfBone0" to 2), m("wolfHide1" to 4, "wolfBone1" to 2),
+            m("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2),
+            m("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 2),
+            m("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2),
+            m("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("qingmu_WEAPON", EquipmentSlot.WEAPON, listOf(
+            m("tigerBlood0" to 3, "tigerTooth0" to 2), m("tigerBlood1" to 4, "tigerTooth1" to 3),
+            m("tigerBlood2" to 5, "tigerTooth2" to 3, "tigerCore2" to 2),
+            m("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2),
+            m("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2),
+            m("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3)
+        )),
+        recipe("qingmu_LEGS", EquipmentSlot.LEGS, listOf(
+            m("snakeBlood0" to 3, "snakeCore0" to 2), m("snakeBlood1" to 4, "snakeCore1" to 2),
+            m("snakeScale2" to 4, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 5, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 5, "snakeBlood4" to 4, "dragonScale4" to 2),
+            m("snakeScale5" to 6, "snakeBlood5" to 5, "dragonScale5" to 3)
+        )),
+
+        // ── 水套「玄水寒渊」（部位材料族与物理套同构，方案 §3.8） ──
+        recipe("xuanshui_HEAD", EquipmentSlot.HEAD, listOf(
+            m("bearHide0" to 3, "bearBone0" to 2), m("bearHide1" to 4, "bearBone1" to 3),
+            m("bearHide2" to 5, "bearBone2" to 3, "bearCore2" to 2),
+            m("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3),
+            m("bearHide4" to 6, "bearBone4" to 4, "bearCore4" to 2, "dragonScale4" to 2),
+            m("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3)
+        )),
+        recipe("xuanshui_BODY", EquipmentSlot.BODY, listOf(
+            m("bearHide0" to 4, "bearBone0" to 2), m("bearHide1" to 5, "bearBone1" to 2),
+            m("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2),
+            m("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("xuanshui_HANDS", EquipmentSlot.HANDS, listOf(
+            m("eagleClaw0" to 3, "eagleFeather0" to 2), m("eagleClaw1" to 4, "eagleFeather1" to 3),
+            m("eagleFeather2" to 5, "eagleClaw2" to 3, "eagleCore2" to 2),
+            m("eagleFeather3" to 6, "eagleClaw3" to 4, "eagleCore3" to 2),
+            m("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2),
+            m("eagleFeather5" to 7, "eagleClaw5" to 5, "eagleCore5" to 3, "dragonCore5" to 3)
+        )),
+        recipe("xuanshui_FEET", EquipmentSlot.FEET, listOf(
+            m("wolfHide0" to 3, "wolfBone0" to 2), m("wolfHide1" to 4, "wolfBone1" to 2),
+            m("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2),
+            m("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 2),
+            m("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2),
+            m("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("xuanshui_WEAPON", EquipmentSlot.WEAPON, listOf(
+            m("tigerBlood0" to 3, "tigerTooth0" to 2), m("tigerBlood1" to 4, "tigerTooth1" to 3),
+            m("tigerBlood2" to 5, "tigerTooth2" to 3, "tigerCore2" to 2),
+            m("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2),
+            m("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2),
+            m("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3)
+        )),
+        recipe("xuanshui_LEGS", EquipmentSlot.LEGS, listOf(
+            m("snakeBlood0" to 3, "snakeCore0" to 2), m("snakeBlood1" to 4, "snakeCore1" to 2),
+            m("snakeScale2" to 4, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 5, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 5, "snakeBlood4" to 4, "dragonScale4" to 2),
+            m("snakeScale5" to 6, "snakeBlood5" to 5, "dragonScale5" to 3)
+        )),
+
+        // ── 火套「离火焚天」（部位材料族与物理套同构，方案 §3.8） ──
+        recipe("lihuo_HEAD", EquipmentSlot.HEAD, listOf(
+            m("bearHide0" to 3, "bearBone0" to 2), m("bearHide1" to 4, "bearBone1" to 3),
+            m("bearHide2" to 5, "bearBone2" to 3, "bearCore2" to 2),
+            m("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3),
+            m("bearHide4" to 6, "bearBone4" to 4, "bearCore4" to 2, "dragonScale4" to 2),
+            m("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3)
+        )),
+        recipe("lihuo_BODY", EquipmentSlot.BODY, listOf(
+            m("bearHide0" to 4, "bearBone0" to 2), m("bearHide1" to 5, "bearBone1" to 2),
+            m("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2),
+            m("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("lihuo_HANDS", EquipmentSlot.HANDS, listOf(
+            m("eagleClaw0" to 3, "eagleFeather0" to 2), m("eagleClaw1" to 4, "eagleFeather1" to 3),
+            m("eagleFeather2" to 5, "eagleClaw2" to 3, "eagleCore2" to 2),
+            m("eagleFeather3" to 6, "eagleClaw3" to 4, "eagleCore3" to 2),
+            m("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2),
+            m("eagleFeather5" to 7, "eagleClaw5" to 5, "eagleCore5" to 3, "dragonCore5" to 3)
+        )),
+        recipe("lihuo_FEET", EquipmentSlot.FEET, listOf(
+            m("wolfHide0" to 3, "wolfBone0" to 2), m("wolfHide1" to 4, "wolfBone1" to 2),
+            m("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2),
+            m("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 2),
+            m("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2),
+            m("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("lihuo_WEAPON", EquipmentSlot.WEAPON, listOf(
+            m("tigerBlood0" to 3, "tigerTooth0" to 2), m("tigerBlood1" to 4, "tigerTooth1" to 3),
+            m("tigerBlood2" to 5, "tigerTooth2" to 3, "tigerCore2" to 2),
+            m("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2),
+            m("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2),
+            m("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3)
+        )),
+        recipe("lihuo_LEGS", EquipmentSlot.LEGS, listOf(
+            m("snakeBlood0" to 3, "snakeCore0" to 2), m("snakeBlood1" to 4, "snakeCore1" to 2),
+            m("snakeScale2" to 4, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 5, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 5, "snakeBlood4" to 4, "dragonScale4" to 2),
+            m("snakeScale5" to 6, "snakeBlood5" to 5, "dragonScale5" to 3)
+        )),
+
+        // ── 土套「厚土镇岳」（部位材料族与物理套同构，方案 §3.8） ──
+        recipe("houtu_HEAD", EquipmentSlot.HEAD, listOf(
+            m("bearHide0" to 3, "bearBone0" to 2), m("bearHide1" to 4, "bearBone1" to 3),
+            m("bearHide2" to 5, "bearBone2" to 3, "bearCore2" to 2),
+            m("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3),
+            m("bearHide4" to 6, "bearBone4" to 4, "bearCore4" to 2, "dragonScale4" to 2),
+            m("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3)
+        )),
+        recipe("houtu_BODY", EquipmentSlot.BODY, listOf(
+            m("bearHide0" to 4, "bearBone0" to 2), m("bearHide1" to 5, "bearBone1" to 2),
+            m("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2),
+            m("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2),
+            m("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2),
+            m("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("houtu_HANDS", EquipmentSlot.HANDS, listOf(
+            m("eagleClaw0" to 3, "eagleFeather0" to 2), m("eagleClaw1" to 4, "eagleFeather1" to 3),
+            m("eagleFeather2" to 5, "eagleClaw2" to 3, "eagleCore2" to 2),
+            m("eagleFeather3" to 6, "eagleClaw3" to 4, "eagleCore3" to 2),
+            m("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2),
+            m("eagleFeather5" to 7, "eagleClaw5" to 5, "eagleCore5" to 3, "dragonCore5" to 3)
+        )),
+        recipe("houtu_FEET", EquipmentSlot.FEET, listOf(
+            m("wolfHide0" to 3, "wolfBone0" to 2), m("wolfHide1" to 4, "wolfBone1" to 2),
+            m("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2),
+            m("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 2),
+            m("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2),
+            m("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3)
+        )),
+        recipe("houtu_WEAPON", EquipmentSlot.WEAPON, listOf(
+            m("tigerBlood0" to 3, "tigerTooth0" to 2), m("tigerBlood1" to 4, "tigerTooth1" to 3),
+            m("tigerBlood2" to 5, "tigerTooth2" to 3, "tigerCore2" to 2),
+            m("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2),
+            m("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2),
+            m("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3)
+        )),
+        recipe("houtu_LEGS", EquipmentSlot.LEGS, listOf(
             m("snakeBlood0" to 3, "snakeCore0" to 2), m("snakeBlood1" to 4, "snakeCore1" to 2),
             m("snakeScale2" to 4, "snakeBlood2" to 3, "snakeCore2" to 2),
             m("snakeScale3" to 5, "snakeBlood3" to 4, "snakeCore3" to 2),
@@ -150,7 +327,7 @@ object ForgeRecipeDatabase {
     fun getAllRecipes(): List<ForgeRecipe> = allRecipes
 
     /**
-     * 可锻造配方（全部 12 条恒全量，按 tier 面向产出）。
+     * 可锻造配方（全部 36 条恒全量，按 tier 面向产出）。
      */
     @Suppress("UnusedParameter") // B3 退役占位：配方不再按品阶上限过滤，产出品阶由槽位 tier 决定；
     // 保留形参维持签名契约，恒全量行为由 ForgeRecipeDatabaseTest.getCraftableRecipes_alwaysReturnsAll 多值守卫

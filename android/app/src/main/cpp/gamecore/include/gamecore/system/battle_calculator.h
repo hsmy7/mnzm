@@ -234,11 +234,21 @@ struct Combatant {
     //（普攻 innateDamageType / 技能 damageType / 类型增减伤分桶，默认 0 ⇒ S19）
     int32_t attack = 0;
     int32_t defense = 0;
+    // 退役段（普攻恒物理，五行属性伤害系统 P3；旧协议兼容保留，禁新读取）
     DamageType innateDamageType = DamageType::kPhysical;
+    // 类型通道 12 桶（物理 + 五行 × 增伤/减伤；五行增伤为灵根 gate 后生效值）
     double physicalDamageBonus = 0.0;
-    double magicDamageBonus = 0.0;
+    double metalDamageBonus = 0.0;
+    double woodDamageBonus = 0.0;
+    double waterDamageBonus = 0.0;
+    double fireDamageBonus = 0.0;
+    double earthDamageBonus = 0.0;
     double physicalDamageReduction = 0.0;
-    double magicDamageReduction = 0.0;
+    double metalDamageReduction = 0.0;
+    double woodDamageReduction = 0.0;
+    double waterDamageReduction = 0.0;
+    double fireDamageReduction = 0.0;
+    double earthDamageReduction = 0.0;
     int32_t speed = 0;
     double critRate = 0.05;
     // 暴击伤害加成（B3 接线 D3：暴击时 critMult = 1 + 基础暴伤 + 本字段；
@@ -254,6 +264,30 @@ struct Combatant {
     bool isDead() const { return hp <= 0; }
     double hpPercent() const { return maxHp > 0 ? static_cast<double>(hp) / maxHp : 0.0; }
     double mpPercent() const { return maxMp > 0 ? static_cast<double>(mp) / maxMp : 0.0; }
+    // 按伤害类型取进攻方类型增伤桶（6 路选桶；退役段返回 0.0）
+    double typeDamageBonusOf(DamageType t) const {
+        switch (t) {
+            case DamageType::kPhysical: return physicalDamageBonus;
+            case DamageType::kMetal: return metalDamageBonus;
+            case DamageType::kWood: return woodDamageBonus;
+            case DamageType::kWater: return waterDamageBonus;
+            case DamageType::kFire: return fireDamageBonus;
+            case DamageType::kEarth: return earthDamageBonus;
+            default: return 0.0;
+        }
+    }
+    // 按伤害类型取防守方类型减伤桶（6 路选桶；退役段返回 0.0）
+    double typeDamageReductionOf(DamageType t) const {
+        switch (t) {
+            case DamageType::kPhysical: return physicalDamageReduction;
+            case DamageType::kMetal: return metalDamageReduction;
+            case DamageType::kWood: return woodDamageReduction;
+            case DamageType::kWater: return waterDamageReduction;
+            case DamageType::kFire: return fireDamageReduction;
+            case DamageType::kEarth: return earthDamageReduction;
+            default: return 0.0;
+        }
+    }
     bool hasControlEffect() const {
         for (const auto& b : buffs) {
             if (b.type == BuffType::kStun || b.type == BuffType::kFreeze) return true;
@@ -370,13 +404,10 @@ inline std::optional<DamageResult> tryInstantKill(const Combatant& attacker,
                           defender.realmLayer)) {
         return std::nullopt;
     }
-    const bool isPhysical =
-        skill ? skill->damageType == DamageType::kPhysical
-              : attacker.innateDamageType == DamageType::kPhysical;
     DamageResult r;
     r.damage = std::max(0, defender.maxHp);  // T-C2：maxHp 篡改钳制
     r.isCrit = false;
-    r.isPhysical = isPhysical;
+    r.damageType = skill ? skill->damageType : DamageType::kPhysical;
     r.isDodged = false;
     r.isInstantKill = true;
     r.hits = skill ? skill->hits : 1;
@@ -397,9 +428,10 @@ inline std::optional<DamageResult> tryDodge(const Combatant& attacker,
     DamageResult r;
     r.damage = 0;
     r.isCrit = false;
-    r.isPhysical = isSkillAttack
-        ? (skill ? skill->damageType == DamageType::kPhysical : true)
-        : attacker.innateDamageType == DamageType::kPhysical;
+    // 普攻恒物理（五行属性伤害系统 P3），技能按功法自带元素
+    r.damageType = isSkillAttack
+        ? (skill ? skill->damageType : DamageType::kPhysical)
+        : DamageType::kPhysical;
     r.isDodged = true;
     r.hits = skill ? skill->hits : 1;
     return r;
@@ -414,10 +446,10 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
                                           const DamageZones* zones,
                                           bool isSkillAttack,
                                           rng::DeterministicRng& rng) {
-    // 单列口径（B1）：技能按 skill->damageType、普攻按固有伤害属性
-    const bool isPhysical = isSkillAttack
-        ? (skill ? skill->damageType == DamageType::kPhysical : true)
-        : attacker.innateDamageType == DamageType::kPhysical;
+    // 五行属性伤害系统（P3/E3）：普攻恒物理（与灵根无关），技能按功法自带元素
+    const DamageType damageType = isSkillAttack
+        ? (skill ? skill->damageType : DamageType::kPhysical)
+        : DamageType::kPhysical;
     const int32_t attack = attacker.attack;
     const int32_t defense = defender.defense;
 
@@ -426,13 +458,16 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
     const double variance = calculateDamageVariance(rng);
 
     DamageZones baseZones = zones ? *zones : buildDamageZones(attacker, &defender);
-    // 类型通道选桶合并（固有类型桶 + buff 分桶 → 结算位）+ damageModifier 注入
+    // 类型通道选桶合并（六路固有桶 + buff 分桶 → 结算位）+ damageModifier 注入；
+    // 物理桶附加物理 buff 分桶，五行类型无 buff 分桶（与 Kotlin mergeTypeChannels 同式）
     baseZones.typeDamageBonus =
-        (isPhysical ? attacker.physicalDamageBonus : attacker.magicDamageBonus) +
-        (isPhysical ? baseZones.physicalAttackBuffs : baseZones.magicAttackBuffs);
+        attacker.typeDamageBonusOf(damageType) +
+        (damageType == DamageType::kPhysical ? baseZones.physicalAttackBuffs
+            : (damageType == DamageType::kMagic ? baseZones.magicAttackBuffs : 0.0));
     baseZones.typeDamageReduction =
-        (isPhysical ? defender.physicalDamageReduction : defender.magicDamageReduction) +
-        (isPhysical ? baseZones.physicalDefenseBuffs : baseZones.magicDefenseBuffs);
+        defender.typeDamageReductionOf(damageType) +
+        (damageType == DamageType::kPhysical ? baseZones.physicalDefenseBuffs
+            : (damageType == DamageType::kMagic ? baseZones.magicDefenseBuffs : 0.0));
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
     // 多段伤害：单段 × 段数（Long 防溢出；hits 篡改钳制 1）
@@ -446,7 +481,7 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
     DamageResult r;
     r.damage = static_cast<int32_t>(clamped);
     r.isCrit = isCrit;
-    r.isPhysical = isPhysical;
+    r.damageType = damageType;
     r.isDodged = false;
     r.hits = skill ? skill->hits : 1;
     return r;
@@ -482,7 +517,7 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
                                     const CombatantStats& attacker,
                                     const CombatantStats& defender,
                                     double skillDamageMultiplier = 1.0,
-                                    std::optional<bool> isPhysicalAttack = std::nullopt,
+                                    std::optional<DamageType> damageType = std::nullopt,
                                     const std::string* skillName = nullptr,
                                     int32_t skillHits = 1,
                                     double dodgeChanceModifier = 0.5,
@@ -493,15 +528,14 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
         DamageResult r;
         r.damage = 0;
         r.isCrit = false;
-        r.isPhysical = isPhysicalAttack.value_or(true);
+        r.damageType = damageType.value_or(DamageType::kPhysical);
         r.isDodged = true;
         r.hits = skillHits;
         return r;
     }
 
-    // 单列口径（B1）：无技能时按攻击方固有伤害属性判定
-    const bool usePhysical = isPhysicalAttack.value_or(
-        attacker.innateDamageType == DamageType::kPhysical);
+    // 五行属性伤害系统（P3）：普攻恒物理；显式 damageType（技能）优先
+    const DamageType resolvedType = damageType.value_or(DamageType::kPhysical);
     const int32_t attack = attacker.attack;
     const int32_t defense = defender.defense;
 
@@ -523,7 +557,7 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
     DamageResult r;
     r.damage = finalDamage;
     r.isCrit = isCrit;
-    r.isPhysical = usePhysical;
+    r.damageType = resolvedType;
     r.isDodged = false;
     r.hits = skillHits;
     return r;
@@ -537,18 +571,20 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
 inline int32_t estimateDamage(const Combatant& attacker, const Combatant& defender,
                               const CombatSkill& skill, const DamageZones* zones = nullptr,
                               double damageModifier = 1.0) {
-    const bool isPhysical = skill.damageType == DamageType::kPhysical;
+    const DamageType damageType = skill.damageType;
     const int32_t atk = attacker.attack;
     const int32_t def = defender.defense;
 
     DamageZones baseZones = zones ? *zones : buildDamageZones(attacker, &defender);
-    // 类型通道选桶合并（与实际伤害一致）
+    // 类型通道选桶合并（六路固有桶 + buff 分桶；与实际伤害一致、同 Kotlin mergeTypeChannels）
     baseZones.typeDamageBonus =
-        (isPhysical ? attacker.physicalDamageBonus : attacker.magicDamageBonus) +
-        (isPhysical ? baseZones.physicalAttackBuffs : baseZones.magicAttackBuffs);
+        attacker.typeDamageBonusOf(damageType) +
+        (damageType == DamageType::kPhysical ? baseZones.physicalAttackBuffs
+            : (damageType == DamageType::kMagic ? baseZones.magicAttackBuffs : 0.0));
     baseZones.typeDamageReduction =
-        (isPhysical ? defender.physicalDamageReduction : defender.magicDamageReduction) +
-        (isPhysical ? baseZones.physicalDefenseBuffs : baseZones.magicDefenseBuffs);
+        defender.typeDamageReductionOf(damageType) +
+        (damageType == DamageType::kPhysical ? baseZones.physicalDefenseBuffs
+            : (damageType == DamageType::kMagic ? baseZones.magicDefenseBuffs : 0.0));
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
     // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤+暴伤加成)（B3 D3 同式）

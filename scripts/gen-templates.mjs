@@ -40,8 +40,9 @@ if (!Array.isArray(setPieces) || setPieces.length === 0) {
   console.error('错误：中性源 equipment_db_sample.json 无部件条目');
   process.exit(1);
 }
-if (!Array.isArray(sets) || sets.length !== 2) {
-  console.error('错误：中性源套装定义必须为 2 套');
+// 五行属性伤害系统：6 套（物理 + 金木水火土）
+if (!Array.isArray(sets) || sets.length !== 6) {
+  console.error('错误：中性源套装定义必须为 6 套（物理 + 五行）');
   process.exit(1);
 }
 

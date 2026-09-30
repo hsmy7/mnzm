@@ -2,6 +2,7 @@ package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.BattleCalculator.CombatantStats
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.util.BattleCalculator.DamageResult
 import org.junit.Assert.*
 import org.junit.Test
@@ -42,7 +43,7 @@ class BattleCalculatorTest {
         repeat(1000) {
             val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
-                isPhysicalAttack = true,
+                damageType = DamageType.PHYSICAL,
                 dodgeChanceModifier = 0.0
             )
             if (!result.isDodged) {
@@ -68,7 +69,7 @@ class BattleCalculatorTest {
         repeat(1000) {
             val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
-                isPhysicalAttack = false,
+                damageType = DamageType.FIRE,
                 dodgeChanceModifier = 0.0
             )
             if (!result.isDodged) {
@@ -89,7 +90,7 @@ class BattleCalculatorTest {
         val defender = createCombatant()
         val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
-            isPhysicalAttack = null,
+            damageType = null,
             dodgeChanceModifier = 0.0
         )
         assertTrue(result.isPhysical)
@@ -103,7 +104,7 @@ class BattleCalculatorTest {
         val defender = createCombatant()
         val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
-            isPhysicalAttack = null,
+            damageType = null,
             dodgeChanceModifier = 0.0
         )
         assertTrue(result.isPhysical)
@@ -249,8 +250,10 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         repeat(1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
-                dodgeChanceModifier = 0.0)
+            val result = BattleCalculator.withRng(rng).calculateDamage(
+                attacker, defender, damageType = DamageType.PHYSICAL,
+                dodgeChanceModifier = 0.0
+            )
             totalDamage += result.damage
             count++
         }
@@ -264,7 +267,7 @@ class BattleCalculatorTest {
     fun `calculateDamage isPhysicalAttack true - low attack vs high defense still deals damage`() {
         val attacker = createCombatant(attack = 1, critRate = 0.0)
         val defender = createCombatant(defense = 9999)
-        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, damageType = DamageType.PHYSICAL,
             dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 0)
     }
@@ -276,7 +279,7 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         repeat(1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = false,
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, damageType = DamageType.FIRE,
                 dodgeChanceModifier = 0.0)
             totalDamage += result.damage
             count++
@@ -425,7 +428,7 @@ class BattleCalculatorTest {
 
     @Test
     fun `generateBattleMessage - dodge message`() {
-        val result = DamageResult(damage = 0, isCrit = false, isPhysical = true, isDodged = true)
+        val result = DamageResult(damage = 0, isCrit = false, damageType = DamageType.PHYSICAL, isDodged = true)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("闪避"))
         assertTrue(message.contains("李四"))
@@ -433,37 +436,40 @@ class BattleCalculatorTest {
 
     @Test
     fun `generateBattleMessage - physical damage message`() {
-        val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false)
+        val result = DamageResult(damage = 100, isCrit = false, damageType = DamageType.PHYSICAL, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("物理"))
         assertTrue(message.contains("100"))
     }
 
     @Test
-    fun `generateBattleMessage - magic damage message`() {
-        val result = DamageResult(damage = 150, isCrit = false, isPhysical = false, isDodged = false)
+    fun `generateBattleMessage - elemental damage message`() {
+        val result = DamageResult(damage = 150, isCrit = false, damageType = DamageType.FIRE, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
-        assertTrue(message.contains("法术"))
+        assertTrue(message.contains("火"))
         assertTrue(message.contains("150"))
     }
 
     @Test
     fun `generateBattleMessage - crit message`() {
-        val result = DamageResult(damage = 200, isCrit = true, isPhysical = true, isDodged = false)
+        val result = DamageResult(damage = 200, isCrit = true, damageType = DamageType.PHYSICAL, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("暴击"))
     }
 
     @Test
     fun `generateBattleMessage - hits message`() {
-        val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false, hits = 3)
+        val result =
+            DamageResult(damage = 100, isCrit = false, damageType = DamageType.PHYSICAL, isDodged = false, hits = 3)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("3连击"))
     }
 
     @Test
     fun `generateBattleMessage - skill name message`() {
-        val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false, skillName = "天剑诀")
+        val result = DamageResult(
+            damage = 100, isCrit = false, damageType = DamageType.PHYSICAL, isDodged = false, skillName = "天剑诀"
+        )
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("天剑诀"))
     }
@@ -474,8 +480,10 @@ class BattleCalculatorTest {
         val defender = createCombatant(defense = 0)
         val damages = mutableListOf<Int>()
         repeat(1000) {
-            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true,
-                dodgeChanceModifier = 0.0)
+            val result = BattleCalculator.withRng(rng).calculateDamage(
+                attacker, defender, damageType = DamageType.PHYSICAL,
+                dodgeChanceModifier = 0.0
+            )
             if (!result.isDodged) damages.add(result.damage)
         }
         assertTrue(damages.isNotEmpty())
@@ -494,10 +502,14 @@ class BattleCalculatorTest {
         var lowTotal = 0
         var highTotal = 0
         repeat(500) {
-            lowTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, lowDefender, isPhysicalAttack = true,
-                dodgeChanceModifier = 0.0).damage
-            highTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, highDefender, isPhysicalAttack = true,
-                dodgeChanceModifier = 0.0).damage
+            lowTotal += BattleCalculator.withRng(rng).calculateDamage(
+                attacker, lowDefender, damageType = DamageType.PHYSICAL,
+                dodgeChanceModifier = 0.0
+            ).damage
+            highTotal += BattleCalculator.withRng(rng).calculateDamage(
+                attacker, highDefender, damageType = DamageType.PHYSICAL,
+                dodgeChanceModifier = 0.0
+            ).damage
         }
         assertTrue("high defense should take less damage", highTotal < lowTotal)
         val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)
@@ -664,12 +676,12 @@ class BattleCalculatorTest {
         repeat(1000) {
             totalMajor += BattleCalculator.withRng(rng).calculateDamage(
                 attackerHigh, defender,
-                isPhysicalAttack = true,
+                damageType = DamageType.PHYSICAL,
                 dodgeChanceModifier = 0.0
             ).damage
             totalBase += BattleCalculator.withRng(rng).calculateDamage(
                 attackerBase, defender,
-                isPhysicalAttack = true,
+                damageType = DamageType.PHYSICAL,
                 dodgeChanceModifier = 0.0
             ).damage
             count++

@@ -25,10 +25,11 @@ using gamecore::rng::DeterministicRng;
 
 // ── 静态池守卫 ──────────────────────────────────────────────────
 
-TEST(EquipAffixPoolTest, PoolShapeSevenEntriesWeightsSumTo100) {
-    // 7 项全局池；权重即概率（合计 100）；声明序禁重排（抽取序基准）
+TEST(EquipAffixPoolTest, PoolShapeElevenEntriesWeightsSumTo100) {
+    // 11 项全局池（五行属性伤害系统：物理 7 + 五行各 6）；权重即概率（合计 100）；
+    // 声明序禁重排（抽取序基准）
     const auto& pool = equipAffixes();
-    ASSERT_EQ(7u, pool.size());
+    ASSERT_EQ(11u, pool.size());
     EXPECT_EQ(100, equipAffixTotalWeight());
     std::set<std::string> distinct;
     for (const auto& def : pool) {

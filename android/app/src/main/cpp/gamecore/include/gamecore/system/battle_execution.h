@@ -120,7 +120,8 @@ struct AttackResult {
     int32_t targetHp = 0;  // 攻击时目标 hp（isKill 判定用——Kotlin r.target.hp 快照）
     int32_t damage = 0;
     bool isCrit = false;
-    bool isPhysical = false;
+    /// 本次攻击伤害类型（普攻恒 kPhysical、技能按功法元素；五行属性伤害系统）
+    DamageType damageType = DamageType::kPhysical;
     bool isDodged = false;
     bool isInstantKill = false;
     std::optional<std::string> skillName;
@@ -132,6 +133,8 @@ struct AttackResult {
     std::vector<std::string> healedIds;
     std::map<std::string, std::vector<CombatBuff>> teamBuffs;
     double turnAdvancePercent = 0.0;
+    /// 兼容视图：物理类型判定
+    bool isPhysical() const { return damageType == DamageType::kPhysical; }
 };
 
 // ============================================================
@@ -393,7 +396,7 @@ inline AttackResult executeAttack(const Combatant& attacker, const Combatant& de
     r.targetHp = defender.hp;
     r.damage = result.damage;
     r.isCrit = result.isCrit;
-    r.isPhysical = result.isPhysical;
+    r.damageType = result.damageType;
     r.isDodged = result.isDodged;
     r.isInstantKill = result.isInstantKill;
     r.hits = result.hits;
@@ -412,7 +415,7 @@ inline AttackResult executeSkill(const Combatant& attacker, const Combatant& def
     r.targetHp = defender.hp;
     r.damage = result.damage;
     r.isCrit = result.isCrit;
-    r.isPhysical = result.isPhysical;
+    r.damageType = result.damageType;
     r.isDodged = result.isDodged;
     r.skillName = skill.name;
     r.hits = result.hits;
@@ -429,7 +432,8 @@ inline AttackResult executeSupportSkillResult(const Combatant& caster,
     r.targetId = caster.id;
     r.damage = 0;
     r.isCrit = false;
-    r.isPhysical = false;
+    // 支援技能无伤害，类型按功法自带元素记录（展示一致性）
+    r.damageType = skill.damageType;
     r.isDodged = false;
     r.skillName = skill.name;
     r.hits = 1;
@@ -889,7 +893,7 @@ inline void processTurnAdvance(TurnContext& ctx, const AttackResult& result,
         rec.attackerType = isTeamMember ? "disciple" : "beast";
         rec.target = nameById(ctx, advResult.targetId);
         rec.damage = advDmg;
-        rec.damageType = advResult.isPhysical ? "物理" : "法术";
+        rec.damageType = damageTypeDisplayName(advResult.damageType);
         rec.isCrit = advResult.isCrit;
         rec.isKill = advResult.targetHp - advDmg <= 0;
         if (advResult.skillName.has_value()) rec.skillName = *advResult.skillName;
@@ -1066,10 +1070,8 @@ inline bool executeCombatantTurn(TurnContext& ctx, const TurnOrderEntry& entry,
             rec.damageType = "support";
         } else if (first.isDodged) {
             rec.damageType = "闪避";
-        } else if (first.isPhysical) {
-            rec.damageType = "物理";
         } else {
-            rec.damageType = "法术";
+            rec.damageType = damageTypeDisplayName(first.damageType);
         }
         rec.isCrit = [&results] {
             for (const auto& r : results) {

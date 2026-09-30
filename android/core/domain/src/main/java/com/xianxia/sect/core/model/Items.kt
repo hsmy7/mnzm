@@ -212,7 +212,7 @@ data class EquipmentInstance(
     // nurtureProgress/minRealm 字段号已退役，禁复用）
     // reserved 50..56;（旧面板 7 属性 + 暴击率字段号已退役，禁复用）
 
-    /** 套装 id（"lietian"/"zifu"） */
+    /** 套装 id（EquipmentSetDatabase.ALL_IDS 六套之一） */
     @ProtoNumber(60)
     val setId: String = "",
     /** 六部位（HEAD/BODY/HANDS/FEET/WEAPON/LEGS） */
@@ -567,7 +567,9 @@ data class ManualInstance(
             name = it,
             description = skillDescription ?: "",
             skillType = if (skillType == "support") SkillType.SUPPORT else SkillType.ATTACK,
-            damageType = if (skillDamageType == "magic") DamageType.MAGIC else DamageType.PHYSICAL,
+            // 功法自带元素（五行属性伤害系统 P3）：静态表 skillDamageType 值域
+            // physical/metal/wood/water/fire/earth；未知与退役段（"magic"）兜底物理
+            damageType = DamageType.fromElement(skillDamageType) ?: DamageType.PHYSICAL,
             hits = skillHits,
             damageMultiplier = skillDamageMultiplier,
             cooldown = skillCooldown,
@@ -669,7 +671,8 @@ data class ManualSkill(
     fun toCombatSkill(manualName: String = ""): CombatSkill = CombatSkill(
         name = name,
         skillType = skillType,
-        damageType = damageType,
+        // 退役段（MAGIC，旧档残留）兜底物理；活跃 6 值直通
+        damageType = if (damageType == DamageType.MAGIC) DamageType.PHYSICAL else damageType,
         damageMultiplier = damageMultiplier,
         mpCost = mpCost,
         cooldown = cooldown,

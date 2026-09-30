@@ -50,6 +50,7 @@ state::Disciple makeBenchDisciple(int32_t n) {
 void populateFullInventory(state::GameState& state) {
     state.disciples.manualIds.resize(kBenchDisciples);
     state.disciples.weaponIds.resize(kBenchDisciples);
+    state.disciples.bodyIds.resize(kBenchDisciples);
     for (int32_t n = 1; n <= kBenchDisciples; ++n) {
         const std::string id = std::to_string(n);
 

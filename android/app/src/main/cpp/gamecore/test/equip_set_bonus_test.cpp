@@ -1,8 +1,9 @@
 // ============================================================
-// equip_set_bonus_test — 套装效果档位守卫（B3 新增，方案 §6.1；
+// equip_set_bonus_test — 套装效果档位守卫（五行属性伤害系统 6 套；
 // 语义权威 = Kotlin EquipStatResolver.resolveSetBonus 逐位移植：
 // 2/4/6 件档位达档即生效、可越级不叠加（穿满 6 件三档同时生效）、
-// 同类百分比相加 0.2-7）
+// 同类百分比相加 0.2-7；六套同构骨架 = 2 件本系 +10% / 4 件暴击率
+// +12% / 6 件本系 +20%，方案 §3.4）
 // ============================================================
 
 #include "gtest/gtest.h"
@@ -44,72 +45,71 @@ std::vector<const EquipmentInstance*> slotPtrs(
 
 // ── 静态定义守卫（对齐 Kotlin EquipmentSetDatabase）──────────────
 
-TEST(EquipSetDatabaseTest, TwoSetsWithSchoolAndTiers) {
+TEST(EquipSetDatabaseTest, SixSetsWithSchoolAndTiers) {
     const auto& sets = equipmentSetDefs();
-    ASSERT_EQ(2u, sets.size());
-    // lietian 物理套：2 件 PHYSICAL_DAMAGE_PCT 0.10 / 4 件 CRIT_RATE 0.12 /
-    // 6 件 PHYSICAL_DAMAGE_PCT 0.20
-    EXPECT_EQ("lietian", sets[0].id);
-    EXPECT_EQ("PHYSICAL", sets[0].school);
-    ASSERT_EQ(1u, sets[0].bonus2.size());
-    EXPECT_EQ("PHYSICAL_DAMAGE_PCT", sets[0].bonus2[0].stat);
-    EXPECT_DOUBLE_EQ(0.10, sets[0].bonus2[0].value);
-    ASSERT_EQ(1u, sets[0].bonus4.size());
-    EXPECT_EQ("CRIT_RATE", sets[0].bonus4[0].stat);
-    EXPECT_DOUBLE_EQ(0.12, sets[0].bonus4[0].value);
-    ASSERT_EQ(1u, sets[0].bonus6.size());
-    EXPECT_EQ("PHYSICAL_DAMAGE_PCT", sets[0].bonus6[0].stat);
-    EXPECT_DOUBLE_EQ(0.20, sets[0].bonus6[0].value);
-    // zifu 法术套：2 件 MAGIC_DAMAGE_PCT 0.10 / 4 件 CRIT_DAMAGE 0.25 /
-    // 6 件 MAGIC_DAMAGE_PCT 0.20
-    EXPECT_EQ("zifu", sets[1].id);
-    EXPECT_EQ("MAGIC", sets[1].school);
-    ASSERT_EQ(1u, sets[1].bonus2.size());
-    EXPECT_EQ("MAGIC_DAMAGE_PCT", sets[1].bonus2[0].stat);
-    EXPECT_DOUBLE_EQ(0.10, sets[1].bonus2[0].value);
-    ASSERT_EQ(1u, sets[1].bonus4.size());
-    EXPECT_EQ("CRIT_DAMAGE", sets[1].bonus4[0].stat);
-    EXPECT_DOUBLE_EQ(0.25, sets[1].bonus4[0].value);
-    ASSERT_EQ(1u, sets[1].bonus6.size());
-    EXPECT_EQ("MAGIC_DAMAGE_PCT", sets[1].bonus6[0].stat);
-    EXPECT_DOUBLE_EQ(0.20, sets[1].bonus6[0].value);
-}
-
-// ── 档位生效面（0..6 件全档扫描）────────────────────────────────
-
-TEST(EquipSetBonusTest, LietianTiersByPieceCount0To6) {
-    // 0/1 件无效果；2 件 bonus2；3 件仍 bonus2；4 件 bonus2+bonus4；
-    // 5 件同 4；6 件三档同时生效（可越级不叠加口径：各档各算一次）
-    for (int32_t count = 0; count <= 6; ++count) {
-        std::vector<EquipmentInstance> worn;
-        for (int32_t i = 0; i < count; ++i) {
-            worn.push_back(piece("lietian", "WEAPON"));
-        }
-        const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
-        const double type2 = count >= 2 ? 0.10 : 0.0;
-        const double type4 = count >= 4 ? 0.12 : 0.0;
-        const double type6 = count >= 6 ? 0.20 : 0.0;
-        EXPECT_DOUBLE_EQ(type2 + type6, bonus.physicalDamageBonus)
-            << "lietian count=" << count;
-        EXPECT_DOUBLE_EQ(type4, bonus.critRate) << "lietian count=" << count;
-        EXPECT_DOUBLE_EQ(0.0, bonus.magicDamageBonus) << "lietian count=" << count;
+    ASSERT_EQ(6u, sets.size());
+    // 六套同构骨架：id/流派/本系伤害词条 逐套断言
+    const char* kIds[] = {"lietian", "gengjin", "qingmu", "xuanshui", "lihuo", "houtu"};
+    const char* kSchools[] = {"PHYSICAL", "METAL", "WOOD", "WATER", "FIRE", "EARTH"};
+    const char* kDmg[] = {"PHYSICAL_DAMAGE_PCT", "METAL_DAMAGE_PCT", "WOOD_DAMAGE_PCT",
+                          "WATER_DAMAGE_PCT", "FIRE_DAMAGE_PCT", "EARTH_DAMAGE_PCT"};
+    for (int i = 0; i < 6; ++i) {
+        EXPECT_EQ(kIds[i], sets[i].id) << "set " << i;
+        EXPECT_EQ(kSchools[i], sets[i].school) << "set " << i;
+        ASSERT_EQ(1u, sets[i].bonus2.size());
+        EXPECT_EQ(kDmg[i], sets[i].bonus2[0].stat);
+        EXPECT_DOUBLE_EQ(0.10, sets[i].bonus2[0].value);
+        ASSERT_EQ(1u, sets[i].bonus4.size());
+        EXPECT_EQ("CRIT_RATE", sets[i].bonus4[0].stat);
+        EXPECT_DOUBLE_EQ(0.12, sets[i].bonus4[0].value);
+        ASSERT_EQ(1u, sets[i].bonus6.size());
+        EXPECT_EQ(kDmg[i], sets[i].bonus6[0].stat);
+        EXPECT_DOUBLE_EQ(0.20, sets[i].bonus6[0].value);
     }
 }
 
-TEST(EquipSetBonusTest, ZifuTiersByPieceCount0To6) {
-    for (int32_t count = 0; count <= 6; ++count) {
-        std::vector<EquipmentInstance> worn;
-        for (int32_t i = 0; i < count; ++i) {
-            worn.push_back(piece("zifu", "HEAD"));
+// ── 档位生效面（六套 × 0..6 件全档扫描，E7）─────────────────────
+
+TEST(EquipSetBonusTest, AllSixSetsTiersByPieceCount0To6) {
+    // 0/1 件无效果；2 件 bonus2；3 件仍 bonus2；4 件 bonus2+bonus4；
+    // 5 件同 4；6 件三档同时生效（可越级不叠加口径：各档各算一次）
+    const char* kIds[] = {"lietian", "gengjin", "qingmu", "xuanshui", "lihuo", "houtu"};
+    const std::string kDmgFields[] = {"physicalDamageBonus", "metalDamageBonus",
+                                      "woodDamageBonus", "waterDamageBonus",
+                                      "fireDamageBonus", "earthDamageBonus"};
+    for (int set = 0; set < 6; ++set) {
+        for (int32_t count = 0; count <= 6; ++count) {
+            std::vector<EquipmentInstance> worn;
+            for (int32_t i = 0; i < count; ++i) {
+                worn.push_back(piece(kIds[set], "WEAPON"));
+            }
+            const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
+            const double type2 = count >= 2 ? 0.10 : 0.0;
+            const double type4 = count >= 4 ? 0.12 : 0.0;
+            const double type6 = count >= 6 ? 0.20 : 0.0;
+            const double expectedBonus = type2 + type6;
+            // 逐套只核对"本系"桶（其它 5 系与物理桶必须为 0——E7 跨套不串扰）
+            const double physical = set == 0 ? expectedBonus : 0.0;
+            const double metal = set == 1 ? expectedBonus : 0.0;
+            const double wood = set == 2 ? expectedBonus : 0.0;
+            const double water = set == 3 ? expectedBonus : 0.0;
+            const double fire = set == 4 ? expectedBonus : 0.0;
+            const double earth = set == 5 ? expectedBonus : 0.0;
+            EXPECT_DOUBLE_EQ(physical, bonus.physicalDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(metal, bonus.metalDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(wood, bonus.woodDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(water, bonus.waterDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(fire, bonus.fireDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(earth, bonus.earthDamageBonus)
+                << kIds[set] << " count=" << count;
+            EXPECT_DOUBLE_EQ(type4, bonus.critRate) << kIds[set] << " count=" << count;
+            (void)kDmgFields;
         }
-        const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
-        const double type2 = count >= 2 ? 0.10 : 0.0;
-        const double type4 = count >= 4 ? 0.25 : 0.0;
-        const double type6 = count >= 6 ? 0.20 : 0.0;
-        EXPECT_DOUBLE_EQ(type2 + type6, bonus.magicDamageBonus)
-            << "zifu count=" << count;
-        EXPECT_DOUBLE_EQ(type4, bonus.critDamage) << "zifu count=" << count;
-        EXPECT_DOUBLE_EQ(0.0, bonus.physicalDamageBonus) << "zifu count=" << count;
     }
 }
 
@@ -117,24 +117,23 @@ TEST(EquipSetBonusTest, MixedSetsCountIndependently) {
     // 双套混穿 3+3：各套只达 2 件档（3 < 4），互不串计
     std::vector<EquipmentInstance> worn;
     for (int i = 0; i < 3; ++i) worn.push_back(piece("lietian", "WEAPON"));
-    for (int i = 0; i < 3; ++i) worn.push_back(piece("zifu", "HEAD"));
+    for (int i = 0; i < 3; ++i) worn.push_back(piece("lihuo", "HEAD"));
     const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
     EXPECT_DOUBLE_EQ(0.10, bonus.physicalDamageBonus);
-    EXPECT_DOUBLE_EQ(0.10, bonus.magicDamageBonus);
+    EXPECT_DOUBLE_EQ(0.10, bonus.fireDamageBonus);
     EXPECT_DOUBLE_EQ(0.0, bonus.critRate);
-    EXPECT_DOUBLE_EQ(0.0, bonus.critDamage);
+    EXPECT_DOUBLE_EQ(0.0, bonus.woodDamageBonus);
 }
 
-TEST(EquipSetBonusTest, FullRivenAndZifuStackSixEach) {
+TEST(EquipSetBonusTest, FullLietianAndLihuoStackSixEach) {
     // 6+6 混穿：两套各自三档齐发（穿满 6 件三档同时生效）
     std::vector<EquipmentInstance> worn;
     for (int i = 0; i < 6; ++i) worn.push_back(piece("lietian", "WEAPON"));
-    for (int i = 0; i < 6; ++i) worn.push_back(piece("zifu", "HEAD"));
+    for (int i = 0; i < 6; ++i) worn.push_back(piece("lihuo", "HEAD"));
     const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
     EXPECT_DOUBLE_EQ(0.30, bonus.physicalDamageBonus);   // 0.10 + 0.20
-    EXPECT_DOUBLE_EQ(0.12, bonus.critRate);
-    EXPECT_DOUBLE_EQ(0.30, bonus.magicDamageBonus);
-    EXPECT_DOUBLE_EQ(0.25, bonus.critDamage);
+    EXPECT_DOUBLE_EQ(0.30, bonus.fireDamageBonus);       // 0.10 + 0.20
+    EXPECT_DOUBLE_EQ(0.24, bonus.critRate);              // 两套 4 件档各 0.12 相加
 }
 
 TEST(EquipSetBonusTest, EmptySetIdAndUnknownSetIgnored) {
@@ -144,7 +143,8 @@ TEST(EquipSetBonusTest, EmptySetIdAndUnknownSetIgnored) {
     for (int i = 0; i < 6; ++i) worn.push_back(piece("ghost-set", "HEAD"));
     const stats::EquipBonus bonus = stats::resolveSetBonus(slotPtrs(worn));
     EXPECT_DOUBLE_EQ(0.0, bonus.physicalDamageBonus);
-    EXPECT_DOUBLE_EQ(0.0, bonus.magicDamageBonus);
+    EXPECT_DOUBLE_EQ(0.0, bonus.fireDamageBonus);
+    EXPECT_DOUBLE_EQ(0.0, bonus.earthDamageBonus);
 }
 
 TEST(EquipSetBonusTest, ResolveEquipBonusAppendsSetAfterInstanceBonus) {

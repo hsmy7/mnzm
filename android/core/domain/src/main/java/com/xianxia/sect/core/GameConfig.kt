@@ -13,8 +13,66 @@ enum class SkillType {
     }
 }
 
+/**
+ * 伤害类型（五行属性伤害系统）：普攻恒 [PHYSICAL]；技能由功法自带元素，6 活跃值之一。
+ *
+ * [MAGIC] 为退役段——序列化按枚举 name 落盘，删值会使存量档读档失败，
+ * 故仅保留供旧档兼容解析，新代码禁止产出或进入任何判定分支。
+ * 五行值与 [GameConfig.SpiritRoot.TYPES] 的 key 一一对应（metal/wood/water/fire/earth），
+ * 不另设第二份元素枚举。
+ */
 enum class DamageType {
-    PHYSICAL, MAGIC
+    /** 物理：普攻恒为此；部分功法招式 */
+    PHYSICAL,
+    /** 法术（退役段：仅旧档兼容保留，禁新产出） */
+    MAGIC,
+    /** 金 */
+    METAL,
+    /** 木 */
+    WOOD,
+    /** 水 */
+    WATER,
+    /** 火 */
+    FIRE,
+    /** 土 */
+    EARTH;
+
+    /** 五行元素 key（对应 [GameConfig.SpiritRoot.TYPES]）；物理与退役段为 null */
+    val element: String? get() = when (this) {
+        METAL -> "metal"
+        WOOD -> "wood"
+        WATER -> "water"
+        FIRE -> "fire"
+        EARTH -> "earth"
+        PHYSICAL, MAGIC -> null
+    }
+
+    val displayName: String get() = when (this) {
+        PHYSICAL -> "物理"
+        MAGIC -> "法术"
+        METAL -> "金"
+        WOOD -> "木"
+        WATER -> "水"
+        FIRE -> "火"
+        EARTH -> "土"
+    }
+
+    val isPhysical: Boolean get() = this == PHYSICAL
+
+    companion object {
+        /** 活跃伤害类型（恰 6 值；退役段 [MAGIC] 不在内） */
+        val ACTIVE: List<DamageType> = listOf(PHYSICAL, METAL, WOOD, WATER, FIRE, EARTH)
+
+        /** 五行元素伤害类型（5 值；加成受灵根 gate，方案 §3.3） */
+        val ELEMENTAL: List<DamageType> = listOf(METAL, WOOD, WATER, FIRE, EARTH)
+
+        /** 元素 key → 伤害类型；非五行 key 返回 null */
+        fun fromElement(element: String?): DamageType? =
+            ELEMENTAL.firstOrNull { it.element == element }
+
+        /** 持久化字符串 → 伤害类型；未匹配返回 null（由调用方兜底） */
+        fun fromName(name: String?): DamageType? = entries.firstOrNull { it.name == name }
+    }
 }
 
 enum class BuffType {
@@ -724,19 +782,19 @@ object GameConfig {
             BeastTypeConfig("狐妖", "幻魅", 0.7, 1.0, 0.7, 1.4, 1.4, "fire",
                 listOf(
                     BeastSkillConfig("妖术", 1.5, 3, 20, SkillType.ATTACK,
-                        DamageType.MAGIC,
+                        DamageType.FIRE,
                         buffType = BuffType.SILENCE,
                         buffValue = 1.0, buffDuration = 1),
                     BeastSkillConfig("狐火", 1.2, 3, 15, SkillType.ATTACK,
-                        DamageType.MAGIC,
+                        DamageType.FIRE,
                         buffType = BuffType.BURN,
                         buffValue = 0.05, buffDuration = 2),
                     BeastSkillConfig("魅惑", 0.5, 4, 20, SkillType.ATTACK,
-                        DamageType.MAGIC,
+                        DamageType.FIRE,
                         buffType = BuffType.PHYSICAL_ATTACK_REDUCE,
                         buffValue = 0.25, buffDuration = 2),
                     BeastSkillConfig("幻阵", 0.0, 5, 25, SkillType.SUPPORT,
-                        DamageType.MAGIC,
+                        DamageType.FIRE,
                         buffType = BuffType.DAMAGE_BOOST,
                         buffValue = 0.2, buffDuration = 3,
                         targetScope = "team")
@@ -745,7 +803,7 @@ object GameConfig {
             BeastTypeConfig("龙妖", "远古", 1.2, 1.3, 1.1, 1.0, 1.5, "fire",
                 listOf(
                     BeastSkillConfig("龙息", 0.8, 4, 35, SkillType.ATTACK,
-                        DamageType.MAGIC, isAoe = true),
+                        DamageType.FIRE, isAoe = true),
                     BeastSkillConfig("龙爪撕裂", 1.6, 3, 20, SkillType.ATTACK,
                         DamageType.PHYSICAL),
                     BeastSkillConfig("龙威", 0.0, 6, 30, SkillType.SUPPORT,
@@ -770,7 +828,7 @@ object GameConfig {
                         buffValue = 0.5, buffDuration = 2,
                         targetScope = "self"),
                     BeastSkillConfig("水盾", 0.0, 5, 25, SkillType.SUPPORT,
-                        DamageType.MAGIC,
+                        DamageType.WATER,
                         buffType = BuffType.MAGIC_DEFENSE_BOOST,
                         buffValue = 0.3, buffDuration = 3,
                         targetScope = "team"),

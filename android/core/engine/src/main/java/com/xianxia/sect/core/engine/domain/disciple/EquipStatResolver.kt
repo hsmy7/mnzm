@@ -22,8 +22,18 @@ data class EquipBonus(
     val pctAttack: Double = 0.0,
     val critRate: Double = 0.0,
     val critDamage: Double = 0.0,
+    /** 物理伤害加成（不受灵根 gate） */
     val physicalDamageBonus: Double = 0.0,
-    val magicDamageBonus: Double = 0.0
+    /** 金伤害加成（gate 前原始值；弟子侧汇总时按灵根折算） */
+    val metalDamageBonus: Double = 0.0,
+    /** 木伤害加成（gate 前原始值） */
+    val woodDamageBonus: Double = 0.0,
+    /** 水伤害加成（gate 前原始值） */
+    val waterDamageBonus: Double = 0.0,
+    /** 火伤害加成（gate 前原始值） */
+    val fireDamageBonus: Double = 0.0,
+    /** 土伤害加成（gate 前原始值） */
+    val earthDamageBonus: Double = 0.0
 ) {
     operator fun plus(other: EquipBonus): EquipBonus = EquipBonus(
         flatAttack = flatAttack + other.flatAttack,
@@ -33,7 +43,11 @@ data class EquipBonus(
         critRate = critRate + other.critRate,
         critDamage = critDamage + other.critDamage,
         physicalDamageBonus = physicalDamageBonus + other.physicalDamageBonus,
-        magicDamageBonus = magicDamageBonus + other.magicDamageBonus
+        metalDamageBonus = metalDamageBonus + other.metalDamageBonus,
+        woodDamageBonus = woodDamageBonus + other.woodDamageBonus,
+        waterDamageBonus = waterDamageBonus + other.waterDamageBonus,
+        fireDamageBonus = fireDamageBonus + other.fireDamageBonus,
+        earthDamageBonus = earthDamageBonus + other.earthDamageBonus
     )
 }
 
@@ -80,7 +94,13 @@ object EquipStatResolver {
             EquipStat.CRIT_DAMAGE -> current.copy(critDamage = current.critDamage + v)
             EquipStat.ATTACK_PCT -> current.copy(pctAttack = current.pctAttack + v)
             EquipStat.PHYSICAL_DAMAGE_PCT -> current.copy(physicalDamageBonus = current.physicalDamageBonus + v)
-            EquipStat.MAGIC_DAMAGE_PCT -> current.copy(magicDamageBonus = current.magicDamageBonus + v)
+            EquipStat.METAL_DAMAGE_PCT -> current.copy(metalDamageBonus = current.metalDamageBonus + v)
+            EquipStat.WOOD_DAMAGE_PCT -> current.copy(woodDamageBonus = current.woodDamageBonus + v)
+            EquipStat.WATER_DAMAGE_PCT -> current.copy(waterDamageBonus = current.waterDamageBonus + v)
+            EquipStat.FIRE_DAMAGE_PCT -> current.copy(fireDamageBonus = current.fireDamageBonus + v)
+            EquipStat.EARTH_DAMAGE_PCT -> current.copy(earthDamageBonus = current.earthDamageBonus + v)
+            // 退役段（MAGIC_DAMAGE_PCT）：禁新产出；旧档残留词条不再并入任何通道
+            EquipStat.MAGIC_DAMAGE_PCT -> current
         }
     }
 

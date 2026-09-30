@@ -34,10 +34,19 @@ internal object BattleJsonCodec {
         put("attack", c.attack)
         put("defense", c.defense)
         put("innateDamageType", c.innateDamageType.name)
+        // 类型通道 12 桶（物理 + 五行 × 增伤/减伤；与 C++ battle_json.h 逐键对应）
         put("physicalDamageBonus", c.physicalDamageBonus)
-        put("magicDamageBonus", c.magicDamageBonus)
+        put("metalDamageBonus", c.metalDamageBonus)
+        put("woodDamageBonus", c.woodDamageBonus)
+        put("waterDamageBonus", c.waterDamageBonus)
+        put("fireDamageBonus", c.fireDamageBonus)
+        put("earthDamageBonus", c.earthDamageBonus)
         put("physicalDamageReduction", c.physicalDamageReduction)
-        put("magicDamageReduction", c.magicDamageReduction)
+        put("metalDamageReduction", c.metalDamageReduction)
+        put("woodDamageReduction", c.woodDamageReduction)
+        put("waterDamageReduction", c.waterDamageReduction)
+        put("fireDamageReduction", c.fireDamageReduction)
+        put("earthDamageReduction", c.earthDamageReduction)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -108,9 +117,17 @@ internal object BattleJsonCodec {
                 DamageType.PHYSICAL
             },
             physicalDamageBonus = j.dbl("physicalDamageBonus", 0.0),
-            magicDamageBonus = j.dbl("magicDamageBonus", 0.0),
+            metalDamageBonus = j.dbl("metalDamageBonus", 0.0),
+            woodDamageBonus = j.dbl("woodDamageBonus", 0.0),
+            waterDamageBonus = j.dbl("waterDamageBonus", 0.0),
+            fireDamageBonus = j.dbl("fireDamageBonus", 0.0),
+            earthDamageBonus = j.dbl("earthDamageBonus", 0.0),
             physicalDamageReduction = j.dbl("physicalDamageReduction", 0.0),
-            magicDamageReduction = j.dbl("magicDamageReduction", 0.0),
+            metalDamageReduction = j.dbl("metalDamageReduction", 0.0),
+            woodDamageReduction = j.dbl("woodDamageReduction", 0.0),
+            waterDamageReduction = j.dbl("waterDamageReduction", 0.0),
+            fireDamageReduction = j.dbl("fireDamageReduction", 0.0),
+            earthDamageReduction = j.dbl("earthDamageReduction", 0.0),
             speed = j.int("speed"),
             critRate = j.dbl("critRate", 0.05),
             skills = skills,
@@ -143,8 +160,7 @@ internal object BattleJsonCodec {
             name = o.str("name"),
             skillType = if (o.str("skillType") == "SUPPORT") SkillType.SUPPORT
             else SkillType.ATTACK,
-            damageType = if (o.str("damageType") == "MAGIC") DamageType.MAGIC
-            else DamageType.PHYSICAL,
+            damageType = DamageType.fromName(o.str("damageType")) ?: DamageType.PHYSICAL,
             damageMultiplier = o.dbl("damageMultiplier", 1.0),
             mpCost = o.int("mpCost"),
             cooldown = o.int("cooldown"),

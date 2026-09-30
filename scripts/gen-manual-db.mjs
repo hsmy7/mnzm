@@ -96,6 +96,10 @@ function genCppTable(entries) {
   lines.push('    int32_t duration = 0;');
   lines.push('};');
   lines.push('');
+  lines.push('inline bool operator==(const ManualBuffInfo& a, const ManualBuffInfo& b) {');
+  lines.push('    return a.type == b.type && a.value == b.value && a.duration == b.duration;');
+  lines.push('}');
+  lines.push('');
   lines.push('struct ManualTemplate {');
   lines.push('    std::string id;');
   lines.push('    std::string name;');
@@ -128,9 +132,19 @@ function genCppTable(entries) {
   lines.push('    double skillDamageLinkPercent = 0.0;');
   lines.push('};');
   lines.push('');
+  lines.push('/// B16/R6.2：数值等价守卫用（逐字段默认比较；C++20 自动派生 !=）');
+  lines.push('inline bool operator==(const ManualTemplate& a, const ManualTemplate& b) {');
+  lines.push('    return a.id == b.id && a.name == b.name && a.type == b.type && a.rarity == b.rarity && a.description == b.description && a.stats == b.stats && a.skillName == b.skillName && a.skillDescription == b.skillDescription && a.skillType == b.skillType && a.skillDamageType == b.skillDamageType && a.skillHits == b.skillHits && a.skillDamageMultiplier == b.skillDamageMultiplier && a.skillCooldown == b.skillCooldown && a.skillMpCost == b.skillMpCost && a.skillHealPercent == b.skillHealPercent && a.skillHealFixed == b.skillHealFixed && a.skillHealType == b.skillHealType && a.skillBuffType == b.skillBuffType && a.skillBuffValue == b.skillBuffValue && a.skillBuffDuration == b.skillBuffDuration && a.skillBuffs == b.skillBuffs && a.price == b.price && a.minRealm == b.minRealm && a.skillIsAoe == b.skillIsAoe && a.skillTargetScope == b.skillTargetScope && a.skillShieldPercent == b.skillShieldPercent && a.skillTurnAdvancePercent == b.skillTurnAdvancePercent && a.skillDamageSharePercent == b.skillDamageSharePercent && a.skillDamageLinkPercent == b.skillDamageLinkPercent;');
+  lines.push('}');
+  lines.push('');
   lines.push('/// 全部功法模板（attack + defense + support + mind）');
-  lines.push('inline const std::vector<ManualTemplate>& manualTemplates() {');
-  lines.push('    static const std::vector<ManualTemplate> kTemplates = {');
+  lines.push('');
+  lines.push('/// B16/R6.2 数值外置：本表为**内联默认值兜底**，与数据文件');
+  lines.push('/// `assets/data/game-data.json` 的 `db.manuals` 段**同源**（均由');
+  lines.push('/// scripts/gen-manual-db.mjs 从 scripts/data/manual_db_sample.json 产出）。');
+  lines.push('/// 运行时由 `gamecore/data/data_inject.h` 初始化期一次性注入。');
+  lines.push('inline std::vector<ManualTemplate>& manualTemplatesMutable() {');
+  lines.push('    static std::vector<ManualTemplate> kTemplates = {');
   for (const e of entries) {
     const stats = Object.entries(e.stats).map(([k, v]) => `{${cppStr(k)}, ${Number(v)}}`).join(', ');
     const buffs = e.skillBuffs.map((b) => `{${cppStr(b.type)}, ${b.value}, ${b.duration}}`).join(', ');
@@ -151,6 +165,11 @@ function genCppTable(entries) {
   }
   lines.push('    };');
   lines.push('    return kTemplates;');
+  lines.push('}');
+  lines.push('');
+  lines.push('/// 只读视图（生产查询走此面；注入走 manualTemplatesMutable）');
+  lines.push('inline const std::vector<ManualTemplate>& manualTemplates() {');
+  lines.push('    return manualTemplatesMutable();');
   lines.push('}');
   lines.push('');
   lines.push('/// 按 id 查询功法');

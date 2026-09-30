@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -15,6 +14,7 @@ import com.xianxia.sect.core.model.HeavenlyTrialClearReward
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
+import com.xianxia.sect.core.model.TypeDamageBonuses
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -22,6 +22,7 @@ import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.wallet.SpiritStoneSource
@@ -90,10 +91,6 @@ class HeavenlyTrialService @Inject constructor(
         )
 
         val beastSkills = buildBeastSkills(beastType = beastType)
-        // 妖兽伤害类型按种类元素固定（$15.3：金/土→物理、水/木/火→法术）
-        val innateType =
-            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
-            else DamageType.MAGIC
 
         val typeIndex = GameConfig.Beast.TYPES.indexOf(beastType)
 
@@ -107,7 +104,6 @@ class HeavenlyTrialService @Inject constructor(
             maxMp = stats.mp,
             attack = stats.attack,
             defense = stats.defense,
-            innateDamageType = innateType,
             speed = stats.speed,
             critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
             skills = beastSkills,
@@ -156,7 +152,12 @@ class HeavenlyTrialService @Inject constructor(
             maxMp = stats.mp,
             attack = stats.attack,
             defense = stats.defense,
-            innateDamageType = DamageType.PHYSICAL,
+            physicalDamageBonus = stats.typeBonuses.physical,
+            metalDamageBonus = stats.typeBonuses.metal,
+            woodDamageBonus = stats.typeBonuses.wood,
+            waterDamageBonus = stats.typeBonuses.water,
+            fireDamageBonus = stats.typeBonuses.fire,
+            earthDamageBonus = stats.typeBonuses.earth,
             speed = stats.speed,
             critRate = 0.05 + def.realm * 0.01 + stats.critChance,
             skills = buildTrialSkills(selected),
@@ -189,14 +190,18 @@ class HeavenlyTrialService @Inject constructor(
         val attack: Int,
         val defense: Int,
         val speed: Int,
-        val critChance: Double
+        val critChance: Double,
+        /** 装备类型伤害加成六路（试炼敌人按元素配装口径，不经 gate） */
+        val typeBonuses: TypeDamageBonuses = TypeDamageBonuses()
     )
 
     /** 试炼功法选取（buildDiscipleEnemy 提取）：固定 manualIds → 角色精选 → 随机 */
     internal data class StatBonus(
         val hp: Int = 0, val mp: Int = 0,
         val attack: Int = 0, val defense: Int = 0,
-        val speed: Int = 0, val critChance: Double = 0.0
+        val speed: Int = 0, val critChance: Double = 0.0,
+        /** 装备类型伤害加成六路（试炼敌人按元素配装口径，不经 gate） */
+        val typeBonuses: TypeDamageBonuses = TypeDamageBonuses()
     )
 
     fun getEnemiesForPhase(levelIndex: Int, phaseIndex: Int): List<Combatant> {
@@ -491,7 +496,7 @@ class HeavenlyTrialService @Inject constructor(
                     ?: com.xianxia.sect.core.util.DeterministicRng.fromSeed(20260930L)
             )
             val rarity = targetRarity.coerceIn(1, 6)
-            val setId = if (rng.nextBoolean()) "lietian" else "zifu"
+            val setId = EquipmentSetDatabase.ALL_IDS.random(rng)
             val instance = EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, rng), rarity, rng)
             when (val result = inventorySystem.addEquipmentInstance(instance)) {
                 is DomainResult.Success -> {}

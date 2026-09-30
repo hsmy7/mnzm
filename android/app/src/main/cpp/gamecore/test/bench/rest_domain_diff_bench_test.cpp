@@ -91,6 +91,7 @@ void populateGameDataContainers(GameData& gd) {
 void populateRestCollections(GameState& state) {
     state.disciples.manualIds.resize(kBenchDisciples);
     state.disciples.weaponIds.resize(kBenchDisciples);
+    state.disciples.bodyIds.resize(kBenchDisciples);
     for (std::int32_t n = 1; n <= kBenchDisciples; ++n) {
         const std::string id = std::to_string(n);
 

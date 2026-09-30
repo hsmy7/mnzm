@@ -24,7 +24,7 @@ class EquipmentSingleSourceGuardTest {
     @Test
     fun `Registry与Database全量逐条一致`() {
         val fromDb = EquipmentDatabase.entries
-        assertEquals("条目总数应为 72（12 部件 × 6 品阶）", 72, fromDb.size)
+        assertEquals("条目总数应为 216（36 部件 × 6 品阶）", 216, fromDb.size)
         assertEquals("Registry 装载条目数与 Database 不一致", fromDb.size, registry.allTemplates.size)
         fromDb.forEach { (id, entry) ->
             val loaded = registry.getById(id)
@@ -38,7 +38,7 @@ class EquipmentSingleSourceGuardTest {
     fun `品阶分类视图完全划分`() {
         (1..6).forEach { rarity ->
             val fromDb = EquipmentDatabase.entries.values.filter { it.rarity == rarity }
-            assertEquals("品阶 $rarity 的 Database 侧条目数", 12, fromDb.size)
+            assertEquals("品阶 $rarity 的 Database 侧条目数", 36, fromDb.size)
             assertEquals(
                 "品阶 $rarity 的 Registry.getByRarity 与 Database 不一致",
                 fromDb.sortedBy { it.id }, registry.getByRarity(rarity).sortedBy { it.id }
@@ -55,8 +55,8 @@ class EquipmentSingleSourceGuardTest {
         assertEquals("按部位分类视图未覆盖全量", EquipmentDatabase.entries.keys, union)
         EquipmentSlot.entries.forEach { part ->
             assertEquals(
-                "部位 $part 应有 2 套 × 6 品阶 = 12 条目",
-                12, EquipmentDatabase.getBySlot(part).size
+                "部位 $part 应有 6 套 × 6 品阶 = 36 条目",
+                36, EquipmentDatabase.getBySlot(part).size
             )
             assertTrue(
                 "部位 $part 的分类视图混入其他部位条目",
@@ -66,16 +66,16 @@ class EquipmentSingleSourceGuardTest {
     }
 
     @Test
-    fun `getBySlotAndRarity定位两套各一条`() {
+    fun `getBySlotAndRarity定位六套各一条`() {
         EquipmentSlot.entries.forEach { part ->
             (1..6).forEach { rarity ->
                 val hits = EquipmentDatabase.getBySlotAndRarity(part, rarity)
-                assertEquals("部位 $part 品阶 $rarity 应定位 2 套各一条", 2, hits.size)
+                assertEquals("部位 $part 品阶 $rarity 应定位 6 套各一条", 6, hits.size)
                 assertTrue(
                     "定位条目应全部属于请求部位与品阶",
                     hits.all { it.part == part && it.rarity == rarity }
                 )
-                assertEquals("两套套装各一条", 2, hits.map { it.setId }.distinct().size)
+                assertEquals("六套套装各一条", 6, hits.map { it.setId }.distinct().size)
             }
         }
     }
@@ -88,7 +88,8 @@ class EquipmentSingleSourceGuardTest {
         assertTrue("EquipmentRegistry.kt 不可达：${file.absolutePath}", file.isFile)
         val source = file.readText()
         val forbidden = listOf(
-            "lietian", "zifu", "裂天", "紫府",
+            "lietian", "gengjin", "qingmu", "xuanshui", "lihuo", "houtu",
+            "裂天", "庚金", "青木", "玄水", "离火", "厚土",
             "listOf(", "mapOf(", "EquipmentTemplate("
         )
         forbidden.forEach { marker ->

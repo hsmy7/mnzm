@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * 锻造配方库测试（B3 重构后：12 条套装部件配方，按品阶产出）。
+ * 锻造配方库测试（五行属性伤害系统后：36 条套装部件配方，按品阶产出）。
  *
  * 覆盖：静态数据合法性、id/部件唯一性、材料表六档完整、时长/成功率取档、
  * 各查询入口（byId/byPiece/byMaterial/byType）与 getCraftableRecipes 恒全量
@@ -13,14 +13,18 @@ import org.junit.Test
  */
 class ForgeRecipeDatabaseTest {
 
-    // 1. 全量 12 条（2 套 × 6 部位）
+    // 1. 全量 36 条（6 套 × 6 部位，五行属性伤害系统）
     @Test
-    fun allRecipes_is12_andCoversSetsAndParts() {
+    fun allRecipes_is36_andCoversSetsAndParts() {
         val recipes = ForgeRecipeDatabase.getAllRecipes()
-        assertEquals("应为 2 套 × 6 部位 = 12 条配方", 12, recipes.size)
+        assertEquals("应为 6 套 × 6 部位 = 36 条配方", 36, recipes.size)
 
         val setIds = recipes.map { it.setId }.toSet()
-        assertEquals("套装应恰为 lietian/zifu", setOf("lietian", "zifu"), setIds)
+        assertEquals(
+            "套装应恰为物理 + 五行六套",
+            setOf("lietian", "gengjin", "qingmu", "xuanshui", "lihuo", "houtu"),
+            setIds
+        )
 
         for (setId in setIds) {
             val parts = recipes.filter { it.setId == setId }.map { it.part }.toSet()
@@ -131,12 +135,12 @@ class ForgeRecipeDatabaseTest {
         assertNull("未知部件应返回 null", ForgeRecipeDatabase.getRecipeByPiece("no_such_piece"))
     }
 
-    // 7. getRecipesByType 每部位恰 2 条（两套各一）
+    // 7. getRecipesByType 每部位恰 6 条（六套各一）
     @Test
-    fun getRecipesByType_returnsTwoRecipesPerPart() {
+    fun getRecipesByType_returnsSixRecipesPerPart() {
         for (part in EquipmentSlot.entries) {
             val recipes = ForgeRecipeDatabase.getRecipesByType(part)
-            assertEquals("部位 $part 应有 2 条配方（两套各一）", 2, recipes.size)
+            assertEquals("部位 $part 应有 6 条配方（六套各一）", 6, recipes.size)
             assertTrue(
                 "部位 $part 的配方 part 字段应一致",
                 recipes.all { it.part == part }
@@ -161,7 +165,7 @@ class ForgeRecipeDatabaseTest {
     fun getCraftableRecipes_alwaysReturnsAll() {
         for (maxTier in 0..7) {
             assertEquals(
-                "getCraftableRecipes($maxTier) 应恒返回全部 12 条",
+                "getCraftableRecipes($maxTier) 应恒返回全部 36 条",
                 ForgeRecipeDatabase.getAllRecipes().size,
                 ForgeRecipeDatabase.getCraftableRecipes(maxTier).size
             )

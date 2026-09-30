@@ -80,7 +80,7 @@ class EquipStatResolverTest {
             id = "b", affix = EquipAffixSet(
                 mainStat = EquipStatValue(EquipStat.ATTACK, 10.0),
                 subStats = listOf(
-                    EquipStatValue(EquipStat.MAGIC_DAMAGE_PCT, 0.20),
+                    EquipStatValue(EquipStat.METAL_DAMAGE_PCT, 0.20),
                     EquipStatValue(EquipStat.ATTACK_PCT, 0.08),
                     EquipStatValue(EquipStat.CRIT_RATE, 0.03)
                 ),
@@ -91,7 +91,7 @@ class EquipStatResolverTest {
         assertEquals(0.08, bonus.critRate, 1e-12)
         assertEquals(0.10, bonus.critDamage, 1e-12)
         assertEquals(0.15, bonus.physicalDamageBonus, 1e-12)
-        assertEquals(0.20, bonus.magicDamageBonus, 1e-12)
+        assertEquals(0.20, bonus.metalDamageBonus, 1e-12)
         assertEquals(0.08, bonus.pctAttack, 1e-12)
     }
 
@@ -134,11 +134,11 @@ class EquipStatResolverTest {
     @Test
     fun `EquipBonus加法算子逐维相加`() {
         val x = EquipBonus(flatAttack = 1.0, critRate = 0.1)
-        val y = EquipBonus(flatAttack = 2.0, critRate = 0.2, magicDamageBonus = 0.3)
+        val y = EquipBonus(flatAttack = 2.0, critRate = 0.2, metalDamageBonus = 0.3)
         val sum = x + y
         assertEquals(3.0, sum.flatAttack, 1e-12)
         assertEquals(0.3, sum.critRate, 1e-12)
-        assertEquals(0.3, sum.magicDamageBonus, 1e-12)
+        assertEquals(0.3, sum.metalDamageBonus, 1e-12)
         assertEquals(0.0, sum.flatHp, 1e-12)
     }
 

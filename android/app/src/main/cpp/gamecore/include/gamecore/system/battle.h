@@ -31,9 +31,65 @@
 //   - 波动四舍五入到 1 位小数：round(variancePercent * 10) / 10
 // ============================================================
 namespace gamecore::battle {
-/// 伤害类型（Kotlin DamageType）——battle.h 前置定义（CombatantStats/
-/// Combatant 依赖；battle_calculator.h 内不再重复定义）
-enum class DamageType : int32_t { kPhysical = 0, kMagic = 1 };
+/// 伤害类型（Kotlin DamageType，五行属性伤害系统 6 活跃值）——battle.h 前置
+/// 定义（CombatantStats/Combatant 依赖；battle_calculator.h 内不再重复定义）。
+/// kMagic 为退役段（仅旧协议兼容保留，禁新产出）；五行值与灵根 key 一一对应。
+enum class DamageType : int32_t {
+    kPhysical = 0, kMagic = 1,  // kMagic 退役段
+    kMetal = 2, kWood = 3, kWater = 4, kFire = 5, kEarth = 6,
+};
+
+/// 伤害类型 → 五行元素 key（对应 GameConfig.SpiritRoot.TYPES；物理/退役段为空串）
+inline const char* damageTypeElement(DamageType t) {
+    switch (t) {
+        case DamageType::kMetal: return "metal";
+        case DamageType::kWood: return "wood";
+        case DamageType::kWater: return "water";
+        case DamageType::kFire: return "fire";
+        case DamageType::kEarth: return "earth";
+        default: return "";
+    }
+}
+
+/// 伤害类型 → 协议枚举名（Kotlin DamageType.name 逐一同名）
+inline const char* damageTypeName(DamageType t) {
+    switch (t) {
+        case DamageType::kPhysical: return "PHYSICAL";
+        case DamageType::kMagic: return "MAGIC";
+        case DamageType::kMetal: return "METAL";
+        case DamageType::kWood: return "WOOD";
+        case DamageType::kWater: return "WATER";
+        case DamageType::kFire: return "FIRE";
+        case DamageType::kEarth: return "EARTH";
+    }
+    return "PHYSICAL";
+}
+
+/// 伤害类型显示名（动作日志；退役段保留旧文案）
+inline const char* damageTypeDisplayName(DamageType t) {
+    switch (t) {
+        case DamageType::kPhysical: return "物理";
+        case DamageType::kMagic: return "法术";
+        case DamageType::kMetal: return "金";
+        case DamageType::kWood: return "木";
+        case DamageType::kWater: return "水";
+        case DamageType::kFire: return "火";
+        case DamageType::kEarth: return "土";
+    }
+    return "物理";
+}
+
+/// 持久化/协议字符串 → 伤害类型；未匹配回退 kPhysical
+inline DamageType damageTypeFromName(const std::string& name) {
+    if (name == "PHYSICAL") return DamageType::kPhysical;
+    if (name == "MAGIC") return DamageType::kMagic;
+    if (name == "METAL") return DamageType::kMetal;
+    if (name == "WOOD") return DamageType::kWood;
+    if (name == "WATER") return DamageType::kWater;
+    if (name == "FIRE") return DamageType::kFire;
+    if (name == "EARTH") return DamageType::kEarth;
+    return DamageType::kPhysical;
+}
 
 
 // ── 战斗常量（Kotlin GameConfig.Battle）────────────────────────
@@ -93,10 +149,13 @@ struct DamageZones {
 struct DamageResult {
     int32_t damage = 0;
     bool isCrit = false;
-    bool isPhysical = true;
+    /// 本次伤害类型（普攻恒 kPhysical、技能按功法元素；五行属性伤害系统）
+    DamageType damageType = DamageType::kPhysical;
     bool isDodged = false;
     bool isInstantKill = false;
     int32_t hits = 1;
+    /// 兼容视图：物理类型判定（= damageType 是否 kPhysical）
+    bool isPhysical() const { return damageType == DamageType::kPhysical; }
 };
 
 // ── 辅助（clamp/round）─────────────────────────────────────────

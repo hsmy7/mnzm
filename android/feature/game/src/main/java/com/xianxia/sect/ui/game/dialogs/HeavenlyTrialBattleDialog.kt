@@ -360,7 +360,7 @@ private fun EnemyBeastSkills(enemy: Combatant) {
                 }
             }
             if (skill.damageMultiplier > 0) {
-                val dmgType = if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"
+                val dmgType = skill.damageType.displayName
                 Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}%  ${skill.hits}连击  " +
                     "冷却${skill.cooldown}回合  消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)
             }

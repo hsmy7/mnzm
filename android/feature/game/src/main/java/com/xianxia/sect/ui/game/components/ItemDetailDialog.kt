@@ -631,7 +631,7 @@ private fun ManualSkillBaseInfo(
     }
     if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
         Text(
-            text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}",
+            text = "伤害类型：${skill.damageType.displayName}",
             fontSize = 10.sp,
             color = Color.Black
         )

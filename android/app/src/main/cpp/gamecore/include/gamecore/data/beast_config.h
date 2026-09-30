@@ -204,13 +204,13 @@ inline const std::vector<BeastSkillSpec>& eagleSkills() {
 
 inline std::vector<BeastSkillSpec>& foxSkillsMutable() {
     static std::vector<BeastSkillSpec> k = {
-        {"妖术", 1.5, 3, 20, SkillType::kAttack, DamageType::kMagic, 1, false,
+        {"妖术", 1.5, 3, 20, SkillType::kAttack, DamageType::kFire, 1, false,
          BuffType::kSilence, 1.0, 1},
-        {"狐火", 1.2, 3, 15, SkillType::kAttack, DamageType::kMagic, 1, false,
+        {"狐火", 1.2, 3, 15, SkillType::kAttack, DamageType::kFire, 1, false,
          BuffType::kBurn, 0.05, 2},
-        {"魅惑", 0.5, 4, 20, SkillType::kAttack, DamageType::kMagic, 1, false,
+        {"魅惑", 0.5, 4, 20, SkillType::kAttack, DamageType::kFire, 1, false,
          BuffType::kPhysicalAttackReduce, 0.25, 2},
-        {"幻阵", 0.0, 5, 25, SkillType::kSupport, DamageType::kMagic, 1, false,
+        {"幻阵", 0.0, 5, 25, SkillType::kSupport, DamageType::kFire, 1, false,
          BuffType::kDamageBoost, 0.2, 3, "team"},
     };
     return k;
@@ -223,7 +223,7 @@ inline const std::vector<BeastSkillSpec>& foxSkills() {
 
 inline std::vector<BeastSkillSpec>& dragonSkillsMutable() {
     static std::vector<BeastSkillSpec> k = {
-        {"龙息", 0.8, 4, 35, SkillType::kAttack, DamageType::kMagic, 1, true},
+        {"龙息", 0.8, 4, 35, SkillType::kAttack, DamageType::kFire, 1, true},
         {"龙爪撕裂", 1.6, 3, 20, SkillType::kAttack, DamageType::kPhysical},
         {"龙威", 0.0, 6, 30, SkillType::kSupport, DamageType::kPhysical, 1, false,
          std::nullopt, 0.0, 0, "team", 0.0, 0.0, 0.0,
@@ -243,7 +243,7 @@ inline std::vector<BeastSkillSpec>& turtleSkillsMutable() {
     static std::vector<BeastSkillSpec> k = {
         {"缩壳", 0.0, 4, 15, SkillType::kSupport, DamageType::kPhysical, 1, false,
          BuffType::kPhysicalDefenseBoost, 0.5, 2, "self"},
-        {"水盾", 0.0, 5, 25, SkillType::kSupport, DamageType::kMagic, 1, false,
+        {"水盾", 0.0, 5, 25, SkillType::kSupport, DamageType::kWater, 1, false,
          BuffType::kMagicDefenseBoost, 0.3, 3, "team"},
         {"激流", 0.5, 4, 25, SkillType::kAttack, DamageType::kPhysical, 1, true},
         {"龟甲术", 0.0, 6, 25, SkillType::kSupport, DamageType::kPhysical, 1, false,

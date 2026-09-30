@@ -28,7 +28,7 @@ object EquipmentFactory {
     /**
      * 生成一件装备实例。
      *
-     * @param setId 套装 id（"lietian"/"zifu"）
+     * @param setId 套装 id（EquipmentSetDatabase.ALL_IDS 六套之一）
      * @param part 六部位
      * @param rarity 请求品阶（1..6；高于 [discipleRealm] 可穿上限时被钳制）
      * @param rng 装备 RNG（RngPartition.EQUIPMENT 流；抽取序：主词条 → 副词条）

@@ -9,6 +9,8 @@ import com.xianxia.sect.core.model.DiscipleAttributes
 import com.xianxia.sect.core.model.DiscipleCombatStats
 import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.PillEffects
+import com.xianxia.sect.core.model.SpiritRoot
+import com.xianxia.sect.core.model.TypeDamageBonuses
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -297,3 +299,26 @@ fun DiscipleStatCalculator.critDamageBonusOf(
     equipments: Map<String, EquipmentInstance>,
     equipmentIds: List<String>
 ): Double = EquipStatResolver.resolve(equipmentIds.mapNotNull { equipments[it] }).critDamage
+
+/**
+ * 类型伤害加成六路汇总（五行属性伤害系统 §3.7②）：装备/套装词条原始值
+ * 经**灵根 gate 折算**（[SpiritRoot.elementGate]：灵根含该元素 → 全额，
+ * 不含 → 0.0；物理恒全额）。战斗期字段消费，面板列不展示；
+ * Combatant 装配（convertDiscipleToCombatant 等三条弟子线）的桶值来源。
+ */
+fun DiscipleStatCalculator.typeDamageBonusesOf(
+    disciple: Disciple,
+    equipments: Map<String, EquipmentInstance>,
+    equipmentIds: List<String>
+): TypeDamageBonuses {
+    val bonus = EquipStatResolver.resolve(equipmentIds.mapNotNull { equipments[it] })
+    val gate = disciple.spiritRoot
+    return TypeDamageBonuses(
+        physical = bonus.physicalDamageBonus,
+        metal = bonus.metalDamageBonus * gate.elementGate("metal"),
+        wood = bonus.woodDamageBonus * gate.elementGate("wood"),
+        water = bonus.waterDamageBonus * gate.elementGate("water"),
+        fire = bonus.fireDamageBonus * gate.elementGate("fire"),
+        earth = bonus.earthDamageBonus * gate.elementGate("earth")
+    )
+}

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
@@ -30,10 +29,6 @@ internal fun BattleSystem.createBeast(
     val stats = resolveBeastStats(realmIndex, type, preGenStats)
     val beastSkills = buildBeastSkills(type)
     val typeIndex = GameConfig.Beast.TYPES.indexOf(type)
-    // 妖兽伤害类型按种类元素固定（§15.3：金/土→物理、水/木/火→法术）
-    val innateType =
-        if (type.element == "metal" || type.element == "earth") DamageType.PHYSICAL
-        else DamageType.MAGIC
 
     return Combatant(
         id = "beast_$index",
@@ -45,7 +40,6 @@ internal fun BattleSystem.createBeast(
         maxMp = stats.mp,
         attack = stats.attack,
         defense = stats.defense,
-        innateDamageType = innateType,
         speed = stats.speed,
         critRate = 0.05 + realmIndex * 0.01,
         skills = beastSkills,

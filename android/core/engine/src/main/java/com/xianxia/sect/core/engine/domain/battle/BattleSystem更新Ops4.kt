@@ -104,7 +104,7 @@ internal fun BattleSystem.executeAttack(
         target = defender,
         damage = result.damage,
         isCrit = result.isCrit,
-        isPhysical = result.isPhysical,
+        damageType = result.damageType,
         isDodged = result.isDodged,
         isInstantKill = result.isInstantKill
     )
@@ -120,7 +120,7 @@ internal fun BattleSystem.executeSkill(attacker: Combatant, defender: Combatant,
         target = defender,
         damage = result.damage,
         isCrit = result.isCrit,
-        isPhysical = result.isPhysical,
+        damageType = result.damageType,
         isDodged = result.isDodged,
         skillName = result.skillName,
         hits = result.hits
@@ -138,7 +138,8 @@ internal fun BattleSystem.executeSupportSkill(
         target = caster,
         damage = 0,
         isCrit = false,
-        isPhysical = false,
+        // 支援技能无伤害，类型按功法自带元素记录（展示一致性）
+        damageType = skill.damageType,
         isDodged = false,
         skillName = skill.name,
         hits = 1,

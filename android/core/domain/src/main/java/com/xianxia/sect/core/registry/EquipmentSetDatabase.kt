@@ -3,12 +3,26 @@ package com.xianxia.sect.core.registry
 import com.xianxia.sect.core.model.EquipStat
 import com.xianxia.sect.core.model.EquipStatValue
 
-/** 套装流派（R8：首期物理套 + 法术套各一套） */
-enum class EquipSchool { PHYSICAL, MAGIC;
+/** 套装流派：物理 + 五行（金/木/水/火/土各一系，五行属性伤害系统 §3.4） */
+enum class EquipSchool { PHYSICAL, METAL, WOOD, WATER, FIRE, EARTH;
 
     val displayName: String get() = when (this) {
         PHYSICAL -> "物理"
-        MAGIC -> "法术"
+        METAL -> "金"
+        WOOD -> "木"
+        WATER -> "水"
+        FIRE -> "火"
+        EARTH -> "土"
+    }
+
+    /** 流派对应的元素 key；物理为 null */
+    val element: String? get() = when (this) {
+        PHYSICAL -> null
+        METAL -> "metal"
+        WOOD -> "wood"
+        WATER -> "water"
+        FIRE -> "fire"
+        EARTH -> "earth"
     }
 }
 
@@ -33,10 +47,13 @@ data class EquipmentSetDef(
 }
 
 /**
- * 套装注册表（装备重构 B3，方案 §3.3/§3.7）：首期两套——物理套「裂天罡煞」、
- * 法术套「紫府玄冥」，各 6 部位；2 件套 = 流派类型伤害 +10%（两套差异化，
- * §15.7 Q9）、4 件套 = 暴击率/暴击伤害、6 件套 = 流派类型伤害 +20%。
- * 穿满一套 = 该流派 +30% 类型伤害。
+ * 套装注册表（五行属性伤害系统，方案 §3.4）：六套——物理套「裂天罡煞」+
+ * 五行套各一套（庚金白虎/青木长生/玄水寒渊/离火焚天/厚土镇岳），各 6 部位。
+ * **同构骨架，仅本系元素不同**：2 件套 = 本系伤害 +10%、4 件套 = 暴击率 +12%、
+ * 6 件套 = 本系伤害 +20%。穿满一套 = 该系 +30% 类型伤害且暴击率 +12%。
+ *
+ * 套装效果经 [EquipStatValue] 落类型乘区；元素套效果在弟子侧受灵根 gate
+ * （灵根含该元素才生效，方案 §3.3）。原法术套「紫府玄冥」随法术类型退役作废。
  */
 object EquipmentSetDatabase {
 
@@ -50,14 +67,49 @@ object EquipmentSetDatabase {
             bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.PHYSICAL_DAMAGE_PCT, 0.20)))
         ),
         EquipmentSetDef(
-            id = "zifu",
-            name = "紫府玄冥",
-            school = EquipSchool.MAGIC,
-            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.MAGIC_DAMAGE_PCT, 0.10))),
-            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_DAMAGE, 0.25))),
-            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.MAGIC_DAMAGE_PCT, 0.20)))
+            id = "gengjin",
+            name = "庚金白虎",
+            school = EquipSchool.METAL,
+            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.METAL_DAMAGE_PCT, 0.10))),
+            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_RATE, 0.12))),
+            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.METAL_DAMAGE_PCT, 0.20)))
+        ),
+        EquipmentSetDef(
+            id = "qingmu",
+            name = "青木长生",
+            school = EquipSchool.WOOD,
+            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.WOOD_DAMAGE_PCT, 0.10))),
+            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_RATE, 0.12))),
+            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.WOOD_DAMAGE_PCT, 0.20)))
+        ),
+        EquipmentSetDef(
+            id = "xuanshui",
+            name = "玄水寒渊",
+            school = EquipSchool.WATER,
+            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.WATER_DAMAGE_PCT, 0.10))),
+            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_RATE, 0.12))),
+            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.WATER_DAMAGE_PCT, 0.20)))
+        ),
+        EquipmentSetDef(
+            id = "lihuo",
+            name = "离火焚天",
+            school = EquipSchool.FIRE,
+            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.FIRE_DAMAGE_PCT, 0.10))),
+            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_RATE, 0.12))),
+            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.FIRE_DAMAGE_PCT, 0.20)))
+        ),
+        EquipmentSetDef(
+            id = "houtu",
+            name = "厚土镇岳",
+            school = EquipSchool.EARTH,
+            bonus2 = SetBonus(listOf(EquipStatValue(EquipStat.EARTH_DAMAGE_PCT, 0.10))),
+            bonus4 = SetBonus(listOf(EquipStatValue(EquipStat.CRIT_RATE, 0.12))),
+            bonus6 = SetBonus(listOf(EquipStatValue(EquipStat.EARTH_DAMAGE_PCT, 0.20)))
         )
     )
+
+    /** 六套套装 id（装备供给线随机抽取的单一真源：掉落/兑换码/编队/敌人装备/任务/试炼） */
+    val ALL_IDS: List<String> = sets.map { it.id }
 
     private val byId: Map<String, EquipmentSetDef> = sets.associateBy { it.id }
 

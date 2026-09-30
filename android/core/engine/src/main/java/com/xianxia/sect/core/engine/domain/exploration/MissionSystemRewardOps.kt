@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.EquipmentSetDatabase
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
@@ -298,15 +299,11 @@ internal fun MissionSystem.generateEquipment(
         rewards.equipmentMinRarity, EquipmentFactory.REALM_UNRESTRICTED, RngRandomAdapter(rng)
     ).coerceAtMost(rewards.equipmentMaxRarity)
     val kr = RngRandomAdapter(rng)
-    val setId = if (kr.nextBoolean()) SET_ID_PHYSICAL_MISSION else SET_ID_MAGIC_MISSION
+    val setId = EquipmentSetDatabase.ALL_IDS.random(kr)
     return listOf(
         EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, kr), rarity, kr)
     )
 }
-
-/** 任务奖励套装二选一（B3：lietian 物理 / zifu 法术） */
-private const val SET_ID_PHYSICAL_MISSION = "lietian"
-private const val SET_ID_MAGIC_MISSION = "zifu"
 
 internal fun MissionSystem.generateManuals(
     rewards: MissionRewardConfig,

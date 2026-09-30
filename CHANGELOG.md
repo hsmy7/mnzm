@@ -1,5 +1,51 @@
 ## [4.01.16] - 2026-09-22
 
+### 五行属性伤害系统（2026-09-30 单批交付）——DamageType 六值化 · 灵根 gate · 六套 36 部件 — `feat(elemental)`
+
+> 批次依据：`docs/design/elemental-damage-system-plan.md`（P1–P9 / E1–E12 权威方案）；决策记录
+> [docs/adr/elemental-damage-system.md](docs/adr/elemental-damage-system.md)。前置 = 装备重构线
+> EQ-B0–B5 并网主干（merge `8c6818152` 前序）。版本号不自增（4.01.16 原值并入本条）；**零 Room 迁移、
+> 零存档 schema 变更**（gate 由 `spiritRootType` 实时运算；`MAGIC`/`MAGIC_DAMAGE_PCT` 退役段按
+> name 序列化兼容保留，禁新产出）。
+
+- **DamageType 六值化**：`PHYSICAL` + `METAL/WOOD/WATER/FIRE/EARTH`（与 `GameConfig.SpiritRoot.TYPES`
+  单一元素真源一一对应）；`MAGIC` 退役段保留（E1 守卫 `DamageTypeGuardTest`：活跃集恰 6、退役段不进活跃集）。
+- **普攻恒物理**（P3）：`innateDamageType` 退役不读取（妖兽/散修/试炼派生逻辑删除，债 I-E6）；
+  技能 = 功法自带元素（E3，`ManualSkill.toCombatSkill` 退役段兜底物理）。
+- **灵根 gate**：`SpiritRoot.elementGate` 唯一入口——灵根含该元素 → 加成全额（1.0）、不含 → 恰 0.0（开关制，
+  EA1 精确相等断言）、物理恒 1.0（E11 物理路径不回退）；弟子侧 `typeDamageBonusesOf` 汇总折算后进
+  Combatant 桶，三条弟子装配线（BattleSystem/AISectAttackManager/CaveExplorationSystem）统一接线
+  （同时补齐装备线 B1 遗留的「EquipBonus 类型维被 applyEquipBonus 丢弃」断裂链）。
+- **类型通道 12 桶**：`Combatant` 物理+五行 × 增伤/减伤（Kotlin/C++ 逐字段同构）；`DamageZones` buff 分桶
+  维持物法两桶（法术桶为退役段；元素加成全走固有桶）；`BattleJsonCodec` ↔ `battle_json.h` 协议 12 键
+  同步（`BattleExecutionRouterTest` 守卫）；**对拍 = 活体双臂无 golden**，Diff 家族全绿（E9）。
+- **功法元素映射**：78 条 `skillDamageType="magic"` 按名义语义映射五行（雷属金/腐蚀因果属木/护体系水木/
+  寂灭太初崩坏属土）；中性源 + assets 双改，`gen-manual-db.mjs` 重生成（**顺手补齐生成器缺失的
+  operator==/manualTemplatesMutable 生成**——此前 `manual_db.h` 为手工增强态，G0 幂等链断裂）。
+- **装备侧（E3）**：`EquipStat` 8→13 值（`MAGIC_DAMAGE_PCT(8)` 退役段保留 + 元素词条 9..13，
+  `EquipmentProtoNumberFrozenTest` 扩守卫）；副词条池 7→11 项（攻 12/防 12/血 13/暴率 13/暴伤 13/
+  物理 7/五行各 6 = 100，类型词条 ×1.5 补偿档 0.006..0.030，E12 校准授权）；**6 套 36 部件**
+  （zifu 法术套退役，庚金白虎/青木长生/玄水寒渊/离火焚天/厚土镇岳同构骨架：2 件本系 +10% /
+  4 件暴击率 +12% / 6 件本系 +20%）；锻造配方 12→36 条；中性源 → `gen-templates.mjs`
+  （套装数硬校验 2→6）→ 四张 C++ 表 + 快照全链重生成；36 张精灵图按 EA4 走程序化占位兜底（不阻塞）。
+- **数值校准（E4/E12）**：装备占比带按 B4 方法论重锚 [0.30,0.45]——低品阶入口中位下移 2–3.6pp 为
+  词条池权重重定（15+15→7+30）与 4 件套统一骨架（zifu 暴伤 25%→统一暴率 12%）的直接后果，
+  五入口实测 0.314/0.330/0.350/0.402 登记于 `EquipmentPowerParityTest` KDoc。
+- **装备供给线六套化**：掉落/兑换码/AI 编队/敌人装备/任务奖励/试炼奖励的「lietian/zifu 二选一」统一改
+  `EquipmentSetDatabase.ALL_IDS` 六选一（单一真源）。
+- **测试**：新增 `DamageTypeGuardTest`/`ElementalDamageSystemTest`（E1–E7/E11/E12）；C++ `equip_set_bonus_test`
+  重写为六套全档扫描（E7）、`single_column_stat_test` S19 语义更新（普攻恒物理 + 元素桶隔离）、
+  `data_store_test`/`equipment_db_test`/`equip_affix_test` 行数面 12/72/7 → 36/216/11。
+  终验：六模块 JVM **3005/0/5skip**（Diff 家族含）；ctest **1528/1529**（唯一余红
+  `AccrualSegmentBench.SegmentUnderBudgetAt5000` 经 HEAD 对照 worktree 定性为**机器环境劣化**——
+  裸弟子 accrue 段与本批改动零交集，HEAD 树同用例同红）；detekt/lint 零违规。
+- **顺手修复（预存问题）**：① 三件 bench 目标（rest_domain_diff/phase_settlement/accrual_segment）
+  自装备线 B3 后从未同步且不在 ctest 门禁内——`armorIds→bodyIds`、`slot→part` 适配 +
+  **DiscipleStore 列长==弟子行数不变量**修复（TimingPerPhase SEGFAULT 根因：小场景列 resize 固定 5000）；
+  ② 并网带入的 19 个 B1 批一次性补丁脚本（`_b1_*.py`）按公约 §1.13 清理（独立笔 `4bfba0eeb`）。
+
+
+
 ### 装备系统重构线 EQ-B0–B5 批（2026-09-28~30）——六部位套装体系 · 属性单列 · 孕养丹退役 · 数值校准 · 文档与发布收口 — `feat(equip)`
 
 > 批次依据：`docs/design/equipment-set-system-refactor-plan.md`（R1–R12 / D1–D10 / I1–I10 权威方案）

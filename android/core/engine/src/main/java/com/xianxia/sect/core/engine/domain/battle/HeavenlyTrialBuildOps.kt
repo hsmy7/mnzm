@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.EquipStat
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.TrialEnemyDef
+import com.xianxia.sect.core.model.TypeDamageBonuses
 import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.util.RngRandomAdapter
@@ -146,7 +147,8 @@ internal fun HeavenlyTrialService.buildTrialBaseStats(
         attack = baseAttack + equipBonus.attack + manualBonus.attack,
         defense = baseDefense + equipBonus.defense + manualBonus.defense,
         speed = baseSpeed + equipBonus.speed + manualBonus.speed,
-        critChance = equipBonus.critChance + manualBonus.critChance
+        critChance = equipBonus.critChance + manualBonus.critChance,
+        typeBonuses = equipBonus.typeBonuses
     )
 }
 
@@ -162,6 +164,8 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
     rng: DeterministicRng
 ): StatBonus {
     var hp = 0; var attack = 0; var defense = 0; var critChance = 0.0
+    var physicalPct = 0.0; var metalPct = 0.0; var woodPct = 0.0
+    var waterPct = 0.0; var firePct = 0.0; var earthPct = 0.0
     val recipes = listOfNotNull(
         equipment.head, equipment.body, equipment.hands,
         equipment.feet, equipment.weapon, equipment.legs
@@ -175,11 +179,23 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
                 EquipStat.DEFENSE -> defense += bonus.value.toInt()
                 EquipStat.HP -> hp += bonus.value.toInt()
                 EquipStat.CRIT_RATE -> critChance += bonus.value
+                EquipStat.PHYSICAL_DAMAGE_PCT -> physicalPct += bonus.value
+                EquipStat.METAL_DAMAGE_PCT -> metalPct += bonus.value
+                EquipStat.WOOD_DAMAGE_PCT -> woodPct += bonus.value
+                EquipStat.WATER_DAMAGE_PCT -> waterPct += bonus.value
+                EquipStat.FIRE_DAMAGE_PCT -> firePct += bonus.value
+                EquipStat.EARTH_DAMAGE_PCT -> earthPct += bonus.value
                 else -> {}
             }
         }
     }
-    return StatBonus(hp = hp, attack = attack, defense = defense, critChance = critChance)
+    // 试炼敌人按元素配装口径：类型加成全额生效（无灵根字段，不经 gate）
+    val typeBonuses = TypeDamageBonuses(
+        physical = physicalPct, metal = metalPct, wood = woodPct,
+        water = waterPct, fire = firePct, earth = earthPct
+    )
+    return StatBonus(hp = hp, attack = attack, defense = defense, critChance = critChance,
+        typeBonuses = typeBonuses)
 }
 
 /** 功法属性加成汇总（buildTrialBaseStats 提取）：
@@ -324,11 +340,9 @@ internal fun ManualDatabase.ManualTemplate.toCombatSkill(): CombatSkill {
         "support" -> SkillType.SUPPORT
         else -> SkillType.ATTACK
     }
-    val damageTypeEnum = when (skillDamageType.lowercase(Locale.ROOT)) {
-        "physical" -> DamageType.PHYSICAL
-        "magic" -> DamageType.MAGIC
-        else -> DamageType.PHYSICAL
-    }
+    // 功法自带元素（五行属性伤害系统 P3）；未知与退役段（"magic"）兜底物理
+    val damageTypeEnum = DamageType.fromElement(skillDamageType.lowercase(Locale.ROOT))
+        ?: DamageType.PHYSICAL
     val buffTypeEnum = skillBuffType?.let { buffName ->
         BuffType.entries.find { it.name.equals(buffName, ignoreCase = true) }
     }

@@ -216,25 +216,26 @@ interface GameSystem {
 
 > 权威方案 `docs/design/equipment-set-system-refactor-plan.md`（需求 R1–R12 / 缺陷 D1–D10 / 债 I1–I10 / 风险 R12–R17 的定义与推导）；批次编排 `docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md`；各批报告 `docs/design/equipment-batches/reports/`；决策记录 [docs/adr/equipment-set-system.md](adr/equipment-set-system.md)；子系统实现速查 `docs/knowledge-base.md`「装备系统（六部位套装体系）」节。本节是**活文档终态登记**。
 
-### 属性单列口径（EQ-B1 落地，R12）
+### 属性单列口径（EQ-B1 落地 R12；五行属性伤害系统 2026-09-30 终态）
 
-弟子/战斗体属性只有 `attack/defense` 单列（物攻/法攻/物防/法防四列已退役，符号面归零由 `SingleColumnStatGuardTest` 守卫）；物法差异由**三条类型通道**承载：
+弟子/战斗体属性只有 `attack/defense` 单列（物攻/法攻/物防/法防四列已退役，符号面归零由 `SingleColumnStatGuardTest` 守卫）；伤害类型由**两条类型通道 + 灵根 gate** 承载（`DamageType` 六活跃值 = 物理 + 金木水火土，`MAGIC` 退役段仅存档兼容；决策记录 [docs/adr/elemental-damage-system.md](adr/elemental-damage-system.md)）：
 
-1. **普攻**伤害类型 = 攻击者 `innateDamageType`（角色模板固定，缺失按首灵根派生：金/土→物理、水/木/火→法术）；
-2. **技能**伤害类型 = `skill.damageType`；
-3. **类型增伤/减伤分桶**：`physicalDamageBonus/magicDamageBonus`（攻方）与 `physicalDamageReduction/magicDamageReduction`（守方）四桶，默认 0.0 时与旧公式逐位一致（S19）。
+1. **普攻**恒为 `PHYSICAL`（与灵根无关，P3 契约；`innateDamageType` 为退役段不再读取——未来"法术普攻"角色可复用为普攻元素，债 I-E6）；
+2. **技能**伤害类型 = `skill.damageType`（**功法自带元素**：静态表 `skillDamageType` 值域 physical/metal/wood/water/fire/earth；同一功法对不同弟子伤害属性一致，E3）；
+3. **类型增伤/减伤 12 桶**：`physicalDamageBonus` + `metal/wood/water/fire/earthDamageBonus`（攻方六路）与同构六路减伤桶，默认 0.0 时与基准公式逐位一致（S19）。**五行加成路为灵根 gate 后生效值**——`SpiritRoot.elementGate`（唯一实现入口）：弟子灵根集合含该元素 → 加成全额、不含 → 恰为 0.0、物理恒全额（E4/E11）；折算在弟子侧汇总点 `typeDamageBonusesOf` 完成，战斗公式零感知。
 
-战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2` 与旧双列取和口径线性恒等（k=1，迁移前后总战力比 ∈ [0.98,1.02] 由 S20 断言）。装备/功法/丹药加成全部汇入单列；**速度/灵力不在装备加成通道**（S14 拍板，回归锁在 `EquipmentPowerParityTest`）。
+战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2` 与旧双列取和口径线性恒等（k=1，迁移前后总战力比 ∈ [0.98,1.02] 由 S20 断言）。装备/功法/丹药加成全部汇入单列；**速度/灵力不在装备加成通道**（S14 拍板，回归锁在 `EquipmentPowerParityTest`）。装备贡献占比带经五行化 E4 校准重锚为 [30,45]（低品阶入口因词条池权重重定与 4 件套统一骨架下移 2–3.6pp，实测表见该测试 KDoc）。
 
 ### 六部位装备体系（EQ-B3 落地，R1–R10）
 
 ```
 EquipmentSlot（6 值）: HEAD/BODY/HANDS/FEET/WEAPON/LEGS（无饰品位）
 EquipmentInstance:    一行一实例，setId/part + growth{level 1–30, exp, 主词条, 3 副词条, 强化次数} + meta
-套装 ×2:              物理套 / 法术套，各 6 部位，2/4/6 件档（档位效果相加口径）
+套装 ×6:              物理套 + 五行套（庚金白虎/青木长生/玄水寒渊/离火焚天/厚土镇岳），同构骨架
+                      2 件=本系伤害+10% / 4 件=暴击率+12% / 6 件=本系伤害+20%（36 部件、配方 36 条）
 产出:                 EquipmentFactory 唯一入口（品阶受境界钳制 S17；词条 roll 走 RngPartition.EQUIPMENT(13)）
 升级/分解:            native 事务（equipment_tx.h，ActionId 1486/1487）；等级随实例单点，装卸往返逐位保真（R5）
-数值锚:               装备贡献 ∈ 总战力 [35,45]（S9，五入口阶段中位全入带）；一套满级 ≈ 1 月产出（S16，比值 0.9996）
+数值锚:               装备贡献 ∈ 总战力 [30,45]（S9 五入口带经五行化 E4 校准重锚）；一套满级 ≈ 1 月产出（S16）
 ```
 
 ### R1–R12 需求终态 / D1–D10 缺陷终态 / I1–I10 债表（全景对照）

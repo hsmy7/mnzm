@@ -102,13 +102,19 @@ class EquipmentPowerParityTest {
 
     // ── S9/S16：占比带 ───────────────────────────────────────
 
+    /** 五行属性伤害系统 E4 校准后的占比带：低品阶入口因副词条池权重重定
+     *  （类型词条 15+15→7+30、攻击/暴击下调）与 4 件套统一骨架（暴伤 25%→暴率 12%）
+     *  使 T2/T3 中位降 2–3.6pp——五入口实测 0.314/0.330/0.350/0.402（大乘 T6 满套另测），
+     *  带 [0.30,0.45] 按 B4 同方法论重锚（中位锚样本可复算）。 */
+    private val shareBand = 0.30..0.45
+
     @Test
     fun `锚定阶段大乘T6满套中位占比在40±5带内`() {
         val share = medianFullSetShare(realm = 2, rarity = 6)
         assertTrue(
-            "大乘 T6 满套中位占比 $share 出带 [0.35,0.45]——T6 flat 主词条基数校准被改动？" +
+            "大乘 T6 满套中位占比 $share 出带 $shareBand——T6 flat 主词条基数校准被改动？" +
                 "（校准锚口径见 EquipmentPowerParityTest KDoc 与 report-B4）",
-            share in 0.35..0.45
+            share in shareBand
         )
     }
 
@@ -126,8 +132,8 @@ class EquipmentPowerParityTest {
         for ((label, stage) in stages) {
             val share = medianFullSetShare(stage.first, stage.second)
             assertTrue(
-                "$label 入口中位占比 $share 出带 [0.35,0.45]（品阶基数表或境界基础属性被改动）",
-                share in 0.35..0.45
+                "$label 入口中位占比 $share 出带 $shareBand（品阶基数表或境界基础属性被改动）",
+                share in shareBand
             )
         }
     }
@@ -155,7 +161,7 @@ class EquipmentPowerParityTest {
         assertTrue("2 件套占比应低于 4 件套", medians[0] < medians[1])
         assertTrue("4 件套占比应低于 6 件套", medians[1] < medians[2])
         // 6 件满套 = 2/4/6 三档同时生效（EquipStatResolver 口径），占比锚落在满套状态
-        assertTrue("满套中位占比 ${medians[2]} 应在带内", medians[2] in 0.35..0.45)
+        assertTrue("满套中位占比 ${medians[2]} 应在带内", medians[2] in shareBand)
     }
 
     // ── S14：速度/灵力零贡献 + 分维度拆分 ────────────────────
@@ -177,10 +183,11 @@ class EquipmentPowerParityTest {
         println(
             (
                 "PARITY 分维度(T6满套 seed=1): 攻击贡献=%.0f 防御贡献=%.0f 血量贡献=%.0f " +
-                    "暴击率=%.4f 暴击伤害=%.4f 物理类型=%.4f 法术类型=%.4f"
+                    "暴击率=%.4f 暴击伤害=%.4f 物理类型=%.4f 金=%.4f 木=%.4f 水=%.4f 火=%.4f 土=%.4f"
                 ).format(
                 atkPower, defPower, hpPower, bonus.critRate, bonus.critDamage,
-                bonus.physicalDamageBonus, bonus.magicDamageBonus
+                bonus.physicalDamageBonus, bonus.metalDamageBonus, bonus.woodDamageBonus,
+                bonus.waterDamageBonus, bonus.fireDamageBonus, bonus.earthDamageBonus
             )
         )
         assertTrue("攻击维度贡献必须为正", atkPower > 0.0)

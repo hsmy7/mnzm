@@ -77,15 +77,15 @@ class EquipmentRarityGateTest {
     @Test
     fun `同种子产出逐位确定`() {
         val a = EquipmentFactory.create(
-            setId = "zifu", part = EquipmentSlot.HEAD, rarity = 3, rng = Random(20260930)
+            setId = "lihuo", part = EquipmentSlot.HEAD, rarity = 3, rng = Random(20260930)
         )
         val b = EquipmentFactory.create(
-            setId = "zifu", part = EquipmentSlot.HEAD, rarity = 3, rng = Random(20260930)
+            setId = "lihuo", part = EquipmentSlot.HEAD, rarity = 3, rng = Random(20260930)
         )
         assertEquals(a.growth, b.growth)
         assertEquals(a.meta, b.meta)
         assertEquals(a.part, b.part)
-        assertEquals("紫府玄冥·灵冠", a.name)
+        assertEquals("离火焚天·灵冠", a.name)
     }
 
     @Test

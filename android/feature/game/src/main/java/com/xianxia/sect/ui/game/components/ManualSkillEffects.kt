@@ -26,7 +26,11 @@ internal fun MutableList<String>.addManualSkillIntroInfo(template: ManualDatabas
 /** 功法模板技能伤害/治疗段 */
 internal fun MutableList<String>.addManualSkillCombatInfo(template: ManualDatabase.ManualTemplate) {
     if (template.skillDamageMultiplier > 0 && template.skillType != "support") {
-        add("  伤害类型: ${if (template.skillDamageType == "magic") "法术" else "物理"}")
+        add(
+            "  伤害类型: ${
+                com.xianxia.sect.core.DamageType.fromElement(template.skillDamageType)?.displayName ?: "物理"
+            }"
+        )
         add("  伤害倍率: ${(template.skillDamageMultiplier * 100).toInt()}%")
     }
     if (template.skillHealPercent > 0) {
@@ -139,7 +143,8 @@ internal fun MutableList<String>.addManualStackSkillInfo(item: ManualStack, skil
         add("  范围: 全体")
     }
     if (item.skillDamageMultiplier > 0 && item.skillType != "support") {
-        add("  伤害类型: ${if (item.skillDamageType == "magic") "法术" else "物理"}")
+        // 伤害类型 = 功法自带元素（五行属性伤害系统）；未知/退役段兜底物理
+        add("  伤害类型: ${com.xianxia.sect.core.DamageType.fromElement(item.skillDamageType)?.displayName ?: "物理"}")
         add("  伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
     }
     if (item.skillHealPercent > 0) {
@@ -257,7 +262,7 @@ internal fun MutableList<String>.addLearnedManualSkillIntro(skill: com.xianxia.s
 @Suppress("CyclomaticComplexMethod", "DEPRECATION")
 internal fun MutableList<String>.addLearnedManualSkillStats(skill: com.xianxia.sect.core.model.ManualSkill) {
     if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
-        add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}")
+        add("  伤害类型: ${skill.damageType.displayName}")
         add("  伤害倍率: ${(skill.damageMultiplier * 100).toInt()}%")
     }
     if (skill.healPercent > 0) {

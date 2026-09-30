@@ -50,15 +50,63 @@ inline std::vector<EquipmentSetDef>& equipmentSetDefsMutable() {
             },
         },
         {
-            "zifu", "紫府玄冥", "MAGIC",
+            "gengjin", "庚金白虎", "METAL",
             {
-                {"MAGIC_DAMAGE_PCT", 0.1},
+                {"METAL_DAMAGE_PCT", 0.1},
             },
             {
-                {"CRIT_DAMAGE", 0.25},
+                {"CRIT_RATE", 0.12},
             },
             {
-                {"MAGIC_DAMAGE_PCT", 0.2},
+                {"METAL_DAMAGE_PCT", 0.2},
+            },
+        },
+        {
+            "qingmu", "青木长生", "WOOD",
+            {
+                {"WOOD_DAMAGE_PCT", 0.1},
+            },
+            {
+                {"CRIT_RATE", 0.12},
+            },
+            {
+                {"WOOD_DAMAGE_PCT", 0.2},
+            },
+        },
+        {
+            "xuanshui", "玄水寒渊", "WATER",
+            {
+                {"WATER_DAMAGE_PCT", 0.1},
+            },
+            {
+                {"CRIT_RATE", 0.12},
+            },
+            {
+                {"WATER_DAMAGE_PCT", 0.2},
+            },
+        },
+        {
+            "lihuo", "离火焚天", "FIRE",
+            {
+                {"FIRE_DAMAGE_PCT", 0.1},
+            },
+            {
+                {"CRIT_RATE", 0.12},
+            },
+            {
+                {"FIRE_DAMAGE_PCT", 0.2},
+            },
+        },
+        {
+            "houtu", "厚土镇岳", "EARTH",
+            {
+                {"EARTH_DAMAGE_PCT", 0.1},
+            },
+            {
+                {"CRIT_RATE", 0.12},
+            },
+            {
+                {"EARTH_DAMAGE_PCT", 0.2},
             },
         },
     };

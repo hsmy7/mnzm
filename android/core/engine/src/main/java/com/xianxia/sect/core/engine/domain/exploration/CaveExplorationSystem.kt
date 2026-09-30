@@ -3,11 +3,9 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.Combatant
-import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -23,6 +21,8 @@ import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.speedVariance
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.typeDamageBonusesOf
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.engine.generateRandomEquipment
 
@@ -105,6 +105,10 @@ object CaveExplorationSystem {
                 damageMultiplier = adjustedMultiplier
             ).toCombatSkill(manualName = manual.name)
         }
+        // 类型伤害加成六路（装备/套装词条，五行路已按灵根 gate 折算；方案 §3.7②）
+        val typeBonuses = DiscipleStatCalculator.typeDamageBonusesOf(
+            disciple, discipleEquipment, disciple.equipment.equippedItemIds
+        )
         Combatant(
             id = disciple.id,
             name = disciple.name,
@@ -115,7 +119,12 @@ object CaveExplorationSystem {
             maxMp = stats.maxMp,
             attack = stats.attack,
             defense = stats.defense,
-            innateDamageType = disciple.resolvedInnateDamageType(),
+            physicalDamageBonus = typeBonuses.physical,
+            metalDamageBonus = typeBonuses.metal,
+            woodDamageBonus = typeBonuses.wood,
+            waterDamageBonus = typeBonuses.water,
+            fireDamageBonus = typeBonuses.fire,
+            earthDamageBonus = typeBonuses.earth,
             speed = stats.speed,
             critRate = stats.critRate,
             skills = skills,
@@ -148,10 +157,6 @@ object CaveExplorationSystem {
         val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
 
         val beastSkills = createBeastSkills(beastType = beastType)
-        // 妖兽伤害类型按种类元素固定（§15.3：金/土→物理、水/木/火→法术）
-        val innateType =
-            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
-            else DamageType.MAGIC
 
         val guardianName =
             if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"
@@ -166,7 +171,6 @@ object CaveExplorationSystem {
             maxMp = mp,
             attack = attack,
             defense = defense,
-            innateDamageType = innateType,
             speed = speed,
             critRate = 0.05 + realmIndex * 0.01 + if (isBoss) 0.1 else 0.0,
             skills = beastSkills,
