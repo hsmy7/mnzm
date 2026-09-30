@@ -12,6 +12,7 @@
 - [结算架构：惰性结算引擎](#settlement-architecture-lazy-settlement-engine)
 - [线程架构：双游戏线程 + Watchdog](#threading-architecture-two-game-threads)
 - [GameSystem 生命周期](#gamesystem-生命周期)
+- [属性与装备体系（装备重构线终态）](#属性与装备体系2026-09-装备重构线-eq-b0b5-落地)
 - [乘区法公式架构](#formula-architecture-zone-multiplier-system)
 - [生命周期：BootPhase / RunState 双层状态机](#lifecycle-architecture-bootphase--runstate-双层状态机)
 - [抗冻结架构：自适应忙等](#抗冻结架构自适应忙等)
@@ -206,6 +207,80 @@ interface GameSystem {
 `onMonthlyEvent`/`onYearlyEvent` 均非挂起（全链路同步化），在 `stateStore.update {}` 事务内调用。异步操作（网络/DB I/O）使用 `runBlocking` 在事务外执行。不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
 
 寻访（抽卡/保底/碎片/升星）**不在本结算体系内**：不注册 `GameSystem` 月/年回调，结算由独立 native 事务（`gacha_tx.h`）在请求点同步完成；保底计数不进年变 T1/T2 队列（`docs/character-gacha-redesign-2026-09-23.md` §15.4）。
+
+装备升级/分解同样**不在任何结算循环内**：玩家交互与战斗胜利驱动的离散 native 事务（`equipment_tx.h`，ActionId 1486/1487），替换旧孕养结算（每旬孕养层已随 R4 删除）。
+
+---
+
+## 属性与装备体系（2026-09 装备重构线 EQ-B0–B5 落地）
+
+> 权威方案 `docs/design/equipment-set-system-refactor-plan.md`（需求 R1–R12 / 缺陷 D1–D10 / 债 I1–I10 / 风险 R12–R17 的定义与推导）；批次编排 `docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md`；各批报告 `docs/design/equipment-batches/reports/`；决策记录 [docs/adr/equipment-set-system.md](adr/equipment-set-system.md)；子系统实现速查 `docs/knowledge-base.md`「装备系统（六部位套装体系）」节。本节是**活文档终态登记**。
+
+### 属性单列口径（EQ-B1 落地，R12）
+
+弟子/战斗体属性只有 `attack/defense` 单列（物攻/法攻/物防/法防四列已退役，符号面归零由 `SingleColumnStatGuardTest` 守卫）；物法差异由**三条类型通道**承载：
+
+1. **普攻**伤害类型 = 攻击者 `innateDamageType`（角色模板固定，缺失按首灵根派生：金/土→物理、水/木/火→法术）；
+2. **技能**伤害类型 = `skill.damageType`；
+3. **类型增伤/减伤分桶**：`physicalDamageBonus/magicDamageBonus`（攻方）与 `physicalDamageReduction/magicDamageReduction`（守方）四桶，默认 0.0 时与旧公式逐位一致（S19）。
+
+战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2` 与旧双列取和口径线性恒等（k=1，迁移前后总战力比 ∈ [0.98,1.02] 由 S20 断言）。装备/功法/丹药加成全部汇入单列；**速度/灵力不在装备加成通道**（S14 拍板，回归锁在 `EquipmentPowerParityTest`）。
+
+### 六部位装备体系（EQ-B3 落地，R1–R10）
+
+```
+EquipmentSlot（6 值）: HEAD/BODY/HANDS/FEET/WEAPON/LEGS（无饰品位）
+EquipmentInstance:    一行一实例，setId/part + growth{level 1–30, exp, 主词条, 3 副词条, 强化次数} + meta
+套装 ×2:              物理套 / 法术套，各 6 部位，2/4/6 件档（档位效果相加口径）
+产出:                 EquipmentFactory 唯一入口（品阶受境界钳制 S17；词条 roll 走 RngPartition.EQUIPMENT(13)）
+升级/分解:            native 事务（equipment_tx.h，ActionId 1486/1487）；等级随实例单点，装卸往返逐位保真（R5）
+数值锚:               装备贡献 ∈ 总战力 [35,45]（S9，五入口阶段中位全入带）；一套满级 ≈ 1 月产出（S16，比值 0.9996）
+```
+
+### R1–R12 需求终态 / D1–D10 缺陷终态 / I1–I10 债表（全景对照）
+
+| 需求 | 终态 | 落批 | 守卫/判据 |
+|---|---|---|---|
+| R1 六部位（头/身/手/脚/武/腿） | ✅ | B3 | `EquipmentSlotOrderGuardTest` |
+| R2 删除全部旧装备 + 补偿 | ✅（100% basePrice 折算，1 亿上限，幂等） | B3 | `EquipmentLegacyCompensationTest` + `RoomMigrationV63To64Test` |
+| R3 套装 2/4/6 件档 | ✅ | B3 | `EquipmentSetBonusTest` + `equip_set_bonus_test.cpp` |
+| R4 升级 1–30 替换孕养 | ✅（每旬孕养结算层删除） | B3 | `EquipmentLevelSystemTest` + `DiffEquipmentUpgradeTest` |
+| R5 装卸不改等级 | ✅（等级随实例单点，D2 根因清除） | B3 | `EquipmentLevelPersistGuardTest` |
+| R6 移除堆叠 | ✅（`equipmentStacks` 表/流/符号面归零；白名单残留见 EQ-I13） | B3 | `EquipmentStackRemovalGuardTest` |
+| R7/R9/R10 主词条部位池 + 3 副词条 7 项权重池 | ✅ | B3+B4 | `EquipMainStatPoolTest` / `EquipAffixPoolTest` |
+| R8 物理套 + 法术套 | ✅ | B3 | `EquipmentSetDatabaseTest` |
+| R11 孕养类加成丹药退役 + 补偿 | ✅（2000 万上限，幂等） | B2 | `NurturePillRetirementTest` + S13 grep 归零 |
+| R12 属性单列 + 类型通道 | ✅ | B1 | S19/S20/S21 + `SingleColumnStatGuardTest` |
+
+| 缺陷 | 终态 |
+|---|---|
+| D1 装备双表漂移 | ✅ B3 闭合（`EquipmentRegistry` 纯转发层 + `EquipmentSingleSourceGuardTest`） |
+| D2 孕养等级双源 | ✅ B3 闭合（growth 随实例单点 + `EquipmentLevelPersistGuardTest`） |
+| D3 暴击伤害死字段 | ✅ B3 接线（`Combatant.critDamageBonus` 双端全链）；**残留风险面另立 EQ-I12** |
+| D4 孕养 checkpoint 列 | ✅ B3 迁移删列（98/99 号 reserved） |
+| D5 三处价格口径 | ✅ B3 闭合（`EquipmentDatabaseTest`） |
+| D6 枚举回退值 | ✅ B3 闭合（`JsonConverters` 断言 + 迁移测试） |
+| D7 堆叠阈值崩塌 | ✅ B3/B4 闭合（实例无硬上限 + 仅告警 + 不走溢出邮件，S18） |
+| D8 | 非缺陷（月度购买限流误判，已更正） |
+| D9 codegen 非幂等 | ✅ B3 闭合（生成器补全 + G0 幂等零差异 + `TemplateCodegenIntegrityGuardTest`） |
+| D10 生成器死代码 | ✅ B3 闭合（同上） |
+
+**I1–I10 技术债**（定义与触发条件全文见方案 §九，此处为索引）：I1 无运行时开关（= 存档不可回退，更新公告必写）· I2 套装/词条表随包发版（RemoteConfig 化触发条件在案）· I3 无洗练/重铸/定向 · I4 副词条池无百分比项 · I5 AI 弟子装备不存词条（占位 0 加成，双端语义一致）· I6 装备精灵图程序化占位（美术交付触发 7 步流程）· I7 不新增装备埋点/引导 · I8 ~20 个存档子消息类零 `@ProtoNumber` · I9 无保底/无定向获取（**EQ-B4 已量化登记**：掉落链理想套 11,389 件掉落 / 锻造链 88 次；触发时优先评估"锻造指定主词条/洗练"而非新建定向链）· I10 实例无硬上限（P95 超 1500 件或云存档体积超阈值触发软上限）。
+
+**风险 R12–R17 终态**：R12 补偿失控→双补偿幂等+上限+审计闭合；R13 速度/灵力塌陷→**拍板不补偿**（B4 实测塌陷 −105%~−122% 属需求本体，备选 B1/B2 切换成本在案，监控随 I9 族）；R14 两笔补偿叠加通胀→上限分设（1 亿/2000 万）+ 同版本审计；R15 价值方差→分解返还 50% 低于重取期望成本；R16 无保底+无上限组合→I9/I10 条件触发（不改架构）；R17 占比依赖战力权重→B4 以占比区间断言直接锚定（口径漂移即红）。
+
+### 装备线遗留债登记（EQ-I11 起，EQ-B5 收口；触发条件未满足前不产生工作）
+
+| # | 项 | 内容与风险面 | 建议触发条件 |
+|---|---|---|---|
+| **EQ-I11** | **跨语言对拍两缺口桥端口**（B3 报告 §5 登记→B4 未补→本批收口登记） | `DiffEquipmentGenerationTest`（C++ 生成词条 roll 无干净派发动作可达，藏于任务奖励/锻造/商人链内部）与 `DiffEquipmentSetBonusTest`（`resolveSetBonus` 消费在 stat 计算内部）双端对拍**未落地**。现行补偿守卫链 = 四方数据对齐（`TemplateRegistryGuardTest`↔`equipment_db_test`↔中性源）+ C++ 同算法逐位 GTest + Kotlin 池/工厂单测 + `DiffEquipmentUpgradeTest` 13 号分区消费序全等（任一侧算法漂移即分叉）。风险面：仅覆盖"同表同源"，不覆盖"生成/套装结算入口的端到端逐位" | 补桌面专用测试桥端口（`nativeCoreGenerateEquipment` 等）后落地；可与 GameView/属性查询通道扩展同批，**不阻塞上线** |
+| **EQ-I12** | **暴击面板 uncapped 数值评审专项候选**（B4 §7.3 途中发现） | T6 暴击率主词条 0.52×3.9 = **203%**、暴伤满强化面板 **+882%**——战斗侧消费是否存在 cap 未核实。若 uncapped 属真 bug，修在战斗 cap 层，**不动主词条基数表**（B4 校准锚不被扰动） | 数值评审专项批；上线前或首个平衡反馈批 |
+| **EQ-I13** | **`SecretRealmBackpack.equipment` 旧堆叠轨残留**（B3 §7.3→B4 §7.6 移交） | 秘境背包仍是旧堆叠轨（`EquipmentStackRemovalGuardTest` 白名单在册）；跨端载体临时不对称（C++ `addEquipmentInstance` vs Kotlin `toLegacyInstance` 语义等价），对拍注意背包结算段。同族：旧档储物袋无 payload 引用式条目为永久悬挂项（量级趋零） | 后续触秘境链的批次一并收口（换实例轨 + 白名单删除即红） |
+| **EQ-I14** | **`ForgeRecipeDatabase.TIER_DURATION` 单位歧义**（B3 §7.5→B4 §7.4） | 注释「旬」vs 消费语义「月」不一致（T6=120：旬则 40 月/月则 120 月）。注意该表是**锻造时长**非满级时长（满级 = 升级消耗 940 万灵石 ≈ 1 月产出 ✓）；但 I9 触发评估"88 炉理想套"时需一并复核锻造产能（旬语义下 120 旬/炉 × 88 炉） | 语义核实一次定案；I9 触发时强制复核 |
+| **EQ-I15** | **AI 装备加成产品决策**（B4 §6.5） | 当前 AI 弟子装备 = 双端同构占位空词条实例（I5），**按 0 加成结算、语义已一致**；`Gear.kt` KDoc 中"战斗装配按品阶固定加成"为 B3 遗留前瞻表述（非现状）。是否给 AI 按品阶装备加成属产品数值决策 | 产品对 AI 宗门战难度提出要求时（按 (pieceId, rarity, seed) 确定性派生，零存储） |
+| **EQ-I16** | **结构性数值两条（只登记不设断言）**（B4 §7.1/7.2，随方案 §8 未来场景注记） | ① T1@炼气占比 54.6% 越带（副词条单独已 35.9%，主词条杠杆不可达——出带需动副词条档位表或境界基础属性，超"主词条基数×k"授权面）；② 深化期衰减（渡劫 23.0% / 仙人 12.6%：T6 封顶 × 境界继续成长的结构结果） | ① 首次数值平衡批评估副词条档位杠杆；② 出 T7+ 品阶时自然回带 |
+
+> 实时结算线遗留三项（`processAutoAlchemy` 零调用 / bench `overBudgetCount` 断言噪声 / `kMsPerPhase` 归一）**不在装备线处置范围**，维持实时线台账登记。
 
 ---
 
@@ -577,6 +652,7 @@ SaveValidator.validate(SaveData)
 | T-1 | 小精灵槽位随缩放上限提升（渲染纹理降采样管线改版登记，2026-09） | `CameraState.MAX_ZOOM` 上调至 >3.0 时 | 128 槽位在上界 3.0 处 1.125× 放大（8% 软度，与瓦片一致已验收）；256+ 槽位需全 LAYOUT 重排。触发后槽位按新上限重算（公式：槽位 = ceil(maxDisplay/32)×32）并重排布局（gutter ≥8 规则不变，`SpriteAtlasDefGeneratedTest` gutter 守卫自动校验） |
 | T-2 | REPEAT 整图地面 quad 的 mip（渲染纹理降采样管线改版登记，2026-09） | `GROUND_QUAD_ENABLED` 重新启用时（Adreno 740 采样异常黑屏定位后） | REPEAT 与图集 mip 语义不同源——为其单独生成 REPEAT mip 链并连接上传（`uploadRepeatTexture` 路径扩展 mipLevels），不得复用图集 per-sprite mip |
 | T-3 | 大结构（天枢殿/门楼）3× 极限放大略柔（渲染纹理降采样管线改版登记，2026-09） | 出现"建筑放大细节"玩家反馈或美术要求时 | 全 3× 覆盖槽位（2592px）超单图集可行性——评估局部高清槽位或图集拆分（天枢殿 1024² 槽位 1.19:1×、门楼 768×512 槽位 2.67:1× 为按显示建模现状） |
+| T-EQ1~6 | **装备线条件式债 EQ-I11~I16**（对拍桥端口 / 暴击 uncapped 评审 / 秘境旧堆叠轨 / TIER_DURATION 歧义 / AI 装备加成决策 / 结构性数值两条——2026-09-30 装备重构线 B5 收口登记） | 各项触发条件**逐条见「属性与装备体系」节的装备线遗留债登记表**（本行仅为档案索引，不重复维护内容） | 修改任一项后同步更新该表与方案 §九债表 |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 

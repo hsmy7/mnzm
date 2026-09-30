@@ -2,7 +2,7 @@
 
 > 对标 Godot 官方 [Thread-safe APIs](https://docs.godotengine.org/en/4.0/tutorials/performance/thread_safe_apis.html) 文档。
 > 本文档是本项目"哪些 API 从哪条线程可调"的**唯一成文权威**，审查清单 13.3 引用本文。
-> 更新日期：2026-09-28——**表四新增「离线收益」通道行**（实时结算线 B7：boot 折算 staging → ensure 尾部 consume → `nativeInjectOfflineGameMs`，报告流 `offlineReturnReport`；先登记再实现纪律履行）。前次 2026-09-23：**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
+> 更新日期：2026-09-30——**装备系统重构线（EQ-B0–B5）核对声明：本批零新增线程、零新增跨线程通道**。装备升级/分解走既有 `tryExecuteNative`（ActionId 1486/1487，引擎线程 → C++ `equipment_tx.h` → `applyDirtyFromNative` 回镜像，表四既有行）；穿卸/自动装配走旬结既有路径；`RngPartition.EQUIPMENT(13)` 为既有 RNG 分区通道的数据面追加（非新通道）。前次 2026-09-28——**表四新增「离线收益」通道行**（实时结算线 B7：boot 折算 staging → ensure 尾部 consume → `nativeInjectOfflineGameMs`，报告流 `offlineReturnReport`；先登记再实现纪律履行）。更早 2026-09-23：**新增内存子系统四通道预登记**（`nativeMemoryTrim` / `textureAcquire` / `textureRelease` / MemoryStats 读通道，表一/表二/表三/表四标注「内存子系统」的条目；实现随 [memory-refactor 实施方案](memory-refactor-implementation-plan-2026-09-23.md) MR1–MR3，**登记先于实现**）。既有代码事实基线（2026-08-13）：GameEngineCore.kt / GameStateStoreImpl.kt / NativeSurfaceView.kt / RenderCommandBus.kt / GameEvents.kt / AudioEngine.kt。
 
 ---
 

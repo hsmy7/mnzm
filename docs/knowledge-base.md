@@ -12,6 +12,7 @@
 - [弟子分配门卫系统](#弟子分配门卫系统)
 - [存档槽位隔离](#存档槽位隔离)
 - [探索系统](#探索系统)
+- [装备系统（六部位套装体系）](#装备系统六部位套装体系)
 - [确定性 RNG 系统](#确定性-rng-系统)
 - [弟子属性生成](#弟子属性生成)
 - [Component Table 架构](#component-table-architecture)
@@ -149,6 +150,32 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ---
 
+## 装备系统（六部位套装体系）
+
+> 2026-09 装备系统重构线（EQ-B0–B5）落地后的终态。权威方案 `docs/design/equipment-set-system-refactor-plan.md`（R1–R12/D1–D10/I1–I10）、批次编排与各批报告 `docs/design/equipment-batches/`、决策记录 [docs/adr/equipment-set-system.md](adr/equipment-set-system.md)、债务与遗留登记 `docs/architecture.md`「属性与装备体系」节。
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `EquipmentSlot` | core/domain | 六部位枚举（HEAD/BODY/HANDS/FEET/WEAPON/LEGS，`@ProtoNumber` 10..15，显示序 = 声明序；移除饰品位） |
+| `EquipmentInstance` | core/domain | 一行一实例模型：`setId/part/growth{level,exp,mainStat,subStats,subRolls}/meta`；等级/词条/强化随实例单点（装卸往返逐位保真）；全字段 val（恒等键缓存版本安全前提） |
+| `EquipmentDatabase` / `EquipmentSetDatabase` | core/domain registry | 12 部件 × 6 品阶 72 展开条目；两套装（物理/法术）2/4/6 件档；`EquipmentRegistry` 只是纯转发层（D1 防复发守卫） |
+| `EquipMainStatPool` / `EquipAffixPool` | core/domain registry | 主词条部位池随机（武器 1.15 输出向/腿部 0.95）+ 3 副词条 7 项权重池（13/13/14/15/15/15/15）不放回 |
+| `EquipmentFactory` | core/engine | **唯一产出入口**：品阶受境界钳制（S17，双端默认哨兵 `REALM_UNRESTRICTED`）；词条 roll 走 `RngPartition.EQUIPMENT(13)` 双端 |
+| `EquipmentLevelSystem` / `EquipmentUpgradeService` | core/engine | 升级 1–30（替换孕养）：曲线 `100×level×rarityMul`、每 3 级强化一条副词条、分解返还 50%；升级/分解走 native 事务（ActionId 1486/1487，C++ `equipment_tx.h`） |
+| `EquipStatResolver` | core/engine | 词条+套装加成解析单点（2/4/6 档相加口径）；**恒等键整解析缓存**（4096 清空护栏；值语义键深哈希 6.3× 劣化实测否定，勿翻案） |
+| `DiscipleEquipmentService` / `DiscipleEquipmentManager` | core/engine | 穿卸单轨六部位（卸装 = 实例保留 `isEquipped=false`，非删除）；`DiscipleSurrogate` 六部位列 headId(112)..legsId(116) 扁平代理 |
+| `LegacyEquipmentCompensationRule` / `EquipmentValueSanitizeRule` | core/data integrity | 旧装备 100% basePrice 折算补偿（order=27，1 亿上限、幂等）/ 词条完整性消毒（order=28，coerce 双端一致） |
+| C++ 对偶 | `gamecore/data/equip_*.h`、`equipment_tx.h`、`equipment_factory.h`、`equipment_entries.h` | AUTHORITATIVE 真相源：装备事务/词条抽取/套装结算与 Kotlin 逐位对拍（`DiffEquipmentUpgradeTest` + `equip_*_test.cpp`） |
+| codegen 链 | `scripts/data/equipment_db_sample.json` + `scripts/gen-templates.mjs` / `gen-game-data.mjs` | 静态数据单一真源（E4 禁手改生成物；G0 幂等门 + `TemplateCodegenIntegrityGuardTest`） |
+
+**属性接口（B1 单列口径）**：装备/功法/丹药加成汇入弟子 `attack/defense` 单列；物法差异只走三条通道——普攻 `innateDamageType`、技能 `damageType`、类型增伤/减伤分桶；速度/灵力**不在**装备加成通道（S14 拍板）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`，装备占比锚 [35,45]（`EquipmentPowerParityTest` 分维度钉死）。
+
+**守卫测试族**：`EquipmentSlotOrderGuardTest` / `EquipmentSingleSourceGuardTest` / `EquipmentLevelPersistGuardTest`（R5 根因）/ `EquipmentStackRemovalGuardTest`（R6 符号面归零+白名单）/ `EquipmentRarityGateTest`（S17+产出链单点路由）/ `EquipmentProtoNumberFrozenTest`（E1 编号冻结）/ `EquipmentPowerParityTest`（S9）/ `EquipmentEconomyCalibrationTest`（S16）/ `EquipmentStatHotPathBenchmark`（S18 门 ≤1.10）。
+
+**镜像面**：`equipmentInstances` 实体集合（ui-read-surface §2.2）+ disciples 行六部位列（proto 67-70/122/123）；UI 消费一律经 `GameEngine.equipmentInstances` 只读流，禁止 UI 侧自算第二份词条加成。
+
+---
+
 ## 确定性 RNG 系统
 
 所有随机操作使用分区 PRNG 确保存档/读档后随机序列一致：
@@ -156,7 +183,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | **10 分区枚举**（`RngPartition`）：BATTLE(0) / BREAKTHROUGH(1) / EXPLORATION(2) / SYSTEM(3) / ENEMY_GEN(4) / MAIL(5) / AI_SECT(6) / **SECRET_REALM(7)** / **MISSION(8)** / **AI_SECT_MIRROR(9, `inSnapshot=false` 通道型)**——`exportStates()`/`restoreStates()` 只处理 `inSnapshot=true` 的 **9 项**（键 6 `kAiSect` 由 C++ 接管，Kotlin 侧经 9 号镜像键对齐，见 `game_core.cpp` 的 `rngStates.erase(kAiSect)`） |
+| `GameRngManager` | `util/GameRngManager.kt` | **14 分区枚举**（`RngPartition`）：BATTLE(0) / BREAKTHROUGH(1) / EXPLORATION(2) / SYSTEM(3) / ENEMY_GEN(4) / MAIL(5) / AI_SECT(6) / **SECRET_REALM(7)** / **MISSION(8)** / AI_SECT_MIRROR(9, `inSnapshot=false` 通道型) / CHAT(10) / RESIDUAL(11, `isLocal` 本地 PCG 不跨线) / GACHA(12) / **EQUIPMENT(13)**（装备词条 roll/升级强化，2026-09 装备重构线 B3 新增，双端 `kEquipment`）——`exportStates()`/`restoreStates()` 只处理 `inSnapshot=true` 的项（键 6 `kAiSect` 由 C++ 接管，Kotlin 侧经 9 号镜像键对齐，见 `game_core.cpp` 的 `rngStates.erase(kAiSect)`） |
 | `RngPartition` | `util/RngPartition.kt` | 分区枚举（含 `inSnapshot` 通道型标记） |
 
 **规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`（**红线由守卫测试闸门**：`RngSourceGuardTest` 五类入口逐模块登记上限只缩不增 + `RngEngineIsolationGuardTest` 禁止自建随机源；见 `docs/adr/rng-determinism-remediation.md`）。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
@@ -699,6 +726,10 @@ fun watchAdForNewFeature() {
 | 产（源） | 运营发放 | 兑换码/节日邮件/白名单 1000 万灵石邮件（每日签到已移除 2026-08-07） | `RedeemCodeService`、`BuiltinMailConfig` |
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
 | 产（源） | **孕养丹退役补偿**（装备重构 B2/R11，**纯新增源**、一次性） | 旧档存量孕养类丹药（`nurtureSpeed_*`/`nurtureAdd_*` 两族 36 id）按退役时刻价格快照 100% 折算灵石，单封补偿邮件发放（source=`nurture_pill_retirement`，永久有效）；**单档上限 2000 万灵石**，超出按比例截断并记日志；幂等标记 `GameData.nurturePillsRetired`(168) 同事务；额度量级=存量×原价（tier6 中品单颗 2688 万必触上限），**产出缺口**：奖励池/商店/兑换码的孕养丹条目随模板退役移除，原孕养丹产出通道灵石消耗同步消失（负向缺口已随体系退役，无需补位） | `NurturePillRetirementRule`（core/data integrity，order=26） |
+| 产（源） | **旧装备折算补偿**（装备重构 B3/R2，**纯新增源**、一次性） | 旧档全部旧装备（72 旧模板，含仓库堆叠/储物袋/已穿戴）按 100% `basePrice` 折算灵石，补偿邮件发放；**单档上限 1 亿灵石**，超出按比例截断并记日志；幂等标记（game_data 补偿标记列，Room v64 迁移同批新增）同事务；迁移链见 `GameDatabaseMigrationsV64`（影子表 `legacy_equipment_stacks` 为补偿数据源） | `LegacyEquipmentCompensationRule`（core/data integrity，order=27） |
+| 产（源） | **装备分解返还**（装备重构 B3，装备线新汇的配套回收） | 分解已升级装备返还 **50% 累计升级消耗**（灵石+兽材，向下取整；锁定/已穿戴拒绝分解）；T6 满级单件返还 783,000 灵石 + 19 兽材（测试断言锚）。返还率 50% 低于重取期望成本——抑制"分解/重取"循环放大波动（方案 R15） | `EquipmentUpgradeService`（core/engine）、C++ `equipment_tx.h`（ActionId 1487） |
+| 耗（汇） | **装备升级消耗**（装备重构 B3/B4，装备线主消耗汇） | 公式：灵石 `100 × rarity² × level`/级 + 兽材 `max(1, floor(level/10))` 件/级；T6 单件 1→30 累计 **1,566,000 灵石 + 39 兽材**，一套六件满级 **9,396,000 灵石 + 234 兽材**；升级走 native 事务（ActionId 1486，先验后扣、失败臂零消费）。**月产出锚 `M` = 9,400,000 灵石/月**（`EquipmentEconomyCalibrationTest.STANDARD_MONTH_OUTPUT_AT_T6_STAGE`，T6 可穿阶段标准月画像，**拍板口径反推定锚、非测量值**，上线后以运营数据回标；量级交叉核对 = T6 物品市价 2,688 万 ≈ 2.9 个月产出）：满级一套 ÷ M = **0.9996** ∈ [0.75,1.25]（拍板 #4"一套满级 ≈ 1 个月"验收锚） | `EquipmentLevelSystem`/`EquipLevelCurve`（core/engine）、`EquipmentEconomyCalibrationTest` |
+| 耗（汇） | **装备锻造**（装备重构 B3，装备线第二消耗汇） | 12 配方**天然定向**套装+部位（旧 73 配方退役）；品阶受职业等级上限钳制、T6 成功率 25%、**失败材料整耗**、主词条每炉重 roll；理想套（理想主词条+T6）期望 **88 次锻造**（头 8/身 16/手 12/脚 20/武 12/腿 20 单件；掉落链对照 11,389 件掉落——期望成本全景见方案 §九 I9）；与升级消耗 940 万灵石叠加构成装备线双汇，已可审计 | `ForgeRecipeDatabase`、`BuildingService` 锻造链、C++ `equipment_factory.h` |
 | **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
 | 耗（汇） | 住所升级 | 初级住所→中级住所差价（单人 30000/多人 50000，目标造价-源造价动态计算，要求中型宗门） | `BuildingFacadeImpl.upgradeBuildings`、`BuildingUpgradeRegistry` |
 | 耗（汇） | 生产投入 | 炼丹/锻造/种植材料 | `ProductionProcessor`、`AlchemySystem` |
