@@ -280,5 +280,4 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ## 8. 版本发布
 
-发布时更新 `version.properties`（项目根，单一事实源）：`versionCode` 递增 1；`versionName` 为 `X.XX.XX`
-（禁止写成 `4.0.86`）。**禁止擅自更新版本号**，由用户判断和指令。完整发布流程、**双更新日志**要求与检查清单见 [`rules/version-release.md`](rules/version-release.md)。
+发布时更新 `version.properties`（项目根，单一事实源）：`versionName` 为 `X.X.XX`（主版本 1 位 + 次版本 1 位 + 构建 2 位，不足前补零；**禁止写成 `4.2.0`**）；`versionCode` = 主版本 × 1000 + 次版本 × 100 + 构建（`4.2.00` → `4200`），且**必须单调递增**（低于上一版会被商店拒收）。**禁止擅自更新版本号**，由用户判断和指令。完整发布流程、**双更新日志**要求与检查清单见 [`rules/version-release.md`](rules/version-release.md)。

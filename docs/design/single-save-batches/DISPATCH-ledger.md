@@ -245,6 +245,16 @@ SS0 ─┬─ SS1 ──────────────┐
 | M3 | 手动补偿邮件 | **保留** `injectAdminMail`（工具性质） | — |
 | M4 | 系统功能邮件 | 🔴 **保留** `overflow` / `secret_realm`（删了会丢物品） | — |
 
+### 6.5 版本与更新日志（第三轮）
+
+| # | 议题 | 结果 |
+|---|---|---|
+| V1 | 目标版本 | **`4.2.00` / `4200`**（用户 2026-10-01）；`version.properties` 已更新 |
+| V2 | 版本号格式 | **`X.X.XX`**（原 `X.XX.XX`）；`versionCode` = 主×1000 + 次×100 + 构建，**强制单调递增**。已改 `rules/version-release.md` §1 + 根 `AGENTS.md` §8 |
+| V3 | 游戏内更新日志 | **历史清空**（62 条 → 唯一 `4.2.00` 条目）；外部 `CHANGELOG.md` 保留历史并新增 `[4.2.00]` 段 |
+| V4 | 后续义务 | **SS10 收口**：SS0–SS9 的玩家可见变更并入**同一 `4.2.00` 条目**（同版本禁止新建第二条目，`rules/version-release.md` §2 合并规则） |
+| V5 | 已知过期引用 | `docs/gacha-watch/BATCH-PLAN-ALL.md:1028,1038` 与 `docs/design/gacha-batches/TASKBOOK-G14.md:63,73` 仍写 `X.XX.XX`——属 G 批已收官过程档案，**不回改**，新批次以规则为准 |
+
 ---
 
 ## 7. 交付形态与汇报

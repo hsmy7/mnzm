@@ -1,3 +1,24 @@
+## [4.2.00] - 2026-10-01
+
+### 版本号格式变更 + 游戏内更新日志清空 + 测试期删档重置（SS 线起点）
+
+> 需求拍板（用户 2026-10-01）：版本号定为 **`4.2.00` / `4200`**；**版本号格式规则由 `X.XX.XX` 改为 `X.X.XX`**
+> （主版本 1 位 + 次版本 1 位 + 构建 2 位），`versionCode` = 主版本 × 1000 + 次版本 × 100 + 构建；
+> **游戏内更新日志历史清空**（仅保留本版本条目），**本文件保留完整历史**。
+> 游戏处于测试版，将进行一次**删档重置**并开启新测试期——方案
+> [docs/design/single-save-and-persistence-consolidation-plan-2026-10-01.md](docs/design/single-save-and-persistence-consolidation-plan-2026-10-01.md)、
+> 派工册 [docs/design/single-save-batches/DISPATCH-ledger.md](docs/design/single-save-batches/DISPATCH-ledger.md)。
+
+- **版本号格式变更**：`rules/version-release.md` §1 与根 `AGENTS.md` §8 由 `X.XX.XX` 改为 **`X.X.XX`**；
+  `versionCode` 明确为 `主版本 × 1000 + 次版本 × 100 + 构建` 并**强制单调递增**。
+  本次 `4.01.16`/`4116` → **`4.2.00`/`4200`**（严格递增，避免商店拒收；若沿旧公式按"次版本 1"会得到 `4100`，低于 `4116` 而不可用）。
+- **游戏内更新日志清空**：`android/app/src/main/assets/changelog_entries.json` 由 62 条历史条目清为
+  **唯一 `4.2.00` 条目**——测试期重置，避免向新测试期玩家展示已不存在的历史功能；外部本文件不回改历史。
+- **删档重置（进行中，SS0 批）**：老库由 destructive fallback 重建；两条存档兼容链
+  （Room 迁移链 / 存档格式链）与存量迁移族清零；云端存档改命名并删除旧档；设备与云端残留全清；
+  邮件侧删除 QQ 群邮件与白名单福利邮件（保留节日邮件与系统功能邮件）。
+- **版本号三方归一**：`version.properties`（`4.2.00`/`4200`）、本文件段头 `[4.2.00]`、游戏内 json 唯一条目 `4.2.00`。
+
 ## [4.01.16] - 2026-09-22
 
 ### 主界面退役——登录后自动进入游戏（自动建档 / 自动读档） — `feat(remove-main-menu)`（2026-10-01 单批交付）
