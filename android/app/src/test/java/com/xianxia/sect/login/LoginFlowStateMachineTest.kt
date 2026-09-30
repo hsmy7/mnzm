@@ -24,7 +24,7 @@ class LoginFlowStateMachineTest {
     // ── 正常路径 ──
 
     @Test
-    fun `正常登录 - 登录成功到验证成功进入模式选择`() {
+    fun `正常登录 - 登录成功到验证成功自动进入游戏`() {
         machine.onEvent(LoginFlowEvent.LoginRequested)
         assertEquals(LoginFlowState.LoggingIn, machine.state)
 
@@ -43,7 +43,7 @@ class LoginFlowStateMachineTest {
             "start(union-1)",
             "setVerifyTimeout(true)",
             "setVerifyTimeout(false)",
-            "showModeSelect"
+            "enterGame"
         )
     }
 
@@ -125,11 +125,11 @@ class LoginFlowStateMachineTest {
     // ── 冷启动路径 ──
 
     @Test
-    fun `冷启动已认证 - 直接进模式选择`() {
+    fun `冷启动已认证 - 自动进入游戏`() {
         machine.onEvent(LoginFlowEvent.ColdStart(complianceVerified = true, unionId = "union-1"))
 
         assertEquals(LoginFlowState.Verified, machine.state)
-        assertEffects("showModeSelect")
+        assertEffects("enterGame")
     }
 
     @Test
@@ -205,7 +205,7 @@ class LoginFlowStateMachineTest {
         machine.onEvent(LoginFlowEvent.VerificationSuccess)
         assertEquals(LoginFlowState.Verified, machine.state)
         assertEquals(emptyList<String>(), host.effects)
-        assertTrue("首次转移应含 showModeSelect", verifiedEffects.contains("showModeSelect"))
+        assertTrue("首次转移应含 enterGame", verifiedEffects.contains("enterGame"))
     }
 
     @Test
@@ -225,7 +225,7 @@ class LoginFlowStateMachineTest {
     }
 
     @Test
-    fun `单飞 - 已进模式选择后登录事件 no-op`() {
+    fun `单飞 - 已自动进入后登录事件 no-op`() {
         machine.onEvent(LoginFlowEvent.LoginRequested)
         machine.onEvent(LoginFlowEvent.LoginSuccess("union-1"))
         machine.onEvent(LoginFlowEvent.ActivityResumed)
@@ -256,7 +256,7 @@ class LoginFlowStateMachineTest {
         assertEquals(LoginFlowState.Idle, machine.state)
         assertTrueContains("clearLogout")
 
-        // Verified 中登出（模式选择界面退出登录）
+        // Verified 中登出（自动进入后游戏内退出登录回 MainActivity 触发）
         host.effects.clear()
         loginToVerifying()
         machine.onEvent(LoginFlowEvent.VerificationSuccess)
@@ -297,8 +297,8 @@ class LoginFlowStateMachineTest {
             effects += "showVerify"
         }
 
-        override fun onShowModeSelection() {
-            effects += "showModeSelect"
+        override fun onEnterGame() {
+            effects += "enterGame"
         }
 
         override fun onShowLoginScreen() {

@@ -2,6 +2,11 @@
 
 > 2026-08 制定。目标：根除 4.00.98 以来反复出现的"登录后卡在登录界面 / 弹出实名认证界面"问题。
 > 本方案为最终态，执行者照单实施，不留"后续优化"尾巴。
+>
+> **2026-10-01 更新**：主界面（模式选择）与存档选择页退役——`ShowModeSelection` 副作用更名为
+> `EnterGame`，宿主实现改为 `enterGameAuto()`（`AutoEntryResolver` 决策：本地最新档自动读 /
+> 云端兜底 / 自动新建，全程加载界面承载）。下文转移表与副作用清单已同步为现状；历史章节
+> （背景/影响范围/实施步骤）保留原文。
 
 ## 一、背景与目标
 
@@ -10,7 +15,7 @@
 4.00.98 修复"广告 SDK 重复初始化"后，部分玩家反馈：**登录游戏后有概率卡在登录界面进不去，或弹出实名认证界面**。
 此后 4 轮修复（初始化时机收敛 `8844f31b` / 登出清会话 `585d4e23` / 初始化解耦 `383f3a4c` / RESUMED 延迟启动 + 进程内恢复 `57919e8a`）均未根除。
 
-上一轮排查已定位 4 个相互叠加的结构性根因，全部集中在"登录成功 → 防沉迷验证 → 进模式选择"这段流程的状态管理上：
+上一轮排查已定位 4 个相互叠加的结构性根因，全部集中在"登录成功 → 防沉迷验证 → 进入游戏"这段流程的状态管理上：
 
 | 根因 | 本质 | 引入版本 | 后果 |
 |------|------|---------|------|
@@ -52,7 +57,7 @@ sealed interface LoginFlowState {
     data object LoggingIn : LoginFlowState         // TapTap 授权页展示中
     data object VerifyPending : LoginFlowState     // 登录成功：等 Activity 稳定 RESUMED
     data object Verifying : LoginFlowState         // 防沉迷验证已启动：等 SDK 回调
-    data object Verified : LoginFlowState          // 验证成功：进模式选择
+    data object Verified : LoginFlowState          // 验证成功：自动进入游戏
     data object VerificationFailed : LoginFlowState // 验证失败/超时：实名认证界面可重试
 }
 
@@ -76,7 +81,7 @@ sealed interface LoginFlowEvent {
 sealed interface LoginFlowSideEffect {
     data class StartComplianceVerification(val unionId: String) : LoginFlowSideEffect
     data class ShowComplianceVerificationScreen(val unionId: String) : LoginFlowSideEffect
-    data object ShowModeSelection : LoginFlowSideEffect
+    data object EnterGame : LoginFlowSideEffect    // 自动进入游戏（存档判定 + GameActivity）
     data object ShowLoginScreen : LoginFlowSideEffect
     data object ClearSessionAndLogout : LoginFlowSideEffect   // 登出统一四件套唯一实现
     data class ShowToast(val message: String) : LoginFlowSideEffect   // 网络异常/验证超时/登录超时提示
@@ -100,7 +105,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
 | 当前状态 | 事件 | 新状态 | 副作用 |
 |---------|------|--------|--------|
 | Idle | LoginRequested | LoggingIn | ScheduleLoginTimeout |
-| Idle | ColdStart(true, _) | Verified | ShowModeSelection |
+| Idle | ColdStart(true, _) | Verified | EnterGame |
 | Idle | ColdStart(false, null) | Idle | ClearSessionAndLogout, ShowLoginScreen |
 | Idle | ColdStart(false, u) | VerificationFailed | ShowComplianceVerificationScreen(u) |
 | LoggingIn | LoginSuccess(u) | VerifyPending | CancelLoginTimeout（等 RESUMED，resumedReady 已置位则立即转移） |
@@ -108,7 +113,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
 | LoggingIn | LoginTimeout | Idle | CancelLoginTimeout |
 | VerifyPending | ActivityResumed | Verifying | StartComplianceVerification(u), ScheduleVerificationTimeout |
 | VerifyPending | LogoutRequested | Idle | ClearSessionAndLogout, ShowLoginScreen |
-| Verifying | VerificationSuccess | Verified | CancelVerificationTimeout, ShowModeSelection |
+| Verifying | VerificationSuccess | Verified | CancelVerificationTimeout, EnterGame |
 | Verifying | VerificationExited | Idle | CancelVerificationTimeout, ClearSessionAndLogout, ShowLoginScreen |
 | Verifying | VerificationNetworkError | VerificationFailed | CancelVerificationTimeout, ShowToast(网络异常), ShowComplianceVerificationScreen(u) |
 | Verifying | VerificationTimeout | VerificationFailed | CancelVerificationTimeout, RecoverSdkRunningState, ShowToast(无响应), ShowComplianceVerificationScreen(u) |
@@ -139,7 +144,7 @@ ComplianceCallback ──VerificationSuccess▶ │  State   │ ──ScheduleV
 超时 job ──VerificationTimeout─────────▶ │  Machine  │ ──RecoverSdkRunningState──▶ exit() + 反射复位 isRunning
 "开始认证"按钮 ──RetryVerification──────▶ │          │ ──ShowComplianceVerificationScreen(u)──▶ setContent 实名认证界面
 登出入口 ──LogoutRequested─────────────▶ │          │ ──ClearSessionAndLogout──▶ 清会话+logout+停统计+解绑回调+ShowLoginScreen
-冷启动 ──ColdStart(v,u)────────────────▶ └──────────┘ ──ShowModeSelection──▶ setContent 模式选择
+冷启动 ──ColdStart(v,u)────────────────▶ └──────────┘ ──EnterGame──▶ enterGameAuto（自动读档/自动建档）
 ```
 
 ### MainActivity 侧改造点
@@ -148,7 +153,7 @@ ComplianceCallback ──VerificationSuccess▶ │  State   │ ──ScheduleV
 2. `EnterGameButton.onSuccess`：全部 UI 操作包 `runOnUiThread`（线程加固），发 `LoginSuccess` 事件
 3. `repeatOnLifecycle(RESUMED)`：每帧进入 RESUMED 发 `ActivityResumed` 事件
 4. `complianceWindowPort` 回调：转发为 VerificationSuccess / VerificationExited / VerificationNetworkError 事件
-5. 登出入口统一：模式选择 / 合规弹窗 / 实名认证界面 / 防沉迷退出 → 全部发 `LogoutRequested`（不再各写四件套）
+5. 登出入口统一：游戏内 / 合规弹窗 / 实名认证界面 / 防沉迷退出 → 全部发 `LogoutRequested`（不再各写四件套）
 6. 副作用处理器实现 `LoginFlowHost`（12 方法）
 
 ### ComplianceManager 重构
@@ -218,7 +223,7 @@ object ComplianceManager {
 | 正常登录路径 | LoginRequested→LoginSuccess→ActivityResumed→Verifying→VerificationSuccess→Verified（副作用序列断言） |
 | **根因 B 守卫：退出认证后再登录** | Verifying+VerificationExited→Idle→再次 LoginRequested→LoginSuccess→ActivityResumed→Verifying（验证可重新启动） |
 | **根因 B 守卫：切换账号后再登录** | VerificationFailed+LogoutRequested→Idle→再登录→正常启动验证 |
-| 冷启动已验证 | ColdStart(true)→Verified（ShowModeSelection） |
+| 冷启动已验证 | ColdStart(true)→Verified（EnterGame） |
 | 冷启动未验证 | ColdStart(false,u)→VerificationFailed（ShowComplianceVerificationScreen） |
 | 冷启动缺 unionId | ColdStart(false,null)→Idle（ClearSessionAndLogout） |
 | 超时恢复 | VerificationTimeout→VerificationFailed（副作用含 RecoverSdkRunningState+ShowVerificationTimeoutHint+界面） |
@@ -241,10 +246,10 @@ object ComplianceManager {
 
 ### 真机冒烟清单（与 rules/sdk-init-lifecycle.md 同步更新）
 
-1. 登录 → 进模式选择（正常）
-2. 登录 → SDK 实名认证页点退出 → 再登录 → 正常进模式选择（**原卡死路径**）
-3. 杀进程重进（已登录已认证）→ 直接进模式选择
-4. 杀进程重进（已登录未认证）→ 实名认证界面 → 开始认证 → 进模式选择
+1. 登录 → 自动进入游戏（正常）
+2. 登录 → SDK 实名认证页点退出 → 再登录 → 正常自动进入游戏（**原卡死路径**）
+3. 杀进程重进（已登录已认证）→ 直接自动进入游戏
+4. 杀进程重进（已登录未认证）→ 实名认证界面 → 开始认证 → 自动进入游戏
 5. 实名认证界面点切换账号 → 登录界面 → 再登录 → 正常（**原卡死路径**）
 6. 登录后立即切后台再回前台 → 验证不重复触发（单飞）
 

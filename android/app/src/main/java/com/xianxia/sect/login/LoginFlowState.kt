@@ -3,7 +3,7 @@ package com.xianxia.sect.login
 /**
  * 登录/防沉迷验证流程状态定义（纯 Kotlin，零 Android 依赖，可 JVM 单测）。
  *
- * 覆盖"登录 → 防沉迷验证 → 进模式选择"全链路。以显式状态机消除
+ * 覆盖"登录 → 防沉迷验证 → 自动进入游戏"全链路。以显式状态机消除
  * "退出认证/切换账号后再登录被永久跳过""回调注册与 SDK 就绪时序竞态"
  * 等时序缺陷（详见 docs/login-flow-state-machine.md）。
  */
@@ -20,7 +20,7 @@ sealed interface LoginFlowState {
     /** 防沉迷验证已启动（startup 已调用），等待 SDK 回调 */
     data object Verifying : LoginFlowState
 
-    /** 防沉迷验证成功（CODE_LOGIN_SUCCESS）：可进入模式选择 */
+    /** 防沉迷验证成功（CODE_LOGIN_SUCCESS）：可自动进入游戏 */
     data object Verified : LoginFlowState
 
     /** 验证失败/超时/网络错误：显示实名认证界面，等待手动重试或切换账号 */
@@ -64,7 +64,7 @@ sealed interface LoginFlowEvent {
     /** 实名认证界面点"开始认证"（发送方先保证 SDK 就绪） */
     data object RetryVerification : LoginFlowEvent
 
-    /** 任意登出入口（模式选择/合规弹窗/实名认证界面/防沉迷退出） */
+    /** 任意登出入口（游戏内/合规弹窗/实名认证界面/防沉迷退出） */
     data object LogoutRequested : LoginFlowEvent
 
     /** 冷启动恢复（进程销毁复用后已登录）：按合规标记与 unionId 路由 */
@@ -83,8 +83,8 @@ sealed interface LoginFlowSideEffect {
     /** 显示 app 自有实名认证界面（手动重试/切换账号；unionId 由状态机内部持有） */
     data object ShowComplianceVerificationScreen : LoginFlowSideEffect
 
-    /** 进入模式选择界面 */
-    data object ShowModeSelection : LoginFlowSideEffect
+    /** 自动进入游戏（本地最新档自动读 / 无档自动建，全程由加载界面承载） */
+    data object EnterGame : LoginFlowSideEffect
 
     /** 回到登录界面 */
     data object ShowLoginScreen : LoginFlowSideEffect
@@ -125,8 +125,8 @@ interface LoginFlowHost {
     /** 显示 app 自有实名认证界面（手动重试/切换账号） */
     fun onShowComplianceVerificationScreen()
 
-    /** 进入模式选择界面 */
-    fun onShowModeSelection()
+    /** 自动进入游戏（存档判定 + 启动 GameActivity） */
+    fun onEnterGame()
 
     /** 回到登录界面 */
     fun onShowLoginScreen()

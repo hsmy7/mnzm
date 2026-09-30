@@ -384,7 +384,7 @@ Component Table 模式下的关键性能规则：
 ### 架构
 
 ```
-存档选择界面(slot 0)    ← 显示云端数据、点击下载加载
+游戏内存档管理弹窗(slot 0) ← 显示云端数据、点击下载加载（SaveSlotDialog）
     ↕
 TapCloudSaveManager     ← @Singleton，封装上传/下载/查询/清理
     ↕
@@ -395,7 +395,7 @@ TapTap Cloud Save API   ← createArchive / updateArchive / getArchiveList / get
 
 ### 关键设计
 
-- **slot 0 = 云存档入口** — 在存档选择界面显示"云"图标 + 云端存档信息（宗门/年份/弟子/灵石），与本地存档操作一致
+- **slot 0 = 云存档入口** — 在游戏内存档管理弹窗显示"云"图标 + 云端存档信息（宗门/年份/弟子/灵石），与本地存档操作一致（主菜单选档页已于 2026-10-01 退役）
 - **UUID 缓存** — 第一次上传成功后本地缓存云端 Archive UUID，后续直接 `updateArchive(uuid)` 避免创建重复存档
 - **一次性孤岛清理** — 老玩家首次上传前清理云端非 `mnzm_cloud_save` 名称的孤立存档，避免 TapTap 100 存档限制（400003）
 - **反射桥接** — 使用 `java.lang.reflect.Proxy` 动态代理适配 TapTap SDK，兼容 XDSDK 和原生 SDK 两套 API
@@ -453,10 +453,9 @@ Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物
 
 ## Navigation Pattern
 
-No `NavHost` is used for the main game. `MainGameScreen` switches content via `MainTab` enum. Feature screens (Alchemy, Forge, HerbGarden, etc.) are dialogs opened via `DialogStateManager.openDialog(DialogType, params)`. The two actual Activity transitions are:
+No `NavHost` is used for the main game. `MainGameScreen` switches content via `MainTab` enum. Feature screens (Alchemy, Forge, HerbGarden, etc.) are dialogs opened via `DialogStateManager.openDialog(DialogType, params)`. The only Activity transition is:
 
-1. `MainActivity` → `GameActivity` (in-game)
-2. `MainActivity` → `SaveSelectScreen` (save select)
+1. `MainActivity` → `GameActivity` (in-game; 登录/防沉迷验证通过后按存档状态自动进入——本地最新档自动读 / 云端兜底 / 自动新建，判定由 `AutoEntryResolver` 纯函数承担，全程加载界面承载)
 
 ---
 

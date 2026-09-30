@@ -275,8 +275,8 @@ class GameActivity : ComponentActivity() {
         // 若等 Compose 重组，unionId 尚为 null，白名单判定会失败
         AdFreeWhitelist.initialize(sessionManager.unionId)
 
-        // 游戏初始化分发（新游戏/读档/云读档/云槽位下载）
-        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad, launch.cloudSlot)
+        // 游戏初始化分发（新游戏/读档/云读档）
+        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
 
         // Vulkan 设备预热（Phase1）+ ASTC 图集预取在进入 Activity 即后台执行——
         // 与 boot 数据阶段并行，避免 PLAYING 时点才发起的预热与 surface 初始化竞速。
@@ -563,8 +563,10 @@ class GameActivity : ComponentActivity() {
                             )
                         }
                         errorMessage?.let { error ->
-                            // boot 失败（isGameLoaded=false）时补"返回主菜单"按钮——
-                            // 否则 LoadingScreen 无按钮，唯一出口是系统返回键
+                            // boot 失败（isGameLoaded=false）时补"删除存档并重新开始"——
+                            // 自动进入后「返回主菜单」等于重新自动读同一档（死循环）；
+                            // 显式删档后自动进入会落到下一最新档或自动新建（逃生口）。
+                            // 本按钮即删除确认位（破坏性操作显式触发）。
                             StandardPromptDialog(
                                 onDismissRequest = { errorMessage = null },
                                 title = "提示",
@@ -572,10 +574,10 @@ class GameActivity : ComponentActivity() {
                                 customButtons = {
                                     if (!saveLoadViewModel.isGameLoaded) {
                                         GameButton(
-                                            text = "返回主菜单",
+                                            text = "删除存档并重新开始",
                                             onClick = {
                                                 errorMessage = null
-                                                navigateBackToMainMenu()
+                                                deleteFailedSlotAndRestart()
                                             },
                                             buttonBackgroundRes = R.drawable.ui_button
                                         )
@@ -597,7 +599,9 @@ class GameActivity : ComponentActivity() {
                     ComplianceLimitDialogs(
                         complianceDialogState = complianceDialogState,
                         onLogout = { performComplianceLogout() },
-                        onAgeFinish = { navigateBackToMainMenu() }
+                        // 适龄限制：清会话回登录页——若仅回自动进入门户会立即重进再弹，
+                        // 受限账号永远无法离开（且登出是受限账号唯一有意义的出口）
+                        onAgeFinish = { performComplianceLogout() }
                     )
                 }
             }
@@ -643,7 +647,7 @@ class GameActivity : ComponentActivity() {
 
     /**
      * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
-     * 停时长统计 / 解绑合规回调，对齐 MainActivity.performComplianceLogout）+ 回主界面。
+     * 停时长统计 / 解绑合规回调，对齐 MainActivity.performComplianceLogout）+ 回登录页。
      */
     private fun performComplianceLogout() {
         sessionManager.clearSession()
@@ -654,8 +658,25 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * boot 失败弹窗"返回主菜单"——复用 onLogout 的
-     * MainActivity 重建模式（不清 session，仅清 Activity 栈）。
+     * boot 失败逃生口：删除读档失败的槽位后回自动进入门户。
+     *
+     * 失败槽位取当前会话的 `currentSlot`（applyLoadedSaveToEngine 在 boot 前已写入），
+     * `pendingSlot` 兜底（早于引擎写入即失败的路径）。删除走显式确认语义（按钮即确认），
+     * 删除后自动进入会落到下一最新档或自动新建——不删则同一档每次自动进入都复现失败。
+     * 仅本地槽位（≥1）可删；槽位无法判定时只回门户（行为等同旧「返回主菜单」）。
+     */
+    private fun deleteFailedSlotAndRestart() {
+        val failedSlot = viewModel.gameData.value.currentSlot
+            .takeIf { it >= 1 } ?: saveLoadViewModel.pendingSlot.value
+        if (failedSlot != null && failedSlot >= 1) {
+            saveLoadViewModel.deleteSlot(failedSlot)
+        }
+        navigateBackToMainMenu()
+    }
+
+    /**
+     * 返回自动进入门户（MainActivity）：清 Activity 栈但不清 session。
+     * 门户按存档状态自动进入（本地最新档 / 云端兜底 / 自动新建）。
      */
     private fun navigateBackToMainMenu() {
         val intent = buildMainMenuIntent(this)
@@ -739,15 +760,11 @@ class GameActivity : ComponentActivity() {
         val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
         val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
         val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
-        // SR-3：云槽位下载（slot_N → 云端 slot_N 档，下载落盘后 boot）。不随
-        // savedInstanceState 持久化——进程回收重建时若缓存已落盘则走常规槽位加载
-        val cloudSlot = intent.getIntExtra(MainActivity.EXTRA_CLOUD_SLOT, -1)
         return GameLaunchParams(
             slot = if (savedSlot >= 0) savedSlot else intentSlot,
             isNewGame = isNewGame,
             sectName = sectName,
             isCloudSaveLoad = isCloudSaveLoad,
-            cloudSlot = cloudSlot,
             isSoftwareRendering = _isSoftwareRendering,
             isGlesRendering = _isGlesRendering
         )
@@ -759,18 +776,16 @@ class GameActivity : ComponentActivity() {
         val isNewGame: Boolean,
         val sectName: String,
         val isCloudSaveLoad: Boolean,
-        val cloudSlot: Int = -1,
         val isSoftwareRendering: Boolean,
         val isGlesRendering: Boolean = false
     )
 
-    /** 游戏初始化分发（新游戏/读档/云读档/云槽位下载，JIT 暂停下执行）。 */
+    /** 游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
     private fun initializeGameIfNeeded(
         slot: Int,
         isNewGame: Boolean,
         sectName: String,
-        isCloudSaveLoad: Boolean,
-        cloudSlot: Int
+        isCloudSaveLoad: Boolean
     ) {
         if (saveLoadViewModel.isGameAlreadyLoaded()) {
             Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
@@ -780,16 +795,11 @@ class GameActivity : ComponentActivity() {
         Log.d(
             TAG,
             "onCreate: Game not loaded, will initialize. slot=$slot, " +
-                "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad, cloudSlot=$cloudSlot"
+                "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
         )
         lifecycleScope.launch {
             VivoGCJITOptimizer.runWithJitPaused(block = {
                 when {
-                    // SR-3：云槽位下载优先（与 EXTRA_SLOT/EXTRA_CLOUD_SAVE_LOAD 互斥的独立入口）
-                    cloudSlot >= 0 -> {
-                        Log.d(TAG, "Loading cloud slot from MainActivity: slot=$cloudSlot")
-                        saveLoadViewModel.loadCloudSlot(cloudSlot)
-                    }
                     isCloudSaveLoad -> {
                         Log.d(TAG, "Loading cloud save from MainActivity")
                         saveLoadViewModel.loadFromCloudSave()
@@ -1261,9 +1271,10 @@ class GameActivity : ComponentActivity() {
 }
 
 /**
- * 构造返回主菜单的 Intent。
+ * 构造返回自动进入门户（MainActivity）的 Intent。
  * 独立顶层函数供单元测试（GameActivity 为 Hilt 入口不便实例化）。
- * 复用 onLogout 的 MainActivity 重建模式：清 Activity 栈但不影响 session。
+ * 复用 onLogout 的 MainActivity 重建模式：清 Activity 栈但不影响 session；
+ * 门户按存档状态自动进入（本地最新档 / 云端兜底 / 自动新建）。
  *
  * @param context 启动上下文（Activity）
  * @return 带 NEW_TASK|CLEAR_TASK flags 的 MainActivity Intent

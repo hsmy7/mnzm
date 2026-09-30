@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui
+package com.xianxia.sect.ui.game.saveload
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,15 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.ui.game.saveload.MigrationSlotRow
-import com.xianxia.sect.ui.game.saveload.MigrationPhase
-import com.xianxia.sect.ui.game.saveload.MigrationUiState
-import com.xianxia.sect.ui.game.saveload.SlotMigrationStatus
-import com.xianxia.sect.ui.model.SaveSelectMode
 
-// ── 存量迁移引导卡（SR-6，主菜单选档页）─────────────────────
-// 独立成文件而非塞进 SaveSelectScreen.kt：后者函数数已顶到 detekt 文件预算
-// （SR-3 `36169a76a` 拆 CloudSlotEntryCard 同口径）。
+// ── 存量迁移引导卡（SR-6，游戏内存档管理弹窗）─────────────────────
 
 /**
  * 槽位状态 → 玩家可读文案（internal 纯函数，守卫测试锚定）。
@@ -58,17 +51,7 @@ internal fun migrationPhaseText(phase: MigrationPhase): String = when (phase) {
 }
 
 /**
- * 迁移卡可见性（internal 纯函数，守卫测试锚定）：
- * 只在**读档模式**且确有可迁内容时出现——新游戏模式是"建本地档"，与存量上云无关
- * （与 [visibleCloudSlots] 同一纪律）。
- */
-internal fun migrationCardVisible(
-    mode: SaveSelectMode,
-    migration: MigrationUiState
-): Boolean = mode == SaveSelectMode.LOAD_SAVE && migration.visible
-
-/**
- * 迁移卡的四个动作位（打包传参，避免 `SaveSelectScreen` 形参表再膨胀 4 行）。
+ * 迁移卡的四个动作位（打包传参）。
  * 全部带默认值 ⇒ 既有调用点与守卫测试零改动。
  */
 data class MigrationActions(
@@ -84,6 +67,7 @@ data class MigrationActions(
  * 常驻而非弹窗（施工卡 §7 S3）：TapTap 创建/更新共享 1 次/分钟冷却，6 槽逐个上传
  * 至少 6 分钟——弹窗看不见进度，只会被当成卡死（SR-4 "消息栏常驻一行而非 snackbar" 同教训）。
  * 卡片不会自动发起任何云请求：[MigrationActions.onStart] 之前协调器只做本地扫描。
+ * 可见性判据 = [MigrationUiState.visible]（有可迁内容即出现，收口即消失）。
  */
 @Composable
 fun SaveMigrationCard(

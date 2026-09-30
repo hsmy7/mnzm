@@ -1,11 +1,11 @@
-package com.xianxia.sect.ui
+package com.xianxia.sect.ui.game.saveload
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,29 +23,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.cloud.CloudSaveEntry
-import com.xianxia.sect.ui.model.SaveSelectMode
 import java.text.SimpleDateFormat
 import java.util.Date
 
-// ── 云端槽位存档卡（SR-3）─────────────────────
-// 自 SaveSelectScreen.kt 拆出（detekt 文件函数数预算 16>15 + LongMethod 78>60，
-// batch-SR2 C7a 同口径）：纯搬移 + 容器拆分子 Composable，零逻辑变化。
-
 /**
- * 云槽位卡可见性（internal 供守卫测试）：LOAD_SAVE 模式显示云端槽位存档；
- * NEW_GAME 模式隐藏（新游戏=建本地档，云端槽位与新游戏无关）。
- */
-internal fun visibleCloudSlots(
-    mode: SaveSelectMode,
-    cloudSlots: List<CloudSaveEntry>
-): List<CloudSaveEntry> = if (mode == SaveSelectMode.LOAD_SAVE) cloudSlots else emptyList()
-
-/**
- * 云端槽位存档卡（SR-3）：slot_N 档的摘要渲染 + 点击下载。
+ * 云端槽位存档卡（SR-3，游戏内存档管理弹窗的云槽位区）：
+ * slot_N 档的摘要渲染 + 点击下载。
  *
  * 摘要来源 = 云端 extra JSON（year/month/sect/disciples/stones/version）；
  * 摘要缺失（TapTap 元数据最终一致性延迟常态）时退化为"云端存档 N"占位文案——
- * 有档无摘要非错误，点击仍可下载。样式对齐 SaveSlotCard 云存档入口（蓝系）。
+ * 有档无摘要非错误，点击仍可下载。样式对齐既有云存档入口（蓝系）。
  */
 @Composable
 fun CloudSlotEntryCard(
