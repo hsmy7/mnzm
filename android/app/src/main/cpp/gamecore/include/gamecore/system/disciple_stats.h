@@ -298,6 +298,11 @@ inline void accumulateEquipmentHpMp(
         const std::string& bodyId, const std::string& handsId,
         const std::string& feetId, const std::string& weaponId,
         const std::string& legsId, int32_t& outMaxHp, int32_t& outMaxMp) {
+    // 空表快速通道：实例表为空 ⇒ 任何槽位 id 的 find 必未命中，装备贡献
+    // 恒为零（悬空 id 亦归零——现有 nullptr 守卫同口径）；跳过六槽字符串
+    // 列读取。该段在连续积分轨每 tick × 每弟子执行，空表逐行扫六列是
+    // 装备六部位化引入的纯开销（R3 整改实测 +46ns/行）。
+    if (equipmentBuckets.empty()) return;
     std::vector<const state::EquipmentInstance*> equipped;
     equipped.reserve(6);
     for (const std::string* eqId :

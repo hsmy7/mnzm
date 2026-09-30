@@ -39,6 +39,11 @@ struct InstanceBuckets {
     std::vector<InstanceT>* instances = nullptr;
     std::map<std::size_t, std::vector<std::size_t>> byOwnerRow;
 
+    /// 实例表整体为空（零拷贝快速通道判据：空表下任何 find 必未命中，
+    /// 调用方可据此跳过逐行槽位扫描——连续积分段每 tick 每弟子六槽
+    /// 字符串列读取的免扫描依据，见 disciple_stats.h accumulateEquipmentHpMp）
+    bool empty() const { return instances == nullptr || instances->empty(); }
+
     /// owner 行 ownerRow 名下 id 实例；未命中回退全量末次扫描（见文件头）
     const InstanceT* find(std::size_t ownerRow, const std::string& id) const {
         const auto hit = locate(ownerRow, id);
