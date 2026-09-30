@@ -115,3 +115,44 @@
 | **A5-a** 断言设计缺陷（`overBudgetCount == 0` 在 850us 基线下结构性不可能绿） | ✅ 已修（上批 R1 改为 best+P50；本批进一步改为**归一化** best+P50） |
 | **A5-b** 真实性能退化 +30% | 已由 R3 优化（best 882.9 → 641.5us）；本批只改判据口径，**不重复优化** |
 | **残留** 判据对负载敏感 | ⚠️ **部分解决**：机器快慢与中度负载已免疫；超量调度竞争**无法**由 (b) 解决（§2.3 实测），需 (a) |
+
+---
+
+## 7. 追加实施 (a)：串行化 + 安静窗口
+
+> 用户追加指令：**追加 a** —— 把 bench 与构建/其它测试串行化，只在安静窗口执行。
+
+### 7.1 三层改动
+
+| 层 | 文件 | 机制 |
+|---|---|---|
+| **CMake** | `gamecore/test/bench/CMakeLists.txt` | `gtest_discover_tests(game-core-bench PROPERTIES RUN_SERIAL TRUE RESOURCE_LOCK gamecore_bench)` ⇒ 无论 `ctest -j` 取何值，bench 都不与其它用例并行重叠；三个 bench 翻译单元之间也共用一把锁互斥 |
+| **CI** | `.github/workflows/ci.yml` | 测试拆两步：`Run GTest (non-bench)`（`-E 'Bench\.'`）+ `Run bench (wall-clock, serial)`（`-R 'Bench\.'`）；步骤注释显式写明"勿加 `-j`"与方法论缘由（bench 取真实耗时，并行会假红） |
+| **本地** | **新增** `scripts/run-gamecore-bench-quiet.ps1` | 把"安静窗口"从口头纪律变成**可执行入口**：前置拒绝并发构建/测试进程（exit 2）/ 构建目录缺失（exit 3）/ 整机 CPU 利用率 > 阈值（exit 4，默认 20%）/ 无 ctest（exit 5）；并自动注入 llvm-mingw 运行库 PATH |
+
+### 7.2 验证（实跑原数字）
+
+| 项 | 结果 |
+|---|---|
+| **属性生效** | 生成的 `game-core-bench[1]_tests.cmake` 中 9 条 `set_tests_properties` **均含** `RUN_SERIAL TRUE RESOURCE_LOCK gamecore_bench`；`ctest --show-only=json-v1` 复核 RUN_SERIAL / RESOURCE_LOCK **各 9 次** |
+| **过滤拆分不漏测** | `ctest -N` = **1532**；`-R 'Bench\.'` = **13**；`-E 'Bench\.'` = **1519**（13 + 1519 = 1532 ✓） |
+| **全量回归** | `ctest` **1532/1532 全绿**（50.97s） |
+| **CI YAML 语法** | `yaml.safe_load` 解析通过（**5 jobs**） |
+| **脚本·正常路径** | 注入工具链 + 安静窗口（实测 CPU 9.3%）→ **13/13 通过，退出 0**（17.26s） |
+| **脚本·拒绝路径** | 8 路负载下实测 CPU 55.3% → **拒绝运行，退出 4** |
+
+### 7.3 过程中修的两个自身缺陷（实测发现，非预期改动）
+
+| # | 症状 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 脚本调 ctest 报 `术语 'C' 不会被识别` | `$candidates[0]` 在"只有一个候选"时索引到**字符串首字符**（PowerShell 标量/数组陷阱） | `@()` 包裹 + `Count` 判断 |
+| 2 | ctest 直跑 bench 全部 `0xc0000135` | 缺 llvm-mingw 运行库 DLL（仓库历史上记过此坑：`ctest` 缺 llvm-mingw bin → 全 `0xc0000135` 假失败） | 脚本按 `build-desktop-jni.ps1` 同约定探测并**注入工具链 PATH** |
+
+### 7.4 边界（诚实登记）
+
+| # | 项 | 说明 |
+|---|---|---|
+| 1 | 属性只覆盖 **9** 个用例 | 另有 4 个名字含 Bench 的用例（`DiscipleStoreBench.CoreBatchPerPhase`、`DirtyTrackerBench.*` ×3）在**主测试目标**里，未加属性。**经核实它们只打印不断言耗时**（全部 `std::printf`，无 `EXPECT_*` 时间断言）⇒ 竞争不会造成假红，**无需**保护；CI 拆步时随 bench 步一起跑（归组） |
+| 2 | (a) 与 (b) 分工 | **(a) 解决执行环境、(b) 解决判据口径**。叠加后：安静窗口内门禁严格（等效原 1ms）、正常 CI 不受机器差异与中度负载影响；超量调度下 (b) 仍可能红——此时靠 (a) 的纪律/脚本保证**不在过载环境取数** |
+| 3 | 阈值 20% 未经跨机调参 | 本机安静基线约 3–10%、负载态 55%+，20% 有明显分离度；如目标 CI 机器基线偏高，用 `-MaxLoadPercent` 覆盖 |
+| 4 | 本地脚本为**约定入口**而非强制 | 直接 `ctest` 仍可绕过；`RUN_SERIAL` 属性是其中不可绕过的一层（对 `-j` 生效） |

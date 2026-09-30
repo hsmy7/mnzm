@@ -300,3 +300,11 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
   ③ **验证**：`ctest` 亲跑 **1532/1532 全绿**（56.56s）；安静窗口 6 连跑 **ratio best 0.977–0.986（散布 <1%）**、参考负载 646.5–648.5us（<0.4%）；一次 p50 尖峰 845.8us 被正确容纳（ratio 1.307 < 1.90）。
   ④ 🔴 **边界实测（负结果，勿重走）**：**(b) 无法免疫超量调度的缓存竞争**。16 路竞争下被测段 **+87%**（≈1180–1207us）而参考负载仅 **+3%**（663–667us）⇒ 比值涨到 **1.77–1.82 仍红**。已证伪两条替代方案：**ALU 型参考**（938us）饱和下同样红（比值 1.14–1.17）；**`std::clock()` 在本工具链（llvm-mingw/UCRT）返回墙钟时间**（安静与竞争下 cpu/wall 均 1.000）⇒ 不能做"被抢占"检测。**结论：纯 (b) 只消除机器快慢与中度负载；彻底消除过载假红必须叠加 (a) 安静窗口/CI 串行化。**
   ⑤ **登记**：该 bench 须在**安静窗口**执行（已写入文件头"适用范围（实测边界）"注释）；预算常数定标于本机、未跨机验证（建议目标 CI 机器首跑复核）；双 changelog **未更新**（内部质量门禁口径变更、玩家零可见，与 R1–R4 整改批惯例一致；如项目要求入 CHANGELOG.md 请告知）。本批**仅改一个 C++ 测试文件**，零生产逻辑/零 Kotlin/零 Room/零存档影响。
+
+- **2026-10-01（设计会话 → 追加实施 (a)：bench 串行化 + 安静窗口，R5 续）**：按用户追加指令实施 (a)——把 bench 与构建/其它测试**串行化**、只在**安静窗口**执行。三层落地，报告见 `report-R5.md` §7。
+  ① **CMake**：`gamecore/test/bench/CMakeLists.txt` 给 `gtest_discover_tests(game-core-bench)` 加 **`RUN_SERIAL TRUE` + `RESOURCE_LOCK gamecore_bench`** ⇒ 无论 `ctest -j` 取何值，bench 都不与其它用例并行重叠（9 条 `set_tests_properties` 实测已生效，`json-v1` 复核各 9 次）。
+  ② **CI**：`.github/workflows/ci.yml` 测试拆两步——`Run GTest (non-bench)`（`-E 'Bench\.'`）+ `Run bench (wall-clock, serial)`（`-R 'Bench\.'`），并注释写明"勿加 `-j`"与方法论缘由。**过滤拆分经核对不漏测：1532 = 13(bench) + 1519(非 bench)**；YAML 语法 `yaml.safe_load` 通过（5 jobs）。
+  ③ **本地**：新增 **`scripts/run-gamecore-bench-quiet.ps1`** —— 把安静窗口变成可执行入口：前置拒绝并发构建/测试进程（exit 2）/构建目录缺失（3）/整机 CPU 利用率 >20%（4）/无 ctest（5）；自动注入 llvm-mingw 运行库 PATH。实测：正常路径（CPU 9.3%）13/13 通过退出 0；8 路负载下（CPU 55.3%）**拒绝运行退出 4**。
+  ④ **过程中修的两个自身缺陷（实测发现）**：`$candidates[0]` 单元素时索引到字符串首字符（PowerShell 标量陷阱）⇒ `@()`+`Count`；ctest 直跑 bench 全 `0xc0000135`（缺 llvm-mingw 运行库 DLL，仓库历史记过）⇒ 脚本注入工具链 PATH。
+  ⑤ **边界（诚实登记）**：`RUN_SERIAL`/`RESOURCE_LOCK` 只覆盖 `game-core-bench` 的 9 个用例；另有 4 个含 Bench 名的用例（`DiscipleStoreBench`/`DirtyTrackerBench`）在主测试目标、未加属性——**经核实它们只打印不断言耗时**（全 `std::printf`，无时间断言）⇒ 竞争不造成假红，无需保护。**(a) 解决执行环境、(b) 解决判据口径**；超量调度下 (b) 仍可能红，此时靠 (a) 的纪律/脚本保证不在过载环境取数。
+  ⑥ **回归**：全量 `ctest` **1532/1532 全绿**（50.97s）。

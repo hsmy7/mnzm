@@ -15,4 +15,12 @@ target_link_libraries(game-core-bench PRIVATE game-core gtest_main)
 target_compile_features(game-core-bench PRIVATE cxx_std_20)
 
 include(GoogleTest)
-gtest_discover_tests(game-core-bench)
+# 串行 + 互斥属性：bench 是墙钟口径门禁，与其它测试并行会因 CPU/缓存争抢
+# 产生假红（并行度由 ctest -j 决定，属性保证无论 -j 取何值都不并行重叠）。
+# RUN_SERIAL    —— 本用例执行期间不跑其它用例
+# RESOURCE_LOCK —— 三个 bench 用例共用一把锁，彼此也串行
+gtest_discover_tests(game-core-bench
+    PROPERTIES
+        RUN_SERIAL TRUE
+        RESOURCE_LOCK gamecore_bench
+)

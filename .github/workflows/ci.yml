@@ -27,8 +27,20 @@ jobs:
       - name: Build game-core + tests
         run: cmake --build build -j2
 
-      - name: Run GTest
-        run: ctest --test-dir build --output-on-failure
+      # ── 测试分两步：bench 是**墙钟口径**门禁，必须独自串行跑 ──────────────
+      # 为什么拆开：bench 判据取的是真实耗时，与其它用例并行会因 CPU/缓存争抢
+      # 假红；CMake 侧已给 game-core-bench 的用例设 RUN_SERIAL + RESOURCE_LOCK
+      # （无论我们怎么调 -j 都不会与其它用例并行重叠），这里再拆成独立步骤，
+      # 让"安静窗口"在 CI 上可见、失败信息直接指向 bench。
+      # 注：本步按名称收拢全部 *Bench* 用例（含只打印不断言的观测型 bench，
+      # 如 DiscipleStoreBench / DirtyTrackerBench —— 它们无耗时断言，不需要
+      # 串行保护，随本步一起跑只是归组）。
+      # ⚠️ 勿给下面的 ctest 加 -j：会改变取数环境。
+      - name: Run GTest (non-bench)
+        run: ctest --test-dir build -E 'Bench\.' --output-on-failure
+
+      - name: Run bench (wall-clock, serial)
+        run: ctest --test-dir build -R 'Bench\.' --output-on-failure
 
       # ── ActionId 分派覆盖红线（W4-00 并行前置批）────────────────────────
       # **为什么单独点名**：分发表是连续区间 `else if` 链，"区间写法吞掉动作号"
