@@ -23,6 +23,7 @@ import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.typeDamageBonusesOf
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.engine.generateRandomEquipment
 
@@ -119,6 +120,7 @@ object CaveExplorationSystem {
             maxMp = stats.maxMp,
             attack = stats.attack,
             defense = stats.defense,
+            innateDamageType = disciple.resolvedInnateDamageType(),
             physicalDamageBonus = typeBonuses.physical,
             metalDamageBonus = typeBonuses.metal,
             woodDamageBonus = typeBonuses.wood,

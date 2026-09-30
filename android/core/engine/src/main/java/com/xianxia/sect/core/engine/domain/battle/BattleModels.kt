@@ -51,7 +51,9 @@ data class Combatant(
     val maxMp: Int,
     val attack: Int,
     val defense: Int,
-    /** 退役段（普攻恒物理，方案 P3；旧档兼容保留，禁新读取） */
+    /** 普攻伤害类型（**角色配置驱动**：弟子按角色模板、妖兽/敌人按种类配置；
+     *  当前全部角色设定为物理——这是内容设定而非架构恒等式，未来法术/五行普攻
+     *  角色改配数据即可。技能另按 skill.damageType） */
     val innateDamageType: DamageType = DamageType.PHYSICAL,
     /** 物理伤害加成（类型增伤桶，攻方；不受灵根 gate） */
     val physicalDamageBonus: Double = 0.0,
@@ -152,9 +154,11 @@ enum class BattleWinner {
 }
 
 /**
- * 弟子普攻伤害类型解析（B1 §15.3 单点）：
- * 显式 `combat.innateDamageType` 优先；空串/非法值（存量旧弟子）按模板 id →
- * 角色 `InnateDamageType.derive`（模板缺失按首灵根 金/土→物理、水/木/火→法术）兜底。
+ * 弟子普攻伤害类型解析（B1 §15.3 单点；五行属性伤害系统后口径）：
+ * 显式 `combat.innateDamageType` 优先（**角色配置驱动**——合法 `DamageType` name 直读，
+ * 含旧档 MAGIC 时代残留值：显式配置什么普攻就是什么类型）；空串/非法值（真正无法解析的
+ * 脏值）按模板 id → 角色 `InnateDamageType.derive` 兜底（模板缺失/无显式配置 → 物理，
+ * 当前全部角色设定物理）。
  */
 fun Disciple.resolvedInnateDamageType(): DamageType =
     try {

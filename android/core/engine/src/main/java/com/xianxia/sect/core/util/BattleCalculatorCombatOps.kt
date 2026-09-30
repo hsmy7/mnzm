@@ -355,8 +355,9 @@ internal fun BattleCalculator.tryDodge(
     return DamageResult(
         damage = 0,
         isCrit = false,
-        // 普攻恒物理（五行属性伤害系统 P3），技能按功法自带元素
-        damageType = if (isSkillAttack) skill?.damageType ?: DamageType.PHYSICAL else DamageType.PHYSICAL,
+        // 技能按功法自带元素；普攻按攻击方配置的普攻伤害类型（当前角色全设定物理）
+        damageType = if (isSkillAttack) skill?.damageType ?: DamageType.PHYSICAL
+        else attacker.innateDamageType,
         isDodged = true,
         skillName = skill?.name,
         hits = skill?.hits ?: 1

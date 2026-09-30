@@ -234,7 +234,8 @@ struct Combatant {
     //（普攻 innateDamageType / 技能 damageType / 类型增减伤分桶，默认 0 ⇒ S19）
     int32_t attack = 0;
     int32_t defense = 0;
-    // 退役段（普攻恒物理，五行属性伤害系统 P3；旧协议兼容保留，禁新读取）
+    // 普攻伤害类型（**角色配置驱动**：当前全部角色设定物理——内容设定而非架构恒等式；
+    // 技能另按 skill->damageType）
     DamageType innateDamageType = DamageType::kPhysical;
     // 类型通道 12 桶（物理 + 五行 × 增伤/减伤；五行增伤为灵根 gate 后生效值）
     double physicalDamageBonus = 0.0;
@@ -407,7 +408,8 @@ inline std::optional<DamageResult> tryInstantKill(const Combatant& attacker,
     DamageResult r;
     r.damage = std::max(0, defender.maxHp);  // T-C2：maxHp 篡改钳制
     r.isCrit = false;
-    r.damageType = skill ? skill->damageType : DamageType::kPhysical;
+    // 技能按功法元素；普攻按攻击方配置的普攻伤害类型（当前角色全设定物理）
+    r.damageType = skill ? skill->damageType : attacker.innateDamageType;
     r.isDodged = false;
     r.isInstantKill = true;
     r.hits = skill ? skill->hits : 1;
@@ -428,10 +430,10 @@ inline std::optional<DamageResult> tryDodge(const Combatant& attacker,
     DamageResult r;
     r.damage = 0;
     r.isCrit = false;
-    // 普攻恒物理（五行属性伤害系统 P3），技能按功法自带元素
+    // 技能按功法自带元素；普攻按攻击方配置的普攻伤害类型（当前角色全设定物理）
     r.damageType = isSkillAttack
         ? (skill ? skill->damageType : DamageType::kPhysical)
-        : DamageType::kPhysical;
+        : attacker.innateDamageType;
     r.isDodged = true;
     r.hits = skill ? skill->hits : 1;
     return r;
@@ -446,10 +448,11 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
                                           const DamageZones* zones,
                                           bool isSkillAttack,
                                           rng::DeterministicRng& rng) {
-    // 五行属性伤害系统（P3/E3）：普攻恒物理（与灵根无关），技能按功法自带元素
+    // 技能按功法自带元素；普攻按攻击方配置的普攻伤害类型
+    //（innateDamageType，角色配置驱动——当前全部角色设定物理，非架构恒等式）
     const DamageType damageType = isSkillAttack
         ? (skill ? skill->damageType : DamageType::kPhysical)
-        : DamageType::kPhysical;
+        : attacker.innateDamageType;
     const int32_t attack = attacker.attack;
     const int32_t defense = defender.defense;
 
@@ -534,7 +537,7 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
         return r;
     }
 
-    // 五行属性伤害系统（P3）：普攻恒物理；显式 damageType（技能）优先
+    // 普攻按攻击方 innateDamageType 配置（当前角色全设定物理）；显式 damageType（技能）优先
     const DamageType resolvedType = damageType.value_or(DamageType::kPhysical);
     const int32_t attack = attacker.attack;
     const int32_t defense = defender.defense;

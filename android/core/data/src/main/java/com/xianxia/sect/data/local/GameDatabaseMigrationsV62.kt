@@ -26,8 +26,9 @@ private const val TAG_V62 = "GameDatabase"
  * - `pillAttackBonus  = pillPhysicalAttackBonus  + pillMagicAttackBonus`
  * - `pillDefenseBonus = pillPhysicalDefenseBonus + pillMagicDefenseBonus`
  * - `innateDamageType` 按**首灵根**派生（金/土→PHYSICAL，水/木/火→MAGIC，空串兜底
- *   PHYSICAL）——与 Kotlin `InnateDamageType.deriveFromRoot` 同口径（模板命中路径
- *   的首灵根即模板派生源，两者结果一致），由 `InnateDamageTypeGuardTest` 钉住。
+ *   PHYSICAL。历史口径注：本 CASE 为 MAGIC 时代产物，与旧 `deriveFromRoot` 同口径；
+ *   MAGIC 类型退役后，存量 "MAGIC" 值经 `resolvedInnateDamageType` 的非法值兜底链归
+ *   物理——现行派生口径见 `InnateDamageType`，由 `InnateDamageTypeGuardTest` 钉住）
  *   战力公式为攻防取和线性式 ⇒ 迁移前后总战力不变（S20，`LegacyStatMigrationTest`）。
  *
  * ## 实现与安全

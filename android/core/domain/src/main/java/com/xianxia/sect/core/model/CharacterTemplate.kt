@@ -79,7 +79,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("water"),
             avatarKey = "avatar_suqing",
             portraitKey = "portrait_suqing",
-            innateDamageType = InnateDamageType.MAGIC,
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
         CharacterTemplate(
             id = "linxuetang",
@@ -88,7 +88,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("wood", "water"),
             avatarKey = "avatar_linxuetang",
             portraitKey = "portrait_linxuetang",
-            innateDamageType = InnateDamageType.MAGIC,
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
         CharacterTemplate(
             id = "xuhe",
@@ -97,7 +97,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("wood", "earth"),
             avatarKey = "avatar_xuhe",
             portraitKey = "portrait_xuhe",
-            innateDamageType = InnateDamageType.MAGIC,
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
         CharacterTemplate(
             id = "xieche",
@@ -115,7 +115,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("fire", "earth"),
             avatarKey = "avatar_zhaoyan",
             portraitKey = "portrait_zhaoyan",
-            innateDamageType = InnateDamageType.MAGIC,
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
     )
 

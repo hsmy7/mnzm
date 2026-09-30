@@ -10,8 +10,11 @@
 
 - **DamageType 六值化**：`PHYSICAL` + `METAL/WOOD/WATER/FIRE/EARTH`（与 `GameConfig.SpiritRoot.TYPES`
   单一元素真源一一对应）；`MAGIC` 退役段保留（E1 守卫 `DamageTypeGuardTest`：活跃集恰 6、退役段不进活跃集）。
-- **普攻恒物理**（P3）：`innateDamageType` 退役不读取（妖兽/散修/试炼派生逻辑删除，债 I-E6）；
-  技能 = 功法自带元素（E3，`ManualSkill.toCombatSkill` 退役段兜底物理）。
+- **普攻类型配置驱动**（P3）：`innateDamageType` 为活配置位——战斗管线按其判定普攻类型，
+  当前全部角色设定物理（内容现状非架构恒等式，未来法术/五行普攻角色改模板数据即可）；
+  旧"首灵根物法二分派生"随 MAGIC 退役（兜底物理），四个角色模板的历史 MAGIC 配置按当前
+  设定修正为 PHYSICAL（净行为与上一交付态逐位一致）；技能 = 功法自带元素（E3，
+  `ManualSkill.toCombatSkill` 退役段兜底物理）。
 - **灵根 gate**：`SpiritRoot.elementGate` 唯一入口——灵根含该元素 → 加成全额（1.0）、不含 → 恰 0.0（开关制，
   EA1 精确相等断言）、物理恒 1.0（E11 物理路径不回退）；弟子侧 `typeDamageBonusesOf` 汇总折算后进
   Combatant 桶，三条弟子装配线（BattleSystem/AISectAttackManager/CaveExplorationSystem）统一接线

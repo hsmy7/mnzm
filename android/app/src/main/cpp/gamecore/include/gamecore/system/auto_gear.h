@@ -87,32 +87,21 @@ inline bool qualifiesForSectAuto(
 }
 
 // ── 固有伤害属性判定（Kotlin Disciple.resolvedInnateDamageType 等价） ──
-
-/// 固有物理判定：combat.innateDamageType 显式值优先（"PHYSICAL"/"MAGIC"，
-/// 其余串按 Kotlin valueOf 异常臂回退）；空/非法 → 模板 innateDamageType；
-/// 再否则首灵根派生（金/土→物理，水/木/火→法术，空/未知→物理兜底，
-/// 与 Room v62 迁移 SQL CASE ELSE 逐条一致）
+/// 固有伤害类型解析（Kotlin resolvedInnateDamageType 对偶；五行属性伤害系统后口径）：
+/// combat.innateDamageType 显式值优先（合法 DamageType name；"MAGIC" 退役段残留按
+/// 非法值兜底走模板臂——与 Kotlin 的 valueOf 异常臂同语义）；空/非法 → 模板
+/// innateDamageType（当前全部角色设定 PHYSICAL）；模板缺失 → 物理兜底。
+/// 旧「首灵根物法二分派生」随 MAGIC 退役（与 Kotlin InnateDamageType.derive 同口径）。
 inline bool resolvedInnateIsPhysical(const Disciple& d) {
     if (d.innateDamageType == "PHYSICAL") return true;
-    if (d.innateDamageType == "MAGIC") return false;
+    if (d.innateDamageType == "MAGIC") return false;  // 退役段残留：显式法术仍按非物理
     if (!d.templateId.empty()) {
         const auto* tpl = gamecore::data::characterTemplateById(d.templateId);
         if (tpl != nullptr && !tpl->innateDamageType.empty()) {
             return tpl->innateDamageType != "MAGIC";
         }
     }
-    std::string firstRoot = d.spiritRootType;
-    const auto comma = firstRoot.find(',');
-    if (comma != std::string::npos) firstRoot = firstRoot.substr(0, comma);
-    while (!firstRoot.empty() &&
-           (firstRoot.front() == ' ' || firstRoot.front() == '\t')) {
-        firstRoot.erase(firstRoot.begin());
-    }
-    while (!firstRoot.empty() &&
-           (firstRoot.back() == ' ' || firstRoot.back() == '\t')) {
-        firstRoot.pop_back();
-    }
-    return firstRoot != "water" && firstRoot != "wood" && firstRoot != "fire";
+    return true;  // 模板缺失兜底物理（旧首灵根派生已随 MAGIC 退役）
 }
 
 // ── 装备候选（B3：储物袋内完整实例单源——装备堆叠轨已退役） ────────

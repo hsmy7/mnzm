@@ -91,7 +91,7 @@
       ],
       "avatarKey": "avatar_suqing",
       "portraitKey": "portrait_suqing",
-      "innateDamageType": "MAGIC"
+      "innateDamageType": "PHYSICAL"
     },
     {
       "id": "linxuetang",
@@ -103,7 +103,7 @@
       ],
       "avatarKey": "avatar_linxuetang",
       "portraitKey": "portrait_linxuetang",
-      "innateDamageType": "MAGIC"
+      "innateDamageType": "PHYSICAL"
     },
     {
       "id": "xuhe",
@@ -115,7 +115,7 @@
       ],
       "avatarKey": "avatar_xuhe",
       "portraitKey": "portrait_xuhe",
-      "innateDamageType": "MAGIC"
+      "innateDamageType": "PHYSICAL"
     },
     {
       "id": "xieche",
@@ -139,7 +139,7 @@
       ],
       "avatarKey": "avatar_zhaoyan",
       "portraitKey": "portrait_zhaoyan",
-      "innateDamageType": "MAGIC"
+      "innateDamageType": "PHYSICAL"
     }
   ],
   "gachaDefaults": {

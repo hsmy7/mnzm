@@ -268,7 +268,8 @@ object BattleCalculator {
     interface CombatantStats {
         val attack: Int
         val defense: Int
-        /** 退役段（普攻恒物理，五行属性伤害系统 P3；兼容保留，判定不再读取） */
+        /** 普攻伤害类型（**角色配置驱动**：当前全部角色设定为物理；实现默认物理，
+         *  未来法术/五行普攻角色改配此字段即可，架构无需改动） */
         val innateDamageType: DamageType get() = DamageType.PHYSICAL
         val speed: Int
         val critRate: Double
@@ -307,15 +308,15 @@ object BattleCalculator {
             return DamageResult(
                 damage = 0,
                 isCrit = false,
-                damageType = damageType ?: DamageType.PHYSICAL,
+                damageType = damageType ?: attacker.innateDamageType,
                 isDodged = true,
                 skillName = skillName,
                 hits = skillHits
             )
         }
 
-        // 五行属性伤害系统（P3）：普攻恒物理；显式 damageType（技能）优先
-        val resolvedType = damageType ?: DamageType.PHYSICAL
+        // 普攻（无显式类型）按攻击方配置的普攻伤害类型（当前角色全部设定物理）
+        val resolvedType = damageType ?: attacker.innateDamageType
         val attack = attacker.attack
         val defense = defender.defense
 
@@ -388,7 +389,7 @@ object BattleCalculator {
             // maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
             damage = defender.maxHp.coerceAtLeast(0),
             isCrit = false,
-            damageType = skill?.damageType ?: DamageType.PHYSICAL,
+            damageType = skill?.damageType ?: attacker.innateDamageType,
             isDodged = false,
             skillName = skill?.name,
             hits = skill?.hits ?: 1,
@@ -406,8 +407,10 @@ object BattleCalculator {
         isSkillAttack: Boolean,
         rng: DeterministicRng
     ): DamageResult {
-        // 五行属性伤害系统（P3/E3）：普攻恒物理（与灵根无关），技能按功法自带元素（6 值）
-        val damageType = if (isSkillAttack) skill?.damageType ?: DamageType.PHYSICAL else DamageType.PHYSICAL
+        // 技能按功法自带元素（6 值）；普攻按攻击方配置的普攻伤害类型
+        //（innateDamageType，**角色配置驱动**——当前全部角色设定物理，非架构恒等式）
+        val damageType = if (isSkillAttack) skill?.damageType ?: DamageType.PHYSICAL
+        else attacker.innateDamageType
         val attack = attacker.attack
         val defense = defender.defense
 

@@ -166,12 +166,13 @@ TEST(SingleColumnStat, DefenseBuffMigratesToTypeReductionBucket) {
     EXPECT_DOUBLE_EQ(baseline * 0.75, static_cast<double>(reduced));
 }
 
-// ── 4. 伤害类型判定：普攻恒物理、技能按 skill.damageType（五行属性伤害系统 P3/E2/E3） ──
+// ── 4. 伤害类型判定：普攻按 innateDamageType 配置、技能按 skill.damageType ──
 
-TEST(SingleColumnStat, NormalAttackAlwaysPhysicalAndSkillTypeFollowsSkill) {
+TEST(SingleColumnStat, NormalAttackFollowsInnateTypeAndSkillTypeFollowsSkill) {
     auto attacker = baseFighter();
-    // innateDamageType 已退役（普攻恒物理）：设为任何值都不影响普攻类型
-    attacker.innateDamageType = DamageType::kMagic;
+    // **角色配置驱动**：普攻类型跟随 innateDamageType（当前全部角色设定物理——
+    // 此处配 kFire 验证配置位是活的，非硬编码物理）
+    attacker.innateDamageType = DamageType::kFire;
     auto defender = baseFighter();
     defender.defense = 80;
 
@@ -186,15 +187,15 @@ TEST(SingleColumnStat, NormalAttackAlwaysPhysicalAndSkillTypeFollowsSkill) {
     EXPECT_EQ(firePlain / 2, fireReduced);
     EXPECT_EQ(firePlain, battle::estimateDamage(attacker, defender, plainPhysicalSkill()));
 
-    // 普攻（无技能）恒物理（calculateCombatantDamage 契约）：
-    // 即便攻方 innateDamageType = kMagic，DamageResult.damageType 仍恒 kPhysical
+    // 普攻（无技能）按攻击方 innateDamageType 配置判定（calculateCombatantDamage 契约）：
+    // 配火普攻 ⇒ DamageResult.damageType = kFire
     rng::DeterministicRng rng(42);
     const auto r =
         battle::calculateCombatantDamage(rng, attacker, defender, nullptr);
-    EXPECT_TRUE(r.isPhysical());
-    EXPECT_EQ(DamageType::kPhysical, r.damageType);
+    EXPECT_FALSE(r.isPhysical());
+    EXPECT_EQ(DamageType::kFire, r.damageType);
 
-    // 对照：innateDamageType 默认值同样恒物理
+    // 对照：默认配置（物理普攻）结果为物理
     auto physicalAttacker = baseFighter();
     rng::DeterministicRng rng2(42);
     const auto r2 =

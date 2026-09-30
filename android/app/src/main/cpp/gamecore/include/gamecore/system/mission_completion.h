@@ -430,7 +430,7 @@ inline gamecore::battle::Combatant createBeast(int32_t beastRealm, int32_t index
     beast.defense = scaled(rs.defense, type.defMod) * 2;
     beast.speed = scaled(rs.speed, type.speedMod);
     beast.critRate = 0.05 + realmIndex * 0.01;
-    // 普攻恒物理（五行属性伤害系统 P3）：innateDamageType 退役段不再派生
+    // 普攻类型按 innateDamageType 配置（默认物理；当前设定全物理，可按兽种配置）
     beast.realm = realmIndex;
     beast.realmLayer = 5;
     beast.element = type.element;

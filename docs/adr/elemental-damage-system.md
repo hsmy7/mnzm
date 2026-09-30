@@ -12,7 +12,7 @@
 |---|---|---|
 | DamageType 6 值化 | `PHYSICAL` + `METAL/WOOD/WATER/FIRE/EARTH`；`MAGIC` 退役段保留（name 序列化兼容，禁新产出） | ✅ |
 | 类型通道 6 路 | `Combatant` 12 桶（物理+五行 × 增伤/减伤）；Kotlin `mergeTypeChannels` 与 C++ 同式逐位 | ✅ |
-| 普攻恒物理 | P3 契约：`innateDamageType` 退役段不再读取（债 I-E6 同款纪律），妖兽/散修/试炼派生逻辑删除 | ✅ |
+| 普攻类型配置驱动 | `innateDamageType` 为**活配置位**（战斗管线按其判定普攻类型）；当前全部角色设定物理——是内容现状而非架构恒等式（实施初版误作硬编码，2026-09-30 用户纠正后返工，见 D5） | ✅ |
 | 灵根 gate | `SpiritRoot.elementGate`（唯一实现入口）：含该元素→1.0、不含→恰 0.0、物理恒 1.0；`typeDamageBonusesOf` 弟子侧汇总折算 | ✅ |
 | 技能元素 | 功法静态表 `skillDamageType` 值域扩 5（78 条 magic 功法按名义语义映射五行）；妖兽表 6 处 MAGIC→兽种元素 | ✅ |
 | 装备侧 | `EquipStat` 8→13 值（12 活跃+退役段）、词条池 7→11 项（类型词条 ×1.5 补偿档）、**6 套 36 部件**、配方 36 条 | ✅ |
@@ -46,6 +46,19 @@ gate（方案 §3.3：灵根含该元素→加成全额，不含→0）落在**�
 ### D3：对拍无"基线重录"——活体双臂比对
 
 方案 E1 预设对拍基线需一次性重录。实测修正：`Diff*Test` 家族是**双臂活对比**（Kotlin 本地算 vs C++ 经 DiffRngBridge JSON op 回传），无 golden 文件。两端同批改后协议面逐键对齐（`BattleJsonCodec` ↔ `battle_json.h` 12 桶）即绿——本次 Diff 家族全绿验证了该机制。
+
+### D5：普攻类型是角色配置数据，不是架构恒等式（2026-09-30 架构修正）
+
+实施初版把方案 §3.2 的"普攻恒为 PHYSICAL"落成了**硬编码**：战斗管线直接写死 `PHYSICAL`、`innateDamageType` 标记"退役不读取"、C++/Kotlin 测试断言 innateDamageType 无效。**用户纠正**：当前所有角色普攻是物理是**版本内容设定**，不代表未来角色普攻都是物理。返工为数据驱动：
+
+- 战斗管线（Kotlin `computeDamagePipeline`/`tryDodge`/`tryInstantKill`/`calculateDamage` 与 C++ 对偶）普攻臂**恢复读取 `attacker.innateDamageType`**；
+- 三条弟子装配线恢复 `innateDamageType = resolvedInnateDamageType()` 传参（模板显式值优先，非法值兜底物理）；
+- `InnateDamageType.derive` 旧"首灵根物法二分派生"随 MAGIC 退役（兜底物理）；C++ `auto_gear.h` 对偶同步；
+- **四个角色模板数据修正**：suqing/linxuetang/xuhe/zhaoyan 原配 `MAGIC`（MAGIC 时代内容），按当前设定改为 `PHYSICAL`——净行为与上一交付态（恒物理）逐位一致；
+- `ElementalDamageSystemTest` E2 拆为「当前全物理内容数据守卫」+「普攻类型跟随 innateDamageType 配置」两用例（C++ `single_column_stat_test` 同语义）；
+- 妖兽/人形敌人构造点维持默认 PHYSICAL（字段活语义，未来可按兽种配置）。
+
+**净行为变化 = 0**（相对上一交付态），恢复的是"普攻类型可配置"的架构能力。
 
 ### D4：功法元素映射为内容决策，随实施落表
 

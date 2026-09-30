@@ -14,7 +14,7 @@ import org.junit.Test
 
 /**
  * 五行属性伤害系统核心测试（方案 §6 清单 E2–E7/E11）：
- * - E2 普攻恒物理（全角色模板 × 灵根组合）
+ * - E2 普攻类型配置驱动（当前全角色设定物理的数据守卫 + 配置位跟随断言）
  * - E4 灵根 gate（含 → 全额、不含 → 恰 0；合成多灵根全组合）
  * - E5 类型伤害加成通道隔离（6 类互不串扰）
  * - E6 类型减伤 6 桶隔离 + 全 0 逐位一致（S19）
@@ -60,34 +60,68 @@ class ElementalDamageSystemTest {
         damageMultiplier = multiplier, mpCost = 0, cooldown = 0
     )
 
-    /** 普攻 = 倍率 1.0 物理技能（P3：普攻恒物理，公式同式）；走无 RNG 确定性估算 */
+    /** 普攻近似 = 倍率 1.0 物理技能（当前角色普攻全物理，公式同式）；走无 RNG 确定性估算 */
     private fun estimate(attacker: Combatant, defender: Combatant, skill: CombatSkill?): Int =
         BattleCalculator.estimateDamage(attacker, defender, skill ?: normalAttack)
 
-    // ── E2：普攻恒物理（全角色模板 × 灵根组合）──
+    // ── E2：普攻类型 = 角色配置驱动（当前全部角色设定物理）──
 
     @Test
-    fun `E2 普攻恒为物理 —— 全角色模板 x 全灵根组合`() {
-        val spiritRootCombinations = listOf(
-            "metal", "wood,water", "metal,earth", "water,wood,fire", "metal,wood,water,fire,earth"
-        )
+    fun `E2 当前全部角色模板的普攻类型设定为物理`() {
+        // **内容设定数据守卫**：普攻伤害类型由角色模板配置（innateDamageType）驱动，
+        // 当前全部角色设定物理。未来加入法术/五行普攻角色时，按新设定更新本断言。
         val templates = CharacterTemplateDb.ALL
         assertTrue("角色名册非空", templates.isNotEmpty())
         for (template in templates) {
-            for (roots in spiritRootCombinations) {
-                // gate 与灵根无关地验证：普攻类型判定不消费灵根（P3 契约）
-                val gate = SpiritRoot(roots)
-                DamageType.ELEMENTAL.forEach { element ->
-                    // 灵根集合含/不含该元素均不改变普攻物理性——构造面恒 PHYSICAL
-                    assertEquals(
-                        "模板 ${template.id} 灵根 $roots 元素 ${element.element} 下普攻应恒物理",
-                        DamageType.PHYSICAL, DamageType.PHYSICAL
-                    )
-                }
-                // gate 数值面：物理恒 1.0（不受灵根影响）
-                assertEquals(1.0, gate.elementGate(null), 0.0)
-            }
+            assertEquals(
+                "模板 ${template.id} 的普攻类型设定与当前内容设定（全角色普攻物理）不一致",
+                DamageType.PHYSICAL, DamageType.fromName(template.innateDamageType)
+            )
         }
+    }
+
+    @Test
+    fun `E2 普攻类型跟随 innateDamageType 配置 —— 非物理普攻角色可配置`() {
+        // 架构面：普攻伤害类型由 innateDamageType 配置驱动（非硬编码物理）——
+        // CombatantStats 版 calculateDamage 缺省（无显式 damageType）按攻击方配置判定：
+        // 配火普攻的战斗体 → 结果类型为火且吃火减伤；配物理 → 不吃火减伤
+        val rng = com.xianxia.sect.core.util.DeterministicRng(42)
+        val stats = object : BattleCalculator.CombatantStats {
+            override val attack = 1000
+            override val defense = 500
+            override val innateDamageType = DamageType.FIRE
+            override val speed = 100
+            override val critRate = 0.0
+            override val realm = 9
+            override val element = "fire"
+        }
+        val fireDefender = object : BattleCalculator.CombatantStats {
+            override val attack = 100
+            override val defense = 500
+            override val speed = 100
+            override val critRate = 0.0
+            override val realm = 9
+            override val element = "metal"
+            override val innateDamageType = DamageType.PHYSICAL
+        }
+        val fireNormal =
+            BattleCalculator.calculateDamage(stats, fireDefender, rng = rng)
+        assertEquals("配火普攻的战斗体普攻结果类型应为火", DamageType.FIRE, fireNormal.damageType)
+        // 对照：默认配置（物理普攻）结果为物理
+        val plainNormal = BattleCalculator.calculateDamage(
+            PlainPhysicalStats, fireDefender, rng = com.xianxia.sect.core.util.DeterministicRng(42)
+        )
+        assertEquals(DamageType.PHYSICAL, plainNormal.damageType)
+    }
+
+    /** 默认配置战斗体（普攻物理，接口默认值） */
+    private object PlainPhysicalStats : BattleCalculator.CombatantStats {
+        override val attack = 1000
+        override val defense = 500
+        override val speed = 100
+        override val critRate = 0.0
+        override val realm = 9
+        override val element = "metal"
     }
 
     // ── E4：灵根 gate 全组合 ──
@@ -238,8 +272,9 @@ class ElementalDamageSystemTest {
     // ── E11：物理路径不回退 ──
 
     @Test
-    fun `E11 物理词条对全部弟子恒有效 —— 不经灵根 gate`() {
-        // 任意灵根组合下，物理加成全额生效（普攻人人物理）
+    fun `E11 物理词条不受灵根 gate —— 当前全员物理普攻下人人有效`() {
+        // 架构事实：物理加成不经 gate（elementGate(null) 恒 1.0）；
+        // 内容现状：当前全部角色普攻物理 ⇒ 物理词条对所有角色实际有效（E12 随机穿装口径的对照面）
         for (roots in listOf("metal", "wood", "water", "fire", "earth", "fire,water", "wood,water,fire")) {
             val root = SpiritRoot(roots)
             assertEquals("灵根 [$roots] 物理加成必须全额生效", 1.0, root.elementGate(null), 0.0)

@@ -168,7 +168,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | C++ 对偶 | `gamecore/data/equip_*.h`、`equipment_tx.h`、`equipment_factory.h`、`equipment_entries.h` | AUTHORITATIVE 真相源：装备事务/词条抽取/套装结算与 Kotlin 逐位对拍（`DiffEquipmentUpgradeTest` + `equip_*_test.cpp`） |
 | codegen 链 | `scripts/data/equipment_db_sample.json` + `scripts/gen-templates.mjs` / `gen-game-data.mjs` | 静态数据单一真源（E4 禁手改生成物；G0 幂等门 + `TemplateCodegenIntegrityGuardTest`） |
 
-**属性接口（B1 单列口径；五行属性伤害系统 2026-09-30 终态）**：装备/功法/丹药加成汇入弟子 `attack/defense` 单列；伤害类型走**普攻恒物理 + 技能按功法自带元素（`DamageType` 六活跃值：物理+金木水火土）+ 类型增伤/减伤 12 桶**；五行加成受**灵根 gate**（`SpiritRoot.elementGate`：灵根含该元素→全额、不含→0、物理恒全额，弟子侧 `typeDamageBonusesOf` 折算后进 Combatant 桶）；速度/灵力**不在**装备加成通道（S14 拍板）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`，装备占比锚 [30,45]（五行化 E4 校准重锚；`EquipmentPowerParityTest` 分维度钉死）。
+**属性接口（B1 单列口径；五行属性伤害系统 2026-09-30 终态）**：装备/功法/丹药加成汇入弟子 `attack/defense` 单列；伤害类型走**普攻按角色配置（`innateDamageType`，当前全部角色设定物理——内容现状非架构恒等式）+ 技能按功法自带元素（`DamageType` 六活跃值：物理+金木水火土）+ 类型增伤/减伤 12 桶**；五行加成受**灵根 gate**（`SpiritRoot.elementGate`：灵根含该元素→全额、不含→0、物理恒全额，弟子侧 `typeDamageBonusesOf` 折算后进 Combatant 桶）；速度/灵力**不在**装备加成通道（S14 拍板）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`，装备占比锚 [30,45]（五行化 E4 校准重锚；`EquipmentPowerParityTest` 分维度钉死）。
 
 **守卫测试族**：`EquipmentSlotOrderGuardTest` / `EquipmentSingleSourceGuardTest` / `EquipmentLevelPersistGuardTest`（R5 根因）/ `EquipmentStackRemovalGuardTest`（R6 符号面归零+白名单）/ `EquipmentRarityGateTest`（S17+产出链单点路由）/ `EquipmentProtoNumberFrozenTest`（E1 编号冻结）/ `EquipmentPowerParityTest`（S9）/ `EquipmentEconomyCalibrationTest`（S16）/ `EquipmentStatHotPathBenchmark`（S18 门 ≤1.10）。
 

@@ -220,7 +220,7 @@ interface GameSystem {
 
 弟子/战斗体属性只有 `attack/defense` 单列（物攻/法攻/物防/法防四列已退役，符号面归零由 `SingleColumnStatGuardTest` 守卫）；伤害类型由**两条类型通道 + 灵根 gate** 承载（`DamageType` 六活跃值 = 物理 + 金木水火土，`MAGIC` 退役段仅存档兼容；决策记录 [docs/adr/elemental-damage-system.md](adr/elemental-damage-system.md)）：
 
-1. **普攻**恒为 `PHYSICAL`（与灵根无关，P3 契约；`innateDamageType` 为退役段不再读取——未来"法术普攻"角色可复用为普攻元素，债 I-E6）；
+1. **普攻**伤害类型 = `innateDamageType`（**角色配置驱动**：弟子按角色模板、妖兽/敌人按种类配置。当前全部角色设定为物理——这是内容现状而非架构恒等式，未来法术/五行普攻角色改配模板数据即可）；
 2. **技能**伤害类型 = `skill.damageType`（**功法自带元素**：静态表 `skillDamageType` 值域 physical/metal/wood/water/fire/earth；同一功法对不同弟子伤害属性一致，E3）；
 3. **类型增伤/减伤 12 桶**：`physicalDamageBonus` + `metal/wood/water/fire/earthDamageBonus`（攻方六路）与同构六路减伤桶，默认 0.0 时与基准公式逐位一致（S19）。**五行加成路为灵根 gate 后生效值**——`SpiritRoot.elementGate`（唯一实现入口）：弟子灵根集合含该元素 → 加成全额、不含 → 恰为 0.0、物理恒全额（E4/E11）；折算在弟子侧汇总点 `typeDamageBonusesOf` 完成，战斗公式零感知。
 

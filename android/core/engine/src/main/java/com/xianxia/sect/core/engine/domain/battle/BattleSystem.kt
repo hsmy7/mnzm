@@ -288,6 +288,8 @@ class BattleSystem @Inject constructor(
             maxMp = stats.maxMp,
             attack = stats.attack,
             defense = stats.defense,
+            // 普攻伤害类型 = 角色配置（当前全部角色设定物理；未来法术/五行普攻角色改模板数据即可）
+            innateDamageType = disciple.resolvedInnateDamageType(),
             physicalDamageBonus = typeBonuses.physical,
             metalDamageBonus = typeBonuses.metal,
             woodDamageBonus = typeBonuses.wood,

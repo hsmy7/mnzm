@@ -98,8 +98,8 @@ class BattleCalculatorTest {
 
     @Test
     fun `calculateDamage - auto select follows innate damage type`() {
-        // 单列口径（B1）：isPhysicalAttack 缺省时按攻击方固有伤害属性判定——
-        // CombatantStats 简化面缺省 PHYSICAL ⇒ 缺省路径恒物理
+        // 普攻类型按攻击方配置（innateDamageType）判定——
+        // CombatantStats 简化面默认 PHYSICAL ⇒ 本简化构造下缺省结果为物理
         val attacker = createCombatant(attack = 50)
         val defender = createCombatant()
         val result = BattleCalculator.withRng(rng).calculateDamage(

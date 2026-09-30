@@ -379,6 +379,7 @@ object AISectAttackManager {
             maxMp = stats.maxMp,
             attack = stats.attack,
             defense = stats.defense,
+            innateDamageType = disciple.resolvedInnateDamageType(),
             physicalDamageBonus = typeBonuses.physical,
             metalDamageBonus = typeBonuses.metal,
             woodDamageBonus = typeBonuses.wood,
