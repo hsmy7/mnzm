@@ -331,3 +331,5 @@ commit：<sha> <标题>
 
 | 时间 | 阶段 | 批次 | 动作/判定 | 证据 | 节拍 |
 |---|---|---|---|---|---|
+| 2026-10-01 02:55 | — | — | 看护自动化建立：ZCode `automation-8b4bcd82-6ed0-416d-9c58-630ef681f79a`（常态 30min，收尾期自动切 10min，CronUpdate 自调 + 失败硬扛不重建）；首轮即遇 §0.1 v2 对齐广播并逐项核实（main 前进 6 笔至 `00d77837e`、WATCH-PROTOCOL 确已删除、SS0 worktree 落后），自动化 prompt 已改指本册，增设 §8 | `79769bf6c` | 30 分钟 |
+| 2026-10-01 03:00 | A→B | SS0 | **派发成功**：worktree `C:\Mnzm\XianxiaSectNative-SS0`（`feat/single-save-SS0` @ `79769bf6c`，与 main 一致、status 干净、properties+node_modules 补件齐）+ ZCode GUI 新会话「【派工】单存档改造批次 SS0」，模型 chip=GLM-5.3-Flash（最高），输入回读逐字核对后发送；截图终验=会话运转中（工作中 21s，正读 TASKBOOK-SS0 @ SS0 worktree 路径），实施按 v2 任务书（删档重置+兼容清零+邮件 M1–M4） | 截图 artifact `tool-result-8bbdab1c`（sess_b9878721） | 30 分钟 |
