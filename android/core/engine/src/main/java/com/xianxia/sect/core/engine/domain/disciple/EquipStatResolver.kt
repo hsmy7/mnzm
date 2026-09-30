@@ -42,9 +42,17 @@ object EquipStatResolver {
     /**
      * 解析六件已装备实例（含词条）+ 命中套装档位 → [EquipBonus]。
      *
+     * 走**恒等键整解析缓存**（方案 §13-6「按实例内容做值语义缓存」的落地变体，
+     * EQ-B4；变体理由见 [resolveCache] KDoc）——每旬热点（`getMaxHpMpColumn`）
+     * 逐弟子逐旬调用，缓存把词条重建与套装档位解析摊薄为一次哈希查找
+     * （`EquipmentStatHotPathBenchmark` 门：不劣化于改造前含缓存基线 10%）。
+     *
      * @param equippedInstances 弟子六槽位的实例（按槽位 id 从实例表取到的非空件）
      */
     fun resolve(equippedInstances: List<EquipmentInstance>): EquipBonus {
+        if (equippedInstances.isEmpty()) return EquipBonus()
+        val key = InstanceListKey(equippedInstances)
+        resolveCache[key]?.let { return it }
         var bonus = EquipBonus()
         for (instance in equippedInstances) {
             for (statValue in instance.totalBonus()) {
@@ -54,6 +62,10 @@ object EquipStatResolver {
             }
         }
         bonus += resolveSetBonus(equippedInstances)
+        if (resolveCache.size >= CACHE_LIMIT) {
+            resolveCache.clear()
+        }
+        resolveCache[key] = bonus
         return bonus
     }
 
@@ -93,4 +105,44 @@ object EquipStatResolver {
         }
         return bonus
     }
+
+    // ── 整解析缓存（恒等键，对标改造前 cachedFinalStats 的护栏口径） ──
+
+    /**
+     * 缓存键：实例列表的**恒等有序**集（顺序参与相等性——两调用方都以稳定的
+     * 槽位序构建列表，序变只多算一次，无正确性风险）。
+     *
+     * **为何恒等键而非值语义键**（对方案 §13-6「按实例内容」的实测修正）：
+     * 新模型实例是深层嵌套 data class（growth→affix→3 副词条列表），值语义
+     * hashCode 每件遍历整棵词条树——六件逐旬 × 全体弟子使深哈希成为热点主导项
+     * （B4 实测：值语义键 1,286 ns/调用 vs 改造前基线复刻 203 ns，超门 6 倍；
+     * 恒等键后见报告实测）。恒等键的版本安全性由不可变纪律保证：
+     * `EquipmentInstance` 全字段 val（内容不可变）、唯一 `var slotId` 不参与
+     * 加成且变更走 `copy`（新恒等 = 新键）——**内容变 ⇒ 必然新实例 ⇒ 必然新键**，
+     * 永不需要失效逻辑。
+     */
+    private class InstanceListKey(private val refs: List<EquipmentInstance>) {
+        private val hash: Int = refs.fold(1) { acc, r -> 31 * acc + System.identityHashCode(r) }
+
+        override fun hashCode(): Int = hash
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is InstanceListKey) return false
+            if (other.refs.size != refs.size) return false
+            for (i in refs.indices) {
+                if (other.refs[i] !== refs[i]) return false
+            }
+            return true
+        }
+    }
+
+    /**
+     * resolve 结果缓存（键见 [InstanceListKey]；值 = 纯函数结果，幂等，
+     * ConcurrentHashMap 跨引擎线程/测试安全）。
+     * 容量护栏：实例数无上限（S18），键数无界增长时清空重建（摊还 O(1)）。
+     */
+    private val resolveCache = java.util.concurrent.ConcurrentHashMap<InstanceListKey, EquipBonus>()
+
+    /** 缓存容量护栏（与改造前 finalStatsCache 同值） */
+    private const val CACHE_LIMIT = 4096
 }

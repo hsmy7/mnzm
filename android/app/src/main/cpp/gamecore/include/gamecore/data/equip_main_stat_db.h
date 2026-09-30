@@ -56,9 +56,9 @@ inline bool operator==(const MainStatBaseRow& a, const MainStatBaseRow& b) {
 
 inline std::vector<MainStatBaseRow>& mainStatBaseMutable() {
     static std::vector<MainStatBaseRow> kBase = {
-        {"ATTACK", {3, 9, 27, 84, 255, 780}},
-        {"DEFENSE", {3, 9, 27, 84, 255, 780}},
-        {"HP", {30, 90, 270, 840, 2550, 7800}},
+        {"ATTACK", {3, 9, 27, 84, 255, 1404}},
+        {"DEFENSE", {3, 9, 27, 84, 255, 1404}},
+        {"HP", {30, 90, 270, 840, 2550, 14040}},
         {"CRIT_RATE", {0.002, 0.006, 0.018, 0.056, 0.17, 0.52}},
     };
     return kBase;

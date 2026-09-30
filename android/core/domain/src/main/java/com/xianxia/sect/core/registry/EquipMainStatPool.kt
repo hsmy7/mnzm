@@ -44,11 +44,19 @@ object EquipMainStatPool {
         EquipmentSlot.LEGS to 0.95
     )
 
-    /** 主词条品阶基数表（品阶 1..6；暴击伤害主词条 = 暴击率 × 2，避免第二张表） */
+    /**
+     * 主词条品阶基数表（品阶 1..6；暴击伤害主词条 = 暴击率 × 2，避免第二张表）。
+     *
+     * T6 档 flat 基数经 EQ-B4 校准 ×1.8（780→1404 / 7800→14040，中性源
+     * `equipment_db_sample.json` 同步）：暴击/类型词条不进战力公式，T6 档
+     * 百分比词条占比抬升压低 flat 贡献——40%±5% 战力占比锚（大乘期 T6
+     * 满套中位，`EquipmentPowerParityTest`）据此回调；T1–T5 档校准实测
+     * 已在带内，保持不动。
+     */
     private val RARITY_BASE: Map<EquipStat, List<Double>> = mapOf(
-        EquipStat.ATTACK to listOf(3.0, 9.0, 27.0, 84.0, 255.0, 780.0),
-        EquipStat.DEFENSE to listOf(3.0, 9.0, 27.0, 84.0, 255.0, 780.0),
-        EquipStat.HP to listOf(30.0, 90.0, 270.0, 840.0, 2550.0, 7800.0),
+        EquipStat.ATTACK to listOf(3.0, 9.0, 27.0, 84.0, 255.0, 1404.0),
+        EquipStat.DEFENSE to listOf(3.0, 9.0, 27.0, 84.0, 255.0, 1404.0),
+        EquipStat.HP to listOf(30.0, 90.0, 270.0, 840.0, 2550.0, 14040.0),
         EquipStat.CRIT_RATE to listOf(0.002, 0.006, 0.018, 0.056, 0.170, 0.520)
     )
 
