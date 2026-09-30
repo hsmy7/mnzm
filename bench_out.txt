@@ -1,6 +1,0 @@
-Running main() from C:/Mnzm/XianxiaSectNative/android/app/src/main/cpp/gamecore/third_party/googletest/src/gtest_main.cc
-Note: Google Test filter = PhaseSettlementBench.TimingPerPhase
-[==========] Running 1 test from 1 test suite.
-[----------] Global test environment set-up.
-[----------] 1 test from PhaseSettlementBench
-[ RUN      ] PhaseSettlementBench.TimingPerPhase

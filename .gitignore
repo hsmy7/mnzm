@@ -161,3 +161,7 @@ Testing/
 # G 批看护的**瞬时装配产物**（fire.ps1 每轮生成；状态真源是 dispatch-ledger.md，不入库）
 docs/gacha-watch/_fire-*.md
 docs/gacha-watch/_dispatch-*.md
+
+# 临时诊断转储（一次性产物，不入库）
+.clash-repair/
+bench_out.txt
