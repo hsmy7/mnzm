@@ -12,15 +12,16 @@ import java.io.File
  * 走三条通道（普攻 innateDamageType / 技能 damageType / 类型增减伤分桶）。
  *
  * 显式豁免面（intentionallyExcluded，每项标注豁免理由与退役批）：
- * - **装备模板/实例面**（`EquipmentStack/EquipmentInstance/EquipmentStats/
- *   AIRandomEquipment` 的四列字段与 game-data/equipment_db JSON 键）——装备模型
+ * - **装备模板/实例面**（`EquipmentStack/EquipmentInstance/EquipmentStats`
+ *   的四列字段与 game-data/equipment_db JSON 键）——装备模型
  *   本体随 **B3 装备体系原子替换** 批退役，B1 只在映射层（toDiscipleStats 等）
  *   相加，四列字段本身保留；
  * - **功法数据面**（`ManualInstance.stats` map 的 "physicalAttack" 等字符串键）——
  *   Q2 拍板「150+ 功法数据与 codegen 一字不改」，结算层相加；
  * - **旧档归一化源**（`DiscipleSerializer.DiscipleSurrogate` 的 69..72/62..65/36..39
- *   deprecated 只读声明、`ItemEffect/PillEffect` 旧四列、`AICaveDisciple/WorldLevel`
- *   旧列、`OldSerializableSaveData`）——旧档读取兼容面，禁复用号、暂不删声明；
+ *   deprecated 只读声明、`ItemEffect/PillEffect` 旧四列、`WorldLevel`
+ *   旧列、`OldSerializableSaveData`；`AICaveDisciple` 链已随 v65 迁移整链退役）——
+ *   旧档读取兼容面，禁复用号、暂不删声明；
  * - **迁移面**（`GameDatabaseMigrationsV62` 的 SQL 列名、`RoomMigration*Test` 的
  *   v61 种子/断言列名）——迁移的输入就是旧 schema；
  * - **展示文案**（EFFECT_KEY_NAMES 物攻/法攻等 UI 键）——物品效果键非弟子属性。

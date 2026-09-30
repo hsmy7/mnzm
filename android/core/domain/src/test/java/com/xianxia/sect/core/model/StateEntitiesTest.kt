@@ -131,7 +131,6 @@ class StateEntitiesTest {
         assertEquals(emptyMap<String, List<Disciple>>(), state.aiSectDisciples)
         assertEquals(emptyList<CultivatorCave>(), state.cultivatorCaves)
         assertEquals(emptyList<CaveExplorationTeam>(), state.caveExplorationTeams)
-        assertEquals(emptyList<AICaveTeam>(), state.aiCaveTeams)
         assertEquals(emptyList<WorldLevel>(), state.worldLevels)
     }
 
@@ -187,7 +186,6 @@ class StateEntitiesTest {
         assertEquals(emptyList<Disciple>(), state.recruitList)
         assertEquals(emptyList<CultivatorCave>(), state.cultivatorCaves)
         assertEquals(emptyList<CaveExplorationTeam>(), state.caveExplorationTeams)
-        assertEquals(emptyList<AICaveTeam>(), state.aiCaveTeams)
         assertEquals(emptyList<String>(), state.unlockedRecipes)
         assertEquals(emptyList<String>(), state.unlockedManuals)
         assertEquals(emptyMap<String, List<ManualProficiencyData>>(), state.manualProficiencies)

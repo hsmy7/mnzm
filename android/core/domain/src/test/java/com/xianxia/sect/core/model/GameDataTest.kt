@@ -41,7 +41,6 @@ class GameDataTest {
         assertTrue(data.worldLevels.isEmpty())
         assertTrue(data.cultivatorCaves.isEmpty())
         assertTrue(data.caveExplorationTeams.isEmpty())
-        assertTrue(data.aiCaveTeams.isEmpty())
         assertTrue(data.unlockedRecipes.isEmpty())
         assertTrue(data.unlockedManuals.isEmpty())
         assertTrue(data.placedBuildings.isEmpty())

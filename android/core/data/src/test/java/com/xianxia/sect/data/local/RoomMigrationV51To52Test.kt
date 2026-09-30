@@ -302,10 +302,13 @@ class RoomMigrationV51To52Test {
             V55_GAME_DATA_DROPPED_COLUMNS.toSet() +
             V56_GAME_DATA_DROPPED_COLUMNS.toSet() +
             V57_GAME_DATA_DROPPED_COLUMNS.toSet() +
-            V58_GAME_DATA_DROPPED_COLUMNS.toSet()
+            V58_GAME_DATA_DROPPED_COLUMNS.toSet() +
+            // v65: AI 洞府探索队伍链退役（写入方 W4-D 已删，零消费休眠列）
+            setOf("aiCaveTeams")
         assertEquals(
             "全链被删列集必须精确等于注册删列集（{autoSaveIntervalMonths, battleTeam, aiBattleTeams}" +
-                " ∪ G02 v55 三列 ∪ G05 v56 五列 ∪ G03 v57 两列 ∪ G04 v58 五列）∩ v39 起点既有列",
+                " ∪ G02 v55 三列 ∪ G05 v56 五列 ∪ G03 v57 两列 ∪ G04 v58 五列 ∪ v65 一列 aiCaveTeams）" +
+                "∩ v39 起点既有列",
             expectedRegistered.intersect(before.first().keys),
             dropped
         )

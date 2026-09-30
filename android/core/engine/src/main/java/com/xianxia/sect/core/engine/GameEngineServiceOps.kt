@@ -136,7 +136,7 @@ fun GameEngine.releaseMemory(level: Int) {
                 trimmedAny = trimHeavyListsForMemoryRelease(levelName)
             }
         }
-        // w3-13 通道关闭配套：裁剪写面（worldMapSects/caveExplorationTeams/aiCaveTeams
+        // w3-13 通道关闭配套：裁剪写面（worldMapSects/caveExplorationTeams
         // 均已关闭 §2.78/§2.79）发生后全量重建 native 基线——裁剪语义 = 双侧释放内存
         //（C++ 侧同步收敛到裁剪后状态）；未裁剪时零成本
         if (trimmedAny) rebaselineNativeMirror("内存裁剪")
@@ -164,13 +164,6 @@ private fun MutableGameState.trimHeavyListsForMemoryRelease(levelName: String): 
         gameData = gameData.copy(caveExplorationTeams = trimmedCave)
         trimmed = true
         DomainLog.d("GameEngine", "内存释放($levelName): caveExplorationTeams 裁剪至 ${trimmedCave.size} 个")
-    }
-    val aiCaveTeams = gameData.aiCaveTeams
-    if (aiCaveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
-        val trimmedAiCave = aiCaveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
-        gameData = gameData.copy(aiCaveTeams = trimmedAiCave)
-        trimmed = true
-        DomainLog.d("GameEngine", "内存释放($levelName): aiCaveTeams 裁剪至 ${trimmedAiCave.size} 个")
     }
     if (!trimmed) DomainLog.d("GameEngine", "内存释放($levelName): 无需裁剪其他列表")
     return trimmed

@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.AICaveTeam
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.Disciple
@@ -21,7 +20,6 @@ data class WorldMapDomainState(
     val aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
-    val aiCaveTeams: List<AICaveTeam> = emptyList(),
     val worldLevels: List<WorldLevel> = emptyList()
 )
 
@@ -31,7 +29,6 @@ fun GameData.extractWorldMapState(): WorldMapDomainState = WorldMapDomainState(
     aiSectDisciples = aiSectDisciples,
     cultivatorCaves = cultivatorCaves,
     caveExplorationTeams = caveExplorationTeams,
-    aiCaveTeams = aiCaveTeams,
     worldLevels = worldLevels
 )
 
@@ -41,6 +38,5 @@ fun GameData.mergeWorldMapState(state: WorldMapDomainState): GameData = copy(
     aiSectDisciples = state.aiSectDisciples,
     cultivatorCaves = state.cultivatorCaves,
     caveExplorationTeams = state.caveExplorationTeams,
-    aiCaveTeams = state.aiCaveTeams,
     worldLevels = state.worldLevels
 )

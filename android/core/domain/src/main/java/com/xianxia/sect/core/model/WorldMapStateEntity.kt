@@ -20,6 +20,5 @@ data class WorldMapStateEntity(
     var aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
     var cultivatorCaves: List<CultivatorCave> = emptyList(),
     var caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
-    var aiCaveTeams: List<AICaveTeam> = emptyList(),
     var worldLevels: List<WorldLevel> = emptyList()
 )

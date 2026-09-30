@@ -46,7 +46,7 @@ data class SerializableGameData(
     // reserved 25;（招募链年份戳字段号已退役，禁止复用）
     @ProtoNumber(26) val cultivatorCaves: List<SerializableCultivatorCave> = emptyList(),
     @ProtoNumber(27) val caveExplorationTeams: List<SerializableCaveExplorationTeam> = emptyList(),
-    @ProtoNumber(28) val aiCaveTeams: List<SerializableAICaveTeam> = emptyList(),
+    // reserved 28;（AI洞府探索队伍链已退役，禁止复用）
     // 字段号 29 预留未用
     @ProtoNumber(30) val unlockedRecipes: List<String> = emptyList(),
     @ProtoNumber(31) val unlockedManuals: List<String> = emptyList(),
@@ -739,65 +739,6 @@ data class SerializableCaveExplorationTeam(
     @ProtoNumber(6) val startYear: Int,
     @ProtoNumber(7) val startMonth: Int,
     @ProtoNumber(8) val duration: Int
-)
-
-@Serializable
-data class SerializableAIRandomEquipment(
-    @ProtoNumber(1) val slot: String,
-    @ProtoNumber(2) val name: String,
-    @ProtoNumber(3) val rarity: Int,
-    @ProtoNumber(4) val nurtureLevel: Int,
-    @ProtoNumber(5) val physicalAttack: Int = 0,
-    @ProtoNumber(6) val magicAttack: Int = 0,
-    @ProtoNumber(7) val physicalDefense: Int = 0,
-    @ProtoNumber(8) val magicDefense: Int = 0,
-    @ProtoNumber(9) val speed: Int = 0,
-    @ProtoNumber(10) val hp: Int = 0,
-    @ProtoNumber(11) val mp: Int = 0
-)
-
-@Serializable
-data class SerializableAIRandomManual(
-    @ProtoNumber(1) val name: String,
-    @ProtoNumber(2) val rarity: Int,
-    @ProtoNumber(3) val mastery: Int,
-    @ProtoNumber(4) val stats: Map<String, Int> = emptyMap()
-)
-
-@Serializable
-data class SerializableAICaveDisciple(
-    @ProtoNumber(1) val id: String = "",
-    @ProtoNumber(2) val name: String = "",
-    @ProtoNumber(3) val realm: Int = 5,
-    @ProtoNumber(4) val realmName: String = "",
-    @ProtoNumber(5) val hp: Int = 1000,
-    @ProtoNumber(6) val maxHp: Int = 1000,
-    @ProtoNumber(7) val mp: Int = 500,
-    @ProtoNumber(8) val maxMp: Int = 500,
-    @ProtoNumber(9) val physicalAttack: Int = 100,
-    @ProtoNumber(10) val magicAttack: Int = 50,
-    @ProtoNumber(11) val physicalDefense: Int = 50,
-    @ProtoNumber(12) val magicDefense: Int = 40,
-    @ProtoNumber(13) val speed: Int = 100,
-    @ProtoNumber(14) val critRate: Double = 0.05,
-    @ProtoNumber(15) val equipments: List<SerializableAIRandomEquipment> = emptyList(),
-    @ProtoNumber(16) val manuals: List<SerializableAIRandomManual> = emptyList()
-)
-
-@Serializable
-data class SerializableAICaveTeam(
-    @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val sectId: String,
-    @ProtoNumber(3) val sectName: String,
-    @ProtoNumber(4) val targetCaveId: String,
-    @ProtoNumber(5) val disciples: List<SerializableAICaveDisciple> = emptyList(),
-    @ProtoNumber(6) val status: String,
-    @ProtoNumber(7) val startYear: Int,
-    @ProtoNumber(8) val startMonth: Int,
-    @ProtoNumber(9) val memberCount: Int = 5,
-    @ProtoNumber(10) val avgRealm: Int = 5,
-    @ProtoNumber(11) val avgRealmName: String = "",
-    @ProtoNumber(12) val caveName: String = "",
 )
 
 @Serializable
