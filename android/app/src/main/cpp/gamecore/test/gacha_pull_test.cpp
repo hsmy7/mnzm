@@ -4,7 +4,9 @@
 // 守护目标（与 Kotlin `GachaPullLedger` / `DiffGachaPullTest` 同一组口径，
 // 两侧各跑一遍——`gamecore/AGENTS.md` 测试双守护）：
 //   - 前置校验全覆盖 ⇒ 失败臂**零 RNG 消费、零状态写入**（双臂等价与 SL 复现的前提）
-//   - 保底语义：第 10 抽**本身**= 随机角色碎片 ×5、该抽不 roll 类别、计数归零
+//   - 保底语义：第 10 抽**本身**= 单灵根角色碎片 ×5（pickMode=singleSpiritRoot）、
+//     该抽不 roll 类别、计数归零
+//   - 数量维度：角色碎片 1..5 片、物品 1..10 件，按池级权重表加权（双表和恒 100）
 //   - 十连：一笔事务 10 行回执、一次性扣费、保底跨十连连续
 //   - 历史环缓冲：新在前、条数封顶 50
 //   - 物品：品阶严格 ≤ 池内 maxRarity；满仓**不失败**而转溢出草稿
@@ -169,11 +171,24 @@ TEST_F(GachaPullTest, 池不自洽一律拒绝_含非随机保底与权重漂移
     EXPECT_EQ("PoolMalformed",
               mutate([](GachaPoolTemplate& p) { p.categories[0].weightPct += 1; }));
     EXPECT_EQ("PoolMalformed",
+              mutate([](GachaPoolTemplate& p) { p.fragmentCountWeights.clear(); }));
+    EXPECT_EQ("PoolMalformed",
+              mutate([](GachaPoolTemplate& p) { p.fragmentCountWeights[0] += 1; }));
+    EXPECT_EQ("PoolMalformed",
+              mutate([](GachaPoolTemplate& p) { p.itemCountWeights.clear(); }));
+    EXPECT_EQ("PoolMalformed",
+              mutate([](GachaPoolTemplate& p) { p.itemCountWeights[0] += 1; }));
+    EXPECT_EQ("PoolMalformed",
               mutate([](GachaPoolTemplate& p) { p.categories[0].templateIds.clear(); }));
     EXPECT_EQ("PoolMalformed",
               mutate([](GachaPoolTemplate& p) { p.categories[0].templateIds[0] = "ghost"; }));
     EXPECT_EQ("PoolMalformed",
               mutate([](GachaPoolTemplate& p) { p.categories[2].itemSource = "chests"; }));
+    // singleSpiritRoot 但池内过滤不出任何单灵根角色 ⇒ 保底无处可落，前置拒绝
+    EXPECT_EQ("PoolMalformed", mutate([](GachaPoolTemplate& p) {
+        p.categories[0].templateIds = {"linxuetang", "xuhe"};
+        p.categories[1].templateIds = {"xieche", "zhaoyan"};
+    }));
     // 候选桶为空（该品阶一张模板都没有）必须被**前置**拒绝，而不是十连中途出货失败
     EXPECT_EQ("PoolMalformed", mutate([](GachaPoolTemplate& p) {
         p.categories[2].maxRarity = 99;
@@ -193,7 +208,7 @@ TEST_F(GachaPullTest, 第九抽不触发保底_计数逐位推进) {
     EXPECT_EQ(9, pityOf());
 }
 
-TEST_F(GachaPullTest, 第十抽本身是随机角色碎片且计数归零) {
+TEST_F(GachaPullTest, 第十抽本身是保底角色碎片且计数归零) {
     seedPity(pool_->pity.pullThreshold - 1);
     const auto out = pull(1);
     ASSERT_EQ(1u, out.rows.size());
@@ -205,14 +220,39 @@ TEST_F(GachaPullTest, 第十抽本身是随机角色碎片且计数归零) {
     EXPECT_EQ(0, out.pityAfter);
     EXPECT_EQ(0, pityOf());
 
-    // 保底归属六个角色之一（含已解锁/已满星，不做排除——P-5 拍板）
-    const auto poolIds = gacha_tx::detail::characterPool(*pool_);
-    ASSERT_NE(poolIds.end(), std::find(poolIds.begin(), poolIds.end(), row.templateId))
-        << "保底抽到了池外角色: " << row.templateId;
+    // 保底归属按 pickMode 取候选集（真实配置 = singleSpiritRoot ⇒ 只落单灵根角色；
+    // 含已解锁/已满星，不做排除——P-5 拍板）
+    const auto pityIds = gacha_tx::detail::pityCandidates(*pool_);
+    ASSERT_NE(pityIds.end(), std::find(pityIds.begin(), pityIds.end(), row.templateId))
+        << "保底抽到了候选集外角色: " << row.templateId;
+    const auto* templateRow = data::characterTemplateById(row.templateId);
+    ASSERT_NE(nullptr, templateRow);
+    EXPECT_EQ(1u, templateRow->spiritRoots.size())
+        << "singleSpiritRoot 保底抽到了多灵根角色: " << row.templateId;
     // 碎片确实入账到该模板，且只进 fragmentCount 片
     EXPECT_EQ(pool_->pity.fragmentCount, state_.gameData.gachaFragmentCounts[row.templateId]);
     // 保底抽不 roll 类别 ⇒ 该抽只消费一次候选掷点
     EXPECT_TRUE(out.unlockedTemplateIds.empty());
+}
+
+TEST_F(GachaPullTest, 保底归属连续多抽只落单灵根) {
+    for (int32_t i = 0; i < 20; ++i) {
+        seedPity(pool_->pity.pullThreshold - 1);
+        const auto out = pull(1);
+        ASSERT_EQ(1u, out.rows.size());
+        const auto* templateRow = data::characterTemplateById(out.rows[0].templateId);
+        ASSERT_NE(nullptr, templateRow);
+        EXPECT_EQ(1u, templateRow->spiritRoots.size())
+            << "第 " << i << " 次保底归属了多灵根角色: " << out.rows[0].templateId;
+    }
+}
+
+TEST_F(GachaPullTest, 数量权重表与拍板数值逐档一致) {
+    // 真实注入配置的字面量钉死：碎片 1..5 片 30/20/20/20/10；物品 1..10 件正态钟形
+    // 2/4/9/15/20/20/15/9/4/2——改拍板数值必须显式改这里与 Kotlin GachaConfigGuardTest
+    EXPECT_EQ((std::vector<int32_t>{30, 20, 20, 20, 10}), pool_->fragmentCountWeights);
+    EXPECT_EQ((std::vector<int32_t>{2, 4, 9, 15, 20, 20, 15, 9, 4, 2}),
+              pool_->itemCountWeights);
 }
 
 TEST_F(GachaPullTest, 保底跨十连连续_恰一条保底行且位置正确) {
@@ -296,7 +336,8 @@ TEST_F(GachaPullTest, 物品行品阶严格落在池内maxRarity且命中真实�
             itemRows++;
             EXPECT_GE(row.rarity, 1);
             EXPECT_LE(row.rarity, 4) << "五阶及以上不得进寻访（Q37 池内最高四阶）";
-            EXPECT_EQ(1, row.count);
+            EXPECT_GE(row.count, 1);
+            EXPECT_LE(row.count, 10) << "物品数量权重表只覆盖 1..10 件";
             EXPECT_TRUE(isKnownItemTemplate(row.itemId, row.rarity))
                 << "物品行未命中模板表: " << row.itemId;
         }
@@ -333,7 +374,9 @@ TEST_F(GachaPullTest, 满仓抽卡不失败_溢出转邮件草稿) {
         ASSERT_FALSE(out.overflowDrafts.empty()) << "物品被抽中却没入库也没草稿 = 丢件";
         for (const auto& draft : out.overflowDrafts) {
             EXPECT_EQ(gacha_tx::kTrackingSource, draft.source);
-            EXPECT_EQ(1, draft.quantity);
+            EXPECT_GE(draft.quantity, 1);
+            EXPECT_LE(draft.quantity, 10)
+                << "溢出草稿数额不得超过单抽物品数量上限（itemCountWeights 覆盖 1..10）";
         }
     }
 }
@@ -390,18 +433,25 @@ TEST_F(GachaPullTest, 首次跨一星才给解锁描述符_已解锁再抽不重
     EXPECT_TRUE(atMax.empty());
 }
 
-TEST_F(GachaPullTest, 角色命中每次一片_星级账本只在跨门槛时写) {
+TEST_F(GachaPullTest, 角色命中得一至五片_星级账本只在跨门槛时写) {
     int32_t characterRows = 0;
+    std::vector<bool> seenCount(6, false);
     for (int32_t i = 0; i < 60; ++i) {
         for (const auto& row : pull(10).rows) {
             if (row.category != "character") continue;
             characterRows++;
-            EXPECT_EQ(1, row.count) << "角色命中固定得 1 片";
+            EXPECT_GE(row.count, 1);
+            EXPECT_LE(row.count, 5) << "角色碎片数量权重表只覆盖 1..5 片";
             EXPECT_FALSE(row.isPity);
             EXPECT_TRUE(row.itemId.empty());
+            seenCount[static_cast<size_t>(row.count)] = true;
         }
     }
     EXPECT_GT(characterRows, 0) << "60 次十连没出过角色，类别权重可疑";
+    // 数量加权在生效：固定种子下 600 抽的角色样本必须见过至少两档片数
+    // （若数量掷点被删，全样本恒 1 片，此断言与消费序断言双双判红）
+    EXPECT_GE(std::count(seenCount.begin() + 1, seenCount.end(), true), 2)
+        << "角色碎片片数只出现过一档，数量加权疑似失效";
 
     // 账本 key 域：碎片/星级两本账都只允许出现池内角色（D-15 的运行期面）
     const auto poolIds = gacha_tx::detail::characterPool(*pool_);
@@ -434,7 +484,7 @@ TEST_F(GachaPullTest, 抽卡只推进12号分区_其余分区逐位不动) {
 }
 
 TEST_F(GachaPullTest, 随机消费次数与结果行同构) {
-    // 消费序口径（gacha_tx.h 头注释）：保底 1 次、角色 2 次、物品 3 次 nextInt
+    // 消费序口径（gacha_tx.h 头注释）：保底 1 次、角色 3 次、物品 4 次 nextInt
     // 参照流用同一个 seed 独立推进，逐抽比对快照 ⇒ 消费次数被钉死
     auto reference = RngManager{};
     reference.initSystemSeed(kSeed);
@@ -444,8 +494,13 @@ TEST_F(GachaPullTest, 随机消费次数与结果行同构) {
         for (const auto& c : pool_->categories) w.push_back(c.weightPct);
         return w;
     }();
+    const std::vector<int32_t> rarityWeights = [&] {
+        std::vector<int32_t> w;
+        for (const auto& r : pool_->itemRarityWeights) w.push_back(r.weightPct);
+        return w;
+    }();
     const int32_t pityPoolSize =
-        static_cast<int32_t>(gacha_tx::detail::characterPool(*pool_).size());
+        static_cast<int32_t>(gacha_tx::detail::pityCandidates(*pool_).size());
 
     for (int32_t i = 0; i < 30; ++i) {
         const int32_t pityBefore = pityOf();
@@ -453,21 +508,21 @@ TEST_F(GachaPullTest, 随机消费次数与结果行同构) {
         ASSERT_TRUE(out.ok);
         const auto& row = out.rows[0];
         if (pityBefore + 1 >= pool_->pity.pullThreshold) {
-            ref.nextInt(pityPoolSize);                      // 保底：只掷候选
+            ref.nextInt(pityPoolSize);                      // 保底：只掷候选（数量无掷点）
         } else if (row.category == "character") {
             const int32_t catIndex = gacha_tx::weightedPickIndex(ref, catWeights);
             const auto& cat = pool_->categories[catIndex];
             ref.nextInt(static_cast<int32_t>(cat.templateIds.size()));
+            gacha_tx::weightedPickIndex(ref, pool_->fragmentCountWeights);  // 碎片数量
         } else {
             const int32_t catIndex = gacha_tx::weightedPickIndex(ref, catWeights);
             const auto& cat = pool_->categories[catIndex];
-            std::vector<int32_t> rarityWeights;
-            for (const auto& r : pool_->itemRarityWeights) rarityWeights.push_back(r.weightPct);
             const int32_t rarityIndex = gacha_tx::weightedPickIndex(ref, rarityWeights);
             const int32_t rarity = std::min(pool_->itemRarityWeights[rarityIndex].rarity,
                                             cat.maxRarity);
             ref.nextInt(static_cast<int32_t>(
                 gacha_tx::detail::itemCandidates(cat.itemSource, rarity).size()));
+            gacha_tx::weightedPickIndex(ref, pool_->itemCountWeights);      // 物品数量
         }
         ASSERT_EQ(ref.snapshot(), rng_.getRng(RngPartition::kGacha).snapshot())
             << "第 " << i << " 抽的消费序与参照流分叉（category=" << row.category << "）";

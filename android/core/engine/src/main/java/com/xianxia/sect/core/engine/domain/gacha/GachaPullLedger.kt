@@ -15,12 +15,15 @@ import com.xianxia.sect.core.util.DeterministicRng
 // 双臂对拍锁死——与 `GachaFragmentLedger` 之于 `gacha_fragment.h` 同型。
 //
 // ## 掷点契约（对拍命门；分区 = `RngPartition.GACHA`）
-//   保底抽：`nextInt(角色候选数)` —— 1 次
-//   角色抽：`nextInt(100)` 类别 → `nextInt(该类别候选数)` —— 2 次
-//   物品抽：`nextInt(100)` 类别 → `nextInt(100)` 品阶 → `nextInt(候选数)` —— 3 次
-// 加权口径固定为「一次 `nextInt(100)` + 按**声明顺序**累加 weightPct，取第一个
-// `roll < 累计和` 的项」。物品候选一律 `filter(品阶) → 按模板 id 升序`——表迭代序
-// 两侧不保证相同，不排序就会两头出货不同（C++ 同式，见 `gacha_tx.h::itemCandidates`）。
+//   保底抽：`nextInt(保底候选数)` —— 1 次（发 pool.pity.fragmentCount 片，数量无掷点）
+//   角色抽：`nextInt(100)` 类别 → `nextInt(该类别候选数)` → `nextInt(100)` 碎片数量 —— 3 次
+//   物品抽：`nextInt(100)` 类别 → `nextInt(100)` 品阶 → `nextInt(候选数)` →
+//           `nextInt(100)` 数量 —— 4 次
+// 数量掷点均为池级权重表（`fragmentCountWeights` 下标 i = i+1 片 / `itemCountWeights`
+// 下标 i = i+1 件，各自由 poolError 校验和恰为 100）。加权口径固定为「一次 `nextInt(100)`
+// + 按**声明顺序**累加 weightPct，取第一个 `roll < 累计和` 的项」。物品候选一律
+// `filter(品阶) → 按模板 id 升序`——表迭代序两侧不保证相同，不排序就会两头出货不同
+// （C++ 同式，见 `gacha_tx.h::itemCandidates`）。
 //
 // ## 本对象不做什么
 // 不扣灵石（钱包语义归 `SpiritStoneWallet`）、不写仓库（归 `InventorySystem.addXxx`
@@ -53,6 +56,8 @@ internal data class PullStep(
  *
  * @property itemSource 模板表标识：`herbs` / `seeds` / `beastMaterials`
  * @property itemId 模板 id（进历史条目与仓库反查用）
+ * @property count 本次入账件数（数量掷点产出；[itemCandidates] 的候选描述符阶段恒为
+ *   占位值 0，由 `pullOnce` 掷出数量后 `copy` 填入——服务层拿到的描述符必带真实数量）
  */
 internal data class GachaItemGrant(
     val itemSource: String,
@@ -62,12 +67,13 @@ internal data class GachaItemGrant(
     val category: String,
     val growTime: Int,
     val yield: Int,
+    val count: Int = 0,
 )
 
 /** 寻访回退臂的纯掷点账本。 */
 internal object GachaPullLedger {
 
-    /** 权重总量（与 C++ `gacha_tx.h::kWeightTotal` 同值；配置侧守卫断言两张权重表和均为它） */
+    /** 权重总量（与 C++ `gacha_tx.h::kWeightTotal` 同值；配置侧守卫断言四张权重表和均为它） */
     const val WEIGHT_TOTAL = 100
 
     /** 保底类别标签（历史条目 `category` 取值域：character / item / pity） */
@@ -75,14 +81,33 @@ internal object GachaPullLedger {
     const val CATEGORY_ITEM = "item"
     const val CATEGORY_PITY = "pity"
 
-    /** 单物品数量：一次抽卡固定 1 件（十连是 10 次单抽语义，不叠加成 10 件） */
-    const val ITEM_QUANTITY = 1
-
-    /** 池内全部角色候选（各角色类别 templateIds 按声明序拼接；保底在此集随机归属）。 */
+    /** 池内全部角色候选（各角色类别 templateIds 按声明序拼接）。 */
     fun characterPool(pool: GachaPoolSpec): List<String> =
         pool.categories.filter { it.isCharacter }.flatMap { it.templateIds }
 
-    /** 某来源表指定品阶的候选（**按模板 id 升序**钉死双臂一致）。 */
+    /**
+     * 保底归属候选集（按 `pity.pickMode` 取集；pickMode 已由 [poolError] 校验合法）。
+     *
+     * `singleSpiritRoot` = 全部角色候选按**模板灵根数 = 1** 过滤（与 C++
+     * `singleRootCandidates`/`pityCandidates` 同式——业务语义直表，不依赖
+     * 「character_single 类别恰好等价」的配置巧合，双臂各查己方模板表）。
+     */
+    private val GachaPoolSpec.pityCandidates: List<String>
+        get() {
+            val candidates = characterPool(this)
+            return if (pity.pickMode == PICK_MODE_SINGLE_SPIRIT_ROOT) {
+                candidates.filter { CharacterTemplateDb.byId(it)?.spiritRoots?.size == 1 }
+            } else {
+                candidates
+            }
+        }
+
+    /**
+     * 某来源表指定品阶的候选（**按模板 id 升序**钉死双臂一致）。
+     *
+     * 描述符的 `count` 恒为占位值 0——数量属「该抽的掷点结果」而非模板属性，
+     * 由 [pullOnce] 掷出后 `copy` 填入。
+     */
     fun itemCandidates(itemSource: String, rarity: Int): List<GachaItemGrant> = when (itemSource) {
         "herbs" -> HerbDatabase.getAllHerbs().asSequence()
             .filter { it.rarity == rarity }
@@ -141,8 +166,9 @@ internal object GachaPullLedger {
     ): PullStep {
         val pity = pityBefore + 1
         if (pity >= pool.pity.pullThreshold) {
-            // 第 N 抽本身即保底：不 roll 类别，随机角色碎片 ×N 后计数归零
-            val candidates = characterPool(pool)
+            // 第 N 抽本身即保底：不 roll 类别，按 pickMode 取候选随机归属后发
+            // fragmentCount 片（数量固定，无数量掷点），计数归零
+            val candidates = pool.pityCandidates
             val templateId = candidates[rng.nextInt(candidates.size)]
             val granted = grantFragment(fragmentCounts, starMap, templateId, pool.pity.fragmentCount)
             val row = historyEntry(
@@ -156,9 +182,11 @@ internal object GachaPullLedger {
         val category = pool.categories[categoryIndex]
         if (category.isCharacter) {
             val templateId = category.templateIds[rng.nextInt(category.templateIds.size)]
-            val granted = grantFragment(fragmentCounts, starMap, templateId, ITEM_QUANTITY)
+            // 碎片数量加权（池级 fragmentCountWeights，下标 i = i+1 片）
+            val fragments = weightedPickIndex(rng, pool.fragmentCountWeights) + 1
+            val granted = grantFragment(fragmentCounts, starMap, templateId, fragments)
             val row = historyEntry(
-                poolId, CATEGORY_CHARACTER, ITEM_QUANTITY,
+                poolId, CATEGORY_CHARACTER, fragments,
                 isPity = false, monthIndex = monthIndex, templateId = templateId,
             )
             return PullStep(
@@ -171,9 +199,12 @@ internal object GachaPullLedger {
         ].rarity
         val rarity = clampedRarity(rarityRolled, category.maxRarity)
         val candidates = itemCandidates(category.itemSource, rarity)
-        val grant = candidates[rng.nextInt(candidates.size)]
+        val rolled = candidates[rng.nextInt(candidates.size)]
+        // 物品数量加权（池级 itemCountWeights，下标 i = i+1 件；钟形近似正态分布）
+        val count = weightedPickIndex(rng, pool.itemCountWeights) + 1
+        val grant = rolled.copy(count = count)
         val row = historyEntry(
-            poolId, CATEGORY_ITEM, ITEM_QUANTITY,
+            poolId, CATEGORY_ITEM, count,
             isPity = false, monthIndex = monthIndex, itemId = grant.itemId, rarity = rarity,
         )
         return PullStep(row, fragmentCounts, starMap, emptyList(), pity, grant)
@@ -195,19 +226,21 @@ internal object GachaPullLedger {
         else -> null
     }
 
-    /** 池头与开局口径：id/价格非法、候选表为空、保底参数非法、保底挑选模式非随机 */
+    /** 池头与开局口径：id/价格非法、候选表为空、保底参数非法、保底挑选方式不在白名单 */
     private fun GachaPoolSpec.headerError(): Boolean =
         poolId.isEmpty() || pricePerPull <= 0 ||
             categories.isEmpty() || itemRarityWeights.isEmpty() ||
             pity.pullThreshold < 1 || pity.fragmentCount < 1 ||
-            pity.pickMode != PICK_MODE_RANDOM
+            (pity.pickMode != PICK_MODE_RANDOM && pity.pickMode != PICK_MODE_SINGLE_SPIRIT_ROOT)
 
-    /** 权重面：两处权重和必须恰为 100（[weightedPickIndex] 的口径前提），品阶合法且角色候选非空 */
+    /** 权重面：四张权重表和必须恰为 100（[weightedPickIndex] 的口径前提），品阶合法且保底候选非空 */
     private fun GachaPoolSpec.weightsError(): Boolean =
-        characterPool(this).isEmpty() ||
+        pityCandidates.isEmpty() ||
             categories.sumOf { it.weightPct } != WEIGHT_TOTAL ||
             itemRarityWeights.sumOf { it.weightPct } != WEIGHT_TOTAL ||
-            itemRarityWeights.any { it.rarity < 1 }
+            itemRarityWeights.any { it.rarity < 1 } ||
+            fragmentCountWeights.sumOf { it } != WEIGHT_TOTAL ||
+            itemCountWeights.sumOf { it } != WEIGHT_TOTAL
 
     /** 单类别自洽：角色须全在模板表内，物品须有合法来源且每个可达品阶桶都有候选 */
     private fun GachaPoolSpec.categoryError(category: GachaCategorySpec): Boolean {
@@ -272,8 +305,10 @@ internal object GachaPullLedger {
 
     private val ITEM_SOURCES = setOf("herbs", "seeds", "beastMaterials")
 
-    /** 唯一受支持的保底挑选模式：自选保底属 G13 备选，其余取值一律按不自洽拒绝 */
+    /** 受支持的保底挑选方式（与 C++ `kPickModeRandom` / `kPickModeSingleSpiritRoot` 同字面量；
+     *  自选保底属 G13 备选，其余取值一律按不自洽拒绝） */
     private const val PICK_MODE_RANDOM = "random"
+    private const val PICK_MODE_SINGLE_SPIRIT_ROOT = "singleSpiritRoot"
 }
 
 /** 抽卡结果码（与 C++ 失败信封的 `code` 字面量逐一相同）。 */

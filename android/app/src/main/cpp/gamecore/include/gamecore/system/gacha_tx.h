@@ -1,7 +1,7 @@
 // ============================================================
 // gacha_tx.h — 寻访抽卡核心事务（roll / 保底 / 碎片 / 入库 / 历史）
 //
-// 职责：一笔事务内完成「前置校验 → 扣灵石 → 逐抽 roll（类别 / 品阶 / 候选）→
+// 职责：一笔事务内完成「前置校验 → 扣灵石 → 逐抽 roll（类别 / 品阶 / 候选 / 数量）→
 //      角色入碎片账本 / 物品入仓库 → 写寻访历史 → 回写保底计数 → 回执信封」。
 // 端口：ActionId 1871 `GACHA_PULL_ONCE` / 1872 `GACHA_PULL_TEN`，
 //      分派在 `src/dispatch_gacha.cpp`（域内独占端口，不并入 execute_dispatch 链）。
@@ -22,9 +22,11 @@
 //   - 分区 = `kGacha`(12) 独立抽卡流（TASKBOOK-G09 D-3 已拍板）。**禁止**取 `kSystem`：
 //     抽卡次数由玩家点击驱动、无上界，混入结算分区会扰动其既有抽取序；
 //   - 消费序逐位钉死（与 Kotlin `GachaPullLedger` 双臂同式）：
-//       保底抽   ：`nextInt(角色候选数)` —— 1 次；
-//       角色抽   ：`nextInt(100)` 类别 → `nextInt(该类别候选数)` —— 2 次；
-//       物品抽   ：`nextInt(100)` 类别 → `nextInt(100)` 品阶 → `nextInt(候选数)` —— 3 次；
+//       保底抽   ：`nextInt(保底候选数)` —— 1 次（发 pity.fragmentCount 片，数量无掷点）；
+//       角色抽   ：`nextInt(100)` 类别 → `nextInt(该类别候选数)` → `nextInt(100)` 碎片
+//                  数量（池级 `fragmentCountWeights`，下标 i = i+1 片）—— 3 次；
+//       物品抽   ：`nextInt(100)` 类别 → `nextInt(100)` 品阶 → `nextInt(候选数)` →
+//                  `nextInt(100)` 数量（池级 `itemCountWeights`，下标 i = i+1 件）—— 4 次；
 //   - **失败零消费**：所有校验（池存在/启用/自洽、余额、抽数）一律先于扣费与掷点，
 //     失败信封路径不触碰 RNG、不写任何状态——这是双臂等价与 SL 回档可复现的前提；
 //   - 候选序：物品候选 `filter(rarity) → 按模板 id 升序`（**禁依赖表迭代序**，
@@ -75,8 +77,10 @@ inline constexpr const char* kWalletReason = "Gacha";
 inline constexpr const char* kCategoryCharacter = "character";
 inline constexpr const char* kCategoryItem = "item";
 inline constexpr const char* kCategoryPity = "pity";
-/// 保底归属挑选方式（其余取值 = 自选，本批不实现 ⇒ 池不自洽拒绝）
+/// 保底归属挑选方式：random = 池内全部角色随机；singleSpiritRoot = 池内单灵根角色
+/// 随机（其余取值 = 自选保底，未实现 ⇒ 池不自洽拒绝）
 inline constexpr const char* kPickModeRandom = "random";
+inline constexpr const char* kPickModeSingleSpiritRoot = "singleSpiritRoot";
 /// 物品类 itemSource 取值域（与三张模板表的注入段名一致）
 inline constexpr const char* kSourceHerbs = "herbs";
 inline constexpr const char* kSourceSeeds = "seeds";
@@ -134,6 +138,26 @@ inline std::vector<std::string> characterPool(const data::GachaPoolTemplate& poo
         ids.insert(ids.end(), cat.templateIds.begin(), cat.templateIds.end());
     }
     return ids;
+}
+
+/// 池内单灵根角色候选（全部角色候选按**模板灵根数 = 1** 过滤——业务语义直表，
+/// 不依赖「character_single 类别恰好等价」的配置巧合；双臂各查己方模板表同式过滤）
+inline std::vector<std::string> singleRootCandidates(const data::GachaPoolTemplate& pool) {
+    std::vector<std::string> ids;
+    for (const auto& cat : pool.categories) {
+        if (!cat.isCharacter()) continue;
+        for (const auto& id : cat.templateIds) {
+            const auto* t = data::characterTemplateById(id);
+            if (t != nullptr && t->spiritRoots.size() == 1) ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
+/// 保底归属候选集（按 pity.pickMode 取集；pickMode 已由 checkPool 校验合法）
+inline std::vector<std::string> pityCandidates(const data::GachaPoolTemplate& pool) {
+    if (pool.pity.pickMode == kPickModeSingleSpiritRoot) return singleRootCandidates(pool);
+    return characterPool(pool);
 }
 
 /**
@@ -203,6 +227,15 @@ inline int32_t weightedPickIndex(rng::DeterministicRng& rng,
     return static_cast<int32_t>(weights.size()) - 1;
 }
 
+/// 权重表自洽判据（非空且和恰为 [kWeightTotal]）——类别 / 品阶 / 碎片数量 / 物品
+/// 数量四张权重表共用；不自洽的表会让 weightedPickIndex 的兜底分支变成常态分布
+inline bool weightTableMalformed(const std::vector<int32_t>& weights) {
+    if (weights.empty()) return true;
+    int32_t sum = 0;
+    for (const int32_t w : weights) sum += w;
+    return sum != kWeightTotal;
+}
+
 /**
  * 池自洽校验（零 RNG、零写入）——十连的原子性前提（D-11）。
  *
@@ -216,21 +249,26 @@ inline std::string checkPool(const data::GachaPoolTemplate* pool) {
     if (p.poolId.empty() || p.pricePerPull <= 0) return "PoolMalformed";
     if (p.categories.empty() || p.itemRarityWeights.empty()) return "PoolMalformed";
     if (p.pity.pullThreshold < 1 || p.pity.fragmentCount < 1) return "PoolMalformed";
-    // 自选保底属 G13 备选：本批遇到非 random 取值一律拒绝而非静默按随机执行
-    if (p.pity.pickMode != kPickModeRandom) return "PoolMalformed";
+    // 保底挑选方式白名单：自选保底属 G13 备选未实现，未知取值一律拒绝而非静默按随机执行
+    if (p.pity.pickMode != kPickModeRandom &&
+        p.pity.pickMode != kPickModeSingleSpiritRoot) {
+        return "PoolMalformed";
+    }
     if (p.fragmentsPerStar < 1 || p.maxStar < 1) return "PoolMalformed";
-    // 保底候选为空 ⇒ nextInt(0) 越界；此处拒绝而非运行期炸
-    if (detail::characterPool(p).empty()) return "PoolMalformed";
+    // 保底候选为空（含 singleSpiritRoot 过滤后无单灵根）⇒ nextInt(0) 越界；
+    // 此处拒绝而非运行期炸
+    if (detail::pityCandidates(p).empty()) return "PoolMalformed";
     // 权重和必须恰为 100：weightedPickIndex 的口径前提（配置侧守卫看同一对常量）
-    int32_t categoryWeightSum = 0;
-    for (const auto& c : p.categories) categoryWeightSum += c.weightPct;
-    if (categoryWeightSum != kWeightTotal) return "PoolMalformed";
-    int32_t rarityWeightSum = 0;
+    if (weightTableMalformed(detail::weightColumn(p.categories))) return "PoolMalformed";
     for (const auto& r : p.itemRarityWeights) {
         if (r.rarity < 1) return "PoolMalformed";
-        rarityWeightSum += r.weightPct;
     }
-    if (rarityWeightSum != kWeightTotal) return "PoolMalformed";
+    if (weightTableMalformed(detail::weightColumnRarities(p.itemRarityWeights))) {
+        return "PoolMalformed";
+    }
+    // 数量维度两张权重表（碎片 1..N 片 / 物品 1..M 件）与上两表同一口径
+    if (weightTableMalformed(p.fragmentCountWeights)) return "PoolMalformed";
+    if (weightTableMalformed(p.itemCountWeights)) return "PoolMalformed";
 
     for (const auto& cat : p.categories) {
         if (cat.kind.empty() || cat.weightPct <= 0) return "PoolMalformed";
@@ -278,15 +316,16 @@ inline PullRow grantCharacter(state::GameData& gd, const std::string& templateId
     return row;
 }
 
-/// 物品入库（三类各走对应 addXxx；溢出走发放类语义转邮件，抽卡不因满仓失败）
+/// 物品入库（三类各走对应 addXxx；溢出走发放类语义转邮件——数量大于 1 时部分入库
+/// 的余量按 overflow 数额整包进草稿，抽卡不因满仓失败）
 inline PullRow grantItem(state::GameState& state, const std::string& itemSource,
-                         const std::string& itemId, int32_t rarity,
+                         const std::string& itemId, int32_t rarity, int32_t count,
                          OverflowMailCollector& overflowMail) {
     PullRow row;
     row.category = kCategoryItem;
     row.itemId = itemId;
     row.rarity = rarity;
-    row.count = 1;
+    row.count = count;
     // 实例 id 前缀 gacha-：仓库合并按"名称+品阶+分类"键（StackableItemStore），
     // 实例 id 只在新建堆叠时留痕，Kotlin 臂用 UUID——两侧本就不比对实例 id
     const std::string instanceId = std::string("gacha-") + itemId;
@@ -299,7 +338,7 @@ inline PullRow grantItem(state::GameState& state, const std::string& itemSource,
             herb.rarity = t.rarity;
             herb.category = t.category;
             herb.description = t.description;
-            herb.quantity = 1;
+            herb.quantity = count;
             addHerb(state, herb, overflowMail, kTrackingSource, false);
             break;
         }
@@ -313,7 +352,7 @@ inline PullRow grantItem(state::GameState& state, const std::string& itemSource,
             seed.description = t.description;
             seed.growTime = t.growTime;
             seed.yield = t.yield;
-            seed.quantity = 1;
+            seed.quantity = count;
             addSeed(state, seed, overflowMail, kTrackingSource, false);
             break;
         }
@@ -326,7 +365,7 @@ inline PullRow grantItem(state::GameState& state, const std::string& itemSource,
             material.rarity = t.rarity;
             material.category = t.materialCategory;
             material.description = t.description;
-            material.quantity = 1;
+            material.quantity = count;
             addMaterial(state, material, overflowMail, kTrackingSource, false);
             break;
         }
@@ -342,30 +381,35 @@ inline PullRow pullSingle(state::GameState& state, rng::DeterministicRng& rng,
     state::GameData& gd = state.gameData;
     pity += 1;
     if (pity >= pool.pity.pullThreshold) {
-        // 第 10 抽**本身**即保底：不 roll 类别，随机角色碎片 ×N 后计数归零
-        const auto pityCandidates = characterPool(pool);
-        const std::string tid =
-            pityCandidates[rng.nextInt(static_cast<int32_t>(pityCandidates.size()))];
+        // 第 10 抽**本身**即保底：不 roll 类别，按 pickMode 取候选随机归属后发
+        // pity.fragmentCount 片（数量固定，无数量掷点），计数归零
+        const auto candidates = detail::pityCandidates(pool);
+        const std::string tid = candidates[rng.nextInt(static_cast<int32_t>(candidates.size()))];
         PullRow row = grantCharacter(gd, tid, pool.pity.fragmentCount, true, unlocked);
         pity = 0;
         return row;
     }
 
-    const auto weights = weightColumn(pool.categories);
+    const auto weights = detail::weightColumn(pool.categories);
     const auto& cat = pool.categories[weightedPickIndex(rng, weights)];
     if (cat.isCharacter()) {
         const std::string tid =
             cat.templateIds[rng.nextInt(static_cast<int32_t>(cat.templateIds.size()))];
-        return grantCharacter(gd, tid, 1, false, unlocked);
+        // 碎片数量加权（池级 fragmentCountWeights，下标 i = i+1 片）
+        const int32_t fragments =
+            weightedPickIndex(rng, pool.fragmentCountWeights) + 1;
+        return grantCharacter(gd, tid, fragments, false, unlocked);
     }
 
-    const auto rarityWeights = weightColumnRarities(pool.itemRarityWeights);
+    const auto rarityWeights = detail::weightColumnRarities(pool.itemRarityWeights);
     const int32_t rolled =
         pool.itemRarityWeights[weightedPickIndex(rng, rarityWeights)].rarity;
     const int32_t rarity = clampedRarity(rolled, cat.maxRarity);
     const auto candidates = itemCandidates(cat.itemSource, rarity);
     const std::string itemId = candidates[rng.nextInt(static_cast<int32_t>(candidates.size()))];
-    return grantItem(state, cat.itemSource, itemId, rarity, overflowMail);
+    // 物品数量加权（池级 itemCountWeights，下标 i = i+1 件；钟形近似正态分布）
+    const int32_t count = weightedPickIndex(rng, pool.itemCountWeights) + 1;
+    return grantItem(state, cat.itemSource, itemId, rarity, count, overflowMail);
 }
 
 /// 追加历史（新在前）并按环容量淘汰——环截断口径与 Kotlin 回退臂逐字同式

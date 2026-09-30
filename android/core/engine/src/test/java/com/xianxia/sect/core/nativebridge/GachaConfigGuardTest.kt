@@ -111,9 +111,16 @@ class GachaConfigGuardTest {
         val maxRarity = rarities.maxOf { it.jsonObject.getValue("rarity").jsonPrimitive.long }
         assertTrue("寻访池最高品阶必须 ≤ 4（Q37）", maxRarity <= 4)
 
+        assertCountWeightTables(pool)
+
         val pity = pool.getValue("pity").jsonObject
         assertEquals("保底阈值 = 10（Q33）", 10L, pity.getValue("pullThreshold").jsonPrimitive.long)
         assertEquals("保底碎片 = 5（Q33）", 5L, pity.getValue("fragmentCount").jsonPrimitive.long)
+        assertEquals(
+            "保底归属 = 单灵根角色（singleSpiritRoot；改回全随机须同步 C++ checkPool 白名单）",
+            "singleSpiritRoot",
+            pity.getValue("pickMode").jsonPrimitive.content,
+        )
         assertEquals(
             "每星碎片 = 100（Q35）",
             100L,
@@ -140,6 +147,28 @@ class GachaConfigGuardTest {
             false,
             pool.containsKey("fragmentToSpiritStoneRatio"),
         )
+    }
+
+    /**
+     * 数量维度两张权重表的拍板数值逐档比对（2026-09-30）：碎片 1..5 片 30/20/20/20/10、
+     * 物品 1..10 件正态钟形 2/4/9/15/20/20/15/9/4/2，各表和恒 100。
+     */
+    private fun assertCountWeightTables(pool: JsonObject) {
+        val fragmentCounts = pool.getValue("fragmentCountWeights").jsonArray
+            .map { it.jsonPrimitive.long }
+        assertEquals(
+            "角色碎片数量权重 = 30/20/20/20/10（拍板数值：抽中角色随机 1..5 片）",
+            listOf(30L, 20L, 20L, 20L, 10L),
+            fragmentCounts,
+        )
+        assertEquals("碎片数量权重和必须 = 100%", 100L, fragmentCounts.sum())
+        val itemCounts = pool.getValue("itemCountWeights").jsonArray.map { it.jsonPrimitive.long }
+        assertEquals(
+            "物品数量权重 = 2/4/9/15/20/20/15/9/4/2（拍板数值：正态钟形，随机 1..10 件）",
+            listOf(2L, 4L, 9L, 15L, 20L, 20L, 15L, 9L, 4L, 2L),
+            itemCounts,
+        )
+        assertEquals("物品数量权重和必须 = 100%", 100L, itemCounts.sum())
     }
 
     @Test

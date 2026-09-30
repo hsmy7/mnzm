@@ -61,10 +61,29 @@
           "weightPct": 22
         }
       ],
+      "fragmentCountWeights": [
+        30,
+        20,
+        20,
+        20,
+        10
+      ],
+      "itemCountWeights": [
+        2,
+        4,
+        9,
+        15,
+        20,
+        20,
+        15,
+        9,
+        4,
+        2
+      ],
       "pity": {
         "pullThreshold": 10,
         "fragmentCount": 5,
-        "pickMode": "random"
+        "pickMode": "singleSpiritRoot"
       },
       "fragmentsPerStar": 100,
       "maxStar": 5

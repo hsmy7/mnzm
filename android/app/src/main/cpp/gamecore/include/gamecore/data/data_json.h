@@ -397,6 +397,8 @@ inline void from_json(const nlohmann::json& j, GachaPoolTemplate& v) {
     jread(j, "pricePerPull", v.pricePerPull);
     jread(j, "categories", v.categories);
     jread(j, "itemRarityWeights", v.itemRarityWeights);
+    jread(j, "fragmentCountWeights", v.fragmentCountWeights);
+    jread(j, "itemCountWeights", v.itemCountWeights);
     jread(j, "pity", v.pity);
     jread(j, "fragmentsPerStar", v.fragmentsPerStar);
     jread(j, "maxStar", v.maxStar);
@@ -407,6 +409,8 @@ inline void to_json(nlohmann::json& j, const GachaPoolTemplate& v) {
                        {"pricePerPull", v.pricePerPull},
                        {"categories", v.categories},
                        {"itemRarityWeights", v.itemRarityWeights},
+                       {"fragmentCountWeights", v.fragmentCountWeights},
+                       {"itemCountWeights", v.itemCountWeights},
                        {"pity", v.pity},
                        {"fragmentsPerStar", v.fragmentsPerStar},
                        {"maxStar", v.maxStar}};

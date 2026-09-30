@@ -101,11 +101,11 @@ private object PullTestScopeProvider : CoroutineScopeProvider {
  * **不用 assumeTrue 静默跳过**（X-2 #6 假绿源头）。
  *
  * ## 向量覆盖（与 C++ GTest 用例一一对照）
- * 保底抽（`gachaPityCounters` 预置 9 ⇒ 第 10 抽**本身**给 5 片随机角色、计数归零；
- * 同名 `第十抽本身是随机角色碎片且计数归零`）· 第九抽不触发保底（同名
- * `第九抽不触发保底_计数逐位推进`）· 角色抽 +1 片 · 物品抽三张表各自命中（灵草 /
- * 种子 / 兽材；`itemId` 恒落在「按 id 升序」的候选表上）· 十连（10 行、恰一条 pity
- * 在下标 2、一次性扣费 10×5000、保底跨十连连续 ⇒ 同名
+ * 保底抽（`gachaPityCounters` 预置 9 ⇒ 第 10 抽**本身**给 5 片**单灵根**角色碎片、计数归零；
+ * 同名 `第十抽本身是保底角色碎片且计数归零`）· 第九抽不触发保底（同名
+ * `第九抽不触发保底_计数逐位推进`）· 角色抽碎片加权 1..5 片 · 物品抽三张表各自命中
+ * （灵草 / 种子 / 兽材；`itemId` 恒落在「按 id 升序」的候选表上，数量按钟形表 1..10 件）·
+ * 十连（10 行、恰一条 pity 在下标 2、一次性扣费 10×5000、保底跨十连连续 ⇒ 同名
  * `保底跨十连连续_恰一条保底行且位置正确`）· 首次跨 1 星才给解锁描述符（同名
  * `首次跨一星才给解锁描述符_已解锁再抽不重复给`）· 余额不足（单抽差 1 片 / 十连只够
  * 九抽 ⇒ 整体失败而非差额抽，同名 `十连余额只够九抽_整体失败而非差额抽`）·
@@ -116,7 +116,7 @@ private object PullTestScopeProvider : CoroutineScopeProvider {
  * | 构造反例（只改一处） | 变红的用例 / 消息片段 |
  * |---|---|
  * | 保底判定 `pity >= threshold` 改成 `>`（第 10 抽不触发） | 无需 JNI 的 `Kotlin 臂结果与黄金表不符`（保底抽向量 pityAfter 0→10） |
- * | 第 10 抽之外**额外**再送一次碎片（「保底是赠送」旧口径） | 同上（保底抽 frags 由 `{linxuetang=5}` 变 `{linxuetang=10}`） |
+ * | 第 10 抽之外**额外**再送一次碎片（「保底是赠送」旧口径） | 同上（保底抽 frags 由 `{zhouming=5}` 变 `{zhouming=10}`） |
  * | 物品候选去掉 `sortedBy(itemId)`（回退到表迭代序） | 同上（三条物品向量的 itemId 变）；双臂另红 `双臂 rows` |
  * | 十连改成逐抽扣费（中途可失败、不做整体前置） | `十连 rows 顺序即抽取序…`（差额场景）+ 双臂 `spiritStonesAfter` 分叉 |
  * | 回退臂 `rows` 保持历史序（新在前，即本批 A-09b 实测形态） | 无需 JNI 的 `十连 rows 顺序即抽取序`（第 0 格是第 10 抽 ⇒ 消息直接点名） |
@@ -602,17 +602,21 @@ class DiffGachaPullTest {
                 GachaRarityWeightSpec(4, 12), GachaRarityWeightSpec(3, 33),
                 GachaRarityWeightSpec(2, 33), GachaRarityWeightSpec(1, 22),
             ),
-            pity = GachaPitySpec(TABLE_PITY_THRESHOLD, TABLE_PITY_FRAGMENT_COUNT, "random"),
+            fragmentCountWeights = listOf(30, 20, 20, 20, 10),
+            itemCountWeights = listOf(2, 4, 9, 15, 20, 20, 15, 9, 4, 2),
+            pity = GachaPitySpec(TABLE_PITY_THRESHOLD, TABLE_PITY_FRAGMENT_COUNT, "singleSpiritRoot"),
         )
 
         /** 物品向量的通用期望（物品不入碎片账本 ⇒ 两张角色账本恒为空） */
-        fun itemExpected(itemId: String, rarity: Int): PullSnapshot = PullSnapshot(
+        fun itemExpected(itemId: String, rarity: Int, count: Int): PullSnapshot = PullSnapshot(
             code = SUCCESS, pricePaid = ONE_COST, spiritStonesAfter = 0L, pityAfter = 1,
-            rows = listOf(GachaPullRow("item", "", itemId, rarity, 1, false)),
+            rows = listOf(GachaPullRow("item", "", itemId, rarity, count, false)),
             unlockedTemplateIds = emptyList(),
             fragments = emptyMap(),
             stars = emptyMap(),
-            history = listOf(GachaHistoryEntry(POOL_ID, "item", "", itemId, rarity, 1, false, MONTH_INDEX)),
+            history = listOf(
+                GachaHistoryEntry(POOL_ID, "item", "", itemId, rarity, count, false, MONTH_INDEX)
+            ),
         )
 
         /** 单条角色产出的历史条目（新在前的环里只有一条时共用） */
@@ -622,18 +626,21 @@ class DiffGachaPullTest {
         /**
          * 黄金表：两条臂共用同一组向量（期望值即本表，全部写成字面量）。
          * 序 = 抽取序；历史环 = 新在前（两者相反，见 [十连 rows 顺序即抽取序 - 双臂与 DTO 契约同向]）。
+         * 数量口径：普通角色抽 1..5 片（30/20/20/20/10）、物品 1..10 件（正态钟形）、
+         * 保底抽恒 [TABLE_PITY_FRAGMENT_COUNT] 片（数量无掷点）。
          */
         val VECTORS: List<PullVector> = listOf(
-            // ① 保底抽：预置 9 ⇒ 第 10 抽本身给 5 片随机角色、计数归零（P-5：归属全随机）
+            // ① 保底抽：预置 9 ⇒ 第 10 抽本身给 5 片**单灵根**角色碎片、计数归零
+            // （pickMode=singleSpiritRoot：候选集只有 zhouming/suqing）
             PullVector(
                 name = "保底抽 第10抽本身5片且计数归零",
                 expected = PullSnapshot(
                     code = SUCCESS, pricePaid = ONE_COST, spiritStonesAfter = 0L, pityAfter = 0,
-                    rows = listOf(GachaPullRow("pity", "linxuetang", "", 0, 5, true)),
+                    rows = listOf(GachaPullRow("pity", "zhouming", "", 0, 5, true)),
                     unlockedTemplateIds = emptyList(),
-                    fragments = mapOf("linxuetang" to 5),
+                    fragments = mapOf("zhouming" to 5),
                     stars = emptyMap(),
-                    history = listOf(historyOf("pity", "linxuetang", 5, true)),
+                    history = listOf(historyOf("pity", "zhouming", 5, true)),
                 ),
                 seed = 20260926L, count = 1, stones = ONE_COST, pityBefore = 9,
             ),
@@ -642,71 +649,71 @@ class DiffGachaPullTest {
                 name = "第九抽不触发保底 计数逐位推进",
                 expected = PullSnapshot(
                     code = SUCCESS, pricePaid = ONE_COST, spiritStonesAfter = 0L, pityAfter = 9,
-                    rows = listOf(GachaPullRow("character", "xuhe", "", 0, 1, false)),
+                    rows = listOf(GachaPullRow("character", "xuhe", "", 0, 3, false)),
                     unlockedTemplateIds = emptyList(),
-                    fragments = mapOf("xuhe" to 1),
+                    fragments = mapOf("xuhe" to 3),
                     stars = emptyMap(),
-                    history = listOf(historyOf("character", "xuhe", 1, false)),
+                    history = listOf(historyOf("character", "xuhe", 3, false)),
                 ),
                 seed = 20260929L, count = 1, stones = ONE_COST, pityBefore = 8,
             ),
-            // ③ 角色抽：碎片 +1，保底计数照常累加
+            // ③ 角色抽：碎片按 30/20/20/20/10 加权（本向量实测 3 片），保底计数照常累加
             PullVector(
-                name = "角色抽 碎片+1",
+                name = "角色抽 碎片加权一到五片",
                 expected = PullSnapshot(
                     code = SUCCESS, pricePaid = ONE_COST, spiritStonesAfter = 0L, pityAfter = 1,
-                    rows = listOf(GachaPullRow("character", "xuhe", "", 0, 1, false)),
+                    rows = listOf(GachaPullRow("character", "xuhe", "", 0, 3, false)),
                     unlockedTemplateIds = emptyList(),
-                    fragments = mapOf("xuhe" to 1),
+                    fragments = mapOf("xuhe" to 3),
                     stars = emptyMap(),
-                    history = listOf(historyOf("character", "xuhe", 1, false)),
+                    history = listOf(historyOf("character", "xuhe", 3, false)),
                 ),
                 seed = 20260929L, count = 1, stones = ONE_COST,
             ),
-            // ④ 物品抽：三张模板表各自命中（候选按 id 升序钉死 ⇒ 双臂同序）
+            // ④ 物品抽：三张模板表各自命中（候选按 id 升序钉死 ⇒ 双臂同序）+ 钟形数量加权
             PullVector(
                 name = "物品抽 灵草二阶命中模板表", seed = 20260926L, count = 1, stones = ONE_COST,
-                expected = itemExpected("spiritFruit5", 2),
+                expected = itemExpected("spiritFruit5", 2, 8),
             ),
             PullVector(
                 name = "物品抽 种子三阶命中模板表", seed = 20260927L, count = 1, stones = ONE_COST,
-                expected = itemExpected("spiritGrass7Seed", 3),
+                expected = itemExpected("spiritGrass7Seed", 3, 6),
             ),
             PullVector(
                 name = "物品抽 兽材一阶命中模板表", seed = 20260930L, count = 1, stones = ONE_COST,
-                expected = itemExpected("eagleFeather0", 1),
+                expected = itemExpected("eagleFeather0", 1, 5),
             ),
-            // ⑤ 十连：一笔事务 10 行、恰一条 pity 在下标 2、一次性扣费 10×5000
+            // ⑤ 十连：一笔事务 10 行、恰一条 pity 在下标 2（保底 5 片单灵根）、一次性扣费 10×5000
             PullVector(
                 name = "十连 10行恰一条保底在下标2且一次性扣费",
                 expected = PullSnapshot(
                     code = SUCCESS, pricePaid = TEN_COST, spiritStonesAfter = 0L, pityAfter = 7,
                     rows = listOf(
-                        GachaPullRow("item", "", "bearHide1", 2, 1, false),
-                        GachaPullRow("character", "zhouming", "", 0, 1, false),
-                        GachaPullRow("pity", "xuhe", "", 0, 5, true),
-                        GachaPullRow("item", "", "spiritFruit2", 1, 1, false),
+                        GachaPullRow("item", "", "bearHide1", 2, 3, false),
+                        GachaPullRow("character", "xieche", "", 0, 2, false),
+                        GachaPullRow("pity", "zhouming", "", 0, 5, true),
                         GachaPullRow("character", "linxuetang", "", 0, 1, false),
-                        GachaPullRow("character", "zhaoyan", "", 0, 1, false),
-                        GachaPullRow("item", "", "spiritGrass12", 4, 1, false),
-                        GachaPullRow("item", "", "spiritFruit5", 2, 1, false),
-                        GachaPullRow("item", "", "spiritFruit2", 1, 1, false),
+                        GachaPullRow("item", "", "spiritFlower4Seed", 2, 6, false),
+                        GachaPullRow("item", "", "spiritFlower4Seed", 2, 6, false),
+                        GachaPullRow("item", "", "spiritGrass5", 2, 6, false),
                         GachaPullRow("item", "", "spiritGrass3", 1, 1, false),
+                        GachaPullRow("item", "", "spiritGrass9Seed", 3, 10, false),
+                        GachaPullRow("item", "", "spiritFruit7Seed", 3, 6, false),
                     ),
                     unlockedTemplateIds = emptyList(),
-                    fragments = mapOf("zhouming" to 1, "xuhe" to 5, "linxuetang" to 1, "zhaoyan" to 1),
+                    fragments = mapOf("xieche" to 2, "zhouming" to 5, "linxuetang" to 1),
                     stars = emptyMap(),
                     history = listOf(
+                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFruit7Seed", 3, 6, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "item", "", "spiritGrass9Seed", 3, 10, false, MONTH_INDEX),
                         GachaHistoryEntry(POOL_ID, "item", "", "spiritGrass3", 1, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFruit2", 1, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFruit5", 2, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "item", "", "spiritGrass12", 4, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "character", "zhaoyan", "", 0, 1, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "item", "", "spiritGrass5", 2, 6, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFlower4Seed", 2, 6, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFlower4Seed", 2, 6, false, MONTH_INDEX),
                         GachaHistoryEntry(POOL_ID, "character", "linxuetang", "", 0, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "item", "", "spiritFruit2", 1, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "pity", "xuhe", "", 0, 5, true, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "character", "zhouming", "", 0, 1, false, MONTH_INDEX),
-                        GachaHistoryEntry(POOL_ID, "item", "", "bearHide1", 2, 1, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "pity", "zhouming", "", 0, 5, true, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "character", "xieche", "", 0, 2, false, MONTH_INDEX),
+                        GachaHistoryEntry(POOL_ID, "item", "", "bearHide1", 2, 3, false, MONTH_INDEX),
                     ),
                 ),
                 seed = 20260948L, count = 10, stones = TEN_COST, pityBefore = 7,
@@ -716,14 +723,14 @@ class DiffGachaPullTest {
                 name = "解锁向量 首次跨1星才给描述符",
                 expected = PullSnapshot(
                     code = SUCCESS, pricePaid = ONE_COST, spiritStonesAfter = 0L, pityAfter = 0,
-                    rows = listOf(GachaPullRow("pity", "linxuetang", "", 0, 5, true)),
-                    unlockedTemplateIds = listOf("linxuetang"),
+                    rows = listOf(GachaPullRow("pity", "zhouming", "", 0, 5, true)),
+                    unlockedTemplateIds = listOf("zhouming"),
                     fragments = mapOf(
-                        "zhouming" to 99, "suqing" to 99, "linxuetang" to 4,
+                        "zhouming" to 4, "suqing" to 99, "linxuetang" to 99,
                         "xuhe" to 99, "xieche" to 99, "zhaoyan" to 99,
                     ),
-                    stars = mapOf("linxuetang" to 1),
-                    history = listOf(historyOf("pity", "linxuetang", 5, true)),
+                    stars = mapOf("zhouming" to 1),
+                    history = listOf(historyOf("pity", "zhouming", 5, true)),
                 ),
                 seed = 20260926L, count = 1, stones = ONE_COST, pityBefore = 9,
                 fragments = mapOf(

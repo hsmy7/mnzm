@@ -275,5 +275,7 @@ private fun standardPool(): GachaPoolSpec = GachaPoolSpec(
     pricePerPull = 5000,
     categories = emptyList(),
     itemRarityWeights = listOf(GachaRarityWeightSpec(1, 100)),
+    fragmentCountWeights = emptyList(),
+    itemCountWeights = emptyList(),
     pity = GachaPitySpec(10, 5, "random"),
 )

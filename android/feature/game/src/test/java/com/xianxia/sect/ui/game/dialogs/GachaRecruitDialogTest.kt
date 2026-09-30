@@ -398,5 +398,7 @@ private fun standardPool(): GachaPoolSpec = GachaPoolSpec(
         GachaCategorySpec("herb", 26, emptyList(), "herbs", 4),
     ),
     itemRarityWeights = listOf(GachaRarityWeightSpec(3, 33), GachaRarityWeightSpec(1, 22)),
-    pity = GachaPitySpec(10, 5, "random"),
+    fragmentCountWeights = listOf(30, 20, 20, 20, 10),
+    itemCountWeights = listOf(2, 4, 9, 15, 20, 20, 15, 9, 4, 2),
+    pity = GachaPitySpec(10, 5, "singleSpiritRoot"),
 )

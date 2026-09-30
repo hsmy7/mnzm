@@ -145,6 +145,12 @@ object GachaRenderModel {
     fun poolReadModel(spec: GachaPoolSpec): GachaPoolReadModel = GachaPoolReadModel(
         categoryWeights = spec.categories.map { it.kind to it.weightPct },
         rarityWeights = spec.itemRarityWeights.map { it.rarity to it.weightPct },
+        fragmentCountWeights = spec.fragmentCountWeights.mapIndexed { index, weightPct ->
+            (index + 1) to weightPct
+        },
+        itemCountWeights = spec.itemCountWeights.mapIndexed { index, weightPct ->
+            (index + 1) to weightPct
+        },
         maxRarityPerKind = spec.categories
             .filter { !it.isCharacter && it.maxRarity > 0 }
             .associate { it.kind to it.maxRarity },
@@ -283,12 +289,16 @@ data class GachaHistoryRow(
  *
  * @property categoryWeights `类别内部名 → 权重百分比`
  * @property rarityWeights `品阶 → 权重百分比`
+ * @property fragmentCountWeights `碎片片数 → 权重百分比`（数量即「抽中角色得几片」）
+ * @property itemCountWeights `物品件数 → 权重百分比`（数量即「抽中物品得几件」）
  * @property maxRarityPerKind 物品类别的品阶上限（`类别内部名 → maxRarity`，配置单源；
  *   公示页据此展示「该类别出货最高几阶」）
  */
 data class GachaPoolReadModel(
     val categoryWeights: List<Pair<String, Int>>,
     val rarityWeights: List<Pair<Int, Int>>,
+    val fragmentCountWeights: List<Pair<Int, Int>>,
+    val itemCountWeights: List<Pair<Int, Int>>,
     val maxRarityPerKind: Map<String, Int>,
 )
 

@@ -42,7 +42,8 @@ namespace gamecore::data {
 struct GachaPityConfig {
     int32_t pullThreshold = 0;
     int32_t fragmentCount = 0;
-    /// 保底归属挑选方式；本批只支持 "random"（其余取值按池不自洽拒绝）
+    /// 保底归属挑选方式："random"（池内全部角色随机）/"singleSpiritRoot"
+    /// （池内单灵根角色随机）；其余取值按池不自洽拒绝
     std::string pickMode;
 };
 
@@ -92,6 +93,10 @@ struct GachaPoolTemplate {
     int32_t pricePerPull = 0;
     std::vector<GachaCategory> categories;
     std::vector<GachaRarityWeight> itemRarityWeights;
+    /// 角色碎片数量权重（下标 i = i+1 片；weightPct 全池和为 100）——普通角色抽掷点用
+    std::vector<int32_t> fragmentCountWeights;
+    /// 物品数量权重（下标 i = i+1 件；weightPct 全池和为 100，钟形近似正态）——物品抽掷点用
+    std::vector<int32_t> itemCountWeights;
     GachaPityConfig pity;
     /// 池内升星门槛/上限：与 `gacha_fragment.h` 的三向常量为**同一口径**，
     /// 由 `CharacterTemplateGuardTest` 看护（抽卡侧只读不写死）
@@ -102,7 +107,9 @@ struct GachaPoolTemplate {
 inline bool operator==(const GachaPoolTemplate& a, const GachaPoolTemplate& b) {
     return a.poolId == b.poolId && a.enabled == b.enabled &&
         a.pricePerPull == b.pricePerPull && a.categories == b.categories &&
-        a.itemRarityWeights == b.itemRarityWeights && a.pity == b.pity &&
+        a.itemRarityWeights == b.itemRarityWeights &&
+        a.fragmentCountWeights == b.fragmentCountWeights &&
+        a.itemCountWeights == b.itemCountWeights && a.pity == b.pity &&
         a.fragmentsPerStar == b.fragmentsPerStar && a.maxStar == b.maxStar;
 }
 
