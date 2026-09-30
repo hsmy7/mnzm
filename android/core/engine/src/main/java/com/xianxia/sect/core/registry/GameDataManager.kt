@@ -125,8 +125,8 @@ object GameDataManager {
                 // 3. 创建配方注册表（依赖丹药模板）
                 pillRecipes = PillRecipeRegistry(pills).also { it.autoInitialize() }
 
-                // 4. 创建锻造配方注册表（依赖装备模板）
-                forgeRecipes = ForgeRecipeRegistry(equipment).also { it.autoInitialize() }
+                // 4. 创建锻造配方注册表
+                forgeRecipes = ForgeRecipeRegistry().also { it.autoInitialize() }
 
                 // 5. 初始化需要资产读取的注册表（JSON/PB 加载）
                 manuals = ManualRegistry()
@@ -254,7 +254,7 @@ object GameDataManager {
      * 按稀有度随机生成的物品集合
      */
     data class RandomSetByRarity(
-        val equipment: com.xianxia.sect.core.registry.EquipmentDatabase.EquipmentTemplate?,
+        val equipment: com.xianxia.sect.core.registry.EquipmentDatabase.EquipPieceEntry?,
         val pill: ItemDatabase.PillTemplate?,
         val manual: ManualDatabase.ManualTemplate?,
         val herb: HerbDatabase.Herb?,

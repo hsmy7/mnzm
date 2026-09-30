@@ -70,7 +70,7 @@ class InventorySystemDeathMaterializeTest {
         assertEquals("重伤 HP=1", 1, tables.currentHps[1])
         assertEquals("存活", 1, tables.isAlive[1])
         assertEquals("行囊保留", 1, tables.storageBagItems[1].size)
-        assertEquals("不物化到仓库", 0, store.equipmentStacks.value.size)
+        assertEquals("不物化到实例轨", 0, store.equipmentInstances.value.size)
         assertEquals("年报死亡计数不增", 0, store.gameData.value.annualDeceasedDisciples)
         assertTrue("无 deathYear", !tables.deathYears.contains(1))
     }

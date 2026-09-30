@@ -31,6 +31,10 @@
 //   - 波动四舍五入到 1 位小数：round(variancePercent * 10) / 10
 // ============================================================
 namespace gamecore::battle {
+/// 伤害类型（Kotlin DamageType）——battle.h 前置定义（CombatantStats/
+/// Combatant 依赖；battle_calculator.h 内不再重复定义）
+enum class DamageType : int32_t { kPhysical = 0, kMagic = 1 };
+
 
 // ── 战斗常量（Kotlin GameConfig.Battle）────────────────────────
 
@@ -51,10 +55,11 @@ constexpr double kRealmGapDamageBonusPerMajorRealm = 1.0;  // 每高 1 大境界
 
 /// 战斗单位状态（Combatant 精简版；Buff 由外部系统管理）
 struct CombatantStats {
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
+    // 暴击伤害加成（B3 D3；Kotlin Combatant 默认 0.0——接口默认实现面）
+    double critDamageBonus = 0.0;
+    int32_t attack = 0;
+    int32_t defense = 0;
+    DamageType innateDamageType = DamageType::kPhysical;
     int32_t speed = 0;
     double critRate = 0.05;
     int32_t realm = 9;       // 0=仙人 … 9=炼气
@@ -68,11 +73,17 @@ struct CombatantStats {
 // ── 伤害乘区（对应 Kotlin DamageZones）──────────────────────────
 
 struct DamageZones {
-    double attackBuffs = 0.0;                // 按攻击类型注入的攻防 Buff
-    double physicalAttackBuffs = 0.0;        // 物理攻击 Buff 分桶
-    double magicAttackBuffs = 0.0;           // 魔法攻击 Buff 分桶
+    // 单列口径（B1，方案 §15.2/§15.6.1）：物法攻 buff 分桶迁移为类型增伤、
+    // 物法防 buff 分桶迁移为类型减伤；typeDamage* 为按本次伤害类型选桶合并后
+    // 的结算位（固有桶 + buff 桶），全 0.0 时与基准公式逐位一致（S19）
+    double physicalAttackBuffs = 0.0;        // 物理类型增伤 buff 分桶
+    double magicAttackBuffs = 0.0;           // 法术类型增伤 buff 分桶
+    double physicalDefenseBuffs = 0.0;       // 物理类型减伤 buff 分桶（守方）
+    double magicDefenseBuffs = 0.0;          // 法术类型减伤 buff 分桶（守方）
     double damageAmplification = 0.0;        // 增伤乘区
     double damageReduction = 0.0;            // 减伤乘区
+    double typeDamageBonus = 0.0;            // 类型增伤结算位（选桶合并后）
+    double typeDamageReduction = 0.0;        // 类型减伤结算位（选桶合并后）
     double realmGapDamageAmplification = 0.0;  // 境界压制增伤（独立乘算）
     double realmGapDamageReduction = 0.0;      // 境界压制减伤（独立乘算）
     double majorRealmDamageAmplification = 0.0; // 大境界增伤（独立乘算）
@@ -166,23 +177,28 @@ inline bool checkInstantKill(int32_t attackerRealm, int32_t defenderRealm,
 
 // ── 乘区法最终伤害 ─────────────────────────────────────────────
 
-/// 乘区法最终伤害（Kotlin calculateFinalDamage）
+/// 乘区法最终伤害（Kotlin calculateFinalDamage；critDamageBonus = B3 D3 接线
+/// ——暴击时 critMult = 1 + 基础暴伤 + 暴伤加成，默认 0.0 与旧式逐位一致）
 inline int32_t calculateFinalDamage(int32_t rawAttack, int32_t defense,
                                     double skillMultiplier,
                                     const DamageZones& zones,
-                                    bool isCrit, double variance) {
-    const double effectiveAttack = rawAttack * (1.0 + zones.attackBuffs);
+                                    bool isCrit, double variance,
+                                    double critDamageBonus = 0.0) {
+    // 单列口径（B1 §15.2）：类型增伤/减伤进增/减伤加算区；默认 0.0 时与
+    // 无类型通道的基准公式逐位一致（S19）
+    const double effectiveAttack = static_cast<double>(rawAttack);
     const double reduction =
         defense / (defense + kDefenseConstant);
     const double preCritDamage =
         effectiveAttack * skillMultiplier * (1.0 - reduction);
-    const double critMult = isCrit ? (1.0 + kCritBaseMultiplier) : 1.0;
+    const double critMult =
+        isCrit ? (1.0 + kCritBaseMultiplier + critDamageBonus) : 1.0;
     const double result =
         preCritDamage * critMult
-        * (1.0 + zones.damageAmplification)
+        * (1.0 + zones.damageAmplification + zones.typeDamageBonus)
         * (1.0 + zones.realmGapDamageAmplification)
         * (1.0 + zones.majorRealmDamageAmplification)
-        * (1.0 - zones.damageReduction)
+        * (1.0 - zones.damageReduction - zones.typeDamageReduction)
         * (1.0 - zones.realmGapDamageReduction)
         * variance;
     return std::max(static_cast<int32_t>(result), kMinDamage);

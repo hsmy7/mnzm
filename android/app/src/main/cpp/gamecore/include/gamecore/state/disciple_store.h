@@ -58,33 +58,26 @@ enum class DiscipleColumn : uint16_t {
     CultivationCompletionMonth,
     ManualCompletionMonth,
     ManualCompletionPhase,
-    EquipmentNurturingCompletionMonth,
-    EquipmentNurturingCompletionPhase,
-    // CombatAttributes
+    // CombatAttributes（单列口径 B1）
     BaseHp,
     BaseMp,
-    BasePhysicalAttack,
-    BaseMagicAttack,
-    BasePhysicalDefense,
-    BaseMagicDefense,
+    BaseAttack,
+    BaseDefense,
     BaseSpeed,
     HpVariance,
     MpVariance,
-    PhysicalAttackVariance,
-    MagicAttackVariance,
-    PhysicalDefenseVariance,
-    MagicDefenseVariance,
+    AttackVariance,
+    DefenseVariance,
+    InnateDamageType,
     SpeedVariance,
     TotalCultivation,
     BreakthroughCount,
     BreakthroughFailCount,
     CurrentHp,
     CurrentMp,
-    // PillEffects
-    PillPhysicalAttackBonus,
-    PillMagicAttackBonus,
-    PillPhysicalDefenseBonus,
-    PillMagicDefenseBonus,
+    // PillEffects（单列口径 B1）
+    PillAttackBonus,
+    PillDefenseBonus,
     PillHpBonus,
     PillMpBonus,
     PillSpeedBonus,
@@ -92,19 +85,16 @@ enum class DiscipleColumn : uint16_t {
     PillCritEffectBonus,
     PillCultivationSpeedBonus,
     PillSkillExpSpeedBonus,
-    PillNurtureSpeedBonus,
     PillEffectDuration,
     ActivePillTypes,
     ActivePillCategory,
-    // EquipmentSet
+    // EquipmentSet（B3 六部位：显示序 头/身/手/脚/武/腿）
+    HeadId,
+    BodyId,
+    HandsId,
+    FeetId,
     WeaponId,
-    ArmorId,
-    BootsId,
-    AccessoryId,
-    WeaponNurture,
-    ArmorNurture,
-    BootsNurture,
-    AccessoryNurture,
+    LegsId,
     StorageBagItems,
     StorageBagSpiritStones,
     SpiritStones,
@@ -174,24 +164,19 @@ public:
     std::vector<int32_t> cultivationCompletionMonths;
     std::vector<int32_t> manualCompletionMonths;
     std::vector<int32_t> manualCompletionPhases;
-    std::vector<int32_t> equipmentNurturingCompletionMonths;
-    std::vector<int32_t> equipmentNurturingCompletionPhases;
 
     // ── CombatAttributes 列 ──
     std::vector<int32_t> baseHps;
     std::vector<int32_t> baseMps;
-    std::vector<int32_t> basePhysicalAttacks;
-    std::vector<int32_t> baseMagicAttacks;
-    std::vector<int32_t> basePhysicalDefenses;
-    std::vector<int32_t> baseMagicDefenses;
+    std::vector<int32_t> baseAttacks;
+    std::vector<int32_t> baseDefenses;
     std::vector<int32_t> baseSpeeds;
     std::vector<int32_t> hpVariances;
     std::vector<int32_t> mpVariances;
-    std::vector<int32_t> physicalAttackVariances;
-    std::vector<int32_t> magicAttackVariances;
-    std::vector<int32_t> physicalDefenseVariances;
-    std::vector<int32_t> magicDefenseVariances;
+    std::vector<int32_t> attackVariances;
+    std::vector<int32_t> defenseVariances;
     std::vector<int32_t> speedVariances;
+    std::vector<std::string> innateDamageTypes;
     std::vector<int64_t> totalCultivations;
     std::vector<int32_t> breakthroughCounts;
     std::vector<int32_t> breakthroughFailCounts;
@@ -199,10 +184,8 @@ public:
     std::vector<int32_t> currentMps;
 
     // ── PillEffects 列 ──
-    std::vector<int32_t> pillPhysicalAttackBonuses;
-    std::vector<int32_t> pillMagicAttackBonuses;
-    std::vector<int32_t> pillPhysicalDefenseBonuses;
-    std::vector<int32_t> pillMagicDefenseBonuses;
+    std::vector<int32_t> pillAttackBonuses;
+    std::vector<int32_t> pillDefenseBonuses;
     std::vector<int32_t> pillHpBonuses;
     std::vector<int32_t> pillMpBonuses;
     std::vector<int32_t> pillSpeedBonuses;
@@ -210,20 +193,17 @@ public:
     std::vector<double> pillCritEffectBonuses;
     std::vector<double> pillCultivationSpeedBonuses;
     std::vector<double> pillSkillExpSpeedBonuses;
-    std::vector<double> pillNurtureSpeedBonuses;
     std::vector<int32_t> pillEffectDurations;
     std::vector<std::vector<std::string>> activePillTypes;
     std::vector<std::string> activePillCategories;
 
-    // ── EquipmentSet 列 ──
+    // ── EquipmentSet 列（B3 六部位；单轨实例 id，空串 = 未穿戴）──
+    std::vector<std::string> headIds;
+    std::vector<std::string> bodyIds;
+    std::vector<std::string> handsIds;
+    std::vector<std::string> feetIds;
     std::vector<std::string> weaponIds;
-    std::vector<std::string> armorIds;
-    std::vector<std::string> bootsIds;
-    std::vector<std::string> accessoryIds;
-    std::vector<EquipmentNurtureData> weaponNurtures;
-    std::vector<EquipmentNurtureData> armorNurtures;
-    std::vector<EquipmentNurtureData> bootsNurtures;
-    std::vector<EquipmentNurtureData> accessoryNurtures;
+    std::vector<std::string> legsIds;
     std::vector<std::vector<StorageBagItem>> storageBagItems;
     std::vector<int64_t> storageBagSpiritStones;
     std::vector<int32_t> spiritStones;

@@ -3,12 +3,9 @@ package com.xianxia.sect.ui.game.components
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.util.GameUtils
-import java.util.Locale
 
 
 
@@ -20,7 +17,6 @@ import java.util.Locale
 private val STAT_DISPLAY_NAMES: Map<String, String> = mapOf(
     "cultivationSpeedPercent" to "修炼速度",
     "skillExpSpeedPercent" to "功法熟练度速度",
-    "nurtureSpeedPercent" to "孕养速度",
     "physicalAttack" to "物理攻击",
     "magicAttack" to "法术攻击",
     "physicalDefense" to "物理防御",
@@ -49,19 +45,6 @@ internal fun getHerbCategoryName(category: String): String = when (category) {
     else -> if (category.isNotEmpty()) category else "灵药"
 }
 
-internal fun MutableList<String>.addForgeMaterialsInfo(equipmentName: String) {
-    val forgeRecipe = ForgeRecipeDatabase.getAllRecipes().find { it.name == equipmentName }
-    if (forgeRecipe != null && forgeRecipe.materials.isNotEmpty()) {
-        val materialsText = forgeRecipe.materials.map { (materialId, count) ->
-            val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase
-                .getMaterialById(materialId)?.name ?: materialId
-            "$materialName×$count"
-        }.joinToString("、")
-        add("")
-        add("锻造材料：$materialsText")
-    }
-}
-
 internal fun MutableList<String>.addPillRecipeInfo(pillId: String, pillName: String) {
     val pillRecipe = PillRecipeDatabase.getRecipeById(pillId)
         ?: PillRecipeDatabase.getRecipeByName(pillName)
@@ -77,63 +60,24 @@ internal fun MutableList<String>.addPillRecipeInfo(pillId: String, pillName: Str
 
 // ===== 装备效果 =====
 
-@Suppress("DEPRECATION")
-internal fun getEquipmentStackEffects(item: EquipmentStack): List<String> = buildList {
-    add("部位: ${item.slot.displayName}")
-    add("稀有度: ${getRarityName(item.rarity)}")
-    add("数量: ${item.quantity}")
-    if (item.minRealm < 9) {
-        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
-    }
-    add("")
-    add("属性:")
-    if (item.physicalAttack > 0) add("  物理攻击 +${item.physicalAttack}")
-    if (item.magicAttack > 0) add("  法术攻击 +${item.magicAttack}")
-    if (item.physicalDefense > 0) add("  物理防御 +${item.physicalDefense}")
-    if (item.magicDefense > 0) add("  法术防御 +${item.magicDefense}")
-    if (item.speed > 0) add("  速度 +${item.speed}")
-    if (item.hp > 0) add("  生命 +${item.hp}")
-    if (item.mp > 0) add("  灵力 +${item.mp}")
-    if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
+/**
+ * 装备展开条目查找（B3 新表 72 条）：优先按条目 id（`{pieceId}_r{rarity}`），
+ * 兜底按部件名取最低品阶条目（旧数据面只有名称时）。
+ */
+internal fun findEquipmentEntry(id: String, name: String): EquipmentDatabase.EquipPieceEntry? =
+    EquipmentDatabase.getById(id)
+        ?: EquipmentDatabase.entries.values.filter { it.name == name }.minByOrNull { it.rarity }
 
-    addForgeMaterialsInfo(item.name)
-}
-
-/** 装备最终属性行：终值 >0 时输出，加成 >0 追加 (↑x) 提示 */
-private fun MutableList<String>.addFinalStatLine(label: String, finalValue: Int, baseValue: Int) {
-    if (finalValue > 0) {
-        val bonus = finalValue - baseValue
-        val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-        add("  $label +$finalValue$bonusText")
-    }
-}
-
-@Suppress("DEPRECATION")
 internal fun getEquipmentEffects(item: EquipmentInstance): List<String> = buildList {
-    add("部位: ${item.slot.displayName}")
+    add("部位: ${item.part.displayName}")
     add("稀有度: ${getRarityName(item.rarity)}")
+    add("等级: Lv.${item.level}")
     if (item.minRealm < 9) {
         add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
     }
-    if (item.nurtureLevel > 0) {
-        add("孕养等级: Lv.${item.nurtureLevel}")
-        val nurtureBonus = (item.totalMultiplier / GameConfig.Rarity.get(item.rarity).multiplier - 1.0) * 100
-        if (nurtureBonus > 0) {
-            add("  孕养加成: +${String.format(Locale.getDefault(), "%.1f", nurtureBonus)}%")
-        }
-    }
     add("")
-    add("属性:")
-    val finalStats = item.getFinalStats()
-    val baseStats = item.stats
-    addFinalStatLine("物理攻击", finalStats.physicalAttack, baseStats.physicalAttack)
-    addFinalStatLine("法术攻击", finalStats.magicAttack, baseStats.magicAttack)
-    addFinalStatLine("物理防御", finalStats.physicalDefense, baseStats.physicalDefense)
-    addFinalStatLine("法术防御", finalStats.magicDefense, baseStats.magicDefense)
-    addFinalStatLine("速度", finalStats.speed, baseStats.speed)
-    addFinalStatLine("生命", finalStats.hp, baseStats.hp)
-    addFinalStatLine("灵力", finalStats.mp, baseStats.mp)
-    if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
-
-    addForgeMaterialsInfo(item.name)
+    add("词条:")
+    item.totalBonus().forEach { bonus ->
+        add("  $bonus")
+    }
 }

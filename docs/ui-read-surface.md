@@ -62,9 +62,19 @@ UI 操作事务）。本清单回答两个问题：
   aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds、rngStates`
   （rngStates 是 C++ live RNG 的导出镜像，反向回导永久剔除）。
 
-### 2.2 实体集合（10 个，与 `state::DirtyTracker` 跟踪清单一致）
-`disciples（DiscipleStore 列存储）、equipmentStacks、equipmentInstances、manualStacks、
+### 2.2 实体集合（B3 起 9 个，与 `state::DirtyTracker` 跟踪清单一致）
+`disciples（DiscipleStore 列存储）、equipmentInstances、manualStacks、
 manualInstances、pills、materials、herbs、seeds、storageBags`
+（`equipmentStacks` 已随 B3 装备体系替换批移出镜像面——R6 堆叠退役，
+`equipmentInstances` 为一行一实例新模型：setId/part/growth{level,exp,affix}/meta，
+C++ 导出面 `json_codec.cpp` EquipmentInstance 段 + Kotlin 解码臂 `StateSyncService`
+applyCollection("equipmentInstances")；UI 消费一律经
+`GameEngine.equipmentInstances` 只读流，词条展示用 `EquipmentInstance.totalBonus()`，
+禁止 UI 侧自算第二份词条加成。）
+
+**装备重构线最终镜像面（EQ-B5 收口注记，2026-09-30）**：
+- disciples 行新增列（B1 属性单列 + B3 六部位）：`baseAttack/baseDefense/innateDamageType/attackVariance/defenseVariance/pillAttackBonus/pillDefenseBonus`（proto 113–119）+ 六部位 `headId/bodyId/handsId/feetId/legsId`（proto 67-70/122/123）；旧物法四列/孕养列已退役 reserved，不再导出。
+- 速度/灵力**不在**装备加成通道（S14 拍板）：镜像行无装备速度/灵力字段，UI 若展示速度/灵力只读弟子基础+境界成长值，禁自造"装备加速度"派生。
 
 ### 2.3 顶层运行态载体（`NativeGameState` 顶层可空字段，非空才导出/宽松导入）
 `aiSectDisciples、aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds`
@@ -107,8 +117,9 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 | disciples / aliveDisciples / discipleAggregates / sectCombatPower / aiSectCombatPowers | `disciples` 表 + 镜像 `aiSectDisciples` |
 
 ### 3.3 个体 Field StateFlow
-`gameData、disciples、equipmentStacks、equipmentInstances、manualStacks、manualInstances、
-pills、materials、herbs、seeds、storageBags`（全部在 §2.2 集合面内）
+`gameData、disciples、equipmentInstances、manualStacks、manualInstances、
+pills、materials、herbs、seeds、storageBags`（全部在 §2.2 集合面内；B3 起
+`equipmentStacks` 流已删，仓库/详情装备面一律读 `equipmentInstances`）
 
 ### 3.4 非镜像运行态通道（Kotlin 域事件，与镜像无关，不受本清单上限约束）
 `pendingBattleResult、pendingBattleRewardCards、rewardCardQueue、

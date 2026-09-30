@@ -55,16 +55,13 @@ const SPEED_PCT = { 1: 0.30, 2: 0.35, 3: 0.40, 4: 0.50, 5: 0.60, 6: 0.80 };
 const CRIT_RATE = { 1: 0.03, 2: 0.05, 3: 0.07, 4: 0.10, 5: 0.13, 6: 0.16 };
 const CRIT_EFFECT = { 1: 0.10, 2: 0.15, 3: 0.20, 4: 0.25, 5: 0.30, 6: 0.40 };
 const BASE_ATTR = { 1: 3, 2: 5, 3: 8, 4: 12, 5: 16, 6: 20 };
-const NURTURE_BASE = [50, 100, 200, 400, 800, 1600];      // [tier-1]
 
 // ── 名称表（与 Kotlin 字面量逐值一致）────────────────────────────────
 const NAMES = {
   speedCult: { 1: '引灵丹', 2: '聚灵丹', 3: '凝元丹', 4: '炼气丹', 5: '混元丹', 6: '仙灵丹' },
   skillSpeed: { 1: '悟法丹', 2: '通法丹', 3: '玄法丹', 4: '道法丹', 5: '天法丹', 6: '仙法丹' },
-  nurtureSpeed: { 1: '养器丹', 2: '灵养丹', 3: '宝养丹', 4: '玄养丹', 5: '地养丹', 6: '天养丹' },
   cultAdd: { 1: '增元丹', 2: '培元丹', 3: '固元丹', 4: '真元丹', 5: '玄元丹', 6: '仙元丹' },
   skillAdd: { 1: '悟道丹', 2: '明心丹', 3: '通玄丹', 4: '慧灵丹', 5: '道悟丹', 6: '天机丹' },
-  nurtureAdd: { 1: '蕴器丹', 2: '灵蕴丹', 3: '宝蕴丹', 4: '玄蕴丹', 5: '地蕴丹', 6: '天蕴丹' },
   // 单属性战斗
   physicalAttack: { 1: '虎力丹', 2: '熊力丹', 3: '龙力丹', 4: '神力丹', 5: '霸力丹', 6: '天力丹' },
   magicAttack: { 1: '灵火丹', 2: '真火丹', 3: '三昧丹', 4: '玄火丹', 5: '地火丹', 6: '天火丹' },
@@ -143,6 +140,12 @@ const REALM_NAME = {
   3: '合体', 2: '大乘', 1: '渡劫', 0: '仙人',
 };
 
+// ── B1 属性单列口径（方案 §15.4）：物法攻合并 attackAdd、物法防合并 defenseAdd
+// （pillType/文案保留物法身份，效果键归并；与 Kotlin ItemDatabase 生成逻辑一致）
+const ADD_KEY = { physicalAttack: 'attackAdd', magicAttack: 'attackAdd',
+  physicalDefense: 'defenseAdd', magicDefense: 'defenseAdd' };
+const addKeyOf = (a) => ADD_KEY[a] || `${a}Add`;
+
 // ── PillTemplate 生成（复刻 ItemDatabase.kt）─────────────────────────
 const pillTemplates = [];
 const mkPill = (id, name, description, fields) => {
@@ -152,14 +155,10 @@ const mkPill = (id, name, description, fields) => {
     targetRealm: fields.targetRealm ?? 0,
     cultivationSpeedPercent: fields.cultivationSpeedPercent ?? 0.0,
     skillExpSpeedPercent: fields.skillExpSpeedPercent ?? 0.0,
-    nurtureSpeedPercent: fields.nurtureSpeedPercent ?? 0.0,
     cultivationAdd: fields.cultivationAdd ?? 0,
     skillExpAdd: fields.skillExpAdd ?? 0,
-    nurtureAdd: fields.nurtureAdd ?? 0,
-    physicalAttackAdd: fields.physicalAttackAdd ?? 0,
-    magicAttackAdd: fields.magicAttackAdd ?? 0,
-    physicalDefenseAdd: fields.physicalDefenseAdd ?? 0,
-    magicDefenseAdd: fields.magicDefenseAdd ?? 0,
+    attackAdd: fields.attackAdd ?? 0,
+    defenseAdd: fields.defenseAdd ?? 0,
     hpAdd: fields.hpAdd ?? 0,
     mpAdd: fields.mpAdd ?? 0,
     speedAdd: fields.speedAdd ?? 0,
@@ -192,15 +191,11 @@ for (let tier = 1; tier <= 6; tier++) {
     mkPill(`skillExpSpeed_${tier}_${gl}`, NAMES.skillSpeed[tier],
       `${tierName}${gn}功法速度丹，提升功法熟练度修炼速度${pct}%，持续9旬`,
       { skillExpSpeedPercent: speedPct * mult });
-    mkPill(`nurtureSpeed_${tier}_${gl}`, NAMES.nurtureSpeed[tier],
-      `${tierName}${gn}孕养速度丹，提升装备孕养等级修炼速度${pct}%，持续9旬`,
-      { nurtureSpeedPercent: speedPct * mult });
   }
 }
 for (let tier = 1; tier <= 6; tier++) {
   const cultBase = rint(CULT_BASE[tier] * 0.375);
   const skillBase = rint(CULT_BASE[tier] * 0.1);
-  const nurtureBase = NURTURE_BASE[tier - 1];
   const tierName = TIER_NAMES[tier];
   for (let g = 0; g < 3; g++) {
     const mult = GRADE_MULT[g];
@@ -208,16 +203,12 @@ for (let tier = 1; tier <= 6; tier++) {
     const gn = GRADE_DISPLAY[g];
     const cultAddVal = rint(cultBase * mult);
     const skillAddVal = rint(skillBase * mult);
-    const nurtureAddVal = rint(nurtureBase * mult);
     mkPill(`cultivationAdd_${tier}_${gl}`, NAMES.cultAdd[tier],
       `${tierName}${gn}境界修为丹，立即增加${cultAddVal}点境界修为`,
       { cultivationAdd: cultAddVal });
     mkPill(`skillExpAdd_${tier}_${gl}`, NAMES.skillAdd[tier],
       `${tierName}${gn}功法熟练丹，立即增加${skillAddVal}点功法熟练度`,
       { skillExpAdd: skillAddVal });
-    mkPill(`nurtureAdd_${tier}_${gl}`, NAMES.nurtureAdd[tier],
-      `${tierName}${gn}孕养度丹，立即增加${nurtureAddVal}点装备孕养度`,
-      { nurtureAdd: nurtureAddVal });
   }
 }
 // 突破丹
@@ -243,7 +234,7 @@ for (const [pillType, attrName] of Object.entries(ATTR_CN)) {
       const mult = GRADE_MULT[g];
       const val = rint(mediumVal * mult);
       const fields = {};
-      fields[`${pillType}Add`] = val;
+      fields[addKeyOf(pillType)] = val;
       mkPill(`${pillType}_${tier}_${GRADE_LOWER[g]}`, NAMES[pillType][tier],
         `${tierName}${GRADE_DISPLAY[g]}${attrName}丹，增加${val}点${attrName}，持续9旬`, fields);
     }
@@ -264,7 +255,8 @@ for (const [pillType, [attr1, attr2, descName]] of Object.entries(DUAL_CFG)) {
       const attrVal = (a) => (a === attr1 ? v1 : a === attr2 ? v2 : 0);
       const fields = {};
       for (const a of ['physicalAttack', 'magicAttack', 'physicalDefense', 'magicDefense', 'hp', 'mp', 'speed']) {
-        fields[`${a}Add`] = attrVal(a);
+        const k = addKeyOf(a);
+        fields[k] = (fields[k] || 0) + attrVal(a);
       }
       mkPill(`${pillType}_${tier}_${GRADE_LOWER[g]}`, NAMES[pillType][tier],
         `${tierName}${GRADE_DISPLAY[g]}${descName}丹，增加${v1}点${attr1}和${v2}点${attr2}，持续9旬`, fields);
@@ -434,9 +426,9 @@ const herbMat = (tier, indices) => {
 const pillRecipes = [];
 const recipeFields = () => ({
   breakthroughChance: 0.0, targetRealm: 0,
-  cultivationSpeedPercent: 0.0, skillExpSpeedPercent: 0.0, nurtureSpeedPercent: 0.0,
-  cultivationAdd: 0, skillExpAdd: 0, nurtureAdd: 0,
-  physicalAttackAdd: 0, magicAttackAdd: 0, physicalDefenseAdd: 0, magicDefenseAdd: 0,
+  cultivationSpeedPercent: 0.0, skillExpSpeedPercent: 0.0,
+  cultivationAdd: 0, skillExpAdd: 0,
+  attackAdd: 0, defenseAdd: 0,
   hpAdd: 0, mpAdd: 0, speedAdd: 0, critRateAdd: 0.0, critEffectAdd: 0.0,
   intelligenceAdd: 0, charmAdd: 0, comprehensionAdd: 0,
   artifactRefiningAdd: 0, pillRefiningAdd: 0, spiritPlantingAdd: 0, teachingAdd: 0,
@@ -449,10 +441,8 @@ const mkRecipe = (tpl, tier, category, pillType, materials, breakthroughChance =
     duration: TIER_DURATION[tier], successRate: TIER_SUCCESS_RATE[tier],
     breakthroughChance, targetRealm,
     cultivationSpeedPercent: tpl.cultivationSpeedPercent, skillExpSpeedPercent: tpl.skillExpSpeedPercent,
-    nurtureSpeedPercent: tpl.nurtureSpeedPercent, cultivationAdd: tpl.cultivationAdd,
-    skillExpAdd: tpl.skillExpAdd, nurtureAdd: tpl.nurtureAdd,
-    physicalAttackAdd: tpl.physicalAttackAdd, magicAttackAdd: tpl.magicAttackAdd,
-    physicalDefenseAdd: tpl.physicalDefenseAdd, magicDefenseAdd: tpl.magicDefenseAdd,
+    cultivationAdd: tpl.cultivationAdd, skillExpAdd: tpl.skillExpAdd,
+    attackAdd: tpl.attackAdd, defenseAdd: tpl.defenseAdd,
     hpAdd: tpl.hpAdd, mpAdd: tpl.mpAdd, speedAdd: tpl.speedAdd,
     critRateAdd: tpl.critRateAdd, critEffectAdd: tpl.critEffectAdd,
     intelligenceAdd: tpl.intelligenceAdd, charmAdd: tpl.charmAdd,
@@ -463,8 +453,8 @@ const mkRecipe = (tpl, tier, category, pillType, materials, breakthroughChance =
 };
 
 // 常规修炼配方
-const STANDARD_PILL_TYPES = ['cultivationSpeed', 'skillExpSpeed', 'nurtureSpeed', 'cultivationAdd', 'skillExpAdd', 'nurtureAdd'];
-const HERB_PATTERNS = [[0, 3], [1, 6], [2, 4], [0, 7], [5, 8], [3, 7]];
+const STANDARD_PILL_TYPES = ['cultivationSpeed', 'skillExpSpeed', 'cultivationAdd', 'skillExpAdd'];
+const HERB_PATTERNS = [[0, 3], [1, 6], [0, 7], [5, 8]];
 for (let tier = 1; tier <= 6; tier++) {
   for (let idx = 0; idx < STANDARD_PILL_TYPES.length; idx++) {
     const materials = herbMat(tier, HERB_PATTERNS[idx]);

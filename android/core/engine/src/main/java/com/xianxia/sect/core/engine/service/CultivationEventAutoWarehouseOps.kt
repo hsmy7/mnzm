@@ -2,12 +2,8 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.weaponId
@@ -54,7 +50,6 @@ internal fun CultivationEventProcessor.processAutoFromWarehouse(
         }
         .mapNotNull { tables.assemble(it)?.takeIf { d -> d.isAlive } }
         .toMutableList()
-    var eqStacks = state.equipmentStacks.all()
     var mnStacks = state.manualStacks.all()
     val eqInstancesById = state.equipmentInstances.associateById()
     val mnInstancesById = state.manualInstances.associateById()
@@ -73,18 +68,17 @@ internal fun CultivationEventProcessor.processAutoFromWarehouse(
         val step = processSingleDiscipleAuto(
             updatedDisciples[idx], year, month,
             equipFocused, equipRootCounts, learnFocused, learnRootCounts,
-            eqStacks, mnStacks, eqInstancesById, mnInstancesById,
+            mnStacks, eqInstancesById, mnInstancesById,
             newEqInstances, attachedEqInstances, replacedEqInstances,
             newMnInstances, attachedMnInstances, replacedMnInstances
         )
         if (step.disciple !== updatedDisciples[idx]) {
             updatedDisciples[idx] = step.disciple
         }
-        eqStacks = step.eqStacks
         mnStacks = step.mnStacks
     }
     writeAutoWarehouseResults(
-        state, tables, updatedDisciples, eqStacks, mnStacks,
+        state, tables, updatedDisciples, mnStacks,
         newEqInstances, newMnInstances,
         attachedEqInstances, replacedEqInstances,
         attachedMnInstances, replacedMnInstances
@@ -99,7 +93,7 @@ internal fun CultivationEventProcessor.processSingleDiscipleAuto(
     year: Int, month: Int,
     equipFocused: Boolean, equipRootCounts: Set<Int>,
     learnFocused: Boolean, learnRootCounts: Set<Int>,
-    eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
+    mnStacks: List<ManualStack>,
     eqInstancesById: Map<String, EquipmentInstance>,
     mnInstancesById: Map<String, ManualInstance>,
     newEqInstances: MutableList<EquipmentInstance>,
@@ -110,15 +104,12 @@ internal fun CultivationEventProcessor.processSingleDiscipleAuto(
     replacedMnInstances: MutableList<ManualInstance>
 ): AutoWarehouseResult {
     var d = disciple
-    var eqs = eqStacks
     var mns = mnStacks
     if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
-        val result = processSingleAutoEquip(
-            d, year, month, eqs, eqInstancesById,
+        d = processSingleAutoEquip(
+            d, year, month, eqInstancesById,
             newEqInstances, attachedEqInstances, replacedEqInstances
         )
-        d = result.first
-        eqs = result.second
     }
     if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
         val result = processSingleAutoLearn(
@@ -128,7 +119,7 @@ internal fun CultivationEventProcessor.processSingleDiscipleAuto(
         d = result.first
         mns = result.second
     }
-    return AutoWarehouseResult(d, eqs, mns)
+    return AutoWarehouseResult(d, mns)
 }
 
 /**
@@ -171,34 +162,28 @@ internal fun CultivationEventProcessor.qualifiesByColumns(
 @Suppress("LongParameterList") // 类级同名单注解留在源类（27 服务 DI 注入口径），随拆分迁至函数级
 internal fun CultivationEventProcessor.processSingleAutoEquip(
     d: Disciple, year: Int, month: Int,
-    eqStacks: List<EquipmentStack>, eqInstancesById: Map<String, EquipmentInstance>,
+    eqInstancesById: Map<String, EquipmentInstance>,
     newEqInstances: MutableList<EquipmentInstance>,
     attachedEqInstances: MutableList<EquipmentInstance>,
     replacedEqInstances: MutableList<EquipmentInstance>
-): Pair<Disciple, List<EquipmentStack>> {
+): Disciple {
+    // B3 实例轨：候选源只剩袋内实例（仓库堆叠语义已退役），Manager 返回
+    // attached/replaced 两组实例调用方同步实例表
     val result = equipmentManager.processAutoEquipFromWarehouse(
-        disciple = d, warehouseStacks = eqStacks, equipmentInstances = eqInstancesById,
+        disciple = d, equipmentInstances = eqInstancesById,
         gameYear = year, gameMonth = month
     )
-    if (result.newInstances.isEmpty() && result.attachedInstances.isEmpty() &&
-        result.replacedInstances.isEmpty()
-    ) {
-        return d to eqStacks
+    if (result.attachedInstances.isEmpty() && result.replacedInstances.isEmpty()) {
+        return result.disciple
     }
-    var stacks = eqStacks
     newEqInstances.addAll(result.newInstances)
-    // B：袋内实例装配（重建入表）与被替换旧实例（已回袋，从实例表移除）
     attachedEqInstances.addAll(result.attachedInstances)
     replacedEqInstances.addAll(result.replacedInstances)
     val equipName = (result.newInstances.firstOrNull() ?: result.attachedInstances.firstOrNull())?.name ?: ""
     if (equipName.isNotEmpty()) {
         discipleService.addLifeEvent(d.id, "自动装备了${equipName}")
     }
-    for (update in result.stackUpdates) {
-        stacks = if (update.isDeletion) stacks.filter { it.id != update.stackId }
-        else stacks.map { if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it }
-    }
-    return result.disciple to stacks
+    return result.disciple
 }
 
 /**
@@ -247,7 +232,7 @@ internal fun CultivationEventProcessor.processSingleAutoLearn(
 internal fun CultivationEventProcessor.writeAutoWarehouseResults(
     state: MutableGameState, tables: DiscipleTables,
     updatedDisciples: List<Disciple>,
-    eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
+    mnStacks: List<ManualStack>,
     newEqInstances: List<EquipmentInstance>, newMnInstances: List<ManualInstance>,
     attachedEqInstances: List<EquipmentInstance>, replacedEqInstances: List<EquipmentInstance>,
     attachedMnInstances: List<ManualInstance>, replacedMnInstances: List<ManualInstance>
@@ -255,17 +240,18 @@ internal fun CultivationEventProcessor.writeAutoWarehouseResults(
     for (disciple in updatedDisciples) {
         val id = disciple.id.toInt()
         tables.storageBagItems[id] = disciple.equipment.storageBagItems
+        tables.headIds[id] = disciple.equipment.headId
+        tables.bodyIds[id] = disciple.equipment.bodyId
+        tables.handsIds[id] = disciple.equipment.handsId
+        tables.feetIds[id] = disciple.equipment.feetId
         tables.weaponIds[id] = disciple.equipment.weaponId
-        tables.armorIds[id] = disciple.equipment.armorId
-        tables.bootsIds[id] = disciple.equipment.bootsId
-        tables.accessoryIds[id] = disciple.equipment.accessoryId
+        tables.legsIds[id] = disciple.equipment.legsId
 
         // 清理被替换功法的残留熟练度
         val oldManualIds = tables.manualIds.getOrDefault(id, emptyList())
         tables.manualIds[id] = disciple.manualIds
         clearRemovedManualProficiencies(state, disciple, oldManualIds.toSet() - disciple.manualIds.toSet())
     }
-    state.equipmentStacks.setItems(eqStacks)
     state.manualStacks.setItems(mnStacks)
     newEqInstances.forEach { state.equipmentInstances.add(it) }
     newMnInstances.forEach { state.manualInstances.add(it) }

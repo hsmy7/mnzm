@@ -17,7 +17,7 @@ import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.perf.ThermalMonitor
@@ -114,7 +114,7 @@ class GameViewModelRoadFeedbackTest {
         )
         every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
-        every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
+        every { gameEngine.equipmentInstances } returns MutableStateFlow(emptyList<EquipmentInstance>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())
         every { gameEngine.gameDataSnapshot } returns GameData()
 

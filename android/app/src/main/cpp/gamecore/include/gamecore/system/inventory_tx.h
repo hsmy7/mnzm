@@ -8,6 +8,7 @@
 
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/manual_db.h"
+#include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/economy.h"
 // batch-11：商人模板转换器与按型容量谓词（merchant_settle 同源复用，禁止
@@ -127,15 +128,6 @@ inline std::string toLowerAscii(const std::string& s) {
 
 namespace detail {
 
-/// EquipmentDatabase.getTemplateByName：首名匹配（allTemplates.values.find）
-inline const gamecore::data::EquipmentTemplate* equipmentTemplateByName(
-    const std::string& name) {
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.name == name) return &t;
-    }
-    return nullptr;
-}
-
 /// ManualDatabase.getByName：首名匹配（allManuals.values.find——上架取价用；
 /// 注意出售取价走 ManualStack.basePrice 品阶基准价，**不查模板**）
 inline const gamecore::data::ManualTemplate* manualTemplateByName(
@@ -146,10 +138,34 @@ inline const gamecore::data::ManualTemplate* manualTemplateByName(
     return nullptr;
 }
 
-/// EquipmentStack.basePrice（模板价优先，缺失回退品阶基准价）
-inline int32_t equipmentBasePrice(const gamecore::state::EquipmentStack& s) {
-    const auto* tpl = equipmentTemplateByName(s.name);
-    return tpl != nullptr ? tpl->price : kRarityBasePrice[rarityIndex(s.rarity)];
+/// EquipmentInstance.basePrice（Kotlin 同名计算属性逐位移植：pieceTemplate
+/// = getPieceById(setId)——实例 setId 存套装 id，模板查不到 ⇒ 恒回退品阶
+/// 基准价；保留双臂形状与 Kotlin 一致）
+inline int32_t equipmentBasePrice(const gamecore::state::EquipmentInstance& inst) {
+    if (!inst.setId.empty()) {
+        for (const auto& piece : gamecore::data::setPieceTemplates()) {
+            if (piece.id == inst.setId) {
+                const int idx = std::min(std::max(inst.rarity() - 1, 0), 5);
+                return piece.priceByRarity[idx];
+            }
+        }
+    }
+    return kRarityBasePrice[rarityIndex(inst.rarity())];
+}
+
+/// B3 实例轨出售扣减（Kotlin deductEquipmentInstance 逐位移植）：实例无
+/// 数量整条移除；isLocked → 0；售价 = calculateSellPrice(basePrice, 1)
+inline int64_t deductEquipmentInstance(gamecore::state::GameState& st,
+                                       const std::string& itemId) {
+    for (auto it = st.equipmentInstances.begin();
+         it != st.equipmentInstances.end(); ++it) {
+        if (it->id != itemId) continue;
+        if (it->meta.isLocked) return 0;
+        const int64_t amount = calculateSellPrice(equipmentBasePrice(*it), 1);
+        st.equipmentInstances.erase(it);
+        return amount;
+    }
+    return 0;
 }
 
 /// ManualStack.basePrice（品阶基准价——不查模板）
@@ -202,7 +218,8 @@ int64_t deductStack(std::vector<T>& store, const std::string& itemId, int32_t qu
 inline int64_t deductByType(gamecore::state::GameState& st, const std::string& itemType,
                             const std::string& itemId, int32_t quantity) {
     if (itemType == "equipment") {
-        return deductStack(st.equipmentStacks, itemId, quantity, equipmentBasePrice);
+        // B3 实例轨：quantity 仅作协议占位（恒按整件出售）
+        return deductEquipmentInstance(st, itemId);
     }
     if (itemType == "manual") {
         return deductStack(st.manualStacks, itemId, quantity, manualBasePrice);
@@ -398,7 +415,16 @@ struct MerchantSellOutcome {
 inline int32_t warehouseCount(const gamecore::state::GameState& st,
                               const gamecore::state::MerchantItem& item) {
     const std::string type = toLowerAscii(item.type);
-    if (type == "equipment") return detail::countWarehouseStacks(st.equipmentStacks, item);
+    // B3 实例轨：按名称+品阶计数（每条实例计 1）；锁定件不可售不入计数
+    //（与扣减谓词一致，防「锁定价凭空收款」——Kotlin warehouseCount 同口径）
+    if (type == "equipment") {
+        int32_t total = 0;
+        for (const auto& inst : st.equipmentInstances) {
+            if (!inst.meta.isLocked && inst.name == item.name &&
+                inst.rarity() == item.rarity) ++total;
+        }
+        return total;
+    }
     if (type == "manual") return detail::countWarehouseStacks(st.manualStacks, item);
     if (type == "pill") return detail::countWarehousePills(st.pills, item);
     if (type == "material") return detail::countWarehouseStacks(st.materials, item);
@@ -413,14 +439,31 @@ inline void deductSoldStock(gamecore::state::GameState& st,
                             const gamecore::state::MerchantItem& item,
                             int32_t amount) {
     const std::string type = toLowerAscii(item.type);
-    if (type == "equipment" || type == "manual" || type == "material" ||
+    if (type == "equipment") {
+        // B3 实例轨（与 Kotlin deductSoldEquipmentInstances 同口径）：收购需求按
+        // 物品类型（name+rarity）发布，itemId 是需求侧模板锚而非玩家实例 id——
+        // 按 itemId 查实例表第二件起必然 miss（「付 N 件款只扣 1 件」复制 bug，
+        // Kotlin 侧同款先修）；按名称+品阶匹配未锁定实例逐件移除，与
+        // warehouseCount 装备臂同谓词（另加未锁定过滤）。
+        int32_t remain = amount;
+        for (auto it = st.equipmentInstances.begin();
+             it != st.equipmentInstances.end() && remain > 0;) {
+            if (!it->meta.isLocked && it->name == item.name &&
+                it->rarity() == item.rarity) {
+                it = st.equipmentInstances.erase(it);
+                --remain;
+            } else {
+                ++it;
+            }
+        }
+        return;
+    }
+    if (type == "manual" || type == "material" ||
         type == "herb" || type == "seed") {
         auto match = [&item](const auto& s) {
             return s.name == item.name && s.rarity == item.rarity && !s.isLocked;
         };
-        if (type == "equipment") {
-            detail::removeMatching(st.equipmentStacks, amount, match);
-        } else if (type == "manual") {
+        if (type == "manual") {
             detail::removeMatching(st.manualStacks, amount, match);
         } else if (type == "material") {
             detail::removeMatching(st.materials, amount, match);
@@ -510,31 +553,31 @@ struct ListItemsOutcome {
     int32_t listedCount = 0;
 };
 
-/// 装备上架段（Kotlin listEquipmentForSale 语义：返回 false 表示非可上架装备，
-/// 调用方继续尝试下一类型；true = 已处理完，含"已上架量超限静默跳过"）
+/// 装备上架段（B3 实例轨：1 件 = 1 条目，quantity 仅作协议占位整件上架；
+/// 返回 false 表示非可上架装备，调用方继续尝试下一类型；true = 已处理完，
+/// 含"已上架量超限静默跳过"——Kotlin listEquipmentForSale 逐位移植）
 inline bool listEquipmentForSale(gamecore::state::GameData& gd,
-                                 const std::vector<gamecore::state::EquipmentStack>& stacks,
+                                 const std::vector<gamecore::state::EquipmentInstance>& instances,
                                  const std::string& itemId, int32_t quantity,
                                  std::vector<gamecore::state::MerchantItem>& newItems) {
-    const auto it = std::find_if(stacks.begin(), stacks.end(),
-                                 [&itemId](const gamecore::state::EquipmentStack& s) {
-                                     return s.id == itemId;
-                                 });
-    if (it == stacks.end()) return false;
-    if (it->isLocked || quantity < 1 || quantity > it->quantity) return false;
+    (void)quantity;
+    const gamecore::state::EquipmentInstance* inst = nullptr;
+    for (const auto& e : instances) {
+        if (e.id == itemId) { inst = &e; break; }
+    }
+    if (inst == nullptr) return false;
+    if (inst->meta.isLocked) return false;
+    // 设计要求：上架时不移除仓库实例，物品仍在仓库显示
     const int32_t alreadyListed =
         detail::alreadyListedQuantity(gd, itemId, "equipment");
-    if (alreadyListed + quantity > it->quantity) return true;
-    const auto* tpl = detail::equipmentTemplateByName(it->name);
-    const int32_t original =
-        tpl != nullptr ? tpl->price : kRarityBasePrice[rarityIndex(it->rarity)];
+    if (alreadyListed >= 1) return true;
     gamecore::state::MerchantItem listed;
-    listed.name = it->name;
+    listed.name = inst->name;
     listed.type = "equipment";
     listed.itemId = itemId;
-    listed.rarity = it->rarity;
-    listed.price = roundToInt(static_cast<double>(original) * 0.8);
-    listed.quantity = quantity;
+    listed.rarity = inst->rarity();
+    listed.price = roundToInt(static_cast<double>(detail::equipmentBasePrice(*inst)) * 0.8);
+    listed.quantity = 1;
     newItems.push_back(std::move(listed));
     return true;
 }
@@ -599,7 +642,7 @@ inline ListItemsOutcome listItemsToMerchantTx(gamecore::state::GameState& st,
     ListItemsOutcome out;
     std::vector<gamecore::state::MerchantItem> newItems;
     for (const auto& req : items) {
-        if (listEquipmentForSale(st.gameData, st.equipmentStacks, req.itemId,
+        if (listEquipmentForSale(st.gameData, st.equipmentInstances, req.itemId,
                                  req.quantity, newItems)) {
             continue;
         }
@@ -686,7 +729,12 @@ namespace detail {
 inline bool merchantTemplateExists(const gamecore::state::MerchantItem& item) {
     const std::string type = toLowerAscii(item.type);
     if (type == "equipment") {
-        return equipmentTemplateByName(item.name) != nullptr;
+        // B3：商装条目按部件名反查 12 部件表（Kotlin MerchantItemConverter
+        // .toEquipment 同源；未知名 = 转换器回退臂 → TemplateMiss 回退）
+        for (const auto& piece : gamecore::data::setPieceTemplates()) {
+            if (piece.name == item.name) return true;
+        }
+        return false;
     }
     if (type == "manual") {
         return manualTemplateByName(item.name) != nullptr;
@@ -729,25 +777,14 @@ inline bool merchantTemplateExists(const gamecore::state::MerchantItem& item) {
     return true;
 }
 
-/// Kotlin InventorySystem.returnEquipmentToStack 等价——**裸 store.add**：
-/// 不校验（实例 quantity 恒 1）、不记年度报表（绕过 addEquipmentStack 的
-/// annual 段——充公实例路径 Kotlin 无年报写入，禁用 addXxx 错记）。
-/// 溢出抑制由调用方实参表达（充公上下文 withOverflowMailSuppressed）。
-inline InventoryResult<gamecore::state::EquipmentStack> confiscateReturnEquipmentInstance(
+/// Kotlin InventorySystem.returnEquipmentToStack 等价（B3 实例轨）：
+/// 裸实例入库（addEquipmentInstance 校验面：id/name/rarity/重复 id），
+/// 不记年度报表；溢出抑制由调用方实参表达（充公上下文已无溢出面）。
+inline InventoryResult<gamecore::state::EquipmentInstance> confiscateReturnEquipmentInstance(
     gamecore::state::GameState& st, const gamecore::state::EquipmentInstance& inst,
     OverflowMailCollector& mail) {
-    const int32_t otherTypes = static_cast<int32_t>(
-        st.manualStacks.size() + st.pills.size() + st.materials.size() +
-        st.herbs.size() + st.seeds.size());
-    StackableItemStore<gamecore::state::EquipmentStack> store(
-        st.equipmentStacks, equipmentKey, getMaxStackSize("equipment_stack"),
-        [&]() { return computeMaxSlots(st) - otherTypes; });
-    const auto item = sr_session::detail::equipmentInstanceToStack(inst);
-    auto result = store.add(item);
-    st.equipmentStacks = store.all();
-    handleOverflow(result, "equipment", item, mail, "confiscate",
-                   /*overflowMailSuppressed=*/true);
-    return result;
+    (void)mail;
+    return addEquipmentInstance(st, inst);
 }
 
 /// Kotlin InventorySystem.returnManualToStack 等价（裸 store.add 同上）
@@ -755,7 +792,7 @@ inline InventoryResult<gamecore::state::ManualStack> confiscateReturnManualInsta
     gamecore::state::GameState& st, const gamecore::state::ManualInstance& inst,
     OverflowMailCollector& mail) {
     const int32_t otherTypes = static_cast<int32_t>(
-        st.equipmentStacks.size() + st.pills.size() + st.materials.size() +
+        st.equipmentInstances.size() + st.pills.size() + st.materials.size() +
         st.herbs.size() + st.seeds.size());
     StackableItemStore<gamecore::state::ManualStack> store(
         st.manualStacks, manualKey, getMaxStackSize("manual_stack"),
@@ -790,9 +827,9 @@ struct MerchantBuyOutcome {
 /// merchant_settle 同源实现（与 Kotlin MerchantItemConverter 对拍锁定）。
 /// 所有校验先行，任一失败零写入；失败信封 → Kotlin 回退臂重执行校验链
 ///（静默 no-op 或模板缺失随机回退，用户可见文案由 Kotlin 臂产出）。
-inline MerchantBuyOutcome buyMerchantItemTx(gamecore::state::GameState& st,
-                                            const std::string& itemId,
-                                            int32_t quantity) {
+inline MerchantBuyOutcome buyMerchantItemTx(
+    gamecore::state::GameState& st, const std::string& itemId,
+    int32_t quantity, rng::DeterministicRng& equipRng) {
     MerchantBuyOutcome out;
     // ① 商品存在（Kotlin find ?: log + return）
     const gamecore::state::MerchantItem* found = nullptr;
@@ -839,16 +876,21 @@ inline MerchantBuyOutcome buyMerchantItemTx(gamecore::state::GameState& st,
     OverflowMailCollector mail;
     bool addOk = true;
     if (type == "equipment") {
-        auto stack = merchant_settle::toEquipment(item);
-        stack.quantity = quantity;
-        if (!merchant_settle::canAddEquipment(st, stack.name, stack.rarity,
-                                              stack.slot)) {
+        // B3 实例轨：quantity 件 = quantity 条实例（kEquipment 分区 roll；
+        // 容量谓词 = 槽位检查 canAddEquipment→canAddItem 同 Kotlin）。
+        // 任一件失败整体失败（半途满仓：已入实例保留——Kotlin repeat 臂同序）
+        if (!merchant_settle::canAddEquipment(st)) {
             out.errorType = "CapacityFull";
             out.message = "购买被拒:仓库容量不足";
             return out;
         }
-        const auto r = addEquipmentStack(st, stack, mail, "merchant", false);
-        addOk = r.status != InventoryStatus::kFailure;
+        addOk = true;
+        for (int32_t i = 0; i < quantity; ++i) {
+            auto instOpt = merchant_settle::toEquipment(item, equipRng);
+            if (!instOpt.has_value()) { addOk = false; break; }
+            const auto r = addEquipmentInstance(st, *instOpt);
+            if (r.status == InventoryStatus::kFailure) { addOk = false; break; }
+        }
     } else if (type == "manual") {
         auto stack = merchant_settle::toManual(item);
         stack.quantity = quantity;
@@ -1031,22 +1073,20 @@ inline ConfiscateOutcome confiscateStorageBagItemTx(gamecore::state::GameState& 
                      st, *currentItem.manualInstance, mail)
                      .status;
     } else {
-        gamecore::state::EquipmentStack eqs;
+        // B3：堆叠类条目模板重建（装备分支已随堆叠轨退役——袋内装备条目
+        // 恒带 equipmentInstance payload，走上两臂）
         gamecore::state::ManualStack mns;
         gamecore::state::Pill ps;
         gamecore::state::Herb hs;
         gamecore::state::Seed ss;
         gamecore::state::Material ms;
-        if (!sr_session::detail::reconstructStackedItem(currentItem, &eqs, &mns, &ps,
+        if (!sr_session::detail::reconstructStackedItem(currentItem, &mns, &ps,
                                                 &hs, &ss, &ms)) {
             // 模板缺失（堆叠类条目无法重建，丢弃处理）：保留袋条目
             status = InventoryStatus::kFailure;
         } else {
             const std::string t = toLowerAscii(currentItem.itemType);
-            if (t == "equipment" || t == "equipment_stack") {
-                eqs.quantity = 1;
-                status = addEquipmentStack(st, eqs, mail, "confiscate", true).status;
-            } else if (t == "manual" || t == "manual_stack") {
+            if (t == "manual" || t == "manual_stack") {
                 mns.quantity = 1;
                 status = addManualStack(st, mns, mail, "confiscate", true).status;
             } else if (t == "pill") {

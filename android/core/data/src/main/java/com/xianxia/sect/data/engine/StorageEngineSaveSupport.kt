@@ -274,7 +274,6 @@ internal suspend fun StorageEngine.clearAllSlotTables(slot: Int) {
     core.database.withTransaction {
         core.database.gameDataDao().deleteAll(slot)
         core.database.discipleDao().deleteAll(slot)
-        core.database.equipmentStackDao().deleteAll(slot)
         core.database.equipmentInstanceDao().deleteAll(slot)
         core.database.manualStackDao().deleteAll(slot)
         core.database.manualInstanceDao().deleteAll(slot)

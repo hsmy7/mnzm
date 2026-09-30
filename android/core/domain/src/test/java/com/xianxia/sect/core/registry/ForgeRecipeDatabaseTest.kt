@@ -1,189 +1,178 @@
 package com.xianxia.sect.core.registry
 
+import com.xianxia.sect.core.model.EquipmentSlot
 import org.junit.Assert.*
 import org.junit.Test
 
+/**
+ * 锻造配方库测试（B3 重构后：12 条套装部件配方，按品阶产出）。
+ *
+ * 覆盖：静态数据合法性、id/部件唯一性、材料表六档完整、时长/成功率取档、
+ * 各查询入口（byId/byPiece/byMaterial/byType）与 getCraftableRecipes 恒全量
+ * （配方不分 tier，产出品阶由锻造槽位 tier 决定——交接决策 3）。
+ */
 class ForgeRecipeDatabaseTest {
 
-    // 1. All forge recipes have valid data
+    // 1. 全量 12 条（2 套 × 6 部位）
+    @Test
+    fun allRecipes_is12_andCoversSetsAndParts() {
+        val recipes = ForgeRecipeDatabase.getAllRecipes()
+        assertEquals("应为 2 套 × 6 部位 = 12 条配方", 12, recipes.size)
+
+        val setIds = recipes.map { it.setId }.toSet()
+        assertEquals("套装应恰为 lietian/zifu", setOf("lietian", "zifu"), setIds)
+
+        for (setId in setIds) {
+            val parts = recipes.filter { it.setId == setId }.map { it.part }.toSet()
+            assertEquals(
+                "套装 $setId 应覆盖全部六部位",
+                EquipmentSlot.entries.toSet(),
+                parts
+            )
+        }
+    }
+
+    // 2. 静态数据合法（id/名称/描述/部件存在/材料表六档）
     @Test
     fun allRecipes_haveValidData() {
-        val recipes = ForgeRecipeDatabase.getAllRecipes()
-        assertTrue("Recipe list is empty", recipes.isNotEmpty())
+        for (recipe in ForgeRecipeDatabase.getAllRecipes()) {
+            assertTrue("Recipe ${recipe.id} id 空白", recipe.id.isNotBlank())
+            assertTrue("Recipe ${recipe.id} name 空白", recipe.name.isNotBlank())
+            assertTrue("Recipe ${recipe.id} description 空白", recipe.description.isNotBlank())
 
-        for (recipe in recipes) {
-            assertTrue(
-                "Recipe ${recipe.id} has blank id",
-                recipe.id.isNotBlank()
+            assertNotNull(
+                "Recipe ${recipe.id} 引用的部件在 EquipmentDatabase 不存在: ${recipe.pieceId}",
+                EquipmentDatabase.getPieceById(recipe.pieceId)
             )
-            assertTrue(
-                "Recipe ${recipe.id} has blank name",
-                recipe.name.isNotBlank()
+            assertEquals(
+                "Recipe ${recipe.id} 的 setId 应与部件模板一致",
+                EquipmentDatabase.getPieceById(recipe.pieceId)!!.setId,
+                recipe.setId
             )
-            assertTrue(
-                "Recipe ${recipe.id} has invalid tier: ${recipe.tier}",
-                recipe.tier in 1..6
+
+            assertEquals(
+                "Recipe ${recipe.id} 材料表应为品阶 1..6 六档",
+                6,
+                recipe.tierMaterials.size
             )
-            assertTrue(
-                "Recipe ${recipe.id} has invalid rarity: ${recipe.rarity}",
-                recipe.rarity in 1..6
-            )
-            assertTrue(
-                "Recipe ${recipe.id} has blank description",
-                recipe.description.isNotBlank()
-            )
-            assertTrue(
-                "Recipe ${recipe.id} has invalid duration: ${recipe.duration}",
-                recipe.duration > 0
-            )
-            assertTrue(
-                "Recipe ${recipe.id} has invalid successRate: ${recipe.successRate}",
-                recipe.successRate > 0.0 && recipe.successRate <= 1.0
-            )
+            for (tier in 1..6) {
+                val materials = recipe.materialsFor(tier)
+                assertTrue(
+                    "Recipe ${recipe.id} tier $tier 材料表为空",
+                    materials.isNotEmpty()
+                )
+                for ((materialId, quantity) in materials) {
+                    assertTrue(
+                        "Recipe ${recipe.id} tier $tier 材料 id 空白",
+                        materialId.isNotBlank()
+                    )
+                    assertTrue(
+                        "Recipe ${recipe.id} tier $tier 材料 $materialId 数量非正: $quantity",
+                        quantity > 0
+                    )
+                }
+            }
         }
     }
 
-    // 2. Recipe IDs are unique
+    // 3. id 唯一
     @Test
     fun allRecipes_haveUniqueIds() {
-        val recipes = ForgeRecipeDatabase.getAllRecipes()
-        val ids = recipes.map { it.id }
-        val distinctIds = ids.toSet()
-        assertEquals(
-            "Duplicate recipe IDs found",
-            ids.size,
-            distinctIds.size
-        )
+        val ids = ForgeRecipeDatabase.getAllRecipes().map { it.id }
+        assertEquals("存在重复配方 id", ids.size, ids.toSet().size)
     }
 
-    // 3. Each recipe has valid input materials
+    // 4. 时长/成功率按 tier 取档且与全局表一致
     @Test
-    fun allRecipes_haveValidInputMaterials() {
-        val recipes = ForgeRecipeDatabase.getAllRecipes()
-        for (recipe in recipes) {
-            assertTrue(
-                "Recipe ${recipe.id} has no materials",
-                recipe.materials.isNotEmpty()
-            )
-            for ((materialId, quantity) in recipe.materials) {
-                assertTrue(
-                    "Recipe ${recipe.id} has blank material id",
-                    materialId.isNotBlank()
-                )
-                assertTrue(
-                    "Recipe ${recipe.id} has non-positive quantity for material $materialId: $quantity",
-                    quantity > 0
-                )
-            }
-        }
-    }
+    fun durationAndSuccessRate_followTierTables() {
+        assertEquals(6, ForgeRecipeDatabase.TIER_DURATION.size)
+        assertEquals(6, ForgeRecipeDatabase.TIER_SUCCESS_RATE.size)
 
-    // 4. Each recipe has valid output equipment (id exists in EquipmentDatabase)
-    @Test
-    fun allRecipes_haveValidOutputEquipment() {
-        val recipes = ForgeRecipeDatabase.getAllRecipes()
-        for (recipe in recipes) {
-            val equipment = EquipmentDatabase.getById(recipe.id)
-            assertNotNull(
-                "Recipe ${recipe.id} has no matching equipment in EquipmentDatabase",
-                equipment
-            )
-            if (equipment != null) {
-                assertEquals(
-                    "Recipe ${recipe.id} rarity does not match equipment rarity",
-                    equipment.rarity,
-                    recipe.rarity
-                )
-                assertEquals(
-                    "Recipe ${recipe.id} type does not match equipment slot",
-                    equipment.slot,
-                    recipe.type
-                )
-            }
-        }
-    }
-
-    // 5. getByRarity works
-    @Test
-    fun getRecipesByTier_returnsRecipesOfSpecificTier() {
+        val recipe = ForgeRecipeDatabase.getAllRecipes().first()
         for (tier in 1..6) {
-            val recipes = ForgeRecipeDatabase.getRecipesByTier(tier)
-            assertTrue(
-                "getRecipesByTier($tier) returned empty list",
-                recipes.isNotEmpty()
+            assertEquals(
+                "durationFor($tier) 应与 TIER_DURATION 一致",
+                ForgeRecipeDatabase.TIER_DURATION[tier],
+                recipe.durationFor(tier)
             )
-            for (recipe in recipes) {
-                assertEquals(
-                    "Recipe ${recipe.id} has wrong tier",
-                    tier,
-                    recipe.tier
-                )
-            }
+            assertEquals(
+                "successRateFor($tier) 应与 TIER_SUCCESS_RATE 一致",
+                ForgeRecipeDatabase.TIER_SUCCESS_RATE[tier - 1],
+                recipe.successRateFor(tier),
+                1e-9
+            )
+            assertTrue(
+                "tier $tier 成功率应在 (0,1]",
+                recipe.successRateFor(tier) > 0.0 && recipe.successRateFor(tier) <= 1.0
+            )
+            assertTrue("tier $tier 时长应为正", recipe.durationFor(tier) > 0)
         }
     }
 
+    // 5. getRecipeById 命中/未命中
     @Test
-    fun getRecipesByTier_returnsEmptyListForInvalidTier() {
-        assertTrue(ForgeRecipeDatabase.getRecipesByTier(0).isEmpty())
-        assertTrue(ForgeRecipeDatabase.getRecipesByTier(7).isEmpty())
-    }
-
-    // 6. getById works
-    @Test
-    fun getRecipeById_returnsRecipeForKnownId() {
+    fun getRecipeById_knownAndUnknown() {
         val knownId = ForgeRecipeDatabase.getAllRecipes().first().id
         val result = ForgeRecipeDatabase.getRecipeById(knownId)
-        assertNotNull("getRecipeById returned null for known id: $knownId", result)
+        assertNotNull("已知 id 应命中", result)
         assertEquals(knownId, result!!.id)
+
+        assertNull("未知 id 应返回 null", ForgeRecipeDatabase.getRecipeById("nonExistentRecipeId12345"))
     }
 
+    // 6. getRecipeByPiece 与部件一一对应
     @Test
-    fun getRecipeById_returnsNullForUnknownId() {
-        val result = ForgeRecipeDatabase.getRecipeById("nonExistentRecipeId12345")
-        assertNull("getRecipeById should return null for unknown id", result)
+    fun getRecipeByPiece_roundTripsAllPieces() {
+        for (recipe in ForgeRecipeDatabase.getAllRecipes()) {
+            val byPiece = ForgeRecipeDatabase.getRecipeByPiece(recipe.pieceId)
+            assertNotNull("部件 ${recipe.pieceId} 应反查到配方", byPiece)
+            assertEquals(recipe.id, byPiece!!.id)
+        }
+        assertNull("未知部件应返回 null", ForgeRecipeDatabase.getRecipeByPiece("no_such_piece"))
     }
 
-    // ============================================================
-    // getCraftableRecipes maxTier 过滤（职业系统）
-    // ============================================================
-
+    // 7. getRecipesByType 每部位恰 2 条（两套各一）
     @Test
-    fun getCraftableRecipes_maxTier1_returnsOnlyTier1() {
-        val result = ForgeRecipeDatabase.getCraftableRecipes(1)
-
-        assertTrue("无职业可锻配方不应为空", result.isNotEmpty())
-        assertTrue("全部应为一品凡品", result.all { it.tier == 1 })
-    }
-
-    @Test
-    fun getCraftableRecipes_maxTierFiltersStrictly() {
-        for (maxTier in 1..6) {
-            val result = ForgeRecipeDatabase.getCraftableRecipes(maxTier)
-            assertTrue("品阶不应超限: $maxTier", result.all { it.tier <= maxTier })
-            if (maxTier < 6) {
-                val containsHigher = ForgeRecipeDatabase.getAllRecipes().any { it.tier > maxTier }
-                assertTrue("应过滤掉高阶配方: $maxTier", containsHigher)
-                assertTrue(
-                    "应包含当前阶配方: $maxTier",
-                    result.any { it.tier == maxTier }
-                )
-            }
+    fun getRecipesByType_returnsTwoRecipesPerPart() {
+        for (part in EquipmentSlot.entries) {
+            val recipes = ForgeRecipeDatabase.getRecipesByType(part)
+            assertEquals("部位 $part 应有 2 条配方（两套各一）", 2, recipes.size)
+            assertTrue(
+                "部位 $part 的配方 part 字段应一致",
+                recipes.all { it.part == part }
+            )
         }
     }
 
+    // 8. getRecipesByMaterial 命中与未命中
     @Test
-    fun getCraftableRecipes_maxTier6_returnsAll() {
-        val result = ForgeRecipeDatabase.getCraftableRecipes(6)
-        assertEquals(
-            "maxTier6 应返回全部配方",
-            ForgeRecipeDatabase.getAllRecipes().size,
-            result.size
+    fun getRecipesByMaterial_hitsAndMisses() {
+        val byBearHide = ForgeRecipeDatabase.getRecipesByMaterial("bearHide0")
+        assertTrue("bearHide0 应被头部配方引用", byBearHide.isNotEmpty())
+        assertTrue(
+            "引用 bearHide0 的配方材料表应确含该材料",
+            byBearHide.all { recipe -> recipe.tierMaterials.any { it.containsKey("bearHide0") } }
         )
+        assertTrue("未知材料应返回空", ForgeRecipeDatabase.getRecipesByMaterial("no_such_material").isEmpty())
     }
 
+    // 9. getCraftableRecipes 恒全量（配方不分 tier，产出品阶由槽位 tier 决定）
     @Test
-    fun getCraftableRecipes_maxTier0_returnsEmpty() {
-        val result = ForgeRecipeDatabase.getCraftableRecipes(0)
-        assertTrue("maxTier0 应无配方", result.isEmpty())
+    fun getCraftableRecipes_alwaysReturnsAll() {
+        for (maxTier in 0..7) {
+            assertEquals(
+                "getCraftableRecipes($maxTier) 应恒返回全部 12 条",
+                ForgeRecipeDatabase.getAllRecipes().size,
+                ForgeRecipeDatabase.getCraftableRecipes(maxTier).size
+            )
+        }
+    }
+
+    // 10. getDurationByTier 越界回退
+    @Test
+    fun getDurationByTier_knownAndFallback() {
+        assertEquals(3, ForgeRecipeDatabase.getDurationByTier(1))
+        assertEquals(120, ForgeRecipeDatabase.getDurationByTier(6))
+        assertEquals("越界 tier 回退 2", 2, ForgeRecipeDatabase.getDurationByTier(99))
     }
 }

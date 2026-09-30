@@ -43,10 +43,8 @@ Combatant baseCombatant(const std::string& id, const std::string& name) {
     c.maxHp = 1000;
     c.mp = 100;
     c.maxMp = 100;
-    c.physicalAttack = 120;
-    c.magicAttack = 100;
-    c.physicalDefense = 60;
-    c.magicDefense = 50;
+    c.attack = 120;
+    c.defense = 60;
     c.speed = 80;
     c.critRate = 0.15;
     c.realm = 9;
@@ -205,9 +203,9 @@ TEST(BattleAI, GoldenControlHighThreatSeed42) {
     stun.buffDuration = 2;
     unit.skills = {stun};
     auto enemy1 = baseCombatant("e1", "敌人一");
-    enemy1.physicalAttack = 200;
+    enemy1.attack = 200;
     auto enemy2 = baseCombatant("e2", "敌人二");
-    enemy2.physicalAttack = 100;
+    enemy2.attack = 100;
     const int64_t before = rng.snapshot();
     const auto action = gamecore::battle::decideAction(unit, {unit}, {enemy1, enemy2}, rng);
     const int64_t after = rng.snapshot();
@@ -421,12 +419,12 @@ TEST(BattleAI, TargetSelectionBranchesAcrossSeeds) {
     unit.skills = {heavy};
     auto enemy1 = baseCombatant("e1", "高攻");
     enemy1.hp = 800;
-    enemy1.physicalAttack = 300;
-    enemy1.physicalDefense = 20;
+    enemy1.attack = 300;
+    enemy1.defense = 20;
     auto enemy2 = baseCombatant("e2", "血少");
     enemy2.hp = 500;
-    enemy2.physicalAttack = 50;
-    enemy2.physicalDefense = 90;
+    enemy2.attack = 50;
+    enemy2.defense = 90;
 
     std::set<std::string> seenTargets;
     for (int64_t seed : {1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 42L, 99L, 555L,

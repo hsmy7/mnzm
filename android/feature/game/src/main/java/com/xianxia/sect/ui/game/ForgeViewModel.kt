@@ -11,7 +11,6 @@ import com.xianxia.sect.core.engine.startForging
 import com.xianxia.sect.core.engine.toggleAutoRestart
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ForgeRecipe
-import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.ForgeSlot
 import com.xianxia.sect.core.model.ForgeSlotStatus
 import com.xianxia.sect.core.model.artifactRefining
@@ -44,7 +43,8 @@ class ForgeViewModel @Inject constructor(
                     recipeId = slot.recipeId,
                     recipeName = slot.recipeName,
                     equipmentName = recipe?.name ?: "",
-                    equipmentRarity = recipe?.rarity ?: 1,
+                    // B3：产出品阶 = 锻造完成时工作弟子 forgeLevel，完成前未知 → 占位 1
+                    equipmentRarity = 1,
                     startYear = slot.startYear,
                     startMonth = slot.startMonth,
                     duration = slot.duration,
@@ -101,41 +101,32 @@ class ForgeViewModel @Inject constructor(
         val currentMaterials = gameEngine.getCurrentMaterials()
         val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
-        val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
-
+        // B3 配方不分 tier：12 条套装部件配方全量参与，产出品阶 = 工作弟子
+        // 锻造等级（1..6，无弟子按 1）；材料门控按该 tier 取档 materialsFor
+        val allRecipes = ForgeRecipeDatabase.getAllRecipes()
         val slot = gameEngine.productionSlots.value.find {
             it.buildingType == BuildingType.FORGE && it.slotIndex == slotIndex
         }
 
-        // 职业门禁：按槽位弟子炼器师职业等级限制可锻品阶（无职业只能锻凡品；
-        // 弟子查不到时按无职业兜底，禁止放开到最高阶）
-        val maxTier = slot?.assignedDiscipleId
+        val forgeTier = slot?.assignedDiscipleId
             ?.let { id -> gameEngine.discipleAggregatesSnapshot.find { it.id == id }?.forgeLevel }
-            ?.let { ProfessionRules.maxCraftableTier(it) }
+            ?.coerceIn(1, 6)
             ?: 1
-        val craftableRecipes = allRecipes.filter { it.tier <= maxTier }
+
+        fun craftable(recipe: ForgeRecipeDatabase.ForgeRecipe): Boolean =
+            recipe.materialsFor(forgeTier).all { (materialId, requiredQuantity) ->
+                val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                materialData != null && run {
+                    val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                    available >= requiredQuantity
+                }
+            }
 
         val recipeToStart = slot?.recipeId
             ?.let { prevRecipeId ->
-                craftableRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
-                    recipe.materials.all { (materialId, requiredQuantity) ->
-                        val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                        materialData != null && run {
-                            val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                            available >= requiredQuantity
-                        }
-                    }
-                }
+                allRecipes.find { it.id == prevRecipeId }?.takeIf(::craftable)
             }
-            ?: craftableRecipes.firstOrNull { recipe ->
-                recipe.materials.all { (materialId, requiredQuantity) ->
-                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                    materialData != null && run {
-                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                        available >= requiredQuantity
-                    }
-                }
-            }
+            ?: allRecipes.firstOrNull(::craftable)
             ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
 
         return gameEngine.startForging(slotIndex, recipeToStart.id)

@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -207,8 +206,8 @@ class DiffStateTest {
                 x = 10.5f, y = 20.5f, spawnYear = 3, spawnMonth = 1,
                 expiryYear = 3, expiryMonth = 6, count = 2,
                 defeated = true, beastMaxHp = 500, beastMaxMp = 100,
-                beastPhysicalAttack = 50, beastMagicAttack = 20,
-                beastPhysicalDefense = 30, beastMagicDefense = 15
+                beastAttack = 50,
+                beastDefense = 30
             )
         )
         placedBuildings = listOf(
@@ -253,16 +252,20 @@ class DiffStateTest {
     private fun disciplesAndItemsRoundTripSample(): NativeGameState = NativeGameState(
         gameData = GameData().apply { gameYear = 3 }.normalizedForRoundTrip(),
         disciples = sampleDisciples(),
-        equipmentStacks = listOf(
-            EquipmentStack(
-                id = "eq-s1", name = "青锋剑", rarity = 3, quantity = 2,
-                slot = EquipmentSlot.WEAPON, physicalAttack = 12, magicAttack = 3
-            )
-        ),
+        // equipmentStacks 弃用载体无 C++ 运输面（B3 容器已删，导出恒空）——
+        // 旧档载体走补偿链，不在镜像对拍样本内；实例轨见下
         equipmentInstances = listOf(
             EquipmentInstance(
-                id = "eq-i1", name = "玄铁甲", rarity = 4,
-                slot = EquipmentSlot.ARMOR, physicalDefense = 15,
+                id = "eq-i1", name = "玄铁甲",
+                part = EquipmentSlot.BODY,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.DEFENSE, 15.0
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 4),
                 ownerId = "d-1", isEquipped = true
             )
         ),
@@ -353,7 +356,16 @@ class DiffStateTest {
         )
         assertEquals(
             "快照往返后必须逐字段相等",
-            sample.copy(gameData = sample.gameData.copy(rngStates = decoded.gameData.rngStates)),
+            sample.copy(
+                gameData = sample.gameData.copy(
+                    rngStates = decoded.gameData.rngStates,
+                    // legacyEquipmentCompensated(169) 是存档侧补偿幂等标记（B3），
+                    // C++ 引擎无消费者 → 按不可镜像口径归一（与 Mirror 消费面守卫的
+                    // intentionallyUnmirrored 登记同源），往返比对不因 C++ 丢弃而红
+                    legacyEquipmentCompensated =
+                        decoded.gameData.legacyEquipmentCompensated,
+                ),
+            ),
             decoded,
         )
     }

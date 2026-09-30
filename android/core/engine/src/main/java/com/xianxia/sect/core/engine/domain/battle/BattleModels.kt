@@ -2,9 +2,12 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.InnateDamageType
 
 /**
  * 战斗数据模型（从 BattleSystem.kt 提取）
@@ -29,6 +32,15 @@ data class CombatBuff(
     val sourceRealmLayer: Int = 0
 )
 
+/**
+ * 战斗单位（属性单列口径，装备重构 B1 方案 §15）：
+ * - 攻防各一列 [attack]/[defense]，物理/法术之分由三条通道承载：
+ *   普攻 [innateDamageType]、技能 damageType、类型增伤/减伤分桶
+ *   （[physicalDamageBonus]/[magicDamageBonus] + [physicalDamageReduction]/
+ *   [magicDamageReduction]，默认 0.0 ⇒ 未配置时与旧公式逐位一致，S19）；
+ * - 物法命名的攻防 Buff（PHYSICAL_ATTACK_BOOST 等八类）结算位置迁移为
+ *   类型增伤/减伤语义（枚举名不变，见 BattleCalculator.buildDamageZones）。
+ */
 data class Combatant(
     val id: String,
     val name: String,
@@ -37,22 +49,35 @@ data class Combatant(
     val maxHp: Int,
     val mp: Int,
     val maxMp: Int,
-    val physicalAttack: Int,
-    val magicAttack: Int,
-    val physicalDefense: Int,
-    val magicDefense: Int,
+    val attack: Int,
+    val defense: Int,
+    /** 普攻伤害类型（弟子按固有属性、妖兽/敌人按种类固定；技能另按 skill.damageType） */
+    val innateDamageType: DamageType = DamageType.PHYSICAL,
+    /** 物理伤害加成（类型增伤桶，攻方；装备/套装等来源，B1 默认 0.0） */
+    val physicalDamageBonus: Double = 0.0,
+    /** 法术伤害加成（类型增伤桶，攻方；同上） */
+    val magicDamageBonus: Double = 0.0,
+    /** 物理伤害减免（类型减伤桶，守方；妖兽类型抗性等来源，B1 默认 0.0） */
+    val physicalDamageReduction: Double = 0.0,
+    /** 法术伤害减免（类型减伤桶，守方；同上） */
+    val magicDamageReduction: Double = 0.0,
     val speed: Int,
     val critRate: Double,
+    /** 暴击伤害加成（B3 接线 D3：暴击时 `critMult = 1 + kCritBaseMultiplier + critDamageBonus`） */
+    val critDamageBonus: Double = 0.0,
     val skills: List<CombatSkill>,
     val buffs: List<CombatBuff> = emptyList(),
     val realm: Int = 9,
     val realmName: String = "",
     val realmLayer: Int = 0,
     val element: String = "",
+    // 六部位装备展示名（0.2-12：四具名字段六部位化；C++ 侧不入战斗状态，仅展示）
+    val headName: String? = null,
+    val bodyName: String? = null,
+    val handsName: String? = null,
+    val feetName: String? = null,
     val weaponName: String? = null,
-    val armorName: String? = null,
-    val bootsName: String? = null,
-    val accessoryName: String? = null,
+    val legsName: String? = null,
     val portraitRes: String = "",
     val isBeast: Boolean = false
 ) {
@@ -60,30 +85,6 @@ data class Combatant(
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0
     val mpPercent: Double get() = if (maxMp > 0) mp.toDouble() / maxMp else 0.0
     val hasControlEffect: Boolean get() = buffs.any { it.type == BuffType.STUN || it.type == BuffType.FREEZE }
-
-    val effectivePhysicalAttack: Int get() {
-        val boost = buffs.filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST }.sumOf { it.value }
-        val reduce = buffs.filter { it.type == BuffType.PHYSICAL_ATTACK_REDUCE }.sumOf { it.value }
-        return (physicalAttack * (1 + boost - reduce)).toInt().coerceAtLeast(0)
-    }
-
-    val effectiveMagicAttack: Int get() {
-        val boost = buffs.filter { it.type == BuffType.MAGIC_ATTACK_BOOST }.sumOf { it.value }
-        val reduce = buffs.filter { it.type == BuffType.MAGIC_ATTACK_REDUCE }.sumOf { it.value }
-        return (magicAttack * (1 + boost - reduce)).toInt().coerceAtLeast(0)
-    }
-
-    val effectivePhysicalDefense: Int get() {
-        val boost = buffs.filter { it.type == BuffType.PHYSICAL_DEFENSE_BOOST }.sumOf { it.value }
-        val reduce = buffs.filter { it.type == BuffType.PHYSICAL_DEFENSE_REDUCE }.sumOf { it.value }
-        return (physicalDefense * (1 + boost - reduce)).toInt().coerceAtLeast(0)
-    }
-
-    val effectiveMagicDefense: Int get() {
-        val boost = buffs.filter { it.type == BuffType.MAGIC_DEFENSE_BOOST }.sumOf { it.value }
-        val reduce = buffs.filter { it.type == BuffType.MAGIC_DEFENSE_REDUCE }.sumOf { it.value }
-        return (magicDefense * (1 + boost - reduce)).toInt().coerceAtLeast(0)
-    }
 
     val effectiveCritRate: Double get() {
         val boost = buffs.filter { it.type == BuffType.CRIT_RATE_BOOST }.sumOf { it.value }
@@ -111,6 +112,18 @@ data class Combatant(
 enum class BattleWinner {
     TEAM, BEASTS, DRAW
 }
+
+/**
+ * 弟子普攻伤害类型解析（B1 §15.3 单点）：
+ * 显式 `combat.innateDamageType` 优先；空串/非法值（存量旧弟子）按模板 id →
+ * 角色 `InnateDamageType.derive`（模板缺失按首灵根 金/土→物理、水/木/火→法术）兜底。
+ */
+fun Disciple.resolvedInnateDamageType(): DamageType =
+    try {
+        DamageType.valueOf(combat.innateDamageType)
+    } catch (_: IllegalArgumentException) {
+        DamageType.valueOf(InnateDamageType.derive(templateId, spiritRootType))
+    }
 
 data class AttackResult(
     val attacker: Combatant,

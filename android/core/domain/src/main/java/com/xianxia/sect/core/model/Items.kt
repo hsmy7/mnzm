@@ -27,28 +27,25 @@ sealed class GameItem : HasId {
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
 
+/**
+ * 旧装备堆叠（B3 起退役——仅作旧档补偿的**只读载体**保留声明，禁参与任何新逻辑）。
+ *
+ * 保留原因（EQ-B1/B2「保留+归一化」先例）：旧 .sav/云档与 MIGRATION_63_64 影子表
+ * （`legacy_equipment_stacks`/`legacy_equipment_instances`）中的堆叠/实例行需要
+ * 可反序列化的载体，`LegacyEquipmentCompensationRule` 据此按 §5.4 折算补偿；
+ * 补偿完成后该类型不再有写入点（R6：运行时装备一律一行一实例，无堆叠语义）。
+ * `nurtureLevel(18)` 为 B3 搬运新增号（旧实例行 → 堆叠形搬运时携带孕养等级，
+ * 供补偿公式 `basePrice × (1 + 0.5 × 已孕养等级/品阶满级)` 取值）。
+ */
+@Deprecated("装备堆叠已随 B3 退役（一行一实例）；保留声明仅供旧档补偿折算，禁新增写入点")
 @Keep
 @Serializable
-@Entity(
-    tableName = "equipment_stacks",
-    primaryKeys = ["id", "slot_id"],
-    indices = [
-        Index(value = ["name"]),
-        Index(value = ["rarity"]),
-        Index(value = ["slot"]),
-        Index(value = ["rarity", "slot"]),
-        Index(value = ["minRealm"])
-    ]
-)
-@Immutable
 data class EquipmentStack(
-    @ColumnInfo(name = "id")
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
     @ProtoNumber(100)
-    var slotId: Int = 0,
+    val slotId: Int = 0,
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -80,64 +77,126 @@ data class EquipmentStack(
     val minRealm: Int = 9,
 
     @ProtoNumber(17)
-    override var quantity: Int = 1,
+    val quantity: Int = 1,
     @ProtoNumber(101)
-    override val isLocked: Boolean = false
-) : GameItem(), StackableItem {
+    val isLocked: Boolean = false,
 
-    override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
+    /** 旧实例行搬运面：孕养等级（堆叠行恒 0）；补偿折算用 */
+    @ProtoNumber(18)
+    val nurtureLevel: Int = 0
+) : GameItem() {
 
-    override fun withNewId(newId: String): StackableItem = copy(id = newId)
-
-    val basePrice: Int get() = EquipmentDatabase.getTemplateByName(name)?.price
-        ?: GameConfig.Rarity.get(rarity).basePrice
-
-    val stats: EquipmentStats get() = EquipmentStats(
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
-        speed = speed,
-        hp = hp,
-        mp = mp
-    )
-
-    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null,
-        isEquipped: Boolean = true): EquipmentInstance = EquipmentInstance(
-        id = id,
-        slotId = slotId,
-        name = name,
-        rarity = rarity,
-        description = description,
-        slot = slot,
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
-        speed = speed,
-        hp = hp,
-        mp = mp,
-        critChance = critChance,
-        minRealm = minRealm,
-        ownerId = ownerId,
-        isEquipped = isEquipped
-    )
+    /** 旧装备折算单价：旧模板价格快照（已删模板的静态快照表），缺失按品阶基准价 */
+    val basePrice: Int get() = LegacyEquipmentPrices.priceOf(name, rarity)
 }
 
+/**
+ * 旧堆叠载体 → 轻量实例（过渡桥：秘境背包/战利品等仍以 deprecated 载体流动的
+ * 装备入实例轨时转换；按部件名反查新表——命中走新表元数据，未命中（旧装备名）
+ * 用载体自身值构造占位实例，词条空面）。补偿折算面不走此函数（规则直接读载体）。
+ */
+fun EquipmentStack.toLegacyInstance(): EquipmentInstance {
+    val entry = EquipmentDatabaseCompat.findEntryByName(name)
+    return if (entry != null) {
+        EquipmentInstance(
+            name = entry.name,
+            setId = entry.setId,
+            part = entry.part,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))
+            ),
+            meta = EquipInstanceMeta(
+                rarity = entry.rarity,
+                minRealm = entry.minRealm,
+                description = entry.description
+            )
+        )
+    } else {
+        EquipmentInstance(
+            name = name,
+            part = EquipmentSlot.entries.find { it.name == slot.name } ?: EquipmentSlot.HEAD,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))
+            ),
+            meta = EquipInstanceMeta(rarity = rarity, minRealm = minRealm, description = description)
+        )
+    }
+}
+
+/**
+ * 兼容桥（domain 内部）：按部件名查新表展开条目。registry 包在 domain 内但
+ * model 包先于 registry 初始化，此处用函数间接避免 object 初始化环。
+ */
+private object EquipmentDatabaseCompat {
+    fun findEntryByName(name: String): com.xianxia.sect.core.registry.EquipmentDatabase.EquipPieceEntry? =
+        com.xianxia.sect.core.registry.EquipmentDatabase.entries.values
+            .filter { it.name == name }.minByOrNull { it.rarity }
+}
+
+/**
+ * 旧装备模板价格快照（补偿专用，方案 §5.4/§5.7 先例：模板已删，折算表由静态
+ * 快照提供，不依赖运行时模板）。72 条旧模板名 → 价格；缺失名按品阶基准价兜底。
+ */
+object LegacyEquipmentPrices {
+    private val BASE_BY_RARITY = listOf(4_000, 16_000, 80_000, 480_000, 3_360_000, 26_880_000)
+
+    /** 旧 72 模板名 → 价格（静态快照；来源 = 退役时刻 EquipmentDatabase） */
+    private val PRICES: Map<String, Int> = mapOf(
+        // 武器（24）
+        "精铁剑" to 4_000, "精铁刀" to 4_000, "桃木杖" to 4_000, "碧木扇" to 4_000,
+        "灵锋剑" to 16_000, "凌华刀" to 16_000, "碧玉杖" to 16_000, "灵风扇" to 16_000,
+        "青碧刃" to 80_000, "烈焰剑" to 80_000, "玄雷杖" to 80_000, "玄冰扇" to 80_000,
+        "雷霆剑" to 480_000, "暗影刃" to 480_000, "虚华杖" to 480_000, "凰焰扇" to 480_000,
+        "凤炎刃" to 3_360_000, "青莲剑" to 3_360_000, "阴阳扇" to 3_360_000, "天玄杖" to 3_360_000,
+        "诛仙剑" to 26_880_000, "玄玉刃" to 26_880_000, "天星杖" to 26_880_000, "天玄扇" to 26_880_000,
+        // 护甲（24）
+        "皮甲" to 4_000, "锁子甲" to 4_000, "精铁甲" to 4_000, "灵竹衣" to 4_000,
+        "碧叶甲" to 16_000, "丹羽衣" to 16_000, "灵丝袍" to 16_000, "云纹袍" to 16_000,
+        "青鳞铠" to 80_000, "银板铠" to 80_000, "汐流衣" to 80_000, "星辰袍" to 80_000,
+        "龙鳞铠" to 480_000, "渊岩铠" to 480_000, "瑶光袍" to 480_000, "月华袍" to 480_000,
+        "玄幽袍" to 3_360_000, "墨幽铠" to 3_360_000, "凌星袍" to 3_360_000, "定海铠" to 3_360_000,
+        "不朽铠" to 26_880_000, "苍罡铠" to 26_880_000, "曦光铠" to 26_880_000, "云影袍" to 26_880_000,
+        // 靴（12）
+        "青澜靴" to 4_000, "兽皮靴" to 4_000,
+        "疾风靴" to 16_000, "轻羽靴" to 16_000,
+        "追风靴" to 80_000, "云栖靴" to 80_000,
+        "踏云履" to 480_000, "奔雷靴" to 480_000,
+        "溯光靴" to 3_360_000, "赤煞靴" to 3_360_000,
+        "鸾羽履" to 26_880_000, "鹤岚靴" to 26_880_000,
+        // 饰品（12）
+        "玉戒指" to 4_000, "铜项链" to 4_000,
+        "灵玉佩" to 16_000, "蕴灵戒" to 16_000,
+        "灵泉戒" to 80_000, "迅捷珠" to 80_000,
+        "龙灵珠" to 480_000, "凤羽坠" to 480_000,
+        "渡厄佩" to 3_360_000, "隐云佩" to 3_360_000,
+        "幽朔珠" to 26_880_000, "长明坠" to 26_880_000
+    )
+
+    fun priceOf(name: String, rarity: Int): Int =
+        PRICES[name] ?: BASE_BY_RARITY.getOrElse((rarity - 1).coerceIn(0, 5)) { 4_000 }
+}
+/**
+ * 装备实例（装备重构 B3，方案 §3.5）：一行一实例、无堆叠、等级随实例单点。
+ *
+ * ## 存档编号（E1 冻结表，方案 §5.3 / `EquipmentProtoNumberFrozenTest`）
+ * 保留 `id(1)/slotId(100)/name(2)/ownerId(16)/isEquipped(11)`；新增
+ * `setId(60)/part(61)/growth(62)/meta(63)`；退役
+ * `slot(3)/rarity(4)/description(7)/critChance(10)/nurtureLevel(13)/
+ * nurtureProgress(14)/minRealm(15)/面板属性(50–56)`——旧档字节按未知字段
+ * 忽略，禁复用；旧档实例在 MIGRATION_63_64 全部作废（R2 + §5.4 补偿）。
+ */
 @Keep
 @Serializable
 @Entity(
     tableName = "equipment_instances",
     primaryKeys = ["id", "slot_id"],
     indices = [
-        Index(value = ["name"]),
-        Index(value = ["rarity"]),
-        Index(value = ["slot"]),
         Index(value = ["ownerId"]),
-        Index(value = ["rarity", "slot"]),
-        Index(value = ["minRealm"])
+        Index(value = ["setId"]),
+        Index(value = ["part"])
     ]
 )
+@Immutable
 data class EquipmentInstance(
     @ColumnInfo(name = "id")
     @ProtoNumber(1)
@@ -149,37 +208,24 @@ data class EquipmentInstance(
 
     @ProtoNumber(2)
     override val name: String = "",
-    @ProtoNumber(4)
-    override val rarity: Int = 1,
-    @ProtoNumber(7)
-    override val description: String = "",
+    // reserved 3,4,7,10,13,14,15;（slot/rarity/description/critChance/nurtureLevel/
+    // nurtureProgress/minRealm 字段号已退役，禁复用）
+    // reserved 50..56;（旧面板 7 属性 + 暴击率字段号已退役，禁复用）
 
-    @ProtoNumber(3)
-    val slot: EquipmentSlot = EquipmentSlot.WEAPON,
-    @ProtoNumber(50)
-    val physicalAttack: Int = 0,
-    @ProtoNumber(51)
-    val magicAttack: Int = 0,
-    @ProtoNumber(52)
-    val physicalDefense: Int = 0,
-    @ProtoNumber(53)
-    val magicDefense: Int = 0,
-    @ProtoNumber(54)
-    val speed: Int = 0,
-    @ProtoNumber(55)
-    val hp: Int = 0,
-    @ProtoNumber(56)
-    val mp: Int = 0,
-    @ProtoNumber(10)
-    val critChance: Double = 0.0,
-
-    @ProtoNumber(13)
-    val nurtureLevel: Int = 0,
-    @ProtoNumber(14)
-    val nurtureProgress: Double = 0.0,
-
-    @ProtoNumber(15)
-    val minRealm: Int = 9,
+    /** 套装 id（"lietian"/"zifu"） */
+    @ProtoNumber(60)
+    val setId: String = "",
+    /** 六部位（HEAD/BODY/HANDS/FEET/WEAPON/LEGS） */
+    @ProtoNumber(61)
+    val part: EquipmentSlot = EquipmentSlot.HEAD,
+    /** 成长面：等级 + 经验 + 词条（等级/词条只存实例单点，清偿 D2） */
+    @ProtoNumber(62)
+    val growth: EquipGrowth = EquipGrowth(
+        affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))
+    ),
+    /** 横切面：品阶/门槛/描述/锁 */
+    @ProtoNumber(63)
+    val meta: EquipInstanceMeta = EquipInstanceMeta(),
 
     @ProtoNumber(16)
     val ownerId: String? = null,
@@ -187,158 +233,67 @@ data class EquipmentInstance(
     val isEquipped: Boolean = false
 ) : GameItem() {
 
-    val basePrice: Int get() = EquipmentDatabase.getTemplateByName(name)?.price
+    val level: Int get() = growth.level
+    val exp: Int get() = growth.exp
+    override val rarity: Int get() = meta.rarity
+    override val description: String get() = meta.description
+    val isLocked: Boolean get() = meta.isLocked
+    val minRealm: Int get() = meta.minRealm
+    val affix: EquipAffixSet get() = growth.affix
+
+    /** 套装部件模板（setId 为空 = 散件 ⇒ null） */
+    val pieceTemplate: EquipmentDatabase.SetPieceTemplate?
+        get() = setId.takeIf { it.isNotEmpty() }?.let { EquipmentDatabase.getPieceById(it) }
+
+    val basePrice: Int get() = pieceTemplate?.priceByRarity?.getOrElse(rarity - 1) { 0 }
         ?: GameConfig.Rarity.get(rarity).basePrice
 
-    val stats: EquipmentStats get() = EquipmentStats(
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
-        speed = speed,
-        hp = hp,
-        mp = mp
-    )
+    /** 完整加成（主词条按等级成长 + 3 副词条含强化收益） */
+    fun totalBonus(): List<EquipStatValue> = growth.affix.totalBonus(growth.level)
 
-    val totalMultiplier: Double
-        get() {
-            val nurtureMult = getNurtureMultiplier(nurtureLevel)
-            return nurtureMult
-        }
+    /** 词条摘要（UI 列表行展示） */
+    val bonusDescription: String
+        get() = totalBonus().joinToString("、") { it.toString() }.ifEmpty { "无属性" }
 
-    private fun getNurtureMultiplier(level: Int): Double {
-        if (level <= 0) return 1.0
-        val maxLevel = 25
-        val actualLevel = level.coerceAtMost(maxLevel)
-        val totalBonus = actualLevel * (actualLevel + 1) / 2.0 * (3.0 / 325.0)
-        return (1.0 + totalBonus).coerceAtMost(4.0)
-    }
-
-    fun getFinalStats(): EquipmentStats = cachedFinalStats(this)
-
-    private fun computeFinalStats(): EquipmentStats {
-        val mult = totalMultiplier
-        return EquipmentStats(
-            physicalAttack = (physicalAttack * mult).toInt(),
-            magicAttack = (magicAttack * mult).toInt(),
-            physicalDefense = (physicalDefense * mult).toInt(),
-            magicDefense = (magicDefense * mult).toInt(),
-            speed = (speed * mult).toInt(),
-            hp = (hp * mult).toInt(),
-            mp = (mp * mult).toInt()
-        )
-    }
+    /** 与 [other] 是否同一件装备（id 相等） */
+    fun sameItem(other: EquipmentInstance): Boolean = id == other.id
 
     companion object {
-        /**
-         * 装备最终属性缓存（引用/值语义，避免重复计算）。
-         *
-         * 键语义：EquipmentInstance 是不可变 COW data class（全字段不可变，
-         * 唯一 var slotId 实际均经 copy 创建新实例）——内容即版本，值语义键
-         * （data class equals/hashCode）使"同内容不同实例"共享缓存且永不需要
-         * 失效逻辑（引用即指纹，对标 COW 架构的既有 disciplePowerCache 模式）。
-         * 纯函数结果缓存：幂等，跨测试/跨线程（ConcurrentHashMap）安全。
-         * 容量护栏：装备实例变更次数无界增长时清空重建（触发罕见，摊还 O(1)）。
-         */
-        private const val FINAL_STATS_CACHE_LIMIT = 4096
-        private val finalStatsCache =
-            java.util.concurrent.ConcurrentHashMap<EquipmentInstance, EquipmentStats>()
-
-        private fun cachedFinalStats(instance: EquipmentInstance): EquipmentStats {
-            finalStatsCache[instance]?.let { return it }
-            val stats = instance.computeFinalStats()
-            if (finalStatsCache.size >= FINAL_STATS_CACHE_LIMIT) {
-                finalStatsCache.clear()
-            }
-            finalStatsCache[instance] = stats
-            return stats
-        }
+        const val MIN_LEVEL = EquipLevelCurve.MIN_LEVEL
+        const val MAX_LEVEL = EquipLevelCurve.MAX_LEVEL
     }
-
-    val totalStatsDescription: String
-        get() {
-            val finalStats = getFinalStats()
-            val stats = mutableListOf<String>()
-            if (finalStats.physicalAttack > 0) stats.add("物攻+${finalStats.physicalAttack}")
-            if (finalStats.magicAttack > 0) stats.add("法攻+${finalStats.magicAttack}")
-            if (finalStats.physicalDefense > 0) stats.add("物防+${finalStats.physicalDefense}")
-            if (finalStats.magicDefense > 0) stats.add("法防+${finalStats.magicDefense}")
-            if (finalStats.speed > 0) stats.add("速度+${finalStats.speed}")
-            if (finalStats.hp > 0) stats.add("生命+${finalStats.hp}")
-            if (finalStats.mp > 0) stats.add("灵力+${finalStats.mp}")
-            return if (stats.isEmpty()) "无属性" else stats.joinToString(", ")
-        }
-
-    fun toStack(quantity: Int = 1): EquipmentStack = EquipmentStack(
-        id = java.util.UUID.randomUUID().toString(),
-        slotId = slotId,
-        name = name,
-        rarity = rarity,
-        description = description,
-        slot = slot,
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
-        speed = speed,
-        hp = hp,
-        mp = mp,
-        critChance = critChance,
-        minRealm = minRealm,
-        quantity = quantity
-    )
 }
 
 @Keep
 @Serializable
 enum class EquipmentSlot {
-    @ProtoNumber(0) WEAPON,
-    @ProtoNumber(1) ARMOR,
-    @ProtoNumber(2) BOOTS,
-    @ProtoNumber(3) ACCESSORY;
+    // 编号 0..3 为已退役的四部位（原 WEAPON/ARMOR/BOOTS/ACCESSORY）：保留 reserved
+    // 语义，禁复用（同名冲突仅 WEAPON 旧0/新14，由 MIGRATION_63_64 清空旧行兜底）。
+    @ProtoNumber(10) HEAD,      // 头部
+    @ProtoNumber(11) BODY,      // 身体
+    @ProtoNumber(12) HANDS,     // 手部
+    @ProtoNumber(13) FEET,      // 脚部
+    @ProtoNumber(14) WEAPON,    // 武器
+    @ProtoNumber(15) LEGS;      // 腿部
 
     val displayName: String get() = when (this) {
+        HEAD -> "头部"
+        BODY -> "身体"
+        HANDS -> "手部"
+        FEET -> "脚部"
         WEAPON -> "武器"
-        ARMOR -> "护甲"
-        BOOTS -> "靴子"
-        ACCESSORY -> "饰品"
-    }
-}
-
-@Keep
-@Serializable
-data class EquipmentStats(
-    @ProtoNumber(1) val physicalAttack: Int = 0,
-    @ProtoNumber(2) val magicAttack: Int = 0,
-    @ProtoNumber(3) val physicalDefense: Int = 0,
-    @ProtoNumber(4) val magicDefense: Int = 0,
-    @ProtoNumber(5) val speed: Int = 0,
-    @ProtoNumber(6) val hp: Int = 0,
-    @ProtoNumber(7) val mp: Int = 0
-) {
-    operator fun plus(other: EquipmentStats): EquipmentStats {
-        return EquipmentStats(
-            physicalAttack = physicalAttack + other.physicalAttack,
-            magicAttack = magicAttack + other.magicAttack,
-            physicalDefense = physicalDefense + other.physicalDefense,
-            magicDefense = magicDefense + other.magicDefense,
-            speed = speed + other.speed,
-            hp = hp + other.hp,
-            mp = mp + other.mp
-        )
+        LEGS -> "腿部"
     }
 
-    fun toDiscipleStats(): DiscipleStats = DiscipleStats(
-        physicalAttack = physicalAttack,
-        magicAttack = magicAttack,
-        physicalDefense = physicalDefense,
-        magicDefense = magicDefense,
-        speed = speed,
-        hp = hp,
-        maxHp = hp,
-        mp = mp,
-        maxMp = mp
-    )
+    /**
+     * UI 六宫格顺序（单一真源；声明序 = 显示序 = R1 指定序 头/身/手/脚/武/腿；
+     * 3×2 宫格：上行 头·身·手，下行 脚·武·腿）。
+     * `EquipmentSlotOrderGuardTest` 同时断言它与枚举声明序一致。
+     */
+    companion object {
+        val displayOrder: List<EquipmentSlot> =
+            listOf(HEAD, BODY, HANDS, FEET, WEAPON, LEGS)
+    }
 }
 
 @Keep
@@ -799,16 +754,12 @@ data class Pill(
     val isAscension: Boolean get() = effects.isAscension
     val cultivationSpeedPercent: Double get() = effects.cultivationSpeedPercent
     val skillExpSpeedPercent: Double get() = effects.skillExpSpeedPercent
-    val nurtureSpeedPercent: Double get() = effects.nurtureSpeedPercent
     val cultivationAdd: Int get() = effects.cultivationAdd
     val skillExpAdd: Int get() = effects.skillExpAdd
-    val nurtureAdd: Int get() = effects.nurtureAdd
     val duration: Int get() = effects.duration
     val cannotStack: Boolean get() = effects.cannotStack
-    val physicalAttackAdd: Int get() = effects.physicalAttackAdd
-    val magicAttackAdd: Int get() = effects.magicAttackAdd
-    val physicalDefenseAdd: Int get() = effects.physicalDefenseAdd
-    val magicDefenseAdd: Int get() = effects.magicDefenseAdd
+    val attackAdd: Int get() = effects.attackAddTotal
+    val defenseAdd: Int get() = effects.defenseAddTotal
     val hpAdd: Int get() = effects.hpAdd
     val mpAdd: Int get() = effects.mpAdd
     val speedAdd: Int get() = effects.speedAdd
@@ -890,16 +841,27 @@ data class PillEffect(
     @ProtoNumber(3) val isAscension: Boolean = false,
     @ProtoNumber(4) val cultivationSpeedPercent: Double = 0.0,
     @ProtoNumber(5) val skillExpSpeedPercent: Double = 0.0,
-    @ProtoNumber(6) val nurtureSpeedPercent: Double = 0.0,
+    // reserved 6,9;（nurtureSpeedPercent/nurtureAdd 孕养类加成丹效果，R11 退役——
+    // 旧档字节按未知字段忽略，禁复用）
     @ProtoNumber(7) val cultivationAdd: Int = 0,
     @ProtoNumber(8) val skillExpAdd: Int = 0,
-    @ProtoNumber(9) val nurtureAdd: Int = 0,
     @ProtoNumber(10) val duration: Int = 3,
     @ProtoNumber(11) val cannotStack: Boolean = true,
+    // ── 攻防加成单列口径（B1，方案 §15.4）──
+    // 新写入 attackAdd(36)/defenseAdd(37)；旧物法四列（12–15）保留声明仅作旧档
+    // 归一化读取（不再写入），消费点一律读 [attackAddTotal]/[defenseAddTotal]。
+    @Deprecated("旧物攻加成，仅旧档归一化读取；改用 attackAddTotal")
     @ProtoNumber(12) val physicalAttackAdd: Int = 0,
+    @Deprecated("旧法攻加成，仅旧档归一化读取")
     @ProtoNumber(13) val magicAttackAdd: Int = 0,
+    @Deprecated("旧物防加成，仅旧档归一化读取")
     @ProtoNumber(14) val physicalDefenseAdd: Int = 0,
+    @Deprecated("旧法防加成，仅旧档归一化读取")
     @ProtoNumber(15) val magicDefenseAdd: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    @ProtoNumber(36) val attackAdd: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    @ProtoNumber(37) val defenseAdd: Int = 0,
     @ProtoNumber(16) val hpAdd: Int = 0,
     @ProtoNumber(17) val mpAdd: Int = 0,
     @ProtoNumber(18) val speedAdd: Int = 0,
@@ -920,7 +882,13 @@ data class PillEffect(
     @ProtoNumber(33) val mpRecoverMaxMpPercent: Double = 0.0,
     @ProtoNumber(34) val revive: Boolean = false,
     @ProtoNumber(35) val clearAll: Boolean = false
-)
+) {
+    /** 有效攻击加成：新单列值 + 旧物法两列归一化（旧档 12/13 有值、新档恒 0） */
+    val attackAddTotal: Int get() = attackAdd + physicalAttackAdd + magicAttackAdd
+
+    /** 有效防御加成：口径同 [attackAddTotal] */
+    val defenseAddTotal: Int get() = defenseAdd + physicalDefenseAdd + magicDefenseAdd
+}
 
 @Keep
 @Serializable
@@ -1088,26 +1056,9 @@ data class Seed(
 }
 
 /**
- * 从装备实例重建堆叠（旧存档兜底）。
- *
- * 历史缺陷：SaveData 中 equipmentStacks 曾被标记 @Transient，备份文件/云存档不含堆叠，
- * 恢复路径会永久清空仓库堆叠。本函数仅对"未装备且无归属"的实例按 (name, rarity, slot)
- * 分组重建——仓库物品物理上从未被序列化过，无法无损恢复，仅能恢复已装备之外的游离实例。
- *
- * @param instances 装备实例列表
- * @return 按 (name, rarity, slot) 分组聚合的重建堆叠；无游离实例时返回空列表
- */
-fun rebuildEquipmentStacks(instances: List<EquipmentInstance>): List<EquipmentStack> {
-    val unowned = instances.filter { it.ownerId == null && !it.isEquipped }
-    if (unowned.isEmpty()) return emptyList()
-    return unowned
-        .groupBy { Triple(it.name, it.rarity, it.slot) }
-        .map { (_, group) -> group.first().toStack(quantity = group.size) }
-}
-
-/**
  * 从功法实例重建堆叠（旧存档兜底）。
- * 语义同 [rebuildEquipmentStacks]，仅重建未学习（ownerId == null && !isLearned）的实例。
+ * 语义同旧装备堆叠重建（B3 起装备无堆叠语义，仅剩功法），
+ * 仅重建未学习（ownerId == null && !isLearned）的实例。
  *
  * @param instances 功法实例列表
  * @return 按 (name, rarity, type) 分组聚合的重建堆叠；无游离实例时返回空列表

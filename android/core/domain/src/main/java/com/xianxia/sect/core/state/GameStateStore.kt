@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -37,7 +36,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     val gameData: StateFlow<GameData>
     val disciples: StateFlow<List<Disciple>>
     val discipleTables: DiscipleTables  // Engine/Service 层直接操作组件表
-    val equipmentStacks: StateFlow<List<EquipmentStack>>
     val equipmentInstances: StateFlow<List<EquipmentInstance>>
     val manualStacks: StateFlow<List<ManualStack>>
     val manualInstances: StateFlow<List<ManualInstance>>
@@ -69,7 +67,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     @Immutable
     data class EntityState(
         val disciples: List<Disciple> = emptyList(),
-        val equipmentStacks: List<EquipmentStack> = emptyList(),
         val equipmentInstances: List<EquipmentInstance> = emptyList(),
         val manualStacks: List<ManualStack> = emptyList(),
         val manualInstances: List<ManualInstance> = emptyList(),
@@ -266,7 +263,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     data class GameSnapshot(
         val gameData: GameData = GameData(),
         val disciples: List<Disciple> = emptyList(),
-        val equipmentStacks: List<EquipmentStack> = emptyList(),
         val equipmentInstances: List<EquipmentInstance> = emptyList(),
         val manualStacks: List<ManualStack> = emptyList(),
         val manualInstances: List<ManualInstance> = emptyList(),
@@ -296,7 +292,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack> = emptyList(),
         equipmentInstances: List<EquipmentInstance> = emptyList(),
         manualStacks: List<ManualStack> = emptyList(),
         manualInstances: List<ManualInstance> = emptyList(),

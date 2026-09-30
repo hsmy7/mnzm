@@ -1,8 +1,8 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
@@ -36,8 +36,19 @@ class DiffStateSyncTest {
         store.disciplesValue = listOf(
             Disciple().apply { id = "1"; name = "张三"; realm = 7 }
         )
-        store.equipmentStacksValue = listOf(
-            EquipmentStack(id = "eq-1", name = "木剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 5)
+        store.equipmentInstancesValue = listOf(
+            EquipmentInstance(
+                id = "eq-1", name = "木剑",
+                part = EquipmentSlot.WEAPON,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.ATTACK, 5.0
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 1)
+            )
         )
         store.pillsValue = listOf(
             Pill(id = "pill-1", name = "聚气丹", rarity = 2, quantity = 10)
@@ -55,7 +66,7 @@ class DiffStateSyncTest {
         assertEquals(5, native.gameData.gameYear)
         assertEquals(1, native.disciples.size)
         assertEquals("张三", native.disciples[0].name)
-        assertEquals(5, native.equipmentStacks[0].quantity)
+        assertEquals("木剑", native.equipmentInstances[0].name)
         assertEquals(10, native.pills[0].quantity)
         assertEquals(3, native.materials[0].quantity)
         assertEquals(8, native.herbs[0].quantity)
@@ -70,8 +81,19 @@ class DiffStateSyncTest {
         val snapshot = NativeGameState(
             gameData = GameData().apply { spiritStones = 500; gameMonth = 7 },
             disciples = listOf(Disciple().apply { id = "9"; name = "李四" }),
-            equipmentStacks = listOf(
-                EquipmentStack(id = "eq-9", name = "铁剑", rarity = 2, slot = EquipmentSlot.WEAPON, quantity = 3)
+            equipmentInstances = listOf(
+                EquipmentInstance(
+                    id = "eq-9", name = "铁剑",
+                    part = EquipmentSlot.WEAPON,
+                    growth = com.xianxia.sect.core.model.EquipGrowth(
+                        affix = com.xianxia.sect.core.model.EquipAffixSet(
+                            mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                                com.xianxia.sect.core.model.EquipStat.ATTACK, 8.0
+                            )
+                        )
+                    ),
+                    meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 2)
+                )
             ),
             pills = listOf(Pill(id = "pill-9", name = "回气丹", rarity = 1, quantity = 20)),
             materials = listOf(Material(id = "mat-9", name = "兽骨", rarity = 2, quantity = 7)),
@@ -88,7 +110,7 @@ class DiffStateSyncTest {
         assertEquals(7, store.gameDataValue.gameMonth)
         assertEquals(1, store.disciplesValue.size)
         assertEquals("李四", store.disciplesValue[0].name)
-        assertEquals(3, store.equipmentStacksValue[0].quantity)
+        assertEquals("铁剑", store.equipmentInstancesValue[0].name)
         assertEquals(20, store.pillsValue[0].quantity)
         assertEquals(7, store.materialsValue[0].quantity)
         assertEquals(4, store.herbsValue[0].quantity)
@@ -100,8 +122,19 @@ class DiffStateSyncTest {
         val store = FakeGameStateStore()
         store.gameDataValue = GameData().apply { spiritStones = 12345; gameYear = 12; gameMonth = 3 }
         store.disciplesValue = listOf(Disciple().apply { id = "1"; name = "王五"; realm = 5; realmLayer = 3 })
-        store.equipmentStacksValue = listOf(
-            EquipmentStack(id = "eq-1", name = "玄铁剑", rarity = 4, slot = EquipmentSlot.WEAPON, quantity = 1)
+        store.equipmentInstancesValue = listOf(
+            EquipmentInstance(
+                id = "eq-1", name = "玄铁剑",
+                part = EquipmentSlot.WEAPON,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.ATTACK, 40.0
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 4)
+            )
         )
         store.materialsValue = listOf(
             Material(id = "mat-1", name = "龙鳞", rarity = 5, quantity = 2)
@@ -112,7 +145,7 @@ class DiffStateSyncTest {
         // 清空后镜像恢复
         store.gameDataValue = GameData()
         store.disciplesValue = emptyList()
-        store.equipmentStacksValue = emptyList()
+        store.equipmentInstancesValue = emptyList()
         store.materialsValue = emptyList()
 
         service.applySnapshot(native)
@@ -121,7 +154,7 @@ class DiffStateSyncTest {
         assertEquals(12, store.gameDataValue.gameYear)
         assertEquals(1, store.disciplesValue.size)
         assertEquals("王五", store.disciplesValue[0].name)
-        assertEquals(1, store.equipmentStacksValue[0].quantity)
+        assertEquals("玄铁剑", store.equipmentInstancesValue[0].name)
         assertEquals(2, store.materialsValue[0].quantity)
     }
 

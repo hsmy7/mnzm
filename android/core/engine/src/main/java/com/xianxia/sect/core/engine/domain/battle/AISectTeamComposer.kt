@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.asKotlinRandom
 
 /**
  * 创建进攻队伍 — 按境界排序，选取战斗力最低的 N 个弟子。
@@ -96,7 +97,7 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int, rng: Determinist
     val config = getSectWarRewardConfig(sectLevel)
     var spiritStones = 0L
 
-    val equipmentStacks = mutableListOf<com.xianxia.sect.core.model.EquipmentStack>()
+    val equipmentInstances = mutableListOf<com.xianxia.sect.core.model.EquipmentInstance>()
     val manualStacks = mutableListOf<com.xianxia.sect.core.model.ManualStack>()
     val pills = mutableListOf<com.xianxia.sect.core.model.Pill>()
     val materials = mutableListOf<com.xianxia.sect.core.model.Material>()
@@ -107,7 +108,7 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int, rng: Determinist
         val itemType = rng.nextInt(7)
         when (itemType) {
             0 -> spiritStones += config.spiritStoneValue
-            1 -> addWarEquipment(config, equipmentStacks)
+            1 -> addWarEquipment(config, equipmentInstances, rng)
             2 -> addWarManual(config, manualStacks)
             3 -> addWarPill(config, pills)
             4 -> addWarMaterial(config, materials)
@@ -118,7 +119,7 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int, rng: Determinist
 
     return WarRewards(
         spiritStones = spiritStones,
-        equipmentStacks = equipmentStacks,
+        equipmentInstances = equipmentInstances,
         manualStacks = manualStacks,
         pills = pills,
         materials = materials,
@@ -131,13 +132,20 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int, rng: Determinist
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 private fun addWarEquipment(
     config: SectWarRewardConfig,
-    equipmentStacks: MutableList<com.xianxia.sect.core.model.EquipmentStack>
+    equipmentInstances: MutableList<com.xianxia.sect.core.model.EquipmentInstance>,
+    rng: DeterministicRng
 ) {
     if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
         try {
-            equipmentStacks.add(
-                com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
+            // B3 实例轨：品阶区间钳制（区间为空时按全局随机兜底），
+            // EquipmentFactory 产实例（词条 EQUIPMENT 分区 roll）
+            val kr = rng.asKotlinRandom()
+            val rarity = (config.minRarity..config.maxRarity).random(kr)
+            val setId = if (kr.nextBoolean()) "lietian" else "zifu"
+            val instance = com.xianxia.sect.core.engine.domain.EquipmentFactory.create(
+                setId, com.xianxia.sect.core.engine.domain.EquipmentFactory.pickPart(setId, kr), rarity, kr
             )
+            equipmentInstances.add(instance)
         } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
     }
 }

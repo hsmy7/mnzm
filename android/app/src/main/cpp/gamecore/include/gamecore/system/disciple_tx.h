@@ -57,7 +57,6 @@ namespace detail {
 using gamecore::state::Disciple;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentStack;
 using gamecore::state::GameState;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualStack;
@@ -72,13 +71,7 @@ using gamecore::state::Pill;
 using gamecore::state::Seed;
 
 // ── 线性查找（仓库/实例表规模小，与 Kotlin StackableItemStore.get 同义）──
-
-inline EquipmentStack* findEquipmentStack(GameState& state, const std::string& id) {
-    for (auto& s : state.equipmentStacks) {
-        if (s.id == id) return &s;
-    }
-    return nullptr;
-}
+// （装备堆叠轨已退役——B3 单轨实例，findEquipmentStack 删除）
 
 inline EquipmentInstance* findEquipmentInstance(GameState& state, const std::string& id) {
     for (auto& e : state.equipmentInstances) {
@@ -121,57 +114,47 @@ inline void bagIncreaseItemQuantity(std::vector<StorageBagItem>& bag,
     bag.push_back(std::move(entry));
 }
 
-// ── 装备槽位列读写（auto_gear.h detail::equipSlotId/setEquipSlot 同源，
-//    本头文件独立提供避免 ECS 依赖引入）──────────────────────────────
+// ── 装备槽位列读写（B3 六部位；auto_gear.h detail::equipSlotId/setEquipSlot
+//    同源，本头文件独立提供避免 ECS 依赖引入）──────────────────────────────
 
 inline const std::string& equipSlotId(const DiscipleStore& ds, std::size_t row,
                                       const std::string& slot) {
+    if (slot == "HEAD") return ds.headIds[row];
+    if (slot == "BODY") return ds.bodyIds[row];
+    if (slot == "HANDS") return ds.handsIds[row];
+    if (slot == "FEET") return ds.feetIds[row];
     if (slot == "WEAPON") return ds.weaponIds[row];
-    if (slot == "ARMOR") return ds.armorIds[row];
-    if (slot == "BOOTS") return ds.bootsIds[row];
-    if (slot == "ACCESSORY") return ds.accessoryIds[row];
+    if (slot == "LEGS") return ds.legsIds[row];
     static const std::string kEmpty;
     return kEmpty;
 }
 
 inline void setEquipSlot(DiscipleStore& ds, std::size_t row, const std::string& slot,
                          const std::string& instanceId) {
-    if (slot == "WEAPON") ds.weaponIds[row] = instanceId;
-    else if (slot == "ARMOR") ds.armorIds[row] = instanceId;
-    else if (slot == "BOOTS") ds.bootsIds[row] = instanceId;
-    else if (slot == "ACCESSORY") ds.accessoryIds[row] = instanceId;
+    if (slot == "HEAD") ds.headIds[row] = instanceId;
+    else if (slot == "BODY") ds.bodyIds[row] = instanceId;
+    else if (slot == "HANDS") ds.handsIds[row] = instanceId;
+    else if (slot == "FEET") ds.feetIds[row] = instanceId;
+    else if (slot == "WEAPON") ds.weaponIds[row] = instanceId;
+    else if (slot == "LEGS") ds.legsIds[row] = instanceId;
 }
 
 inline bool isEquipSlotName(const std::string& slot) {
-    return slot == "WEAPON" || slot == "ARMOR" || slot == "BOOTS" ||
-           slot == "ACCESSORY";
+    return slot == "HEAD" || slot == "BODY" || slot == "HANDS" ||
+           slot == "FEET" || slot == "WEAPON" || slot == "LEGS";
 }
 
-// ── 堆叠 → 实例铸造（auto_gear.h detail::instanceFromStack/manualInstanceFromStack
-//    同源——Kotlin StackableItem.toInstance 字段面；slotId/nurtureLevel 为
-//    Room 列/迁移字段不复制，与既有对拍口径一致）────────────────────────
-
-inline EquipmentInstance equipmentInstanceFromStack(const EquipmentStack& s,
-                                                    const std::string& ownerId) {
-    EquipmentInstance inst;
-    inst.id = nextInstanceId();
-    inst.name = s.name;
-    inst.rarity = s.rarity;
-    inst.description = s.description;
-    inst.slot = s.slot;
-    inst.physicalAttack = s.physicalAttack;
-    inst.magicAttack = s.magicAttack;
-    inst.physicalDefense = s.physicalDefense;
-    inst.magicDefense = s.magicDefense;
-    inst.speed = s.speed;
-    inst.hp = s.hp;
-    inst.mp = s.mp;
-    inst.critChance = s.critChance;
-    inst.minRealm = s.minRealm;
-    inst.ownerId = ownerId;
-    inst.isEquipped = true;
-    return inst;
+inline void clearEquipSlot(DiscipleStore& ds, std::size_t row, const std::string& slot) {
+    if (slot == "HEAD") ds.headIds[row].clear();
+    else if (slot == "BODY") ds.bodyIds[row].clear();
+    else if (slot == "HANDS") ds.handsIds[row].clear();
+    else if (slot == "FEET") ds.feetIds[row].clear();
+    else if (slot == "WEAPON") ds.weaponIds[row].clear();
+    else if (slot == "LEGS") ds.legsIds[row].clear();
 }
+
+// ── 实例铸造辅助（功法堆叠 → 实例；auto_gear.h detail::manualInstanceFromStack
+//    同源——Kotlin StackableItem.toInstance 字段面）────────────────────────
 
 inline ManualInstance manualInstanceFromStack(const ManualStack& s,
                                               const std::string& ownerId) {
@@ -227,61 +210,45 @@ inline void deductManualStack(std::vector<ManualStack>& stacks, const std::strin
     }
 }
 
-inline void deductEquipmentStack(std::vector<EquipmentStack>& stacks,
-                                 const std::string& stackId) {
-    const std::string id = stackId;
-    for (auto& s : stacks) {
-        if (s.id != id) continue;
-        if (s.quantity > 1) {
-            s.quantity -= 1;
-        } else {
-            stacks.erase(std::remove_if(stacks.begin(), stacks.end(),
-                [&](const EquipmentStack& x) { return x.id == id; }),
-                stacks.end());
-        }
-        return;
-    }
-}
-
-// ── 卸下内部实现（DiscipleEquipmentService.unequipEquipmentLogic 等价）────
-// @return true = 槽位已清（实例入袋 + 实例表移除；实例缺失仅清槽——
-//         Kotlin 同分支"槽位清空移到入仓成功后，失败时保留槽位不悬空"）
+// ── 卸下内部实现（DiscipleEquipmentService.unequipEquipmentLogic 等价；
+//    B3 单轨实例语义：**实例保留表内 isEquipped=false、ownerId 清空**——
+//    等级/词条随实例单点，装卸往返逐位保真）────────────────────────────
+// @return true = 槽位已清（实例入袋 + 实例表标记卸下；实例缺失仅清槽——
+//         Kotlin 同分支"槽位清空移到入袋成功后，失败时保留槽位不悬空"）
 inline bool unequipInternal(GameState& state, DiscipleStore& ds,
                             std::size_t row, const std::string& equipmentId) {
-    const std::string slots[] = {"weapon", "armor", "boots", "accessory"};
-    const std::string* slotToClear = nullptr;
-    if (ds.weaponIds[row] == equipmentId) slotToClear = &slots[0];
-    else if (ds.armorIds[row] == equipmentId) slotToClear = &slots[1];
-    else if (ds.bootsIds[row] == equipmentId) slotToClear = &slots[2];
-    else if (ds.accessoryIds[row] == equipmentId) slotToClear = &slots[3];
-    if (slotToClear == nullptr) return false;
+    // 仅判断装备所属槽位（六部位；槽位清空移到入袋成功后）。
+    // 槽位名由列显式映射（原实现解引用列单元格取到的是装备 id 而非槽位名，
+    // clearEquipSlot 恒 no-op——卸下不清槽，测试暴露后根因修复）
+    std::string slotName;
+    if (ds.headIds[row] == equipmentId) slotName = "HEAD";
+    else if (ds.bodyIds[row] == equipmentId) slotName = "BODY";
+    else if (ds.handsIds[row] == equipmentId) slotName = "HANDS";
+    else if (ds.feetIds[row] == equipmentId) slotName = "FEET";
+    else if (ds.weaponIds[row] == equipmentId) slotName = "WEAPON";
+    else if (ds.legsIds[row] == equipmentId) slotName = "LEGS";
+    if (slotName.empty()) return false;
 
     EquipmentInstance* eq = findEquipmentInstance(state, equipmentId);
     if (eq != nullptr) {
-        // 卸下实例铸造入袋（Kotlin 手动路径容量无上限，永不失败）
+        // 卸下装备实例直接铸造入袋（完整保真：等级/经验/词条/强化次数全在
+        // instance 内——R5 装卸不改等级），不再转仓库堆叠
         StorageBagItem entry;
         entry.itemId = equipmentId;
-        entry.itemType = "equipment_instance";
+        entry.itemType = "equipment_instance";   // ITEM_TYPE_EQUIPMENT_INSTANCE
         entry.name = eq->name;
-        entry.rarity = eq->rarity;
+        entry.rarity = eq->rarity();
         entry.quantity = 1;
         entry.obtainedYear = state.gameData.gameYear;
         entry.obtainedMonth = state.gameData.gameMonth;
         entry.equipmentInstance = *eq;
         bagIncreaseItemQuantity(ds.storageBagItems[row], std::move(entry));
-        // 实例入袋后从实例表删除（防双持有不变量——S6 袋物化同族边界）
-        auto& inst = state.equipmentInstances;
-        inst.erase(std::remove_if(inst.begin(), inst.end(),
-                                  [&](const EquipmentInstance& x) {
-                                      return x.id == equipmentId;
-                                  }),
-                   inst.end());
+        // 实例保留在实例表（ownerId 清空、isEquipped=false），等级/词条原样
+        eq->isEquipped = false;
+        eq->ownerId = std::nullopt;
     }
     // 实例缺失（损坏态）：Kotlin 同分支仅清槽（日志告警为 Kotlin 运行态）
-    if (*slotToClear == "weapon") ds.weaponIds[row].clear();
-    else if (*slotToClear == "armor") ds.armorIds[row].clear();
-    else if (*slotToClear == "boots") ds.bootsIds[row].clear();
-    else ds.accessoryIds[row].clear();
+    clearEquipSlot(ds, row, slotName);
     return true;
 }
 
@@ -336,12 +303,11 @@ inline std::vector<gamecore::state::DirectDiscipleSlot>* directSlotList(
 
 // 事务函数作用域的 using 声明（batch-09 协调性最小补全——原仅限于
 // detail 内可见，detail 外的 inline 事务函数非限定名 GameState/DiscipleStore/
-// EquipmentStack/EquipmentInstance/ManualStack/ManualInstance/StorageBagItem
+// EquipmentInstance/ManualStack/ManualInstance/StorageBagItem
 // 无法解析，任何包含序下均无法编译；与 detail 内声明同源，纯加法无语义变更）
 using gamecore::state::Disciple;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentStack;
 using gamecore::state::GameState;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualStack;
@@ -389,12 +355,12 @@ struct UnassignSlotResult {
     std::string removedDiscipleId;
 };
 
-// ── 事务 1：装备穿戴（DiscipleEquipmentService.equipEquipmentInTransaction）──
+// ── 事务 1：装备穿戴（DiscipleEquipmentService.equipEquipmentInTransaction；
+//    B3 单轨实例：装备唯一存在于 equipmentInstances，一行一件）──
 //
-// 校验链（逐字对齐 Kotlin 判定序）：弟子存在 → 装备存在（堆叠/实例双轨道
-// 查找，双缺 NotFound）→ 实例已穿戴 AlreadyEquipped → 境界 RealmTooLow →
-// 旧装备卸下失败 SlotInvalid。写段：仓库堆叠 -1/移除 + 实例铸造入表 +
-// 弟子槽位列写（堆叠轨道）；或实例置位 + 槽位列写（实例轨道）。
+// 校验链（逐字对齐 Kotlin 判定序）：弟子存在 → 装备实例存在（NotFound）→
+// 已穿戴 AlreadyEquipped → 境界 RealmTooLow → 槽位合法 → 旧装备卸下失败
+// SlotInvalid。写段：实例置位（isEquipped=true + ownerId）+ 六部位槽位列写。
 inline EquipResult equipTransaction(GameState& state, const std::string& discipleId,
                                     const std::string& equipmentId) {
     EquipResult out;
@@ -409,53 +375,44 @@ inline EquipResult equipTransaction(GameState& state, const std::string& discipl
     }
     const std::size_t row = *ds.rowOf(discipleId);
 
-    // 2. 装备双轨道查找（堆叠优先——Kotlin equipmentStacks.get 先于
-    //    equipmentInstances.get）
-    EquipmentStack* stack = detail::findEquipmentStack(state, equipmentId);
+    // 2. 装备实例查找（单轨——堆叠轨道已随 B3 退役）
     EquipmentInstance* inst = detail::findEquipmentInstance(state, equipmentId);
-    if (stack == nullptr && inst == nullptr) {
+    if (inst == nullptr) {
         out.base.errorType = "NotFound";
         out.base.message = "弟子或装备不存在 " + discipleId;
         return out;
     }
 
-    // 3. 占用/境界校验（实例轨道检查已穿戴；堆叠轨道天然未穿戴）
+    // 3. 占用/境界校验（已穿戴 → AlreadyEquipped；境界不足 → RealmTooLow）
     const int32_t realm = ds.realms[row];
-    if (inst != nullptr) {
-        if (inst->isEquipped) {
-            out.base.errorType = "AlreadyEquipped";
-            out.base.message = "装备已穿戴 " + inst->slot;
-            return out;
-        }
-        if (realm > inst->minRealm) {
-            out.base.errorType = "RealmTooLow";
-            out.base.message = "境界不足 需要" + std::to_string(inst->minRealm);
-            return out;
-        }
-    } else if (realm > stack->minRealm) {
+    if (inst->isEquipped) {
+        out.base.errorType = "AlreadyEquipped";
+        out.base.message = "装备已穿戴 " + inst->part;
+        return out;
+    }
+    // Kotlin GameConfig.Realm.meetsRealmRequirement(discipleRealm, minRealm)
+    // = discipleRealm <= minRealm（realm 值越小境界越高）
+    if (realm > inst->minRealm()) {
         out.base.errorType = "RealmTooLow";
-        out.base.message = "境界不足 需要" + std::to_string(stack->minRealm);
+        out.base.message = "境界不足 需要" + std::to_string(inst->minRealm());
         return out;
     }
 
-    // 4. 槽位与名称（equipName 堆叠优先——Kotlin recordEquipLog 字段序）
-    const std::string slot = inst != nullptr ? inst->slot : stack->slot;
+    // 4. 槽位与名称（按实例部位——Kotlin equipmentInstance.part）
+    const std::string slot = inst->part;
     if (!detail::isEquipSlotName(slot)) {
-        // Kotlin EquipmentSlot 为四值枚举，本臂协议不可达（损坏镜像行防御）
+        // Kotlin EquipmentSlot 为六值枚举，本臂协议不可达（损坏镜像行防御）
         out.base.errorType = "SlotInvalid";
         out.base.message = "无法确定装备槽位";
         return out;
     }
-    const std::string equipName = stack != nullptr ? stack->name : inst->name;
+    const std::string equipName = inst->name;
 
-    // 5. 旧装备卸下（失败中止穿戴——此时零写入）。卸下会 erase 实例表，
+    // 5. 旧装备卸下（失败中止穿戴——此时零写入）。卸下仅标记实例卸下，
     //    悬垂纪律（auto_gear.h 同款）：穿装所需字段先拷贝，写段重查指针
     const std::string& oldEquipId = detail::equipSlotId(ds, row, slot);
     std::string oldEquipIdCopy = oldEquipId;
-    std::string instIdCopy;
-    if (inst != nullptr) instIdCopy = inst->id;
-    std::string stackIdCopy;
-    if (stack != nullptr) stackIdCopy = stack->id;
+    std::string instIdCopy = inst->id;
     if (!oldEquipIdCopy.empty()) {
         if (!detail::unequipInternal(state, ds, row, oldEquipIdCopy)) {
             out.base.errorType = "SlotInvalid";
@@ -464,20 +421,12 @@ inline EquipResult equipTransaction(GameState& state, const std::string& discipl
         }
     }
 
-    // 6. 穿戴新装备（wearEquipment 等价：堆叠扣减/实例置位 + 槽位列写）
-    std::string wornId;
-    if (stack != nullptr) {
-        EquipmentInstance worn = detail::equipmentInstanceFromStack(*stack, discipleId);
-        wornId = worn.id;
-        state.equipmentInstances.push_back(std::move(worn));
-        detail::deductEquipmentStack(state.equipmentStacks, stackIdCopy);
-    } else {
-        wornId = instIdCopy;
-        EquipmentInstance* wornInst = detail::findEquipmentInstance(state, instIdCopy);
-        wornInst->isEquipped = true;
-        wornInst->ownerId = discipleId;
-    }
-    detail::setEquipSlot(ds, row, slot, wornId);
+    // 6. 穿戴新装备（wearEquipment 等价：槽位只存 id + 单轨实例标记；
+    //    等级/词条随实例走）
+    EquipmentInstance* wornInst = detail::findEquipmentInstance(state, instIdCopy);
+    wornInst->isEquipped = true;
+    wornInst->ownerId = discipleId;
+    detail::setEquipSlot(ds, row, slot, instIdCopy);
 
     // 7. 装备日志草稿（recordEquipLog 等价——oldName 在卸下/穿戴**之后**查
     //    实例表，Kotlin 活路径恒落"旧装备"兜底；Kotlin native 分支回写瞬态列）
@@ -494,8 +443,9 @@ inline EquipResult equipTransaction(GameState& state, const std::string& discipl
 
 // ── 事务 2：装备卸下（unequipEquipment + unequipEquipmentLogic 等价）────────
 //
-// 校验链：弟子存在 → 四槽位穿戴匹配（未穿戴 SlotInvalid）。写段：实例入袋
-// + 实例表移除 + 槽位列清（实例缺失损坏态仅清槽，与 Kotlin 同分支）。
+// 校验链：弟子存在 → 六槽位穿戴匹配（未穿戴 SlotInvalid）。写段：实例入袋
+// + 实例保留表内（isEquipped=false/ownerId 清空）+ 槽位列清（实例缺失损坏态
+// 仅清槽，与 Kotlin 同分支）。
 inline DiscipleTxResult unequipTransaction(GameState& state,
                                            const std::string& discipleId,
                                            const std::string& equipmentId) {
@@ -508,10 +458,12 @@ inline DiscipleTxResult unequipTransaction(GameState& state,
         return out;
     }
     const std::size_t row = *ds.rowOf(discipleId);
-    const bool isEquipped = ds.weaponIds[row] == equipmentId ||
-                            ds.armorIds[row] == equipmentId ||
-                            ds.bootsIds[row] == equipmentId ||
-                            ds.accessoryIds[row] == equipmentId;
+    const bool isEquipped = ds.headIds[row] == equipmentId ||
+                            ds.bodyIds[row] == equipmentId ||
+                            ds.handsIds[row] == equipmentId ||
+                            ds.feetIds[row] == equipmentId ||
+                            ds.weaponIds[row] == equipmentId ||
+                            ds.legsIds[row] == equipmentId;
     if (!isEquipped) {
         out.errorType = "SlotInvalid";
         out.message = "装备未穿戴在弟子身上";
@@ -811,12 +763,10 @@ inline gamecore::state::ItemEffect facadeItemEffect(const Pill& pill) {
     const gamecore::state::PillEffect& f = pill.effects;
     e.cultivationSpeedPercent = f.cultivationSpeedPercent;
     e.skillExpSpeedPercent = f.skillExpSpeedPercent;
-    e.nurtureSpeedPercent = f.nurtureSpeedPercent;
     e.breakthroughChance = f.breakthroughChance;
     e.targetRealm = f.targetRealm;
     e.cultivationAdd = f.cultivationAdd;
     e.skillExpAdd = f.skillExpAdd;
-    e.nurtureAdd = f.nurtureAdd;
     e.healMaxHpPercent = f.healMaxHpPercent;
     e.mpRecoverMaxMpPercent = f.mpRecoverMaxMpPercent;
     e.hpAdd = f.hpAdd;
@@ -938,13 +888,10 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
 
     // ⑤ 战斗/速率持续加成（整体覆写 + 时长取最大 + SUSTAINED/TEMP 登记）
     const bool hasBattleOrSpeed = gamecore::pill::hasAnyBattleAttrAdd(ie) ||
-        effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-        effect.nurtureSpeedPercent > 0;
+        effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0;
     if (hasBattleOrSpeed) {
-        ds.pillPhysicalAttackBonuses[row] = effect.physicalAttackAdd;
-        ds.pillMagicAttackBonuses[row] = effect.magicAttackAdd;
-        ds.pillPhysicalDefenseBonuses[row] = effect.physicalDefenseAdd;
-        ds.pillMagicDefenseBonuses[row] = effect.magicDefenseAdd;
+        ds.pillAttackBonuses[row] = effect.AttackAddTotal();
+        ds.pillDefenseBonuses[row] = effect.DefenseAddTotal();
         ds.pillHpBonuses[row] = effect.hpAdd;
         ds.pillMpBonuses[row] = effect.mpAdd;
         ds.pillSpeedBonuses[row] = effect.speedAdd;
@@ -952,7 +899,6 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.pillCritEffectBonuses[row] = effect.critEffectAdd;
         ds.pillCultivationSpeedBonuses[row] = effect.cultivationSpeedPercent;
         ds.pillSkillExpSpeedBonuses[row] = effect.skillExpSpeedPercent;
-        ds.pillNurtureSpeedBonuses[row] = effect.nurtureSpeedPercent;
         // 以旬为单位（facade：不再 *30）
         ds.pillEffectDurations[row] = effect.duration > 0
             ? std::max(ds.pillEffectDurations[row], effect.duration)
@@ -969,8 +915,7 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.cultivationSpeedDurations[row] = 0;
         // 速率变化点同步 checkpoint（facade：速率列被改时必须同步，否则
         // getEffectiveCultivation 用旧速率推导）
-        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
-            effect.nurtureSpeedPercent > 0) {
+        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0) {
             ds.cultivationCheckpoints[row] = ds.cultivations[row];
             ds.cultivationCheckpointGameMonths[row] =
                 state.gameData.gameYear * 12 + state.gameData.gameMonth;
@@ -988,10 +933,8 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
 
     // ⑦ 清除所有临时效果
     if (effect.clearAll) {
-        ds.pillPhysicalAttackBonuses[row] = 0;
-        ds.pillMagicAttackBonuses[row] = 0;
-        ds.pillPhysicalDefenseBonuses[row] = 0;
-        ds.pillMagicDefenseBonuses[row] = 0;
+        ds.pillAttackBonuses[row] = 0;
+        ds.pillDefenseBonuses[row] = 0;
         ds.pillHpBonuses[row] = 0;
         ds.pillMpBonuses[row] = 0;
         ds.pillSpeedBonuses[row] = 0;
@@ -1000,7 +943,6 @@ inline FacadePillOutcome applyFacadePillEffects(GameState& state, std::size_t ro
         ds.pillCritEffectBonuses[row] = 0.0;
         ds.pillCultivationSpeedBonuses[row] = 0.0;
         ds.pillSkillExpSpeedBonuses[row] = 0.0;
-        ds.pillNurtureSpeedBonuses[row] = 0.0;
         ds.activePillCategories[row] = "";
         ds.activePillTypes[row].clear();
     }

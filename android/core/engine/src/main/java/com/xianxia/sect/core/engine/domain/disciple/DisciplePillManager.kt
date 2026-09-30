@@ -49,15 +49,10 @@ class DisciplePillManager @Inject constructor(
 
     /**
      * 自动服用储物袋丹药（非突破/非战斗临时丹）。
-     *
-     * @param nurtureEffect 孕养度丹（nurtureAdd）效果回调——
-     *                      由调用方把 N 点孕养度均分到已装备装备实例
-     *                      （PillEffectApplier 无装备实例访问权，故经回调注入）
      */
     @Suppress("ReturnCount")  // 空袋/无可服丹药/成功 三出口
     fun processAutoUsePills(
-        disciple: Disciple,
-        nurtureEffect: ((Int) -> Unit)? = null
+        disciple: Disciple
     ): PillUseResult {
         if (disciple.equipment.storageBagItems.isEmpty()) {
             return PillUseResult(disciple)
@@ -90,7 +85,7 @@ class DisciplePillManager @Inject constructor(
         }
 
         for (pillItem in pillItems) {
-            updatedDisciple = tryConsumePill(updatedDisciple, pillItem, nurtureEffect)
+            updatedDisciple = tryConsumePill(updatedDisciple, pillItem)
                 ?: continue
         }
 
@@ -104,8 +99,7 @@ class DisciplePillManager @Inject constructor(
     @Suppress("ReturnCount")  // 资格拒绝/效果缺失/浪费跳过/成功 四出口
     private fun tryConsumePill(
         disciple: Disciple,
-        pillItem: StorageBagItem,
-        nurtureEffect: ((Int) -> Unit)?
+        pillItem: StorageBagItem
     ): Disciple? {
         val check = canUsePill(disciple, pillItem)
         if (!check.canUse) return null
@@ -114,11 +108,6 @@ class DisciplePillManager @Inject constructor(
         if (isWastefulUse(disciple, effect)) return null
 
         var updated = disciple
-        // 孕养度丹效果（装备实例均分由调用方执行）
-        if (effect.nurtureAdd > 0) {
-            nurtureEffect?.invoke(effect.nurtureAdd)
-        }
-
         updated = pillEffectApplier.applyToDisciple(updated, pillItem)
 
         return updated.copy(
@@ -218,12 +207,10 @@ class DisciplePillManager @Inject constructor(
             tier = pill.rarity,  // rarity 直接映射为品阶
             cultivationSpeedPercent = pill.effects.cultivationSpeedPercent,
             skillExpSpeedPercent = pill.effects.skillExpSpeedPercent,
-            nurtureSpeedPercent = pill.effects.nurtureSpeedPercent,
             breakthroughChance = pill.effects.breakthroughChance,
             targetRealm = pill.effects.targetRealm,
             cultivationAdd = pill.effects.cultivationAdd,
             skillExpAdd = pill.effects.skillExpAdd,
-            nurtureAdd = pill.effects.nurtureAdd,
             healMaxHpPercent = pill.effects.healMaxHpPercent,
             mpRecoverMaxMpPercent = pill.effects.mpRecoverMaxMpPercent,
             hpAdd = pill.effects.hpAdd,
@@ -269,9 +256,9 @@ class DisciplePillManager @Inject constructor(
          */
         fun classify(effect: ItemEffect): PillRule = when (effect.pillType) {
             "extendLife" -> PillRule.PERMANENT_LIFE
-            "cultivationAdd", "skillExpAdd", "nurtureAdd" ->
+            "cultivationAdd", "skillExpAdd" ->
                 PillRule.INSTANT_CULTIVATION
-            "cultivationSpeed", "skillExpSpeed", "nurtureSpeed" ->
+            "cultivationSpeed", "skillExpSpeed" ->
                 PillRule.SUSTAINED_SPEED
             "breakthrough" -> PillRule.BREAKTHROUGH
             else -> {

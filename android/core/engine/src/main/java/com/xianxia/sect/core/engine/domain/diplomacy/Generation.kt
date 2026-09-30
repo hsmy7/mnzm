@@ -1,26 +1,12 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.asKotlinRandom
 
 // ── AISectDiscipleManager 拆分域（行为零变更） ──
 internal fun AISectDiscipleManager.generateSpiritRoot(): String = SpiritRootGenerator.generate(rng.asKotlinRandom())
-
-/** 初始装备孕养数据（AI 装备从 0 级 0 进度起步，由月度增长温养）。 */
-
-internal fun AISectDiscipleManager.generateInitialNurture(equipmentId: String): EquipmentNurtureData {
-    val template = EquipmentDatabase.getById(equipmentId) ?: return EquipmentNurtureData("", 0)
-    return EquipmentNurtureData(
-        equipmentId = equipmentId,
-        rarity = template.rarity,
-        nurtureLevel = 0,
-        nurtureProgress = 0.0
-    )
-}
 
 /** 按权重分配境界分布（炼气3/筑基2/金丹2/其余1），余数从高权重境界逐个补足。 */
 internal fun AISectDiscipleManager.generateRealmDistribution(total: Int, maxRealm: Int): Map<Int, Int> {

@@ -4,7 +4,7 @@ package com.xianxia.sect.data.local
 //   GameDataDao.kt — GameDataDao
 //   DiscipleDao.kt — DiscipleDao
 //   （v53/SR-7：原 DiscipleSubDaos.kt 的六个 DAO 随零读者镜像表一起删除）
-//   EquipmentDaos.kt — EquipmentStackDao, EquipmentInstanceDao
+//   EquipmentInstanceDao.kt — EquipmentInstanceDao（原 EquipmentDaos.kt，EquipmentStackDao 已随 B3 移除）
 //   ManualDaos.kt — ManualStackDao, ManualInstanceDao
 //   InventoryDaos.kt — PillDao, MaterialDao, SeedDao, HerbDao, StorageBagDao
 //   ProductionDaos.kt — BuildingSlotDao, RecipeDao, ForgeSlotDao, AlchemySlotDao

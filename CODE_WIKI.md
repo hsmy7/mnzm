@@ -27,14 +27,15 @@
 4. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 5. [游戏时间系统 — GameTimeClock](#游戏时间系统--gametimeclock)
 6. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-7. [结算管线 — 三层真相源](#结算管线--三层真相源)
-8. [Canvas 渲染管线](#canvas-渲染管线)
-9. [性能基础设施](#性能基础设施)
-10. [世界地图重构](#世界地图重构)
-11. [GPU 分级渲染系统](#gpu-分级渲染系统)
-12. [活动系统](#活动系统)
-13. [构建与 Profile](#构建与-profile)
-14. [事件驱动惰性求值](#事件驱动惰性求值)
+7. [装备与属性体系（装备重构线）](#装备与属性体系2026-09-装备重构线-eq-b0b5)
+8. [结算管线 — 三层真相源](#结算管线--三层真相源)
+9. [Canvas 渲染管线](#canvas-渲染管线)
+10. [性能基础设施](#性能基础设施)
+11. [世界地图重构](#世界地图重构)
+12. [GPU 分级渲染系统](#gpu-分级渲染系统)
+13. [活动系统](#活动系统)
+14. [构建与 Profile](#构建与-profile)
+15. [事件驱动惰性求值](#事件驱动惰性求值)
 
 ---
 
@@ -586,6 +587,19 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 在 `tickInternal()` 中优先检查热状态——过热时跳过 tick 或被限流执行。`@ApplicationContext` 限定符由 Hilt 自动提供。
 
 **看门狗增强**：`activeSaveJob` / `activeLoadJob` 追踪当前运行的 save/load 协程。超时后 `forceResetStuckStates()` 主动 cancel 协程并重置状态位。`SaveLoadViewModel` 的所有 save/load 协程通过 `.also { registerActiveSaveJob(it) }` 注册，finally 块中 `clearActiveSaveJob()` 清除。
+
+---
+
+## 装备与属性体系（2026-09 装备重构线 EQ-B0–B5）
+
+> 终态登记；子系统速查与守卫清单见 `docs/knowledge-base.md`「装备系统（六部位套装体系）」节，债务与遗留见 `docs/architecture.md`「属性与装备体系」节，决策记录 [docs/adr/equipment-set-system.md](docs/adr/equipment-set-system.md)。
+
+- **属性单列（EQ-B1）**：弟子/战斗体只有 `attack/defense`；物法差异走三通道——普攻 `innateDamageType`（模板固定，首灵根派生）、技能 `damageType`、类型增伤/减伤分桶（`DamageZones.typeDamageBonus/typeDamageReduction`）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`（`SectCombatPowerCalculator` 与 C++ `sect_power.h` 同式）。
+- **装备实例轨（EQ-B3）**：`EquipmentSlot` 六值（HEAD/BODY/HANDS/FEET/WEAPON/LEGS，proto 10..15）；`EquipmentInstance` 一行一实例（`setId/part/growth{level 1–30,exp,主词条,3 副词条,强化}/meta`），等级随实例单点（装卸往返逐位保真）；堆叠轨已退役（`EquipmentStackRemovalGuardTest` 符号面归零）。
+- **写入口**：升级/分解 = native 事务 `equipment_tx.h`（ActionId **1486/1487**，`EquipmentUpgradeService` → `NativeEngineFlag.authoritative` 路由）；词条 roll/强化走 `RngPartition.EQUIPMENT(13)` 双端；穿卸走 `DiscipleEquipmentService`/`DiscipleEquipmentManager`（卸装 = 实例保留 `isEquipped=false`）。
+- **数值面**：`EquipStatResolver` 词条+套装加成解析单点（2/4/6 档相加口径；**恒等键整解析缓存**，值语义缓存已实测否决勿翻案）；品阶受境界钳制（`EquipmentFactory.create`，默认哨兵 `REALM_UNRESTRICTED`）；占比锚 [35,45]（`EquipmentPowerParityTest` 分维度）、一套满级 ≈ 1 月产出（`EquipmentEconomyCalibrationTest`，月产出锚 940 万）。
+- **静态数据**：12 部件 × 6 品阶 + 两套装 2/4/6 档 + 主/副词条池走 codegen 单源（`scripts/data/equipment_db_sample.json` → `gen-templates.mjs`/`gen-game-data.mjs`；E4 禁手改 `equip_*_db.h`，G0 幂等门）。
+- **存档面**：Room v64（`disciples` 六部位列 headId(112)..legsId(116) 扁平代理 + `equipment_instances` 实例表）；镜像面 `equipmentInstances` 集合 + disciples 行六列（proto 67-70/122/123），UI 一律经 `GameEngine.equipmentInstances` 只读流。
 
 ---
 

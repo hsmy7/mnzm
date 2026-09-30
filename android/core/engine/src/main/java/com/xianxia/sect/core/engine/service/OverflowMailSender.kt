@@ -122,6 +122,8 @@ class OverflowMailSender @Inject constructor(
             "secret_realm" to "远古秘境",
             "disciple_death" to "弟子遗物归还",
             "gacha_pull" to "仙缘寻访",
+            "nurture_pill_retirement" to "孕养丹药退役补偿",
+        "equipment_legacy_compensation" to "装备体系更新补偿",
             "unknown" to "未知"
         )
 

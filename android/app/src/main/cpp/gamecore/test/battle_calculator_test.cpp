@@ -37,10 +37,9 @@ Combatant baseCombatant(const std::string& id, const std::string& name) {
     c.maxHp = 1000;
     c.mp = 100;
     c.maxMp = 100;
-    c.physicalAttack = 120;
-    c.magicAttack = 100;
-    c.physicalDefense = 60;
-    c.magicDefense = 50;
+    // 单列口径（B1）：fixture 取旧主值（伤害公式行为不变，期望值沿用）
+    c.attack = 120;
+    c.defense = 60;
     c.speed = 80;
     c.critRate = 0.15;
     c.realm = 9;

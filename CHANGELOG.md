@@ -1,5 +1,71 @@
 ## [4.01.16] - 2026-09-22
 
+### 装备系统重构线 EQ-B0–B5 批（2026-09-28~30）——六部位套装体系 · 属性单列 · 孕养丹退役 · 数值校准 · 文档与发布收口 — `feat(equip)`
+
+> 批次依据：`docs/design/equipment-set-system-refactor-plan.md`（R1–R12 / D1–D10 / I1–I10 权威方案）
+> + `docs/design/equipment-batches/IMPLEMENTATION-BATCHES.md`（B0–B5 批次编排，§4.6 B5）
+> + 各批报告 `docs/design/equipment-batches/reports/report-B0..B5.md`。
+> 分支 `feat/equipment-set`（worktree），五笔收官笔：B0=`5280d1b46` / B1=`9068049a1` /
+> B2=`fa36109fc` / B3=`45bf909cd` / B4=`762b83def`（B5 本笔）。版本号不自增（4.01.16 原值，
+> 发版号由用户拍板）；Room **v61 → v64** 三批迁移（B1/B2/B3 各 +1）。
+
+- **B0 存档编号规划与冻结（零行为）**：六部位新增段 `headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)` +
+  `innateDamageType(117)` 一次冻结；复用 `weaponId(17)`；退役在册 `18/19/20/24..27/47/98/99` 就地注释；
+  `EquipmentProtoNumberFrozenTest`（5 用例）守卫冻结表 + 存量 reserved 禁复用面。
+- **B1 属性机制重构（R12，Room v61→v62）**：弟子属性物法四列（物攻/法攻/物防/法防）收敛为
+  `attack/defense` 单列（旧值回填 = 取和，k=1，迁移前后总战力比 ∈ [0.98,1.02] 由 `RoomMigrationV61To62Test` S20 断言）；
+  物法差异改由**三条类型通道**承载——普攻 `innateDamageType`（按首灵根派生：金/土→物理，水/木/火→法术）、
+  技能 `damageType`、类型增伤/减伤分桶（`DamageZones.typeDamageBonus/typeDamageReduction` + 守方类型减伤分桶，
+  默认 0.0 时与旧公式逐位一致 = S19）；战力公式线性恒等（k=1）；ProtoBuf 新段 118–123 + 旧号归一化只读；
+  守卫 `SingleColumnStatGuardTest`（属性名符号面归零）+ `InnateDamageTypeGuardTest` + C++ `single_column_stat_test`。
+- **B2 孕养类加成丹药退役（R11，Room v62→v63）**：`nurtureSpeed_*`/`nurtureAdd_*` 两族丹药全链退役
+  （模板 36 条 + 配方 36 条 + 效果链/自动服用链/镜像面/奖励池）；S13 全仓 grep 生产链路面归零；
+  **补偿**：存量按退役时刻价格快照 100% 折算灵石单封邮件发放（`NurturePillRetirementRule` order=26，
+  source=`nurture_pill_retirement`，**单档上限 2000 万**，幂等标记 `GameData.nurturePillsRetired`(168) 同事务）；
+  C++ 侧 16 文件同步（recipe_db 模板重排/列式链删列/产出链断源）。
+- **B3 装备体系原子替换（R1–R10 + D1/D9/D10，Room v63→v64，~500 文件）**：
+  ① 六部位 `EquipmentSlot`（头/身/手/脚/武/腿，10..15）+ **两套套装**（物理/法术，2/4/6 件档）+
+  12 部件 × 6 品阶 72 展开条目；② **一行一实例**（`equipment_instances` 重建，堆叠轨退役：
+  `equipmentStacks(53)`/旧表 DROP；升级 1–30 替换孕养，等级/词条/强化随实例单点——装卸往返逐位保真
+  = `EquipmentLevelPersistGuardTest`）；③ 主词条按部位池随机 + 3 副词条（7 项权重池 13/13/14/15/15/15/15，
+  每 3 级强化 1 条，`RngPartition.EQUIPMENT(13)` 双端）；④ 品阶受境界约束（`EquipmentFactory.create` 单点钳制，
+  S17）；⑤ 实例**不设硬上限**（warn 800/页面 1200 仅告警，不走溢出邮件，S18）；⑥ 迁移七步
+  （影子表搬运/堆叠表 DROP/实例表重建/disciples 六部位 5 列增 9 旧列删/补偿标记列）+ **旧装备 100% basePrice
+  折算补偿**（`LegacyEquipmentCompensationRule` order=27，**单档上限 1 亿**，幂等同事务）+
+  `EquipmentValueSanitizeRule`（order=28）；⑦ 升级/分解走 native 事务（ActionId **1486/1487**，
+  `equipment_tx.h`，双端对拍 `DiffEquipmentUpgradeTest` 全序列）；⑧ D1 双表漂移闭合
+  （`EquipmentSingleSourceGuardTest`）、D9/D10 生成器补全闭合（G0 幂等零差异 + `TemplateCodegenIntegrityGuardTest`）；
+  ⑨ 本批真根因修复 16 处（patch 组装六列漏登记静默丢列写 / 迁移步①非幂等 / C++ 卸槽 no-op、
+  产出链空 id 恒失败、`EquipStatResolver` 复合赋值 `x += f()` 加成翻倍、默认境界哨兵反向钳 T1 等，
+  详见 `reports/report-B3.md` §3）。
+- **B4 数值对齐与验收（R 拍板三口径落地）**：① **S9 占比**：装备贡献 ∈ 总战力 [35,45]（40 种子中位）——
+  均匀 k 六入口不可同带的实测结论 ⇒ 仅 **T6 档 flat 主词条基数 ×1.8**（ATTACK/DEFENSE 780→1404、
+  HP 7800→14040；CRIT_RATE 与 T1–T5 不动），校准后五入口（金丹 35.2/元婴 36.4/化神 38.2/炼虚 43.5/
+  **大乘 38.25**）全入带并由 `EquipmentPowerParityTest`（5 用例，分维度 E11 + 2/4/6 件套单调
+  26.68/31.29/37.76 + S14 速度/灵力零贡献回归锁）钉死；② **S16 经济**：T6 单件 1→30 = 1,566,000 灵石 + 39 兽材，
+  一套 9,396,000 ÷ 月产出锚 **9,400,000**（`STANDARD_MONTH_OUTPUT_AT_T6_STAGE`，拍板口径反推定锚）=
+  **0.9996** ∈ [0.75,1.25]（`EquipmentEconomyCalibrationTest`）；③ **速度/灵力塌陷结论 = 不补偿**
+  （维持 §13-13 拍板；实测塌陷 −105%~−122%，备选 B1/B2 切换成本在案，监控随 I9 族）；
+  ④ **热点缓存**：`EquipStatResolver` 恒等键整解析缓存（值语义键深哈希 6.3× 劣化实测否定方案 §13-6 字面；
+  124–161 ns/调用 + 4096 清空护栏；`EquipmentStatHotPathBenchmark` 门 ≤1.10，三轮 0.282–0.603）；
+  ⑤ **期望成本量化入 I9**：掉落链理想套 11,389 件掉落（精确容斥）/ 锻造链理想套 88 次（12 配方天然定向）。
+- **B5 文档与发布收口（本批，纯文档 ~12 文件）**：双更新日志（本节 + 游戏内 4.01.16 条目）补登记 B0–B4 全量；
+  `docs/adr/equipment-set-system.md` **新增**（「单列属性」与「删堆叠」两大决策）；
+  `docs/knowledge-base.md` 经济基线表（月产出锚 940 万注记 / 升级消耗 / 分解返还 / 两笔补偿）+ 装备子系统索引；
+  `docs/architecture.md` 属性与装备体系 + R1–R12/D1–D10/I1–I10 全景对照 + 装备线遗留债登记；
+  `docs/cpp-engine.md` 基线行；`CODE_WIKI.md` 装备面；`docs/ui-read-surface.md` §2 最终镜像面；
+  `docs/threading-contract.md` 声明（升级/分解走既有 GameEngine-Thread 事务，零新增跨线程交互）；
+  方案 §8 未来场景注记两条结构性数值；对拍两缺口/暴击 uncapped/秘境旧堆叠轨/TIER_DURATION 歧义/
+  AI 装备加成五项遗留**显式入债表**（`docs/architecture.md`「装备线遗留债登记」）。
+- **🔴 存档版本不可回退（I1，更新公告必写）**：本次更新对装备系统进行了彻底重构：所有装备转换为全新的
+  六部位套装体系（头/身/手/脚/武器/腿），旧装备已按原价折算为灵石并通过邮件发放补偿；孕养类加成丹药
+  已退役并按原价折算补偿。由于存档结构升级，**更新后无法回退到旧版本**，旧版本客户端将无法读取新存档，
+  请更新前确认（Room v64 / ProtoBuf 退役号禁复用 / 无运行时开关）。
+- **门禁终态（EQ-B4 后基线，B5 复用不重跑 C++）**：六模块 JVM **7652/0/0 · 22 skip**（domain 1599 /
+  data 881/15skip / engine 2997/5skip / ui 155 / feature:game 992 / app 1028/2skip）· ctest **1521/1521** ·
+  jni-count **87/87** · detekt 零违规 baseline 零动 · G0 codegen 零差异 · `.so` worktree 重编
+  （259 源同源指纹，B4 批 10:01）——B5 纯文档批不触 C++/Room/JVM 测试面，直接复用该基线。
+
 ### 实时结算线 B7 批（2026-09-28）——离线语义（12h 全额 + 50% 至 24h 硬顶 + 注入路径 + UI 回归提示）— `feat(engine)`
 
 > 批次依据：`docs/realtime-settlement-plan-2026-09-27.md` §10 B7 行 / §1.4 离线口径

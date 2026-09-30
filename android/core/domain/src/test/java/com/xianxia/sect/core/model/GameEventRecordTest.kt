@@ -136,7 +136,6 @@ class GameEventRecordTest {
         val state = MutableGameState(
             gameData = GameData(id = "test", slotId = 1),
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),
@@ -165,7 +164,6 @@ class GameEventRecordTest {
         val state = MutableGameState(
             gameData = GameData(id = "test", slotId = 1),
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),
@@ -195,7 +193,6 @@ class GameEventRecordTest {
         val state = MutableGameState(
             gameData = GameData(id = "test", slotId = 1, gameYear = 8, gameMonth = 3, gamePhase = 1),
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),
@@ -224,7 +221,6 @@ class GameEventRecordTest {
         val state = MutableGameState(
             gameData = GameData(id = "test", slotId = 1),
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

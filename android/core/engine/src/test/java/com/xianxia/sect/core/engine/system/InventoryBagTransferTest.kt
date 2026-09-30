@@ -3,15 +3,15 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.model.BagStackedData
-import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.registry.ManualDatabase
 import org.junit.Assert.assertEquals
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
@@ -20,8 +20,12 @@ import org.junit.Test
  * 袋条目物化回仓库测试（materializeBagItemsToWarehouse）：
  * 弟子袋物品物化回仓库（发放类——溢出自动转邮件，物品不丢）。
  *
- * 独立存储后袋条目持有数据（payload/stackedData），物化仅做"袋 → 仓库"搬运，
- * 不再有"袋满失败"概念（袋容量无上限）。
+ * B3 装备重构口径：
+ * - 装备实例条目的"物化回仓"已由实例单轨承载（实例恒在实例表，卸装入袋不清表），
+ *   袋 → 仓库搬运语义不再适用——装备实例物化用例随堆叠轨退役删除
+ *   （实例保真由 DiscipleEquipmentService 卸装/装配链与 EquipmentUpgradeServiceTest 看护）
+ * - 装备堆叠条目（equipment_stack）不再重建（堆叠轨退役）
+ * - 功法/材料等堆叠类条目照旧合并/重建
  */
 class InventoryBagTransferTest {
 
@@ -39,6 +43,19 @@ class InventoryBagTransferTest {
 
     @Before
     fun setUp() {
+        // 溢出转邮件链（handleOverflowResult → resolveManualTemplateId）按名查
+        // ManualDatabase，未初始化会抛 IllegalStateException——对齐
+        // BagItemReconstructorTest 的条件初始化 + 复位口径
+        ManualDatabase.initializeWithManuals(mapOf(
+            "t1" to ManualDatabase.ManualTemplate(
+                id = "t1", name = "太乙剑诀", type = ManualType.ATTACK, rarity = 2,
+                description = "测试功法"
+            ),
+            "t2" to ManualDatabase.ManualTemplate(
+                id = "t2", name = "新功法", type = ManualType.ATTACK, rarity = 1,
+                description = "测试功法"
+            )
+        ))
         store = FakeAtomicStateStore()
         store.update { gameData = GameData(slotId = 1) }
         overflowHandler = RecordingOverflowHandler()
@@ -49,27 +66,10 @@ class InventoryBagTransferTest {
         )
     }
 
-    private fun eqInstance(id: String, name: String) = EquipmentInstance(
-        id = id, name = name, rarity = 1, slot = EquipmentSlot.WEAPON
-    )
-
-    @Test
-    fun `materialize - equipment instance merges into stack and removes instance`() {
-        store.equipmentStacks.value = listOf(
-            EquipmentStack(id = "s1", name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 3)
-        )
-        store.equipmentInstances.value = listOf(eqInstance("i1", "精铁剑"))
-
-        val count = inventorySystem.materializeBagItemsToWarehouse(listOf(
-            StorageBagItem(
-                itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
-                equipmentInstance = eqInstance("i1", "精铁剑")
-            )
-        ))
-
-        assertEquals("物化计数", 1, count)
-        assertEquals("合并后堆叠数量", 4, store.equipmentStacks.value.first().quantity)
-        assertEquals("实例已从实例表移除（防双持有）", 0, store.equipmentInstances.value.size)
+    @After
+    fun tearDown() {
+        // 恢复未初始化态，防污染其他条件初始化 ManualDatabase 的测试类
+        ManualDatabase.resetForTest()
     }
 
     @Test
@@ -94,8 +94,8 @@ class InventoryBagTransferTest {
     }
 
     @Test
-    fun `materialize - equipment stack rebuilds from template with stackedData minRealm`() {
-        // 堆叠条目（赏赐/购买入袋）：模板重建完整堆叠，minRealm 用条目 stackedData 保真
+    fun `materialize - equipment stack entry no longer rebuilt`() {
+        // B3 堆叠轨退役：equipment_stack 条目不再经模板重建入库
         val count = inventorySystem.materializeBagItemsToWarehouse(listOf(
             StorageBagItem(
                 itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1,
@@ -103,29 +103,26 @@ class InventoryBagTransferTest {
             )
         ))
 
-        assertEquals(1, count)
-        val stack = store.equipmentStacks.value.first()
-        assertEquals("精铁剑", stack.name)
-        assertEquals("条目数量保真", 2, stack.quantity)
-        assertEquals("minRealm 保真（非 rarity 推导）", 7, stack.minRealm)
+        assertEquals("装备堆叠条目不再物化", 0, count)
+        assertEquals("实例轨零新增", 0, store.equipmentInstances.value.size)
     }
 
     @Test
     fun `materialize - unknown template dropped without affecting other items`() {
         val count = inventorySystem.materializeBagItemsToWarehouse(listOf(
             StorageBagItem(
-                itemId = "b1", itemType = "equipment_stack", name = "不存在的装备", rarity = 1,
+                itemId = "b1", itemType = "material_stack", name = "不存在的材料", rarity = 1,
                 stackedData = BagStackedData()
             ),
             StorageBagItem(
-                itemId = "i2", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
-                equipmentInstance = eqInstance("i2", "精铁剑")
+                itemId = "mi2", itemType = "manual_instance", name = "太乙剑诀", rarity = 2,
+                manualInstance = ManualInstance(id = "mi2", name = "太乙剑诀", rarity = 2, type = ManualType.ATTACK)
             )
         ))
 
         assertEquals("仅成功 1 条", 1, count)
-        assertEquals("失败条目未入库", 0, store.equipmentStacks.value.count { it.name == "不存在的装备" })
-        assertEquals("成功条目已入库", 1, store.equipmentStacks.value.count { it.name == "精铁剑" })
+        assertEquals("失败条目未入库", 0, store.manualStacks.value.count { it.name == "不存在的材料" })
+        assertEquals("成功条目已入库", 1, store.manualStacks.value.count { it.name == "太乙剑诀" })
     }
 
     @Test
@@ -136,33 +133,28 @@ class InventoryBagTransferTest {
         ))
 
         assertEquals(0, count)
-        assertEquals(0, store.equipmentStacks.value.size)
+        assertEquals(0, store.equipmentInstances.value.size)
     }
 
     @Test
-    fun `materialize - warehouse full overflows to mail without losing instance`() {
-        // 实例物化：仓库满 → returnEquipmentToStack Partial → 实例转邮件（物品不丢）
+    fun `materialize - manual stack overflows to mail without losing item`() {
+        // 功法堆叠物化：仓库满 → Partial → 溢出转邮件（物品不丢）
         val baseCapacity = com.xianxia.sect.core.GameConfig.Warehouse.BASE_CAPACITY
-        repeat(baseCapacity) { i ->
-            store.equipmentStacks.value = store.equipmentStacks.value +
-                EquipmentStack(
-                    id = "s$i", name = "独门武器$i", rarity = 1,
-                    slot = EquipmentSlot.WEAPON, quantity = 1
-                )
+        store.update {
+            manualStacks.replaceAll((0 until baseCapacity).map { i ->
+                ManualStack(id = "m$i", name = "独门功法$i", rarity = 1, type = ManualType.ATTACK, quantity = 1)
+            })
         }
 
         val count = inventorySystem.materializeBagItemsToWarehouse(listOf(
             StorageBagItem(
-                itemId = "i1", itemType = "equipment_instance", name = "新武器", rarity = 1,
-                equipmentInstance = eqInstance("i1", "新武器")
+                itemId = "mi1", itemType = "manual_instance", name = "新功法", rarity = 1,
+                manualInstance = ManualInstance(id = "mi1", name = "新功法", rarity = 1, type = ManualType.ATTACK)
             )
         ))
 
-        // 仓库满 → Failure(Full) → handleOverflowResult 已把物品转邮件（不丢），
-        // 实例删除防"邮件+实例"双份复制
-        assertEquals("溢出转邮件视为物化完成", 1, count)
-        assertEquals("实例已删除（防复制）", 0, store.equipmentInstances.value.size)
+        // 仓库满 → 溢出转邮件（不丢）
+        assertEquals("物化完成", 1, count)
         assertEquals("溢出邮件草稿", 1, overflowHandler.drafts.size)
-        assertEquals("溢出数量", 1, overflowHandler.drafts[0].quantity)
     }
 }

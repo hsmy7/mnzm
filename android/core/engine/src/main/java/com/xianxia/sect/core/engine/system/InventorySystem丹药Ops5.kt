@@ -21,7 +21,7 @@ fun InventorySystem.addMaterial(item: Material, merge: Boolean = true): DomainRe
     if (validation is DomainResult.Failure) return validation
 
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
+        val otherTypes = equipmentInstances.size + manualStacks.size + pills.size + herbs.size + seeds.size
         val store = StackableItemStore(
             initialItems = materials.all(),
             stackKeyOf = StackKeys::material,
@@ -130,7 +130,7 @@ fun InventorySystem.addHerb(item: Herb, merge: Boolean = true): DomainResult<Her
     if (validation is DomainResult.Failure) return validation
 
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
+        val otherTypes = equipmentInstances.size + manualStacks.size + pills.size + materials.size + seeds.size
         val store = StackableItemStore(
             initialItems = herbs.all(),
             stackKeyOf = StackKeys::herb,

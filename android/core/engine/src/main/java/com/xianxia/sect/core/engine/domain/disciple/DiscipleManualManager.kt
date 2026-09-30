@@ -3,13 +3,13 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.system.BagItemReconstructor
 import com.xianxia.sect.core.engine.system.ReconstructedBagStack
 import com.xianxia.sect.core.engine.system.StackUpdate
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.basePhysicalAttack
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.util.StorageBagUtils
@@ -50,7 +50,8 @@ class DiscipleManualManager @Inject constructor() {
     )
 
     private fun typeMatch(disciple: Disciple, candidate: ManualCandidate): Int {
-        val prefersPhysical = disciple.basePhysicalAttack >= disciple.baseMagicAttack
+        // 单列口径（B1 §15.4）：物法倾向由固有伤害属性表达
+        val prefersPhysical = disciple.resolvedInnateDamageType() == DamageType.PHYSICAL
         return if (prefersPhysical && candidate.hasPhysical) 1
         else if (!prefersPhysical && candidate.hasMagic) 1
         else 0

@@ -24,6 +24,8 @@ import androidx.compose.runtime.Immutable
  * @param spiritRoots 灵根元素序列，顺序与配置一致，元素取值见 `SpiritRootGenerator` 的元素表
  * @param avatarKey 头像精灵名，经 `SpriteResRegistry.resolve` 解析
  * @param portraitKey 立绘精灵名，经 `PortraitResolver`（内部走 `SpriteResRegistry`）解析
+ * @param innateDamageType 固有伤害属性（`"PHYSICAL"`/`"MAGIC"`，方案 §15.3 Q1）：
+ *   该角色普攻的伤害类型，创建弟子时写入 `Disciple.combat.innateDamageType` 终身不变
  */
 @Immutable
 data class CharacterTemplate(
@@ -33,6 +35,7 @@ data class CharacterTemplate(
     val spiritRoots: List<String>,
     val avatarKey: String,
     val portraitKey: String,
+    val innateDamageType: String,
 ) {
     /** 与 [Disciple.spiritRootType] 同域：多灵根以逗号拼接（约定见 `SpiritRootGenerator.generate`） */
     val spiritRootType: String get() = spiritRoots.joinToString(",")
@@ -67,6 +70,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("metal"),
             avatarKey = "avatar_zhouming",
             portraitKey = "portrait_zhouming",
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
         CharacterTemplate(
             id = "suqing",
@@ -75,6 +79,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("water"),
             avatarKey = "avatar_suqing",
             portraitKey = "portrait_suqing",
+            innateDamageType = InnateDamageType.MAGIC,
         ),
         CharacterTemplate(
             id = "linxuetang",
@@ -83,6 +88,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("wood", "water"),
             avatarKey = "avatar_linxuetang",
             portraitKey = "portrait_linxuetang",
+            innateDamageType = InnateDamageType.MAGIC,
         ),
         CharacterTemplate(
             id = "xuhe",
@@ -91,6 +97,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("wood", "earth"),
             avatarKey = "avatar_xuhe",
             portraitKey = "portrait_xuhe",
+            innateDamageType = InnateDamageType.MAGIC,
         ),
         CharacterTemplate(
             id = "xieche",
@@ -99,6 +106,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("metal", "water"),
             avatarKey = "avatar_xieche",
             portraitKey = "portrait_xieche",
+            innateDamageType = InnateDamageType.PHYSICAL,
         ),
         CharacterTemplate(
             id = "zhaoyan",
@@ -107,6 +115,7 @@ object CharacterTemplateDb {
             spiritRoots = listOf("fire", "earth"),
             avatarKey = "avatar_zhaoyan",
             portraitKey = "portrait_zhaoyan",
+            innateDamageType = InnateDamageType.MAGIC,
         ),
     )
 

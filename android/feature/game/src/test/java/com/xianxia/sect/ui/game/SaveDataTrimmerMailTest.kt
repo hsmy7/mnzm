@@ -21,7 +21,6 @@ class SaveDataTrimmerMailTest {
     private fun snapshot(): GameStateSnapshot = GameStateSnapshot(
         gameData = GameData(sectName = "注入测试宗"),
         disciples = emptyList(),
-        equipmentStacks = emptyList(),
         equipmentInstances = emptyList(),
         manualStacks = emptyList(),
         manualInstances = emptyList(),

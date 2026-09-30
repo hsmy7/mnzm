@@ -3,8 +3,7 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.baseAttack
 
 /**
  * AI 宗门弟子池截断（自 [AISectDiscipleManager] 拆出，**行为零变更**）。
@@ -22,7 +21,7 @@ import com.xianxia.sect.core.model.basePhysicalAttack
 internal fun AISectDiscipleManager.truncateToLimit(disciples: List<Disciple>): List<Disciple> =
     if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
         disciples.sortedByDescending {
-            it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp
+            it.combat.baseAttack + it.combat.baseHp
         }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
     } else {
         disciples

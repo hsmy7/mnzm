@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.BuildingType
@@ -36,7 +35,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * - 死弟子槽位清理：读档收获后 Repository 槽位补清弟子关联
  *       （SlotStateMachine.resetSlot 保留弟子字段，不清导致死弟子永久占用槽位）
- * - 锁内吞失败防御：产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
+ * - 锁内吞失败防御：产出入库失败（addPill/addEquipmentInstance Failure）视为炼制失败，
  *       不结算晋升但计数照常（防装备/丹药静默丢失）
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
@@ -84,20 +83,25 @@ class BuildingServiceDeathDiscipleTest {
         )
     }
 
-    /** withTrackingSource 透传 + 入库成功（mock 默认不执行 lambda 且返回 null） */
+    /**
+     * B3 实例轨：锻造走 EquipmentFactory + addEquipmentInstance——锻造收获用例
+     * 用真实 InventorySystem；丹药用例沿用 mock stub。
+     */
+    private fun realInventory(store: FakeAtomicStateStore): InventorySystem = InventorySystem(
+        stateStore = store,
+        inventoryConfig = com.xianxia.sect.core.config.InventoryConfig(),
+        overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+    )
+
+    /** 丹药入库 stub（withTrackingSource 透传 + addPill 成功） */
     private fun stubInventory(): InventorySystem {
         val inv = mock<InventorySystem>()
         whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
             @Suppress("UNCHECKED_CAST")
             (invocation.getArgument(1) as () -> Any)()
         }
-        whenever(inv.createEquipmentFromRecipe(any()))
-            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
         whenever(inv.addPill(any())).thenAnswer { invocation ->
             DomainResult.Success(invocation.getArgument(0) as Pill)
-        }
-        whenever(inv.addEquipmentStack(any())).thenAnswer { invocation ->
-            DomainResult.Success(invocation.getArgument(0) as EquipmentStack)
         }
         return inv
     }
@@ -122,9 +126,9 @@ class BuildingServiceDeathDiscipleTest {
     fun `读档收获 - 死弟子槽位单事务重置并清空弟子关联`() = runTest {
         val store = newStoreWithDisciple(alive = false)
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         repo.loadSlots(listOf(forgeCompletedSlot(tier1.id)))
-        val service = newService(store, repo, inventorySystem = stubInventory())
+        val service = newService(store, repo, inventorySystem = realInventory(store))
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id))
 
@@ -141,9 +145,9 @@ class BuildingServiceDeathDiscipleTest {
     fun `读档收获 - 存活弟子单事务重置且保留弟子关联（供自动续炼）`() = runTest {
         val store = newStoreWithDisciple(alive = true)
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         repo.loadSlots(listOf(forgeCompletedSlot(tier1.id)))
-        val service = newService(store, repo, inventorySystem = stubInventory())
+        val service = newService(store, repo, inventorySystem = realInventory(store))
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id))
 
@@ -183,9 +187,12 @@ class BuildingServiceDeathDiscipleTest {
     fun `读档收获 - 锻造入库失败视为炼制失败不晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple(alive = true)
         val inv = stubInventory()
-        whenever(inv.addEquipmentStack(any()))
+        // B3 实例轨：入库失败改 stub addEquipmentInstance；stateStore 须指向真实
+        // store（产出链读弟子锻造等级定品阶）
+        whenever(inv.addEquipmentInstance(any()))
             .thenReturn(DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = 0)))
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        whenever(inv.stateStore).thenReturn(store)
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val service = newService(store, inventorySystem = inv)
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id))
@@ -195,7 +202,7 @@ class BuildingServiceDeathDiscipleTest {
         assertEquals("弟子回空闲", DiscipleStatus.IDLE, disciple.status)
         assertEquals("失败也计入完成次数", 1L,
             store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
-        verify(inv).addEquipmentStack(any())
+        verify(inv).addEquipmentInstance(any())
     }
 
     @Test

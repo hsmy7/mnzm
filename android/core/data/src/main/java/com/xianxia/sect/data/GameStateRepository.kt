@@ -47,7 +47,7 @@ class GameStateRepository @Inject constructor(
         return try {
             val gameData = gameDataDao.getGameDataSync(slotId) ?: return null
             val disciples = discipleDao.getAllSync(slotId)
-            val equipmentStacks = itemDaos.equipmentStackDao.getAllSync(slotId)
+            val equipmentStacks = emptyList<com.xianxia.sect.core.model.EquipmentStack>()
             val equipmentInstances = itemDaos.equipmentInstanceDao.getAllSync(slotId)
             val manualStacks = itemDaos.manualStackDao.getAllSync(slotId)
             val manualInstances = itemDaos.manualInstanceDao.getAllSync(slotId)

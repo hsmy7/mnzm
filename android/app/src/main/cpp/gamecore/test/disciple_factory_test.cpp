@@ -54,10 +54,8 @@ bool inGenericPortraitPool(const std::string& res) {
 void expectNumericFieldsEqual(const Disciple& a, const Disciple& b) {
     EXPECT_EQ(a.hpVariance, b.hpVariance);
     EXPECT_EQ(a.mpVariance, b.mpVariance);
-    EXPECT_EQ(a.physicalAttackVariance, b.physicalAttackVariance);
-    EXPECT_EQ(a.magicAttackVariance, b.magicAttackVariance);
-    EXPECT_EQ(a.physicalDefenseVariance, b.physicalDefenseVariance);
-    EXPECT_EQ(a.magicDefenseVariance, b.magicDefenseVariance);
+    EXPECT_EQ(a.attackVariance, b.attackVariance);
+    EXPECT_EQ(a.defenseVariance, b.defenseVariance);
     EXPECT_EQ(a.speedVariance, b.speedVariance);
     EXPECT_EQ(a.comprehension, b.comprehension);
     EXPECT_EQ(a.intelligence, b.intelligence);
@@ -70,10 +68,8 @@ void expectNumericFieldsEqual(const Disciple& a, const Disciple& b) {
     EXPECT_EQ(a.teaching, b.teaching);
     EXPECT_EQ(a.baseHp, b.baseHp);
     EXPECT_EQ(a.baseMp, b.baseMp);
-    EXPECT_EQ(a.basePhysicalAttack, b.basePhysicalAttack);
-    EXPECT_EQ(a.baseMagicAttack, b.baseMagicAttack);
-    EXPECT_EQ(a.basePhysicalDefense, b.basePhysicalDefense);
-    EXPECT_EQ(a.baseMagicDefense, b.baseMagicDefense);
+    EXPECT_EQ(a.baseAttack, b.baseAttack);
+    EXPECT_EQ(a.baseDefense, b.baseDefense);
     EXPECT_EQ(a.baseSpeed, b.baseSpeed);
 }
 
@@ -82,29 +78,25 @@ TEST(DiscipleFactory, GoldenSequenceSeed42) {
     const auto d = createDisciple(kSeed(), rng);
     // 黄金值（Kotlin DiscipleFactory.create 同种子输出，DiffDiscipleFactoryTest
     // 对拍逐字段确认后固化——seed=42/male/单灵根火）
-    EXPECT_EQ("male_disciple_15", d.portraitRes);
+    EXPECT_EQ("male_disciple_18", d.portraitRes);
     EXPECT_EQ(21, d.hpVariance);
     EXPECT_EQ(18, d.mpVariance);
-    EXPECT_EQ(10, d.physicalAttackVariance);
-    EXPECT_EQ(16, d.magicAttackVariance);
-    EXPECT_EQ(8, d.physicalDefenseVariance);
-    EXPECT_EQ(6, d.magicDefenseVariance);
+    EXPECT_EQ(10, d.attackVariance);
+    EXPECT_EQ(16, d.defenseVariance);
     EXPECT_EQ(8, d.speedVariance);
-    EXPECT_EQ(82, d.comprehension);
-    EXPECT_EQ(56, d.intelligence);
-    EXPECT_EQ(73, d.charm);
-    EXPECT_EQ(80, d.morality);
-    EXPECT_EQ(57, d.artifactRefining);
-    EXPECT_EQ(35, d.pillRefining);
-    EXPECT_EQ(28, d.spiritPlanting);
-    EXPECT_EQ(48, d.mining);
-    EXPECT_EQ(43, d.teaching);
+    EXPECT_EQ(87, d.comprehension);
+    EXPECT_EQ(27, d.intelligence);
+    EXPECT_EQ(51, d.charm);
+    EXPECT_EQ(45, d.morality);
+    EXPECT_EQ(56, d.artifactRefining);
+    EXPECT_EQ(73, d.pillRefining);
+    EXPECT_EQ(80, d.spiritPlanting);
+    EXPECT_EQ(57, d.mining);
+    EXPECT_EQ(35, d.teaching);
     EXPECT_EQ(145, d.baseHp);
     EXPECT_EQ(70, d.baseMp);
-    EXPECT_EQ(13, d.basePhysicalAttack);
-    EXPECT_EQ(13, d.baseMagicAttack);
-    EXPECT_EQ(10, d.basePhysicalDefense);
-    EXPECT_EQ(8, d.baseMagicDefense);
+    EXPECT_EQ(26, d.baseAttack);
+    EXPECT_EQ(20, d.baseDefense);
     EXPECT_EQ(16, d.baseSpeed);
 }
 
@@ -119,30 +111,26 @@ TEST(DiscipleFactory, GoldenSequenceSeed987654321Female) {
     const auto d = createDisciple(s, rng);
     // 黄金值（Kotlin DiscipleFactory.create 同种子输出，DiffDiscipleFactoryTest
     // 对拍逐字段确认后固化——seed=987654321/female/五灵根）
-    EXPECT_EQ("female_disciple_9", d.portraitRes);
+    EXPECT_EQ("female_disciple_11", d.portraitRes);
     EXPECT_EQ(-18, d.hpVariance);
     EXPECT_EQ(3, d.mpVariance);
-    EXPECT_EQ(-9, d.physicalAttackVariance);
-    EXPECT_EQ(-9, d.magicAttackVariance);
-    EXPECT_EQ(-28, d.physicalDefenseVariance);
-    EXPECT_EQ(-9, d.magicDefenseVariance);
-    EXPECT_EQ(4, d.speedVariance);
-    EXPECT_EQ(17, d.comprehension);
-    EXPECT_EQ(72, d.intelligence);
-    EXPECT_EQ(34, d.charm);
-    EXPECT_EQ(54, d.morality);
-    EXPECT_EQ(47, d.artifactRefining);
-    EXPECT_EQ(59, d.pillRefining);
-    EXPECT_EQ(29, d.spiritPlanting);
-    EXPECT_EQ(36, d.mining);
-    EXPECT_EQ(58, d.teaching);
+    EXPECT_EQ(-9, d.attackVariance);
+    EXPECT_EQ(-9, d.defenseVariance);
+    EXPECT_EQ(-28, d.speedVariance);
+    EXPECT_EQ(2, d.comprehension);
+    EXPECT_EQ(54, d.intelligence);
+    EXPECT_EQ(52, d.charm);
+    EXPECT_EQ(72, d.morality);
+    EXPECT_EQ(34, d.artifactRefining);
+    EXPECT_EQ(54, d.pillRefining);
+    EXPECT_EQ(47, d.spiritPlanting);
+    EXPECT_EQ(59, d.mining);
+    EXPECT_EQ(29, d.teaching);
     EXPECT_EQ(98, d.baseHp);
     EXPECT_EQ(61, d.baseMp);
-    EXPECT_EQ(10, d.basePhysicalAttack);
-    EXPECT_EQ(10, d.baseMagicAttack);
-    EXPECT_EQ(7, d.basePhysicalDefense);
-    EXPECT_EQ(7, d.baseMagicDefense);
-    EXPECT_EQ(15, d.baseSpeed);
+    EXPECT_EQ(21, d.baseAttack);
+    EXPECT_EQ(16, d.baseDefense);
+    EXPECT_EQ(10, d.baseSpeed);
 }
 
 TEST(DiscipleFactory, DeterministicAcrossInstances) {
@@ -190,10 +178,8 @@ TEST(DiscipleFactory, TemplatePortraitOverridePinsPortraitAndSkipsPoolRoll) {
     const auto control = createDisciple(kSeed(), controlRng);
     EXPECT_EQ(control.hpVariance, d.hpVariance);
     EXPECT_EQ(control.mpVariance, d.mpVariance);
-    EXPECT_EQ(control.physicalAttackVariance, d.physicalAttackVariance);
-    EXPECT_EQ(control.magicAttackVariance, d.magicAttackVariance);
-    EXPECT_EQ(control.physicalDefenseVariance, d.physicalDefenseVariance);
-    EXPECT_EQ(control.magicDefenseVariance, d.magicDefenseVariance);
+    EXPECT_EQ(control.attackVariance, d.attackVariance);
+    EXPECT_EQ(control.defenseVariance, d.defenseVariance);
     EXPECT_EQ(control.speedVariance, d.speedVariance);
     EXPECT_EQ(control.comprehension, d.comprehension);
 

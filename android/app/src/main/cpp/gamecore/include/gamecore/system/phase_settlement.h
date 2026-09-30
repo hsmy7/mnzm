@@ -21,8 +21,8 @@
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/pill_system.h"
-#include "gamecore/system/nurture_constants.h"  // 熟练度/孕养常量（detail 域）
-#include "gamecore/system/settlement.h"        // kMsPerPhase（熟练度/孕养时间换算）
+#include "gamecore/system/nurture_constants.h"  // 熟练度常量（detail 域）
+#include "gamecore/system/settlement.h"        // kMsPerPhase（熟练度时间换算）
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
@@ -35,9 +35,9 @@
 //   1. HP/MP 恢复            ← CultivationService.recoverHpMpSingleColumn
 //   2. 修炼累积（≥1e8 跳过）  ← accumulateCultivationPerPhase
 //   3. 功法熟练度（批量暂存）  ← processManualProficiencySingle
-//   4. 装备孕养（批量暂存）    ← processEquipmentNurtureSingle
+//   （4. 装备孕养已随 B3 退役——等级/词条随实例单点，升级走 EQUIP_UPGRADE）
 // 全弟子循环后：
-//   5. 批量提交熟练度 + 单次重建装备列表
+//   5. 批量提交熟练度
 //   6. 自动丹药补服           ← processAutoPillsRealtime（DisciplePillManager）
 //   7. 突破检测               ← processBreakthroughs（DiscipleBreakthroughHandler）
 //
@@ -61,7 +61,7 @@ constexpr double kCultivationSkipThreshold = 1e8;
 /// HP/MP 恢复乘区总和（RecoveryZones：base 1.0 + 建筑/丹药/境界乘区均为预留 0）
 constexpr double kRecoveryZoneTotal = 1.0;
 
-// 熟练度/孕养常量上移 nurture_constants.h（ai_sect_ops.h 共用）
+// 熟练度常量上移 nurture_constants.h（ai_sect_ops.h 共用）
 
 /// 消息栏事件上限（GameConfig.Logs.MAX_EVENT_LOGS）
 constexpr std::size_t kMaxEventLogs = 200;
@@ -83,8 +83,6 @@ using gamecore::state::StorageBagItem;
 //     isBlankString 已抽取至 settlement_detail.h（与月变钩子共享单一定义），
 //     经下方别名以原名使用
 namespace settle_util = gamecore::system::settle_util;
-// nurtureMaxLevel/expRequiredForLevelUp 由 nurture_constants.h 直接定义于本
-// detail 域（gamecore::system::detail）——无需 using
 using settle_util::containsString;
 using settle_util::indexById;
 using settle_util::isBlankString;
@@ -123,9 +121,7 @@ inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
 
 /// HP/MP 是否均已满（isDiscipleFullHpMp；负值视为满）。
 /// 装备/功法**桶视图**由**步骤入口**构建一次传入：突破候选筛选（步骤 7）
-/// 在核心批次（步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行，入口
-/// 桶已含当旬最新 nurtureLevel——"当旬最新"语义对齐 Kotlin
-/// battleWritebackMaxHpMp 的当前 state 现场口径；步骤 7 全程只读
+/// 在核心批次（步骤 1-5；孕养提交段已随 B3 退役）之后执行；步骤 7 全程只读
 /// equipmentInstances/manualInstances（attemptAutoPill 只写 pills/储物袋），
 /// 入口桶与逐实体现场重建逐位一致。
 inline bool isFullHpMp(const Disciple& d, std::size_t ownerRow,
@@ -411,78 +407,9 @@ inline void commitManualProficiencies(
     }
 }
 
-// ── 步骤 4：装备孕养（批量暂存 + 单次重建） ──────────────────────────
-
-/// 孕养经验应用（updateNurtureExp）；返回是否变化
-inline bool applyNurtureExp(EquipmentInstance& eq, double gain) {
-    const int32_t maxLevel = nurtureMaxLevel(eq.rarity);
-    if (eq.nurtureLevel >= maxLevel) return false;
-    const double newProgress = eq.nurtureProgress + gain;
-    const double required = expRequiredForLevelUp(eq.nurtureLevel, eq.rarity);
-    if (newProgress >= required) {
-        eq.nurtureLevel = std::min(eq.nurtureLevel + 1, maxLevel);
-        eq.nurtureProgress =
-            (eq.nurtureLevel >= maxLevel) ? 0.0 : newProgress - required;
-    } else {
-        eq.nurtureProgress = newProgress;
-    }
-    return true;
-}
-
-/// 孕养度丹应用：N 点均分到已装备装备实例
-/// （向下取整，余数给第一件；满级装备跳过——该件增益不累积）。
-/// 无装备实例时零效果（丹药照常扣除，与 Kotlin 镜像一致）。
-inline void applyNurtureEffect(state::GameState& state, Disciple& d,
-                               int32_t nurtureAdd) {
-    if (nurtureAdd <= 0) return;
-    std::vector<std::string> equippedIds;
-    if (!d.weaponId.empty()) equippedIds.push_back(d.weaponId);
-    if (!d.armorId.empty()) equippedIds.push_back(d.armorId);
-    if (!d.bootsId.empty()) equippedIds.push_back(d.bootsId);
-    if (!d.accessoryId.empty()) equippedIds.push_back(d.accessoryId);
-    if (equippedIds.empty()) return;
-    const int32_t per = nurtureAdd / static_cast<int32_t>(equippedIds.size());
-    const int32_t remainder =
-        nurtureAdd % static_cast<int32_t>(equippedIds.size());
-    for (std::size_t i = 0; i < equippedIds.size(); ++i) {
-        const int32_t gain = per + (i == 0 ? remainder : 0);
-        if (gain <= 0) continue;
-        for (state::EquipmentInstance& eq : state.equipmentInstances) {
-            if (eq.id != equippedIds[i]) continue;
-            applyNurtureExp(eq, static_cast<double>(gain));
-            break;
-        }
-    }
-}
-
-/// 步骤 4：单弟子四槽孕养增长（批量模式：从入口桶视图读原值，
-/// 更新累积到 updates——与 Kotlin settleNurtureInPlace 读写面一致；
-/// DiscipleStore 行版——原对象版无调用方，随桶迁移删除）
-inline void processEquipmentNurture(
-        const DiscipleStore& ds, std::size_t row,
-        const EquipmentInstanceBuckets& eqBuckets,
-        std::map<std::string, EquipmentInstance>& updates) {
-    for (const std::string& eqId :
-         {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
-        if (eqId.empty()) continue;
-        const state::EquipmentInstance* shared = eqBuckets.find(row, eqId);
-        if (shared == nullptr) continue;
-        EquipmentInstance working = *shared;
-        if (applyNurtureExp(working, kNurtureGainPerPhase)) {
-            updates[eqId] = working;
-        }
-    }
-}
-
-/// 单次重建装备实例列表（applyEquipmentUpdates：保持原序按 id 覆盖）
-inline void applyEquipmentUpdates(
-        GameState& state, const std::map<std::string, EquipmentInstance>& updates) {
-    if (updates.empty()) return;
-    for (auto& eq : state.equipmentInstances) {
-        const auto it = updates.find(eq.id);
-        if (it != updates.end()) eq = it->second;
-    }
-}
+// ── 步骤 4：装备孕养已随 B3 退役（等级/词条随实例单点，升级走玩家交互
+//    EQUIP_UPGRADE 事务——equipment_tx.h；原 applyNurtureExp/
+//    processEquipmentNurture/applyEquipmentUpdates 全删） ─────────────
 
 // ── 步骤 6：自动丹药补服（processAutoPillsRealtime） ─────────────────
 
@@ -570,8 +497,6 @@ inline bool autoUsePills(Disciple& d, state::GameState& state) {
             }
             if (skip) continue;
         }
-        // A2：孕养度丹均分至已装备装备实例（nurtureAdd>0 才生效）
-        if (e.nurtureAdd > 0) applyNurtureEffect(state, working, e.nurtureAdd);
         pill::applyToDisciple(working, *item);
         working.storageBagItems = pill::decreaseItemQuantity(
             working.storageBagItems, item->itemId, 1);
@@ -601,10 +526,8 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.morality = r.morality;
     d.mining = r.mining;
     // PillEffects 字段
-    d.pillPhysicalAttackBonus = r.pillPhysicalAttackBonus;
-    d.pillMagicAttackBonus = r.pillMagicAttackBonus;
-    d.pillPhysicalDefenseBonus = r.pillPhysicalDefenseBonus;
-    d.pillMagicDefenseBonus = r.pillMagicDefenseBonus;
+    d.pillAttackBonus = r.pillAttackBonus;
+    d.pillDefenseBonus = r.pillDefenseBonus;
     d.pillHpBonus = r.pillHpBonus;
     d.pillMpBonus = r.pillMpBonus;
     d.pillSpeedBonus = r.pillSpeedBonus;
@@ -612,7 +535,6 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.pillCritEffectBonus = r.pillCritEffectBonus;
     d.pillCultivationSpeedBonus = r.pillCultivationSpeedBonus;
     d.pillSkillExpSpeedBonus = r.pillSkillExpSpeedBonus;
-    d.pillNurtureSpeedBonus = r.pillNurtureSpeedBonus;
     d.pillEffectDuration = r.pillEffectDuration;
     d.activePillTypes = r.activePillTypes;
     // 使用追踪
@@ -1016,11 +938,9 @@ inline void processBreakthroughs(
     DiscipleStore& ds = state.disciples;
     // 步骤 7 入口：装备/功法**桶视图**一次构建（R1.3 第二步：原 id 键全量
     // 深拷贝映射退役——构建 O(E) 指针入桶，零实例拷贝）。本步骤在核心批次
-    // （步骤 1-5 含孕养提交 applyEquipmentUpdates）之后执行——桶已含当旬
-    // 最新 nurtureLevel（"当旬最新"语义对齐 Kotlin battleWritebackMaxHpMp
-    // 的当前 state 现场口径）；步骤 7 全程只读两表（attemptAutoPill 只写
-    // pills/储物袋），候选筛选与逐候选突破循环共享同一桶视图，
-    // 消除逐实体 D 次重建。
+    // （步骤 1-5；孕养提交段已随 B3 退役）之后执行；步骤 7 全程只读两表
+    //（attemptAutoPill 只写 pills/储物袋），候选筛选与逐候选突破循环共享
+    // 同一桶视图，消除逐实体 D 次重建。
     const auto eqBuckets = inst_bucket::makeInstanceBuckets(
         ds, state.equipmentInstances);
     const auto mnBuckets = inst_bucket::makeInstanceBuckets(
@@ -1097,7 +1017,6 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
     }
 
     detail::PendingProficiencies pendingProficiencies;
-    std::map<std::string, state::EquipmentInstance> pendingEquipmentUpdates;
 
     state::DiscipleStore& ds = state.disciples;
     ecs::syncDiscipleEntities(world, ds.size());
@@ -1122,14 +1041,10 @@ inline void runPhaseCoreBatch(state::GameState& state, ecs::World& world) {
         detail::processManualProficiency(
             state.gameData, ds, row, mnBuckets,
             libraryIds.count(ds.ids[row]) > 0, pendingProficiencies);
-        // 4) 装备孕养增长（批量模式）
-        detail::processEquipmentNurture(ds, row, eqBuckets,
-                                        pendingEquipmentUpdates);
     });
 
-    // 5a) 单次提交熟练度；5b) 单次重建装备列表
+    // 5a) 单次提交熟练度（5b 装备孕养提交已随 B3 退役）
     detail::commitManualProficiencies(state.gameData, pendingProficiencies);
-    detail::applyEquipmentUpdates(state, pendingEquipmentUpdates);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1197,7 +1112,6 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
 
     struct ChunkResult {
         detail::PendingProficiencies pending;
-        std::map<std::string, state::EquipmentInstance> equipmentUpdates;
     };
     const std::size_t nChunks = std::min(jobs.threadCount(), rowCount);
     std::vector<ChunkResult> chunkResults(nChunks);
@@ -1221,26 +1135,18 @@ inline void runPhaseCoreBatchParallel(state::GameState& state,
             detail::processManualProficiency(
                 state.gameData, ds, row, mnBuckets,
                 libraryIds.count(ds.ids[row]) > 0, local.pending);
-            // 4) 装备孕养（局部暂存）
-            detail::processEquipmentNurture(ds, row, eqBuckets,
-                                            local.equipmentUpdates);
         }
         chunkResults[c] = std::move(local);
     });
 
     // 确定性合并（按块序号；键在块间唯一 → 直接覆盖赋值）
     detail::PendingProficiencies pendingProficiencies;
-    std::map<std::string, state::EquipmentInstance> pendingEquipmentUpdates;
     for (ChunkResult& cr : chunkResults) {
         for (auto& kv : cr.pending) {
             pendingProficiencies[kv.first] = std::move(kv.second);
         }
-        for (auto& kv : cr.equipmentUpdates) {
-            pendingEquipmentUpdates[kv.first] = std::move(kv.second);
-        }
     }
     detail::commitManualProficiencies(state.gameData, pendingProficiencies);
-    detail::applyEquipmentUpdates(state, pendingEquipmentUpdates);
 }
 
 /// 执行一旬弟子结算（时间推进由 SettlementEngine 负责，本函数只做结算）。
@@ -1335,7 +1241,7 @@ inline void runPhaseSettlementCore(state::GameState& state,
 // kGameSecondsPerPhase(2.0) = maxValue × 0.1。
 // 熟练度基数 kBaseProficiencyRate(6.0) 本就是每秒口径（nurture_constants.h
 // "6/s"），离散轨的 ×(kGameMsPerPhase/1000) 即 ×Δ秒——无需再除系数。
-// 孕养基数同理：kNurtureGainPerPhase(10.0)/2 = 5.0/秒。
+// 装备孕养连续积分段已随 B3 退役（等级/词条随实例单点，升级走玩家交互）。
 /// 连续积分一步（Δt = 本段未截断游戏毫秒，INV-2）。串行实现——
 /// 100ms tick 下 O(活跃实体) 与每旬批次同阶（性能标定与 D1 债见方案 §7）。
 inline void accrueContinuous(state::GameState& state, ecs::World& world,
@@ -1468,19 +1374,6 @@ inline void accrueContinuous(state::GameState& state, ecs::World& world,
             }
         }
 
-        // 4) 装备孕养（连续：5.0/秒 × Δ秒 直写实例；写点走桶可变访问
-        //    O(1)——B8 前此处桶命中后再全量 O(I) 线性扫，100ms tick 下
-        //    O(D×4×I) 是积分段 167ms@5000 的根因，bench 实测）
-        for (const std::string& eqId :
-             {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row],
-              ds.accessoryIds[row]}) {
-            if (eqId.empty()) continue;
-            state::EquipmentInstance* eq = eqBuckets.findMutable(row, eqId);
-            if (eq == nullptr) continue;
-            detail::applyNurtureExp(
-                *eq, (kNurtureGainPerPhase / kGameSecondsPerPhase) *
-                         deltaSeconds);
-        }
     }
 }
 

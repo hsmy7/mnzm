@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
@@ -29,28 +28,13 @@ internal fun InventorySystem.validateStackableItem(name: String, rarity: Int, qu
 }
 
 /**
- * 添加装备堆叠（合并 + 溢出转邮件 + 年度来源追踪）。
+ * 装备实例归还仓库（B3 实例轨：一行一实例，经 [addEquipmentInstance] 查重 + 追加；
+ * 方法名保留旧称以兼容调用点）。装备无堆叠合并，仓库满不转邮件（实例保留在原处）。
  *
- * @param item 待添加的装备堆叠
+ * @param instance 待归还的装备实例
  */
-
-fun InventorySystem.returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentStack> {
-    return stateStore.updateAndReturn {
-        val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-        val store = StackableItemStore(
-            initialItems = equipmentStacks.all(),
-            stackKeyOf = StackKeys::equipment,
-            maxStack = getMaxStackForType("equipment_stack"),
-            maxSlots = { computeMaxSlots() - otherTypes },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val item = instance.toStack(quantity = 1)
-        val result = store.add(item)
-        equipmentStacks.replaceAll(store.all())
-        handleOverflowResult(result, "equipment", item)
-        result
-    }
-}
+fun InventorySystem.returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentInstance> =
+    addEquipmentInstance(instance)
 
 /**
  * 袋条目物化回仓库（发放类——溢出自动转邮件，物品不丢）。
@@ -60,9 +44,10 @@ fun InventorySystem.returnEquipmentToStack(instance: EquipmentInstance): DomainR
  * 调用方包裹 [withTrackingSource] 归因年度报告。
  *
  * - 实例条目（equipment_instance/manual_instance）：[returnEquipmentToStack]/
- *   [returnManualToStack] 完整保真（含 nurture）
- * - 堆叠条目（equipment_stack/manual_stack/pill/material/herb/seed）：模板重建
- *   （[BagItemReconstructor]，minRealm/quantity 条目保真）
+ *   [returnManualToStack] 完整保真（等级/词条随实例）
+ * - 堆叠条目（manual_stack/pill/material/herb/seed）：模板重建
+ *   （[BagItemReconstructor]，minRealm/quantity 条目保真）；装备堆叠条目
+ *   不再重建（丢弃 + 日志，实例条目由物化器原样保留）
  * - 模板缺失：丢弃 + 日志（无法重建，不阻塞删除流程）
  * - 未物化条目（payload 空）：忽略（读档物化器已处理，运行期不应出现）
  *
@@ -146,7 +131,6 @@ internal fun InventorySystem.reconstructStackedItem(item: StorageBagItem): Recon
 internal fun InventorySystem.materializeStackedItem(item: StorageBagItem): Boolean {
     val reconstructed = reconstructStackedItem(item) ?: return false
     val result = when (reconstructed) {
-        is ReconstructedBagStack.Equipment -> addEquipmentStack(reconstructed.stack)
         is ReconstructedBagStack.Manual -> addManualStack(reconstructed.stack)
         is ReconstructedBagStack.Pill -> addPill(reconstructed.stack)
         is ReconstructedBagStack.Herb -> addHerb(reconstructed.stack)
@@ -169,7 +153,7 @@ internal fun InventorySystem.materializeStackedItem(item: StorageBagItem): Boole
 
 fun InventorySystem.returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+        val otherTypes = equipmentInstances.size + pills.size + materials.size + herbs.size + seeds.size
         val store = StackableItemStore(
             initialItems = manualStacks.all(),
             stackKeyOf = StackKeys::manual,
@@ -185,29 +169,20 @@ fun InventorySystem.returnManualToStack(instance: ManualInstance): DomainResult<
     }
 }
 
-fun InventorySystem.removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
-    if (quantity <= 0) return false
+/**
+ * 按实例 id 移除装备（B3 实例轨：装备无数量，1 件 = 1 条目；方法名保留旧称兼容调用点）。
+ *
+ * @param bypassLock true 时忽略锁定保护（死亡清算等系统路径用）
+ */
+fun InventorySystem.removeEquipment(id: String, @Suppress("UNUSED_PARAMETER") quantity: Int = 1,
+    bypassLock: Boolean = false): Boolean {
     return stateStore.updateAndReturn {
-        val existing = equipmentStacks.find { it.id == id } ?: return@updateAndReturn false
+        val existing = equipmentInstances.all().find { it.id == id } ?: return@updateAndReturn false
         if (!bypassLock && existing.isLocked) {
-            logWarning("Cannot remove locked equipment: ${existing.hashCode()}")
+            logWarning("Cannot remove locked equipment: ${existing.name}")
             return@updateAndReturn false
         }
-        if (existing.quantity < quantity) {
-            logWarning("Cannot remove $quantity equipment, only ${existing.quantity} available")
-            return@updateAndReturn false
-        }
-        var removed = false
-        equipmentStacks = equipmentStacks.mapNotNull { item ->
-            if (item.id == id && !removed) {
-                val newQty = item.quantity - quantity
-                when {
-                    newQty < 0 -> item
-                    newQty == 0 -> { removed = true; null }
-                    else -> { removed = true; item.copy(quantity = newQty) }
-                }
-            } else item
-        }
+        equipmentInstances = equipmentInstances.filter { it.id != id }
         true
     }
 }
@@ -217,19 +192,6 @@ fun InventorySystem.removeEquipmentInstance(id: String): Boolean {
         val oldSize = equipmentInstances.size
         equipmentInstances = equipmentInstances.filter { it.id != id }
         equipmentInstances.size < oldSize
-    }
-}
-
-fun InventorySystem.updateEquipmentStack(id: String, transform: (EquipmentStack) -> EquipmentStack): Boolean {
-    return stateStore.updateAndReturn {
-        var found = false
-        equipmentStacks = equipmentStacks.map {
-            if (it.id == id) {
-                found = true
-                transform(it)
-            } else it
-        }
-        found
     }
 }
 

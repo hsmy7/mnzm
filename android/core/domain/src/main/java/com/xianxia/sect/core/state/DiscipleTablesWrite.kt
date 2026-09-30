@@ -1,21 +1,13 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.accessoryNurture
 import com.xianxia.sect.core.model.activePillCategory
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.armorNurture
 import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.baseAttack
+import com.xianxia.sect.core.model.baseDefense
 import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
 import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
 import com.xianxia.sect.core.model.baseSpeed
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.bootsNurture
 import com.xianxia.sect.core.model.breakthroughCount
 import com.xianxia.sect.core.model.breakthroughFailCount
 import com.xianxia.sect.core.model.charm
@@ -24,26 +16,21 @@ import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.hasClearAllEffect
 import com.xianxia.sect.core.model.hasReviveEffect
+import com.xianxia.sect.core.model.attackVariance
+import com.xianxia.sect.core.model.defenseVariance
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
 import com.xianxia.sect.core.model.pillCritEffectBonus
 import com.xianxia.sect.core.model.pillCritRateBonus
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
+import com.xianxia.sect.core.model.pillAttackBonus
+import com.xianxia.sect.core.model.pillDefenseBonus
 import com.xianxia.sect.core.model.pillHpBonus
-import com.xianxia.sect.core.model.pillMagicAttackBonus
-import com.xianxia.sect.core.model.pillMagicDefenseBonus
 import com.xianxia.sect.core.model.pillMpBonus
-import com.xianxia.sect.core.model.pillNurtureSpeedBonus
-import com.xianxia.sect.core.model.pillPhysicalAttackBonus
-import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
 import com.xianxia.sect.core.model.pillSpeedBonus
@@ -58,7 +45,6 @@ import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.model.totalCultivation
 import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.weaponNurture
 
 internal fun DiscipleTables.writeAllFields(disciple: Disciple) {
     val id = disciple.id.toInt()
@@ -101,15 +87,12 @@ internal fun DiscipleTables.writeCombatFields(id: Int, disciple: Disciple) {
     // 战斗属性
     val c = disciple.combat
     baseHps[id] = c.baseHp; baseMps[id] = c.baseMp
-    basePhysicalAttacks[id] = c.basePhysicalAttack
-    baseMagicAttacks[id] = c.baseMagicAttack
-    basePhysicalDefenses[id] = c.basePhysicalDefense
-    baseMagicDefenses[id] = c.baseMagicDefense; baseSpeeds[id] = c.baseSpeed
+    baseAttacks[id] = c.baseAttack; baseDefenses[id] = c.baseDefense
+    baseSpeeds[id] = c.baseSpeed
     hpVariances[id] = c.hpVariance; mpVariances[id] = c.mpVariance
-    physicalAttackVariances[id] = c.physicalAttackVariance
-    magicAttackVariances[id] = c.magicAttackVariance
-    physicalDefenseVariances[id] = c.physicalDefenseVariance
-    magicDefenseVariances[id] = c.magicDefenseVariance
+    attackVariances[id] = c.attackVariance
+    defenseVariances[id] = c.defenseVariance
+    innateDamageTypes[id] = c.innateDamageType
     speedVariances[id] = c.speedVariance; totalCultivations[id] = c.totalCultivation
     breakthroughCounts[id] = c.breakthroughCount
     breakthroughFailCounts[id] = c.breakthroughFailCount
@@ -119,34 +102,28 @@ internal fun DiscipleTables.writeCombatFields(id: Int, disciple: Disciple) {
 internal fun DiscipleTables.writePillFields(id: Int, disciple: Disciple) {
     // 丹药效果
     val p = disciple.pillEffects
-    pillPhysicalAttackBonuses[id] = p.pillPhysicalAttackBonus
-    pillMagicAttackBonuses[id] = p.pillMagicAttackBonus
-    pillPhysicalDefenseBonuses[id] = p.pillPhysicalDefenseBonus
-    pillMagicDefenseBonuses[id] = p.pillMagicDefenseBonus
+    pillAttackBonuses[id] = p.pillAttackBonus
+    pillDefenseBonuses[id] = p.pillDefenseBonus
     pillHpBonuses[id] = p.pillHpBonus; pillMpBonuses[id] = p.pillMpBonus
     pillSpeedBonuses[id] = p.pillSpeedBonus; pillEffectDurations[id] = p.pillEffectDuration
     pillCritRateBonuses[id] = p.pillCritRateBonus
     pillCritEffectBonuses[id] = p.pillCritEffectBonus
     pillCultivationSpeedBonuses[id] = p.pillCultivationSpeedBonus
     pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
-    pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
     activePillCategories[id] = p.activePillCategory; activePillTypes[id] = p.activePillTypes
 }
 
 internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
     // 装备
     val e = disciple.equipment
-    weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
-    bootsIds[id] = e.bootsId; accessoryIds[id] = e.accessoryId
-    weaponNurtures[id] = e.weaponNurture; armorNurtures[id] = e.armorNurture
-    bootsNurtures[id] = e.bootsNurture; accessoryNurtures[id] = e.accessoryNurture
+    headIds[id] = e.headId; bodyIds[id] = e.bodyId
+    handsIds[id] = e.handsId; feetIds[id] = e.feetId
+    weaponIds[id] = e.weaponId; legsIds[id] = e.legsId
     storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
     discipleSpiritStones[id] = e.spiritStones
     cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
     manualCompletionMonths[id] = disciple.manualCompletionMonth
     manualCompletionPhases[id] = disciple.manualCompletionPhase
-    equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
-    equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
 }
 
 internal fun DiscipleTables.writeSkillFields(id: Int, disciple: Disciple) {

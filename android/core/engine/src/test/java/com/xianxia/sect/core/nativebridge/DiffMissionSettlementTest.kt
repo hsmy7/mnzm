@@ -117,7 +117,6 @@ class DiffMissionSettlementTest {
     private fun storeOf(snapshot: NativeGameState) = FakeGameStateStore().also {
         it.gameDataValue = snapshot.gameData
         it.disciplesValue = snapshot.disciples
-        it.equipmentStacksValue = snapshot.equipmentStacks
         it.equipmentInstancesValue = snapshot.equipmentInstances
         it.manualStacksValue = snapshot.manualStacks
         it.manualInstancesValue = snapshot.manualInstances

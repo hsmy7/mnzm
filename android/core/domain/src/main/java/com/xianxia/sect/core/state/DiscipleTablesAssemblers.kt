@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
@@ -81,8 +80,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
         manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
         manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
-        equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
-        equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
         combat = combat,
         pillEffects = pillEffects,
         equipment = equipment,
@@ -98,16 +95,13 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
 
 internal fun DiscipleTables.assembleCombat(id: Int) = CombatAttributes(
     baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
-    basePhysicalAttack = basePhysicalAttacks.getOrDefault(id, 0),
-    baseMagicAttack = baseMagicAttacks.getOrDefault(id, 0),
-    basePhysicalDefense = basePhysicalDefenses.getOrDefault(id, 0),
-    baseMagicDefense = baseMagicDefenses.getOrDefault(id, 0),
+    baseAttack = baseAttacks.getOrDefault(id, 0),
+    baseDefense = baseDefenses.getOrDefault(id, 0),
     baseSpeed = baseSpeeds.getOrDefault(id, 0),
     hpVariance = hpVariances.getOrDefault(id, 0), mpVariance = mpVariances.getOrDefault(id, 0),
-    physicalAttackVariance = physicalAttackVariances.getOrDefault(id, 0),
-    magicAttackVariance = magicAttackVariances.getOrDefault(id, 0),
-    physicalDefenseVariance = physicalDefenseVariances.getOrDefault(id, 0),
-    magicDefenseVariance = magicDefenseVariances.getOrDefault(id, 0),
+    attackVariance = attackVariances.getOrDefault(id, 0),
+    defenseVariance = defenseVariances.getOrDefault(id, 0),
+    innateDamageType = innateDamageTypes.getOrNull(id) ?: "",
     speedVariance = speedVariances.getOrDefault(id, 0),
     totalCultivation = totalCultivations.getOrNull(id) ?: 0L,
     breakthroughCount = breakthroughCounts.getOrDefault(id, 0),
@@ -117,10 +111,8 @@ internal fun DiscipleTables.assembleCombat(id: Int) = CombatAttributes(
 )
 
 internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(
-    pillPhysicalAttackBonus = pillPhysicalAttackBonuses.getOrDefault(id, 0),
-    pillMagicAttackBonus = pillMagicAttackBonuses.getOrDefault(id, 0),
-    pillPhysicalDefenseBonus = pillPhysicalDefenseBonuses.getOrDefault(id, 0),
-    pillMagicDefenseBonus = pillMagicDefenseBonuses.getOrDefault(id, 0),
+    pillAttackBonus = pillAttackBonuses.getOrDefault(id, 0),
+    pillDefenseBonus = pillDefenseBonuses.getOrDefault(id, 0),
     pillHpBonus = pillHpBonuses.getOrDefault(id, 0), pillMpBonus = pillMpBonuses.getOrDefault(id, 0),
     pillSpeedBonus = pillSpeedBonuses.getOrDefault(id, 0),
     pillEffectDuration = pillEffectDurations.getOrDefault(id, 0),
@@ -128,20 +120,17 @@ internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(
     pillCritEffectBonus = pillCritEffectBonuses.getOrDefault(id, 0.0),
     pillCultivationSpeedBonus = pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
     pillSkillExpSpeedBonus = pillSkillExpSpeedBonuses.getOrDefault(id, 0.0),
-    pillNurtureSpeedBonus = pillNurtureSpeedBonuses.getOrDefault(id, 0.0),
     activePillCategory = activePillCategories.getOrNull(id) ?: "",
     activePillTypes = activePillTypes.getOrNull(id) ?: emptySet()
 )
 
 internal fun DiscipleTables.assembleEquipment(id: Int) = EquipmentSet(
+    headId = headIds.getOrNull(id) ?: "",
+    bodyId = bodyIds.getOrNull(id) ?: "",
+    handsId = handsIds.getOrNull(id) ?: "",
+    feetId = feetIds.getOrNull(id) ?: "",
     weaponId = weaponIds.getOrNull(id) ?: "",
-    armorId = armorIds.getOrNull(id) ?: "",
-    bootsId = bootsIds.getOrNull(id) ?: "",
-    accessoryId = accessoryIds.getOrNull(id) ?: "",
-    weaponNurture = weaponNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+    legsId = legsIds.getOrNull(id) ?: "",
     storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
     storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
     spiritStones = discipleSpiritStones.getOrDefault(id, 0)

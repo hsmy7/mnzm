@@ -3,11 +3,9 @@ package com.xianxia.sect.ui.game.components.detail
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.game.components.addManualSkillInfo
@@ -62,7 +60,6 @@ internal data class ReplaceSelectionItem(
  * 排除当前装备/归属（无主或属于当前弟子）。
  */
 internal fun buildEquipmentReplaceItems(
-    stacks: List<EquipmentStack>,
     instances: List<EquipmentInstance>,
     slot: EquipmentSlot,
     currentEquipmentId: String?,
@@ -70,25 +67,11 @@ internal fun buildEquipmentReplaceItems(
     discipleRealm: Int,
     watchedKeys: Set<String> = emptySet()
 ): List<ReplaceSelectionItem> {
-    val stackItems = stacks.asSequence()
-        .filter {
-            it.slot == slot && GameConfig.Realm.meetsRealmRequirement(discipleRealm, it.minRealm)
-        }
-        .map { stack ->
-            ReplaceSelectionItem(
-                id = stack.id,
-                name = stack.name,
-                rarity = stack.rarity,
-                quantity = stack.quantity,
-                isLocked = stack.isLocked,
-                isManual = false,
-                isFollowed = watchKey("equipment", stack.name) in watchedKeys,
-                detail = equipmentStackDetail(stack)
-            )
-        }
+    // B3 单轨实例：候选 = 袋内同部位实例（排除当前装备；归属无主或当前弟子；
+    // 境界达标——装备堆叠轨已退役，stackItems 删除）
     val instanceItems = instances.asSequence()
         .filter {
-            it.slot == slot &&
+            it.part == slot &&
             it.id != currentEquipmentId &&
             (it.ownerId == null || it.ownerId == currentDiscipleId) &&
             GameConfig.Realm.meetsRealmRequirement(discipleRealm, it.minRealm)
@@ -100,11 +83,11 @@ internal fun buildEquipmentReplaceItems(
                 rarity = instance.rarity,
                 quantity = 1,
                 isManual = false,
-                isFollowed = watchKey("equipment", instance.name) in watchedKeys,
+                isFollowed = watchKey("equipment", instance.id) in watchedKeys,
                 detail = equipmentInstanceDetail(instance)
             )
         }
-    return (stackItems + instanceItems).toList().sortedWith(replaceSelectionComparator())
+    return instanceItems.toList().sortedWith(replaceSelectionComparator())
 }
 
 /**
@@ -189,82 +172,17 @@ internal fun manualStackDetail(stack: ManualStack): ReplaceDetailData {
 }
 
 /**
- * 装备堆叠详情构建：区域2 属性加成、区域3 装备描述。
- */
-internal fun equipmentStackDetail(stack: EquipmentStack): ReplaceDetailData {
-    val attributeLines = buildList {
-        if (stack.physicalAttack > 0) add("  物理攻击 +${stack.physicalAttack}")
-        if (stack.magicAttack > 0) add("  法术攻击 +${stack.magicAttack}")
-        if (stack.physicalDefense > 0) add("  物理防御 +${stack.physicalDefense}")
-        if (stack.magicDefense > 0) add("  法术防御 +${stack.magicDefense}")
-        if (stack.speed > 0) add("  速度 +${stack.speed}")
-        if (stack.hp > 0) add("  生命 +${stack.hp}")
-        if (stack.mp > 0) add("  灵力 +${stack.mp}")
-        if (stack.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(stack.critChance)}")
-    }
-    return ReplaceDetailData(
-        name = stack.name,
-        rarity = stack.rarity,
-        spriteName = stack.name,
-        subtitle = "${stack.slot.displayName} · ${getRarityName(stack.rarity)}",
-        attributeLines = attributeLines,
-        skillTitle = "装备描述",
-        skillLines = if (stack.description.isNotEmpty()) listOf(stack.description) else emptyList()
-    )
-}
-
-/** 装备最终属性行数据 */
-private data class EquipmentStatLine(
-    val label: String,
-    val finalValue: Int,
-    val baseValue: Int
-)
-
-/**
- * 装备最终属性行生成：仅输出正值属性，孕养差值用 (↑x) 标注。
- */
-private fun buildEquipmentStatLines(
-    stats: List<EquipmentStatLine>,
-    critLine: String? = null
-): List<String> = buildList {
-    stats.forEach { stat ->
-        if (stat.finalValue > 0) {
-            val bonus = stat.finalValue - stat.baseValue
-            add("  ${stat.label} +${stat.finalValue}" + if (bonus > 0) " (↑$bonus)" else "")
-        }
-    }
-    if (critLine != null) {
-        add(critLine)
-    }
-}
-
-/**
  * 装备实例详情构建：属性按最终属性（含孕养加成），差值用 (↑x) 标注。
  */
 internal fun equipmentInstanceDetail(instance: EquipmentInstance): ReplaceDetailData {
-    val finalStats = instance.getFinalStats()
-    val baseStats = instance.stats
-    val attributeLines = buildEquipmentStatLines(
-        stats = listOf(
-            EquipmentStatLine("物理攻击", finalStats.physicalAttack, baseStats.physicalAttack),
-            EquipmentStatLine("法术攻击", finalStats.magicAttack, baseStats.magicAttack),
-            EquipmentStatLine("物理防御", finalStats.physicalDefense, baseStats.physicalDefense),
-            EquipmentStatLine("法术防御", finalStats.magicDefense, baseStats.magicDefense),
-            EquipmentStatLine("速度", finalStats.speed, baseStats.speed),
-            EquipmentStatLine("生命", finalStats.hp, baseStats.hp),
-            EquipmentStatLine("灵力", finalStats.mp, baseStats.mp)
-        ),
-        critLine = if (instance.critChance > 0) {
-            "  暴击率 +${GameUtils.formatPercent(instance.critChance)}"
-        } else {
-            null
-        }
-    )
+    // B3 语义从简：词条摘要（主词条×等级成长 + 副词条×强化次数——
+    // EquipStatValue.toString 已给中文摘要面）；旧 7 项面板/孕养差值标注退役
+    val attributeLines = instance.totalBonus().map { sv -> "  $sv" }
     return ReplaceDetailData(
         name = instance.name,
         rarity = instance.rarity,
         spriteName = instance.name,
-        subtitle = "${instance.slot.displayName} · ${getRarityName(instance.rarity)}",
+        subtitle = "${instance.part.displayName} · ${getRarityName(instance.rarity)} · Lv${instance.level}",
         attributeLines = attributeLines,
         skillTitle = "装备描述",
         skillLines = if (instance.description.isNotEmpty()) listOf(instance.description) else emptyList()

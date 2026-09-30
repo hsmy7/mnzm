@@ -86,10 +86,8 @@ class DiffBattleAITest {
         put("maxHp", c.maxHp)
         put("mp", c.mp)
         put("maxMp", c.maxMp)
-        put("physicalAttack", c.physicalAttack)
-        put("magicAttack", c.magicAttack)
-        put("physicalDefense", c.physicalDefense)
-        put("magicDefense", c.magicDefense)
+        put("attack", c.attack)
+        put("defense", c.defense)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -280,8 +278,8 @@ class DiffBattleAITest {
                 )
             )
         )
-        val enemy1 = baseCombatant("e1", "敌人一").copy(physicalAttack = 200)
-        val enemy2 = baseCombatant("e2", "敌人二").copy(physicalAttack = 100)
+        val enemy1 = baseCombatant("e1", "敌人一").copy(attack = 200)
+        val enemy2 = baseCombatant("e2", "敌人二").copy(attack = 100)
         runDecideDiff(42, unit, listOf(unit), listOf(enemy1, enemy2))
     }
 
@@ -376,10 +374,10 @@ class DiffBattleAITest {
             )
         )
         val enemy1 = baseCombatant("e1", "高攻").copy(
-            hp = 800, physicalAttack = 300, physicalDefense = 20
+            hp = 800, attack = 300, defense = 20
         )
         val enemy2 = baseCombatant("e2", "血少").copy(
-            hp = 500, physicalAttack = 50, physicalDefense = 90
+            hp = 500, attack = 50, defense = 90
         )
         for (seed in longArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42, 99, 555, 2024, 20260901)) {
             runDecideDiff(seed, unit, listOf(unit), listOf(enemy1, enemy2))
@@ -411,8 +409,7 @@ class DiffBattleAITest {
     private fun baseCombatant(id: String, name: String): Combatant = Combatant(
         id = id, name = name,
         hp = 1000, maxHp = 1000, mp = 100, maxMp = 100,
-        physicalAttack = 120, magicAttack = 100,
-        physicalDefense = 60, magicDefense = 50,
+        attack = 120, defense = 60,
         speed = 80, critRate = 0.15,
         skills = emptyList(),
         realm = 9, realmLayer = 1

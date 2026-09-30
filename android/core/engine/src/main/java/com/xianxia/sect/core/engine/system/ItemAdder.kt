@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -17,7 +16,6 @@ interface ItemAdder {
     fun addHerb(item: Herb): DomainResult<Herb>
     fun addSeed(item: Seed): DomainResult<Seed>
 
-    fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack>
     fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance>
     fun addManualStack(
         item: ManualStack,

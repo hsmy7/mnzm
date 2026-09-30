@@ -84,8 +84,16 @@ function dedupe(rows, file) {
 // ── 各 DB 条目装载（字段与 C++ struct 逐字段对齐）──────────────────────
 
 function loadEquipment() {
+  // B3：装备中性源改为部件/套装/词条池复合结构——db.equipment 段整段
+  // 随中性源形状迁移（C++ data_store 消费面同批适配）
   const j = readJson('equipment_db_sample.json');
-  return dedupe(requireArray(j, 'entries', 'equipment_db_sample.json'), 'equipment');
+  return {
+    setPieces: dedupe(requireArray(j, 'setPieces', 'equipment_db_sample.json'), 'equipment'),
+    sets: requireArray(j, 'sets', 'equipment_db_sample.json'),
+    mainStatPools: j.mainStatPools || {},
+    mainStatBase: j.mainStatBase || {},
+    subAffixes: requireArray(j, 'subAffixes', 'equipment_db_sample.json'),
+  };
 }
 
 function loadHerb() {
@@ -162,7 +170,8 @@ const doc = {
 function counts() {
   const d = doc.db;
   return [
-    ['equipment', d.equipment.length],
+    ['equipment.setPieces', d.equipment.setPieces.length],
+    ['equipment.sets', d.equipment.sets.length],
     ['herbs', d.herbs.length],
     ['seeds', d.seeds.length],
     ['manuals', d.manuals.length],

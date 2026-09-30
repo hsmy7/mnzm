@@ -177,9 +177,10 @@ class MirrorConsumerSurfaceGuardTest {
         val snapshotArm = sync.substring(0, sync.indexOf("fun applyDirtyFromNative("))
         val replaceAllCount = Regex("""\.replaceAll\(""").findAll(snapshotArm).count()
         assertEquals(
-            "全量兜底臂（F3）的全表替换面漂移（10 个实体集合各一处；增删集合需同步本门禁" +
-                "与方案 §7.2 B08 行）",
-            10, replaceAllCount
+            "全量兜底臂（F3）的全表替换面漂移（9 个实体集合各一处；增删集合需同步本门禁" +
+                "与方案 §7.2 B08 行）——B3 原子替换删除 equipmentStacks 堆叠轨集合，" +
+                "10 → 9（equipmentInstances 实例轨保留）",
+            9, replaceAllCount
         )
     }
 

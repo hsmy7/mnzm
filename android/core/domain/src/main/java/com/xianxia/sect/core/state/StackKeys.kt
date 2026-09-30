@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.state
 
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -19,10 +18,6 @@ import com.xianxia.sect.core.model.StorageBag
  * domain 模块零依赖，engine 各消费者均可复用同一份键定义。
  */
 object StackKeys {
-
-    /** 装备堆叠合并键：名称 + 稀有度 + 装备槽位 */
-    fun equipment(item: EquipmentStack): StackKey =
-        StackKey.of(item.name, item.rarity, item.slot.name)
 
     /** 功法堆叠合并键：名称 + 稀有度 + 功法类型 */
     fun manual(item: ManualStack): StackKey =

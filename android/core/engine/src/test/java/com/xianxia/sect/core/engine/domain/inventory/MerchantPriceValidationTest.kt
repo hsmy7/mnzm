@@ -3,8 +3,13 @@ package com.xianxia.sect.core.engine.domain.inventory
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.state.WriteGuardRule
@@ -56,7 +61,9 @@ class MerchantPriceValidationTest {
             inventoryConfig = InventoryConfig(),
             gameEngineCore = mock(),
             spiritStoneWallet = wallet,
-            gameRngManager = mock(GameRngManager::class.java)
+            // B3 购买链按件 roll 词条（gameRngManager.getRng(EQUIPMENT).asKotlinRandom()），
+            // mock 未 stub getRng 返回 null 会 NPE——用固定种子真实例
+            gameRngManager = GameRngManager().apply { initSystemSeed(20260930L) }
         )
     }
 
@@ -72,10 +79,20 @@ class MerchantPriceValidationTest {
         }
     }
 
+    /** B3 实例轨种子：精铁剑仓库实例（name/rarity 参与收购计数与扣减） */
+    private fun swordInstance(id: String) = EquipmentInstance(
+        id = id, name = "精铁剑",
+        part = EquipmentSlot.WEAPON,
+        growth = EquipGrowth(
+            affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 5.0))
+        ),
+        meta = EquipInstanceMeta(rarity = 1)
+    )
+
     /** 种子：玩家仓库 3 把精铁剑 + 商人收购需求（可指定价格） */
     private fun seedAcquisitionItem(price: Long) {
-        store.equipmentStacks.value = listOf(
-            EquipmentStack(id = "s1", name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 3)
+        store.equipmentInstances.value = listOf(
+            swordInstance("s1"), swordInstance("s2"), swordInstance("s3")
         )
         store.update {
             gameData = gameData.copy(
@@ -98,7 +115,7 @@ class MerchantPriceValidationTest {
         facade.buyMerchantItem("m1", 1)
 
         assertEquals("灵石不变", 1000L, store.gameData.value.spiritStones)
-        assertTrue("不入库", store.equipmentStacks.value.isEmpty())
+        assertTrue("不入库", store.equipmentInstances.value.isEmpty())
         assertEquals("商家库存不变", 5, store.gameData.value.travelingMerchantItems.first().quantity)
     }
 
@@ -109,7 +126,7 @@ class MerchantPriceValidationTest {
         facade.buyMerchantItem("m1", 1)
 
         assertEquals("灵石不变", 1000L, store.gameData.value.spiritStones)
-        assertTrue("不入库", store.equipmentStacks.value.isEmpty())
+        assertTrue("不入库", store.equipmentInstances.value.isEmpty())
         assertEquals("商家库存不变", 5, store.gameData.value.travelingMerchantItems.first().quantity)
     }
 
@@ -120,7 +137,8 @@ class MerchantPriceValidationTest {
         facade.buyMerchantItem("m1", 2)
 
         assertEquals("灵石扣减 1000-200", 800L, store.gameData.value.spiritStones)
-        assertEquals("入库 1 堆叠", 1, store.equipmentStacks.value.size)
+        // B3 实例轨：quantity 件 = quantity 条实例（不再合并堆叠）
+        assertEquals("入库 2 实例", 2, store.equipmentInstances.value.size)
         assertEquals("商家库存 5-2", 3, store.gameData.value.travelingMerchantItems.first().quantity)
     }
 
@@ -134,7 +152,7 @@ class MerchantPriceValidationTest {
 
         facade.sellToMerchant("a1", 1)
 
-        assertEquals("仓库物品保留(防丢失)", 3, store.equipmentStacks.value.first().quantity)
+        assertEquals("仓库物品保留(防丢失)", 3, store.equipmentInstances.value.size)
         assertEquals("灵石不变", 1000L, store.gameData.value.spiritStones)
         assertEquals("收购需求不变", 5, store.gameData.value.merchantAcquisitionItems.first().quantity)
     }
@@ -145,7 +163,7 @@ class MerchantPriceValidationTest {
 
         facade.sellToMerchant("a1", 1)
 
-        assertEquals("仓库物品保留(防丢失)", 3, store.equipmentStacks.value.first().quantity)
+        assertEquals("仓库物品保留(防丢失)", 3, store.equipmentInstances.value.size)
         assertEquals("灵石不变", 1000L, store.gameData.value.spiritStones)
         assertEquals("收购需求不变", 5, store.gameData.value.merchantAcquisitionItems.first().quantity)
     }
@@ -156,7 +174,7 @@ class MerchantPriceValidationTest {
 
         facade.sellToMerchant("a1", 2)
 
-        assertEquals("仓库物品移除 3-2", 1, store.equipmentStacks.value.first().quantity)
+        assertEquals("仓库物品移除 3-2", 1, store.equipmentInstances.value.size)
         assertEquals("灵石增加 1000+100", 1100L, store.gameData.value.spiritStones)
         assertEquals("收购需求 5-2", 3, store.gameData.value.merchantAcquisitionItems.first().quantity)
     }

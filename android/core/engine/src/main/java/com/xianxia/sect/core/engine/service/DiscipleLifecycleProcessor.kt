@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.domain.disciple.eraseDiscipleDerivedMaps
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -143,11 +144,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     /** 收集死亡弟子的装备/功法实例 ID */
     private fun collectDeleteIds(disciple: Disciple): Pair<Set<String>, Set<String>> {
-        val deleteEquipIds = mutableSetOf<String>()
-        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
+        val deleteEquipIds = EquipmentSlot.displayOrder
+            .map { disciple.equipment.slotId(it) }
+            .filter { it.isNotEmpty() }
+            .toMutableSet()
         return deleteEquipIds to disciple.manualIds.toSet()
     }
 

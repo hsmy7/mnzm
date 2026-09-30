@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.engine.MerchantRefreshResult
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
@@ -125,7 +125,7 @@ fun MerchantDialog(
     val state = remember { MerchantDialogState() }
     val merchantItems = gameData?.travelingMerchantItems ?: emptyList()
     val acquisitionItems = gameData?.merchantAcquisitionItems ?: emptyList()
-    val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
@@ -198,18 +198,18 @@ private fun sortMerchantItems(
     )
 }
 
-/** 商人商品仓库持有量：按类型统计同名同稀有度数量 */
+/** 商人商品仓库持有量：按类型统计同名同稀有度数量（装备一行一实例，实例数即件数） */
 @Suppress("CyclomaticComplexMethod")
 private fun merchantWarehouseQuantity(
     item: MerchantItem,
-    equipment: List<EquipmentStack>,
+    equipment: List<EquipmentInstance>,
     manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
     seeds: List<Seed>
 ): Int = when (item.type.lowercase()) {
-    "equipment" -> equipment.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    "equipment" -> equipment.count { it.name == item.name && it.rarity == item.rarity }
     "manual" -> manuals.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
     "pill" -> pills.filter { it.name == item.name && it.rarity == item.rarity && it.grade.displayName == (item
         .grade ?: "") }.sumOf { it.quantity }

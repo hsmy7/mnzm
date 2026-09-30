@@ -93,7 +93,6 @@ class SecretRealmRuinsTest {
     private fun createState(): MutableGameState = MutableGameState(
         gameData = GameData(),
         discipleTables = com.xianxia.sect.core.state.DiscipleTables(),
-        equipmentStacks = EntityStore(emptyList()),
         equipmentInstances = EntityStore(emptyList()),
         manualStacks = EntityStore(emptyList()),
         manualInstances = EntityStore(emptyList()),

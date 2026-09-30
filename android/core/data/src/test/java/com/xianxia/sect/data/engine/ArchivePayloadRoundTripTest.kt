@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.UsageTracking
@@ -70,11 +69,9 @@ class ArchivePayloadRoundTripTest {
     /** 装备/技能/战斗/使用记录的富化块（与 [richDisciple] 拆开以满足 detekt 单函数 60 行阈值） */
     private fun Disciple.withRichExtras(): Disciple = copy(
         equipment = EquipmentSet(
+            headId = "head_1",
             weaponId = "weapon_1",
-            armorId = "armor_1",
-            bootsId = "boots_1",
-            accessoryId = "accessory_1",
-            weaponNurture = EquipmentNurtureData("weapon_1", 2, nurtureLevel = 5, nurtureProgress = 0.5),
+            legsId = "legs_1",
             storageBagSpiritStones = 4321L,
             spiritStones = 999
         ),
@@ -89,7 +86,9 @@ class ArchivePayloadRoundTripTest {
         combat = CombatAttributes(
             baseHp = 5000,
             baseMp = 1200,
-            basePhysicalAttack = 320,
+            baseAttack = 320,
+            baseDefense = 180,
+            innateDamageType = "PHYSICAL",
             baseSpeed = 44,
             totalCultivation = 987654321L,
             breakthroughCount = 6,
@@ -155,7 +154,7 @@ class ArchivePayloadRoundTripTest {
         assertEquals("林寒", decoded.name)
         assertEquals(DiscipleStatus.DEAD, decoded.status)
         assertEquals("weapon_1", decoded.equipment.weaponId)
-        assertEquals(5, decoded.equipment.weaponNurture.nurtureLevel)
+        assertEquals("head_1", decoded.equipment.headId)
         assertEquals(listOf("manual_qingfeng"), decoded.manualIds)
         assertEquals(5000, decoded.combat.baseHp)
     }

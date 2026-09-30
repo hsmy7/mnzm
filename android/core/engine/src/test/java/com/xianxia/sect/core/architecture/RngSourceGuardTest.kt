@@ -164,10 +164,10 @@ class RngSourceGuardTest {
      * 分区 id 是**存档 `rngStates` 的持久化键，不得改动**（见 [RngPartition] KDoc）；
      * 新增分区 = 必须同时在 `docs/rng-source-inventory.md` 登记消费点。
      */
-    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+    private val registeredPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
 
     /** 参与 `rngStates` 序列化的分区 id（= id 全集 − 通道型分区） */
-    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12)
+    private val snapshotPartitionIds: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13)
 
     /** 随机源类别（与 `docs/rng-source-inventory.md` §1 的五类入口一一对应） */
     private enum class RandomSourceCategory(val label: String, val pattern: Regex) {
@@ -293,7 +293,7 @@ class RngSourceGuardTest {
         val expectedNames = listOf(
             "BATTLE", "BREAKTHROUGH", "EXPLORATION", "SYSTEM", "ENEMY_GEN",
             "MAIL", "AI_SECT", "SECRET_REALM", "MISSION", "AI_SECT_MIRROR", "CHAT",
-            "RESIDUAL", "GACHA"
+            "RESIDUAL", "GACHA", "EQUIPMENT"
         )
         assertTrue(
             "RngPartition 名字/顺序偏移：实测 ${names.take(10)}——" +

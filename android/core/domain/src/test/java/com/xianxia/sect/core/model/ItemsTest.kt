@@ -9,24 +9,29 @@ class ItemsTest {
     // ---- EquipmentSlot ----
 
     @Test
-    fun equipmentSlot_hasFourValues() {
-        assertEquals(4, EquipmentSlot.entries.size)
+    fun equipmentSlot_hasSixValues() {
+        assertEquals(6, EquipmentSlot.entries.size)
     }
 
     @Test
     fun equipmentSlot_values() {
         assertArrayEquals(
-            arrayOf(EquipmentSlot.WEAPON, EquipmentSlot.ARMOR, EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY),
+            arrayOf(
+                EquipmentSlot.HEAD, EquipmentSlot.BODY, EquipmentSlot.HANDS,
+                EquipmentSlot.FEET, EquipmentSlot.WEAPON, EquipmentSlot.LEGS
+            ),
             EquipmentSlot.entries.toTypedArray()
         )
     }
 
     @Test
     fun equipmentSlot_displayNames() {
+        assertEquals("头部", EquipmentSlot.HEAD.displayName)
+        assertEquals("身体", EquipmentSlot.BODY.displayName)
+        assertEquals("手部", EquipmentSlot.HANDS.displayName)
+        assertEquals("脚部", EquipmentSlot.FEET.displayName)
         assertEquals("武器", EquipmentSlot.WEAPON.displayName)
-        assertEquals("护甲", EquipmentSlot.ARMOR.displayName)
-        assertEquals("靴子", EquipmentSlot.BOOTS.displayName)
-        assertEquals("饰品", EquipmentSlot.ACCESSORY.displayName)
+        assertEquals("腿部", EquipmentSlot.LEGS.displayName)
     }
 
     // ---- ManualType ----
@@ -213,14 +218,6 @@ class ItemsTest {
         assertEquals("orig", copied.id)
         assertEquals("Axe", copied.name)
         assertEquals(4, copied.rarity)
-    }
-
-    @Test
-    fun equipmentStack_withQuantity() {
-        val stack = EquipmentStack(id = "s1", quantity = 5)
-        val newStack = stack.withQuantity(10)
-        assertEquals(10, newStack.quantity)
-        assertEquals("s1", newStack.id)
     }
 
     // ---- ManualStack ----
@@ -652,29 +649,6 @@ class ItemsTest {
         val original = ElderSlots(viceSectMaster = "d1")
         val copied = original.copy(viceSectMaster = "d2")
         assertEquals("d2", copied.viceSectMaster)
-    }
-
-    // ---- EquipmentStats ----
-
-    @Test
-    fun equipmentStats_defaultConstruction() {
-        val stats = EquipmentStats()
-        assertEquals(0, stats.physicalAttack)
-        assertEquals(0, stats.magicAttack)
-        assertEquals(0, stats.physicalDefense)
-        assertEquals(0, stats.magicDefense)
-        assertEquals(0, stats.speed)
-        assertEquals(0, stats.hp)
-        assertEquals(0, stats.mp)
-    }
-
-    @Test
-    fun equipmentStats_plus() {
-        val a = EquipmentStats(physicalAttack = 10, hp = 100)
-        val b = EquipmentStats(physicalAttack = 5, hp = 50)
-        val result = a + b
-        assertEquals(15, result.physicalAttack)
-        assertEquals(150, result.hp)
     }
 
     // ---- 统一价格体系 ----

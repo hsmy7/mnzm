@@ -80,7 +80,7 @@ class SecretRealmEventGeneratorTest {
             DeterministicRng.fromSeed(55L), realm = 5, beastTypeName = "虎妖",
             ambushSucceeded = true
         )
-        assertEquals(normal.physicalAttack, ambushed.physicalAttack)
+        assertEquals(normal.attack, ambushed.attack)
         assertEquals(normal.speed, ambushed.speed)
         // maxHp 约 0.9 倍（整数截断容差 1）
         assertTrue(

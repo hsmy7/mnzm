@@ -22,7 +22,6 @@ import com.xianxia.sect.core.engine.service.DiplomacyEventProcessor
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
 import com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
@@ -300,7 +299,6 @@ class DiffYearSettlementTest {
             autoPillService = AutoPillService(
                 DisciplePillManager(PillEffectApplier())
             ),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(store)
         )

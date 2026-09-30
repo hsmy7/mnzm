@@ -248,7 +248,6 @@ class DiplomacyServicePureLogicTest {
     private fun createMutableState(gameData: GameData): MutableGameState = MutableGameState(
         gameData = gameData,
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(),
         equipmentInstances = EntityStore(),
         manualStacks = EntityStore(),
         manualInstances = EntityStore(),

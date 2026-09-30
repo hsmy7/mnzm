@@ -85,7 +85,6 @@ class SaveFacadeImpl @Inject constructor(
         return GameStateSnapshot(
             gameData = gd.copy(rngStates = exportedRng),
             disciples = stateStore.disciplesSnapshot,
-            equipmentStacks = stateStore.equipmentStacksSnapshot,
             equipmentInstances = stateStore.equipmentInstancesSnapshot,
             manualStacks = stateStore.manualStacksSnapshot,
             manualInstances = stateStore.manualInstancesSnapshot,
@@ -110,7 +109,6 @@ class SaveFacadeImpl @Inject constructor(
         return GameStateSnapshot(
             gameData = gd.copy(rngStates = exportedRng),
             disciples = stateStore.disciplesSnapshot,
-            equipmentStacks = stateStore.equipmentStacksSnapshot,
             equipmentInstances = stateStore.equipmentInstancesSnapshot,
             manualStacks = stateStore.manualStacksSnapshot,
             manualInstances = stateStore.manualInstancesSnapshot,

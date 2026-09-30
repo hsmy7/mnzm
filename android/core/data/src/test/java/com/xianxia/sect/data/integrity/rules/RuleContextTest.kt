@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.integrity.rules
 
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.data.model.SaveData
@@ -23,11 +22,10 @@ class RuleContextTest {
 
     @Test fun `allEquipmentIds includes stacks and instances`() {
         val data = emptySaveData.copy(
-            equipmentStacks = listOf(EquipmentStack(id = "s1", name = "堆叠", rarity = 1, description = "")),
-            equipmentInstances = listOf(EquipmentInstance(id = "i1", name = "单件", rarity = 1, description = ""))
+            equipmentInstances = listOf(EquipmentInstance(id = "i1", name = "单件"))
         )
         val ctx = RuleContext(data)
-        assertEquals(setOf("s1", "i1"), ctx.allEquipmentIds)
+        assertEquals(setOf("i1"), ctx.allEquipmentIds)
     }
 
     @Test fun `allEquipmentIds empty when no equipment`() {

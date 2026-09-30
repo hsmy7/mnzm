@@ -140,7 +140,6 @@ class AISectBattleProcessorTest {
         return MutableGameState(
             gameData = data,
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.registry.ManualDatabase
 import org.junit.After
@@ -19,7 +20,10 @@ import org.junit.Test
  * 完整堆叠。核心守卫：
  * - minRealm 用条目 stackedData 保真（保留实际境界门槛）
  * - quantity 用条目数量
- * - 找不到模板返回 null（调用方按丢弃处理，物品不复制）
+ * - 模板缺失分型契约：manual/pill 返回 null（丢弃，不复制物品）；
+ *   material/herb/seed 兜底铸造（身份=name/rarity/quantity 自持，防模板漂移毁财产）
+ * - B3 装备重构：装备条目（equipment/equipment_stack）随堆叠轨退役**不再重建**
+ *   （恒返回 null；装备以 equipment_instance 完整实例条目随袋流转）
  */
 class BagItemReconstructorTest {
 
@@ -40,48 +44,23 @@ class BagItemReconstructorTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // equipment / manual：minRealm 保真
+    // B3：装备条目不再重建（堆叠轨退役）
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `equipment stack rebuilds with stackedData minRealm preserved`() {
+    fun `equipment entries no longer rebuilt - returns null regardless of stackedData`() {
+        // 装备堆叠条目（含 minRealm 保真元数据）一律不重建——B3 无装备堆叠语义
         val item = StorageBagItem(
             itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 2,
             stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.WEAPON.name)
         )
-        val result = BagItemReconstructor.reconstruct(item)
-        assertNotNull(result)
-        val stack = (result as ReconstructedBagStack.Equipment).stack
-        assertEquals("名称从模板", "精铁剑", stack.name)
-        assertEquals("minRealm 保真", 7, stack.minRealm)
-        assertEquals("槽位从模板", EquipmentSlot.WEAPON, stack.slot)
-        assertEquals("数量保真", 2, stack.quantity)
-    }
-
-    @Test
-    fun `equipment without stackedData falls back to rarity-derived minRealm`() {
-        // 老存档/手动构造条目无 stackedData：退化为 rarity 推导（与旧 confiscate 一致）
-        val item = StorageBagItem(itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
-        val result = BagItemReconstructor.reconstruct(item)
-        assertNotNull(result)
-        val stack = (result as ReconstructedBagStack.Equipment).stack
-        assertEquals("模板 minRealm", com.xianxia.sect.core.GameConfig.Realm.getMinRealmForRarity(1), stack.minRealm)
-    }
-
-    @Test
-    fun `empty stackedData minRealm zero falls back to rarity-derived`() {
-        // 堆叠条目缺补充字段时以空 BagStackedData() 承载（minRealm 默认 0）——
-        // 0 视为缺省，回退按 rarity 推导门槛（不落为"最高境界门槛"装备）
-        val item = StorageBagItem(
-            itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 1,
-            stackedData = BagStackedData()
-        )
-        val result = BagItemReconstructor.reconstruct(item)
-        assertNotNull(result)
-        val stack = (result as ReconstructedBagStack.Equipment).stack
-        assertEquals(
-            "minRealm=0 回退 rarity 推导",
-            com.xianxia.sect.core.GameConfig.Realm.getMinRealmForRarity(1), stack.minRealm
+        assertNull("装备条目不再重建", BagItemReconstructor.reconstruct(item))
+        // 无 stackedData / 空数据同口径
+        assertNull(
+            "装备条目不再重建（无 stackedData）",
+            BagItemReconstructor.reconstruct(
+                StorageBagItem(itemId = "bag2", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
+            )
         )
     }
 
@@ -144,26 +123,31 @@ class BagItemReconstructorTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 失败路径：找不到模板 → null（丢弃，不复制物品）
+    // 失败路径：模板缺失的分型契约
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `unknown template returns null`() {
-        val item = StorageBagItem(itemId = "b1", itemType = "equipment_stack", name = "不存在的装备", rarity = 1)
+    fun `unknown manual template returns null - dropped not copied`() {
+        // manual/pill 模板承载身份数据（stats/效果），缺模板不可凭空铸造 → null（丢弃）
+        val item = StorageBagItem(itemId = "b1", itemType = "manual_stack", name = "不存在的功法", rarity = 1)
         assertNull(BagItemReconstructor.reconstruct(item))
+    }
+
+    @Test
+    fun `unknown material template falls back to default fabrication`() {
+        // material/herb/seed 身份 = name/rarity/quantity，模板只补 description/category——
+        // 缺模板兜底铸造（BEAST_HIDE 默认类目）而非丢弃：防模板库漂移毁玩家袋内财产（存量语义）
+        val item = StorageBagItem(itemId = "b1", itemType = "material", name = "不存在的材料", rarity = 1)
+        val result = BagItemReconstructor.reconstruct(item)
+        assertNotNull("缺模板 material 兜底铸造，不丢弃", result)
+        val stack = (result as ReconstructedBagStack.Material).stack
+        assertEquals("条目身份保真", "不存在的材料", stack.name)
+        assertEquals("默认类目兜底", MaterialCategory.BEAST_HIDE, stack.category)
     }
 
     @Test
     fun `unknown itemType returns null`() {
         val item = StorageBagItem(itemId = "x1", itemType = "奇异类型", name = "未知", rarity = 1)
         assertNull(BagItemReconstructor.reconstruct(item))
-    }
-
-    @Test
-    fun `zero quantity coerced to one`() {
-        val item = StorageBagItem(itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 0)
-        val result = BagItemReconstructor.reconstruct(item)
-        assertNotNull(result)
-        assertEquals(1, (result as ReconstructedBagStack.Equipment).stack.quantity)
     }
 }

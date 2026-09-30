@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
@@ -29,6 +30,10 @@ internal fun BattleSystem.createBeast(
     val stats = resolveBeastStats(realmIndex, type, preGenStats)
     val beastSkills = buildBeastSkills(type)
     val typeIndex = GameConfig.Beast.TYPES.indexOf(type)
+    // 妖兽伤害类型按种类元素固定（§15.3：金/土→物理、水/木/火→法术）
+    val innateType =
+        if (type.element == "metal" || type.element == "earth") DamageType.PHYSICAL
+        else DamageType.MAGIC
 
     return Combatant(
         id = "beast_$index",
@@ -38,10 +43,9 @@ internal fun BattleSystem.createBeast(
         maxHp = stats.hp,
         mp = stats.mp,
         maxMp = stats.mp,
-        physicalAttack = stats.physicalAttack,
-        magicAttack = stats.magicAttack,
-        physicalDefense = stats.physicalDefense,
-        magicDefense = stats.magicDefense,
+        attack = stats.attack,
+        defense = stats.defense,
+        innateDamageType = innateType,
         speed = stats.speed,
         critRate = 0.05 + realmIndex * 0.01,
         skills = beastSkills,
@@ -67,10 +71,8 @@ internal fun BattleSystem.resolveBeastStats(
         return BeastCombatStats(
             hp = s.maxHp.coerceIn(1, 10_000_000),
             mp = s.maxMp.coerceAtLeast(0),
-            physicalAttack = s.physicalAttack.coerceAtLeast(0),
-            magicAttack = s.magicAttack.coerceAtLeast(0),
-            physicalDefense = s.physicalDefense.coerceAtLeast(0),
-            magicDefense = s.magicDefense.coerceAtLeast(0),
+            attack = s.attack.coerceAtLeast(0),
+            defense = s.defense.coerceAtLeast(0),
             speed = s.speed.coerceAtLeast(0),
             realmLayer = s.realmLayer
         )
@@ -82,10 +84,9 @@ internal fun BattleSystem.resolveBeastStats(
     return BeastCombatStats(
         hp = (stats.hp * layerMult * type.hpMod).toInt(),
         mp = (stats.mp * layerMult * type.hpMod).toInt(),
-        physicalAttack = (stats.attack * layerMult * type.atkMod).toInt(),
-        magicAttack = (stats.attack * layerMult * type.atkMod).toInt(),
-        physicalDefense = (stats.defense * layerMult * type.defMod).toInt(),
-        magicDefense = (stats.defense * layerMult * type.defMod).toInt(),
+        // 单列口径（B1）：物=法同源两半各自 round 后相加
+        attack = (stats.attack * layerMult * type.atkMod).toInt() * 2,
+        defense = (stats.defense * layerMult * type.defMod).toInt() * 2,
         speed = (stats.speed * layerMult * type.speedMod).toInt(),
         realmLayer = rl
     )

@@ -9,7 +9,6 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.engine.REWARD_TYPE_FRAGMENT
 import com.xianxia.sect.core.platform.ApkSigningCertificateSource
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -37,6 +36,11 @@ import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
+
+/** 兑换码装备奖励的套装二选一（B3：lietian 物理 / zifu 法术） */
+private const val PHYSICAL_SET_ID = "lietian"
+private const val MAGIC_SET_ID = "zifu"
 
 
 
@@ -291,16 +295,28 @@ class RedeemCodeService @Inject constructor(
         }
     }
 
+    @Suppress("UnusedParameter") // mailRng: B3 装备走 EQUIPMENT RNG 分区（双端一致）不消费邮件流 RNG；形参保留维持六类奖励分发链签名一致
     private fun MutableGameState.applyEquipmentRedeemReward(
         quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
     ): Boolean {
         val qty = quantity.coerceAtLeast(1)
-        val newEquipment = EquipmentDatabase.generateRandom(
-            minRarity = defaultRarity,
-            maxRarity = defaultRarity,
-            random = mailRng
-        ).copy(quantity = qty)
-        return handleRedeemResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
+        // B3 实例轨：qty 件 = qty 条实例（EquipmentFactory 唯一产出入口；
+        // 套装二选一、品阶取奖励面 defaultRarity、装备 RNG 分区确定性 roll）
+        var lastResult: DomainResult<*>? = null
+        var lastName = ""
+        repeat(qty) {
+            val rng = gameRngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+            val setId = if (rng.nextBoolean()) PHYSICAL_SET_ID else MAGIC_SET_ID
+            val instance = EquipmentFactory.create(
+                setId = setId,
+                part = EquipmentFactory.pickPart(setId, rng),
+                rarity = defaultRarity,
+                rng = rng
+            )
+            lastName = instance.name
+            lastResult = inventorySystem.addEquipmentInstance(instance)
+        }
+        return handleRedeemResult(lastResult ?: DomainResult.Success(Unit), "装备 $lastName")
     }
 
     @Suppress("UnusedParameter") // mailRng: 奖励抽取 RNG 形参：模板缺失分支不消费（路径级 RNG 审计面一致）

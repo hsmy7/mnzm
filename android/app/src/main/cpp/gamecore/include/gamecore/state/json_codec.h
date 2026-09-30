@@ -25,8 +25,15 @@ inline void readField(const nlohmann::json& j, const char* key, T& out) {
     }
 }
 
-void to_json(nlohmann::json& j, const EquipmentStack& v);
-void from_json(const nlohmann::json& j, EquipmentStack& v);
+// 装备实例（B3 一行一实例；EquipmentStack 堆叠编解码已随模型退役）
+void to_json(nlohmann::json& j, const EquipStatValue& v);
+void from_json(const nlohmann::json& j, EquipStatValue& v);
+void to_json(nlohmann::json& j, const EquipAffixSet& v);
+void from_json(const nlohmann::json& j, EquipAffixSet& v);
+void to_json(nlohmann::json& j, const EquipGrowth& v);
+void from_json(const nlohmann::json& j, EquipGrowth& v);
+void to_json(nlohmann::json& j, const EquipInstanceMeta& v);
+void from_json(const nlohmann::json& j, EquipInstanceMeta& v);
 void to_json(nlohmann::json& j, const EquipmentInstance& v);
 void from_json(const nlohmann::json& j, EquipmentInstance& v);
 void to_json(nlohmann::json& j, const ManualStack& v);
@@ -109,8 +116,7 @@ void to_json(nlohmann::json& j, const PatrolSlot& v);
 void from_json(const nlohmann::json& j, PatrolSlot& v);
 
 // 储物袋条目体系 + 藏经阁槽位 + 游戏事件记录
-void to_json(nlohmann::json& j, const EquipmentNurtureData& v);
-void from_json(const nlohmann::json& j, EquipmentNurtureData& v);
+// （EquipmentNurtureData 编解码已随孕养体系退役——B3 等级/词条随实例单点）
 void to_json(nlohmann::json& j, const BagStackedData& v);
 void from_json(const nlohmann::json& j, BagStackedData& v);
 void to_json(nlohmann::json& j, const ItemEffect& v);

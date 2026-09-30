@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipInstanceMeta
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -25,10 +26,12 @@ import org.junit.Test
  * 老存档袋条目是引用式（itemId 指向仓库堆叠/实例）。物化把引用式条目转换为
  * 持有数据的独立条目（payload 非空）并从仓库扣减对应数量——防同一物品双持有。
  *
- * 覆盖：
- * - 6 类堆叠条目铸造 payload + 仓库扣减（复制防护）
- * - 实例条目（equipment_instance / manual_instance）从实例表取出入袋
- * - 悬空条目删除（引用不存在的堆叠/实例）
+ * 覆盖（B3 语义：装备三类条目**原样保留不物化**——旧装备已整体作废，物化会
+ * 丢失补偿源/污染新实例轨；引用式装备条目由 LegacyEquipmentCompensationRule
+ * 折算摘除，见主代码 KDoc）：
+ * - 5 类堆叠条目铸造 payload + 仓库扣减（复制防护）
+ * - 实例条目：manual_instance 从实例表取出入袋；equipment_instance 原样保留
+ * - 悬空条目删除（非装备类引用不存在的堆叠/实例）
  * - 未知 itemType 保留原样
  * - 幂等（已物化条目跳过）
  */
@@ -53,7 +56,9 @@ class StorageBagMaterializerTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `equipment stack materializes with stackedData and deducts warehouse`() {
+    fun `equipment stack kept as-is without materialization`() {
+        // B3：装备三类条目原样保留不物化——旧装备由补偿规则折算摘除，
+        // 物化会丢补偿源（影子行）并铸造已作废语义的 payload
         val item = StorageBagItem(itemId = "eq1", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
         val result = StorageBagMaterializer.materializeDiscipleBagItems(
             BagMaterializeInput(
@@ -65,29 +70,11 @@ class StorageBagMaterializerTest {
             )
         )
 
-        assertEquals("物化计数", 1, result.materializedCount)
-        val bagItem = result.disciples.first().equipment.storageBagItems.first()
-        assertTrue("payload 已铸造", bagItem.isMaterialized)
-        assertEquals("minRealm 保真", 7, bagItem.stackedData?.minRealm)
-        assertEquals("槽位保真", EquipmentSlot.WEAPON.name, bagItem.stackedData?.slot)
-        assertEquals("仓库扣减 3→2（防复制）", 2, result.equipmentStacks.first().quantity)
-    }
-
-    @Test
-    fun `equipment stack exhausted after deduct is removed from warehouse`() {
-        val item = StorageBagItem(itemId = "eq1", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
-        val result = StorageBagMaterializer.materializeDiscipleBagItems(
-            BagMaterializeInput(
-                disciples = listOf(discipleWith(listOf(item))),
-                equipmentStacks = listOf(eqStack("eq1", qty = 1)),
-                equipmentInstances = emptyList(),
-                manualStacks = emptyList(), manualInstances = emptyList(),
-                pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList()
-            )
-        )
-
-        assertEquals("扣尽后仓库堆叠移除", 0, result.equipmentStacks.size)
-        assertTrue("袋条目仍保留", result.disciples.first().equipment.storageBagItems.first().isMaterialized)
+        assertEquals("装备条目不计物化", 0, result.materializedCount)
+        val bagItem = result.disciples.first().equipment.storageBagItems.single()
+        assertEquals("条目原样保留", item, bagItem)
+        assertFalse("不得铸造 payload", bagItem.isMaterialized)
+        assertEquals("仓库堆叠原样（数量不扣）", 3, result.equipmentStacks.single().quantity)
     }
 
     @Test
@@ -182,9 +169,14 @@ class StorageBagMaterializerTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `equipment instance moves from instance table into bag`() {
+    fun `equipment instance kept as-is and instance table untouched`() {
+        // B3：equipment_instance 引用式条目原样保留——实例表是实例轨唯一真源，
+        // 此处移动会破坏实例表与袋条目的一致面（与 manual_instance 语义有意分叉）
         val item = StorageBagItem(itemId = "i1", itemType = "equipment_instance", name = "传承剑", rarity = 3)
-        val instance = EquipmentInstance(id = "i1", name = "传承剑", rarity = 3, slot = EquipmentSlot.WEAPON)
+        val instance = EquipmentInstance(
+            id = "i1", name = "传承剑", part = EquipmentSlot.WEAPON,
+            meta = EquipInstanceMeta(rarity = 3)
+        )
         val result = StorageBagMaterializer.materializeDiscipleBagItems(
             BagMaterializeInput(
                 disciples = listOf(discipleWith(listOf(item))),
@@ -195,9 +187,11 @@ class StorageBagMaterializerTest {
             )
         )
 
-        val bagItem = result.disciples.first().equipment.storageBagItems.first()
-        assertEquals("完整实例入袋", instance, bagItem.equipmentInstance)
-        assertEquals("实例表清空（防双持有）", 0, result.equipmentInstances.size)
+        assertEquals("装备条目不计物化", 0, result.materializedCount)
+        val bagItem = result.disciples.first().equipment.storageBagItems.single()
+        assertEquals("条目原样保留（不带实例 payload）", item, bagItem)
+        assertNull("不得物化实例入袋", bagItem.equipmentInstance)
+        assertEquals("实例表原样（不移动不删除）", 1, result.equipmentInstances.size)
     }
 
     @Test
@@ -224,21 +218,28 @@ class StorageBagMaterializerTest {
 
     @Test
     fun `dangling item deleted without affecting valid items`() {
-        val valid = StorageBagItem(itemId = "eq1", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
-        val dangling = StorageBagItem(itemId = "ghost", itemType = "equipment_stack", name = "幽灵剑", rarity = 1)
+        // B3：装备三类不做悬空判定（直通面）；悬空删除职责只覆盖非装备类
+        val valid = StorageBagItem(itemId = "p1", itemType = "pill", name = "丹", rarity = 1)
+        val dangling = StorageBagItem(itemId = "ghost", itemType = "pill", name = "幽灵丹", rarity = 1)
+        val legacyEquip = StorageBagItem(itemId = "eq1", itemType = "equipment_stack", name = "精铁剑", rarity = 1)
         val result = StorageBagMaterializer.materializeDiscipleBagItems(
             BagMaterializeInput(
-                disciples = listOf(discipleWith(listOf(valid, dangling))),
-                equipmentStacks = listOf(eqStack("eq1", qty = 2)),
+                disciples = listOf(discipleWith(listOf(valid, dangling, legacyEquip))),
+                equipmentStacks = emptyList(),
                 equipmentInstances = emptyList(),
                 manualStacks = emptyList(), manualInstances = emptyList(),
-                pills = emptyList(), materials = emptyList(), herbs = emptyList(), seeds = emptyList()
+                pills = listOf(Pill(id = "p1", name = "丹", rarity = 1, quantity = 2)),
+                materials = emptyList(), herbs = emptyList(), seeds = emptyList()
             )
         )
 
-        assertEquals("悬空条目删除", 1, result.disciples.first().equipment.storageBagItems.size)
-        assertEquals("有效条目保留", "eq1", result.disciples.first().equipment.storageBagItems.first().itemId)
-        assertEquals("计数仅有效条目", 1, result.materializedCount)
+        assertEquals("悬空条目删除+装备直通保留", 2, result.disciples.first().equipment.storageBagItems.size)
+        assertEquals(
+            "存活条目=有效丹+旧装备",
+            setOf("p1", "eq1"),
+            result.disciples.first().equipment.storageBagItems.map { it.itemId }.toSet()
+        )
+        assertEquals("计数仅有效物化条目", 1, result.materializedCount)
     }
 
     @Test
@@ -260,7 +261,10 @@ class StorageBagMaterializerTest {
 
     @Test
     fun `already materialized items skipped - idempotent`() {
-        val instance = EquipmentInstance(id = "i1", name = "传承剑", rarity = 3, slot = EquipmentSlot.WEAPON)
+        val instance = EquipmentInstance(
+            id = "i1", name = "传承剑", part = EquipmentSlot.WEAPON,
+            meta = EquipInstanceMeta(rarity = 3)
+        )
         val materialized = StorageBagItem(
             itemId = "i1", itemType = "equipment_instance", name = "传承剑", rarity = 3,
             equipmentInstance = instance

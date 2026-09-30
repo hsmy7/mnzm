@@ -22,7 +22,6 @@ import org.junit.Test
  * - 满血/满蓝不自动服用治疗/回蓝丹（canUsePill 门槛）
  * - 战斗临时丹不自动服用（保留手动/战前结算）
  * - 满修为不浪费修为丹、全功法满级不浪费功法经验丹
- * - 孕养度丹（nurtureAdd）经回调均分到已装备装备实例
  */
 class DisciplePillManagerAutoUseEnhancementTest {
 
@@ -122,11 +121,6 @@ class DisciplePillManagerAutoUseEnhancementTest {
         effect = ItemEffect(pillType = "skillExpAdd", skillExpAdd = add)
     )
 
-    private fun nurturePill(add: Int = 100, itemId: String = "n1") = StorageBagItem(
-        itemId = itemId, itemType = "pill", name = "蕴器丹", rarity = 3, quantity = 1,
-        effect = ItemEffect(pillType = "nurtureAdd", nurtureAdd = add)
-    )
-
     // ── C1：治疗丹按需服用 ────────────────────────────────────────
 
     @Test
@@ -187,25 +181,5 @@ class DisciplePillManagerAutoUseEnhancementTest {
         val consumed = pillManager.processAutoUsePills(notMaxed)
         assertTrue("未全满功法经验丹应服用",
             consumed.disciple.equipment.storageBagItems.isEmpty())
-    }
-
-    // ── A2：孕养度丹经回调生效 ────────────────────────────────────
-
-    @Test
-    fun `A2 - 孕养度丹触发回调且扣袋`() {
-        var nurtureAmount = 0
-        val d = disciple(bag = listOf(nurturePill(add = 100)))
-        val result = pillManager.processAutoUsePills(
-            d, nurtureEffect = { amount -> nurtureAmount = amount }
-        )
-        assertEquals("孕养度回调应收到 100", 100, nurtureAmount)
-        assertTrue("孕养度丹应被消费", result.disciple.equipment.storageBagItems.isEmpty())
-    }
-
-    @Test
-    fun `A2 - 无回调时孕养度丹照常消费`() {
-        val d = disciple(bag = listOf(nurturePill(add = 100)))
-        val result = pillManager.processAutoUsePills(d)
-        assertTrue("无回调时孕养度丹仍消费", result.disciple.equipment.storageBagItems.isEmpty())
     }
 }

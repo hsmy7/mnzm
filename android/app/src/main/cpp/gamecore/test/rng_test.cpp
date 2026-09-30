@@ -176,9 +176,10 @@ TEST(RngManagerTest, ExportRestoreRoundTrip) {
     for (int i = 0; i < 5; ++i) mgr.getRng(RngPartition::kSystem).nextInt(100);
 
     const auto states = mgr.exportStates();
-    // 12 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10 + R4.4/B14 RESIDUAL=11 +
-    // G09 GACHA=12；AI_SECT_MIRROR=9 为通道型不进快照——新增快照分区时本断言同步 +1）
-    EXPECT_EQ(states.size(), 12u);
+    // 13 个快照分区（含 MISSION=8 + W4-A·A5 CHAT=10 + R4.4/B14 RESIDUAL=11 +
+    // G09 GACHA=12 + B3 EQUIPMENT=13；AI_SECT_MIRROR=9 为通道型不进快照
+    // ——新增快照分区时本断言同步 +1）
+    EXPECT_EQ(states.size(), 13u);
 
     const auto valBefore = mgr.getRng(RngPartition::kSystem).nextInt(100);
     mgr.restoreStates(states);

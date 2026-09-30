@@ -8,8 +8,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
-import com.xianxia.sect.core.model.EquipmentNurtureData
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import org.junit.After
@@ -83,7 +82,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `truncateToLimit - 按战力降序保留强者`() {
-        // 战力 = basePhysicalAttack + baseMagicAttack + baseHp
+        // 战力 = baseAttack + baseAttack + baseHp
         // weak:   10 + 10 + 120 = 140
         // filler: 50 + 50 + 120 = 220
         // strong: 100 + 100 + 120 = 320
@@ -382,9 +381,13 @@ class AISectDiscipleManagerTest {
         )
         assertTrue("满配弟子应达标", AISectDiscipleManager.isGearCompleteForLevel(full, SectLevel.LARGE))
         // 只有 1 件装备 1 本功法的旧档弟子：达标判定须为 false（数量而非"有"）
+        // B3 六部位后 generateEquipmentIds 从 6 槽随机取 4，不保证含武器——
+        // "留 1 件"须显式落一件真实武器条目，不得依赖随机选槽恰好命中
+        val weaponEntry = EquipmentDatabase.getBySlot(EquipmentSlot.WEAPON).first()
         val partial = full.copy(
             equipment = full.equipment.copy(
-                weaponId = full.equipment.weaponId, armorId = "", bootsId = "", accessoryId = ""
+                headId = "", bodyId = "", handsId = "", feetId = "", legsId = "",
+                weaponId = weaponEntry.id
             ),
             manualIds = full.manualIds.take(1),
             manualMasteries = full.manualMasteries.filterKeys { it == full.manualIds.first() }
@@ -428,22 +431,7 @@ class AISectDiscipleManagerTest {
         assertTrue("新补弟子应带功法", newbie.manualIds.isNotEmpty())
     }
 
-    // ── 功法熟练度 + 装备孕养度正常增长 ──
-
-    @Test
-    fun `applyGearToDisciple - 装备初始孕养从0起步`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val disciple = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.MEDIUM)
-        for (nurture in listOf(
-            disciple.equipment.weaponNurture, disciple.equipment.armorNurture,
-            disciple.equipment.bootsNurture, disciple.equipment.accessoryNurture
-        )) {
-            if (nurture.equipmentId.isEmpty()) continue
-            assertEquals("装备 ${nurture.equipmentId} 初始孕养应为 0 级", 0, nurture.nurtureLevel)
-            assertEquals("装备 ${nurture.equipmentId} 初始孕养进度应为 0", 0.0, nurture.nurtureProgress, 0.0)
-        }
-    }
+    // ── 功法熟练度正常增长（装备孕养体系已随 B3 装备重构退役，见 EquipmentUpgradeServiceTest）──
 
     @Test
     fun `processMonthlyCultivation - 功法初始熟练度为0且逐月增长`() {
@@ -462,71 +450,6 @@ class AISectDiscipleManagerTest {
             // 实现内逐月 (mastery + perMonthGain).toInt()，两次取整与整月增益一致
             assertEquals("熟练度应逐月按玩家公式增长（1 月=3 旬）", (perMonthGain * 2).toInt(), mastery)
         }
-    }
-
-    @Test
-    fun `processMonthlyCultivation - 装备孕养月度增长`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val disciple = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.MEDIUM)
-        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 1, SectLevel.SMALL).first()
-        val monthlyGain = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE * 3
-        for (nurture in listOf(
-            result.equipment.weaponNurture, result.equipment.armorNurture,
-            result.equipment.bootsNurture, result.equipment.accessoryNurture
-        )) {
-            if (nurture.equipmentId.isEmpty()) continue
-            assertEquals(
-                "装备 ${nurture.equipmentId} 孕养进度应增长 ${monthlyGain} exp",
-                monthlyGain, nurture.nurtureProgress, 0.001
-            )
-        }
-    }
-
-    @Test
-    fun `processMonthlyCultivation - 装备孕养经验满升级且进度扣减`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        // 构造距升级差 1 exp 的装备（品阶 1：0 级升 1 级需 100 exp）
-        val gear = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.SMALL)
-        val weaponId = gear.equipment.weaponId
-        val nearLevelUp = gear.copy(
-            equipment = gear.equipment.copy(
-                weaponNurture = EquipmentNurtureData(
-                    equipmentId = weaponId,
-                    rarity = 1,
-                    nurtureLevel = 0,
-                    nurtureProgress = 99.0
-                )
-            )
-        )
-        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(nearLevelUp), 1, SectLevel.SMALL).first()
-        val monthlyGain = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE * 3
-        val weaponNurture = result.equipment.weaponNurture
-        assertEquals("经验满应升级到 1 级", 1, weaponNurture.nurtureLevel)
-        assertEquals("升级后应保留溢出进度", monthlyGain - 1.0, weaponNurture.nurtureProgress, 0.001)
-    }
-
-    @Test
-    fun `processMonthlyCultivation - 满级装备孕养不再增长`() {
-        AISectDiscipleManager.initForSlot(42L)
-        ManualDatabase.initializeWithManuals(testManuals())
-        val gear = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.SMALL)
-        val weaponId = gear.equipment.weaponId
-        val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(1)
-        val maxed = gear.copy(
-            equipment = gear.equipment.copy(
-                weaponNurture = EquipmentNurtureData(
-                    equipmentId = weaponId,
-                    rarity = 1,
-                    nurtureLevel = maxLevel,
-                    nurtureProgress = 0.0
-                )
-            )
-        )
-        val snapshot = maxed.equipment.weaponNurture
-        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(maxed), 2, SectLevel.SMALL).first()
-        assertEquals("满级装备孕养不应再变化", snapshot, result.equipment.weaponNurture)
     }
 
     @Test
@@ -610,8 +533,7 @@ class AISectDiscipleManagerTest {
         isAlive = true,
         skills = com.xianxia.sect.core.model.SkillStats(comprehension = comprehension),
         combat = CombatAttributes(
-            basePhysicalAttack = 50,
-            baseMagicAttack = 50,
+            baseAttack = 50,
             baseHp = 120,
             baseMp = 80
         )
@@ -633,8 +555,7 @@ class AISectDiscipleManagerTest {
         return Disciple(
             id = id,
             combat = CombatAttributes(
-                basePhysicalAttack = actualPa,
-                baseMagicAttack = actualMa,
+                baseAttack = actualPa,
                 baseHp = actualHp
             )
         )

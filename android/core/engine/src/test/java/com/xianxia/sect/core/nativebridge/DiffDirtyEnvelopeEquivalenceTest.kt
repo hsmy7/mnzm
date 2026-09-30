@@ -41,7 +41,7 @@ class DiffDirtyEnvelopeEquivalenceTest {
         assumeTrue(DiffRngBridge.isAvailable())
 
         // 覆盖全部行字段类别：string/int32/int64/bool/double/字符串列表/
-        // int 映射/字符串映射/nurture 子消息/storageBagItems JSON 原文；
+        // int 映射/字符串映射/六部位槽位列（B3：nurture 子消息已退役）/storageBagItems JSON 原文；
         // 另含非弟子集合 upsert+remove、gameData 标量+嵌套容器、弟子删除。
         val diffJson = """
             {"version":7,
@@ -61,7 +61,7 @@ class DiffDirtyEnvelopeEquivalenceTest {
                  "currentHp":-1,"currentMp":-1,"breakthroughCount":2,
                  "pillCritRateBonus":0.05,"pillEffectDuration":3,
                  "activePillTypes":["dan1"],"activePillCategory":"cultivation",
-                 "weaponId":"w1","weaponNurture":{"equipmentId":"w1","rarity":2,"nurtureLevel":4,"nurtureProgress":0.25},
+                 "headId":"h1","bodyId":"a1","handsId":"g1","feetId":"b1","weaponId":"w1","legsId":"l1",
                  "storageBagItems":[{"id":"s1","count":9,"effects":[{"id":"e1"}]}],
                  "storageBagSpiritStones":55,"spiritStones":88,
                  "usedPermanentPillKeys":["k1"],"recruitedMonth":120,

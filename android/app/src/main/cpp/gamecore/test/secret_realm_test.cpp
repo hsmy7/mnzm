@@ -165,9 +165,9 @@ TEST(SecretRealmTest, BuildBeastPreGenStatsBasics) {
     const auto stats = buildSecretRealmBeastPreGenStats(rng, 9, "虎妖", false, 1);
     EXPECT_GE(stats.maxHp, 1);
     EXPECT_GE(stats.maxMp, 1);
-    EXPECT_GE(stats.physicalAttack, 1);
-    EXPECT_EQ(stats.physicalAttack, stats.magicAttack);   // Kotlin atk 两用
-    EXPECT_EQ(stats.physicalDefense, stats.magicDefense); // Kotlin def 两用
+    // 单列口径（B1）：物=法同源两半相加（≥2 = 单半 ≥1）
+    EXPECT_GE(stats.attack, 2);
+    EXPECT_GE(stats.defense, 2);
     EXPECT_EQ(stats.realmLayer, 1);
 }
 
@@ -299,10 +299,10 @@ TEST(SecretRealmTest, ApplyLootLossRatioRange) {
     rng.initSystemSeed(42);
     SecretRealmBackpack backpack;
     backpack.spiritStones = 1000;
-    gamecore::state::EquipmentStack eq;
+    gamecore::state::EquipmentInstance eq;   // B3：背包装备实例轨
     eq.id = "eq1";
     eq.name = "木剑";
-    eq.rarity = 1;
+    eq.meta.rarity = 1;
     backpack.equipment = {eq, eq, eq, eq, eq};  // 5 件
     const auto r = applySecretRealmLootLoss(backpack, rng);
     // 比例 0.20~0.45；5 件 → ceil(1~2.25) ∈ {1,2,3}
@@ -319,10 +319,10 @@ TEST(SecretRealmTest, ApplyLootLossDeterministic) {
     b.initSystemSeed(7);
     SecretRealmBackpack backpack;
     backpack.spiritStones = 999;
-    gamecore::state::EquipmentStack eq;
+    gamecore::state::EquipmentInstance eq;   // B3：背包装备实例轨
     eq.id = "eq1";
     eq.name = "木剑";
-    eq.rarity = 1;
+    eq.meta.rarity = 1;
     backpack.equipment = {eq, eq, eq};
     gamecore::state::Pill pill;
     pill.id = "p1";

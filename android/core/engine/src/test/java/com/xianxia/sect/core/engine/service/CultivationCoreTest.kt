@@ -132,7 +132,6 @@ class CultivationCoreTest {
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
             autoPillService = AutoPillService(mockPillManager),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
@@ -172,7 +171,6 @@ class CultivationCoreTest {
         return MutableGameState(
             gameData = gameData,
             discipleTables = tables,
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),
@@ -727,14 +725,14 @@ class CultivationCoreTest {
         val id = 1
         tables.pillEffectDurations[id] = 2
         tables.pillCultivationSpeedBonuses[id] = 0.5
-        tables.pillPhysicalAttackBonuses[id] = 10
+        tables.pillAttackBonuses[id] = 10
         tables.activePillTypes[id] = setOf("cultivationSpeed")
 
         core.applyMonthlyDurationDecay(tables, id)
 
         assertEquals("持续时间不足1月应清零", 0, tables.pillEffectDurations[id])
         assertEquals("修炼速度加成应清零", 0.0, tables.pillCultivationSpeedBonuses[id], 0.001)
-        assertEquals("战斗属性加成应清零", 0, tables.pillPhysicalAttackBonuses[id])
+        assertEquals("战斗属性加成应清零", 0, tables.pillAttackBonuses[id])
         assertEquals("activePillTypes 应清空", emptySet<String>(), tables.activePillTypes[id])
     }
 }

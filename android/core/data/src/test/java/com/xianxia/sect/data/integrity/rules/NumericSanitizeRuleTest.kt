@@ -139,19 +139,6 @@ class NumericSanitizeRuleTest {
     }
 
     @Test
-    fun `negative pill nurture bonus reset`() {
-        val d = makeDisciple(pill = PillEffects(pillNurtureSpeedBonus = -0.3))
-        val data = saveData(disciples = listOf(d))
-        val result = SaveValidator.validate(data)
-        assertTrue(result is IntegrityResult.Repaired)
-        assertEquals(
-            0.0,
-            (result as IntegrityResult.Repaired).data.disciples.first().pillEffects.pillNurtureSpeedBonus,
-            0.001
-        )
-    }
-
-    @Test
     fun `NaN pill bonus in ai sect disciples sanitized`() {
         // 对抗性审查整改（2026-08-05）：AI 宗门弟子同样全字段消毒
         val data = saveData(
@@ -246,7 +233,7 @@ class NumericSanitizeRuleTest {
         cultivation = cultivation, cultivationCheckpoint = checkpoint,
         cultivationSpeedBonus = speedBonus, pillEffects = pill,
         isAlive = true,
-        equipment = EquipmentSet(weaponId = "", armorId = "", bootsId = "", accessoryId = "")
+        equipment = EquipmentSet()
     )
 
     private fun saveData(

@@ -31,8 +31,6 @@ class DisciplePillManagerExecutionOrderTest {
             DisciplePillManager.classify(ItemEffect(pillType = "cultivationAdd", cultivationAdd = 100)))
         assertEquals(PillRule.INSTANT_CULTIVATION,
             DisciplePillManager.classify(ItemEffect(pillType = "skillExpAdd", skillExpAdd = 50)))
-        assertEquals(PillRule.INSTANT_CULTIVATION,
-            DisciplePillManager.classify(ItemEffect(pillType = "nurtureAdd", nurtureAdd = 100)))
     }
 
     @Test
@@ -41,8 +39,6 @@ class DisciplePillManagerExecutionOrderTest {
             DisciplePillManager.classify(ItemEffect(pillType = "cultivationSpeed", cultivationSpeedPercent = 0.3)))
         assertEquals(PillRule.SUSTAINED_SPEED,
             DisciplePillManager.classify(ItemEffect(pillType = "skillExpSpeed", skillExpSpeedPercent = 0.3)))
-        assertEquals(PillRule.SUSTAINED_SPEED,
-            DisciplePillManager.classify(ItemEffect(pillType = "nurtureSpeed", nurtureSpeedPercent = 0.3)))
     }
 
     @Test

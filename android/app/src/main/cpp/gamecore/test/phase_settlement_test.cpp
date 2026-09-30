@@ -5,8 +5,9 @@
 // （runPhaseSettlement）推进 N 旬 → 断言字段值序列逐位符合手算期望。
 //
 // 覆盖：修炼累积上限钳制 / HP·MP 恢复 / 功法熟练度（含藏经阁加成）/
-// 装备孕养升级 / 自动丹药补服（含 checkpoint）/ 突破成功与失败双分支
-// （RNG 抽取次数与顺序强校验）/ 秘境成员跳过 / 死亡弟子跳过 / 空状态安全。
+// 自动丹药补服（含 checkpoint）/ 突破成功与失败双分支
+// （RNG 抽取次数与顺序强校验）/ 自动装备（B3 实例轨六部位）/
+// 秘境成员跳过 / 死亡弟子跳过 / 空状态安全。
 //
 // RNG 审计方法：BREAKTHROUGH 分区播种规则 fromSeed(seed + partitionId)
 // （kBreakthrough=1）与 RngManager.initSystemSeed 一致——测试用独立
@@ -147,30 +148,6 @@ TEST(PhaseSettlementTest, ManualProficiencyBatchCommitGoldenSequence) {
     EXPECT_EQ(0, gdProf.at("1")[0].masteryLevel);
     EXPECT_DOUBLE_EQ(36.0, gdProf.at("2")[0].proficiency);       // 18 × 2 旬
     EXPECT_STREQ("青云心法", gdProf.at("2")[0].manualName.c_str());
-}
-
-TEST(PhaseSettlementTest, EquipmentNurtureLevelsUpGoldenSequence) {
-    // gain = 10/旬；rarity1 level0 升级需 100 → 第 10 旬升级且进度清零
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple d = baseDisciple("1");
-    d.weaponId = "w1";
-    st.disciples.appendDisciple(d);
-
-    EquipmentInstance eq;
-    eq.id = "w1";
-    eq.name = "木剑";
-    eq.rarity = 1;
-    st.equipmentInstances.push_back(eq);
-
-    for (int i = 1; i <= 9; ++i) {
-        core->advancePhases(1);
-        EXPECT_EQ(0, st.equipmentInstances[0].nurtureLevel) << "phase " << i;
-        EXPECT_DOUBLE_EQ(10.0 * i, st.equipmentInstances[0].nurtureProgress);
-    }
-    core->advancePhases(1);
-    EXPECT_EQ(1, st.equipmentInstances[0].nurtureLevel);
-    EXPECT_DOUBLE_EQ(0.0, st.equipmentInstances[0].nurtureProgress);
 }
 
 TEST(PhaseSettlementTest, AutoPillConsumptionAndCheckpoint) {
@@ -329,7 +306,7 @@ TEST(PhaseSettlementTest, EmptyStateIsSafe) {
     EXPECT_EQ(99999L, st.gameData.spiritStones);
 }
 
-// ── 突破丹逐颗扣减 / 服用门槛 / 孕养度丹 ──────────────────────────
+// ── 突破丹逐颗扣减 / 服用门槛 / 丹药段 ────────────────────────────
 
 TEST(PhaseSettlementTest, BreakthroughPillDeductsPerUnitFromWarehouseStack) {
     // 回归守护：仓库突破丹堆叠 quantity=3，一次突破尝试消耗 1 颗 → 剩 2
@@ -433,7 +410,7 @@ TEST(PhaseSettlementTest, TempBattlePillNotAutoConsumed) {
     battlePill.rarity = 2;
     battlePill.quantity = 1;
     battlePill.effect = state::ItemEffect{};
-    battlePill.effect->physicalAttackAdd = 20;
+    battlePill.effect->attackAdd = 20;
     d.storageBagItems.push_back(battlePill);
     st.disciples.appendDisciple(d);
 
@@ -469,102 +446,39 @@ TEST(PhaseSettlementTest, CultivationPillSkippedAtFullCultivation) {
     EXPECT_DOUBLE_EQ(490.0, after.cultivation);        // 累积封顶仍 490
 }
 
-TEST(PhaseSettlementTest, NurturePillDistributesToEquippedInstances) {
-    // A2：孕养度丹 100 均分到 2 件已装备实例（每件 +50，余数 0）；
-    // 升级需 100 → 未升级
-    auto core = makeCore(42);
-    auto& st = core->state();
-    Disciple d = baseDisciple("1");
-    d.cultivation = 10.0;
-    d.weaponId = "w1";
-    d.armorId = "a1";
-    st.disciples.appendDisciple(d);
-
-    state::EquipmentInstance w1;
-    w1.id = "w1";
-    w1.name = "木剑";
-    w1.rarity = 1;
-    state::EquipmentInstance a1;
-    a1.id = "a1";
-    a1.name = "布衣";
-    a1.rarity = 1;
-    st.equipmentInstances.push_back(w1);
-    st.equipmentInstances.push_back(a1);
-
-    StorageBagItem nPill;
-    nPill.itemId = "n1";
-    nPill.itemType = "pill";
-    nPill.name = "蕴器丹";
-    nPill.rarity = 3;
-    nPill.quantity = 1;
-    nPill.effect = state::ItemEffect{};
-    nPill.effect->pillType = "nurtureAdd";
-    nPill.effect->nurtureAdd = 100;
-    d.storageBagItems.push_back(nPill);
-    st.disciples.appendDisciple(d);
-
-    core->advancePhases(1);
-    EXPECT_TRUE(st.disciples.materialize(0).storageBagItems.empty());
-    // 丹药 100 均分 2 件（每件 +50）+ 本旬孕养自然增长（每件 +10）= 60
-    EXPECT_DOUBLE_EQ(60.0, st.equipmentInstances[0].nurtureProgress);
-    EXPECT_DOUBLE_EQ(60.0, st.equipmentInstances[1].nurtureProgress);
-    EXPECT_EQ(0, st.equipmentInstances[0].nurtureLevel);
-}
-
-// ── 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换） ──
-
-TEST(PhaseSettlementTest, AutoEquipFromWarehouseFillsEmptySlot) {
-    // 仓库有武器堆叠 + 空槽 → 自动装备且堆叠减一（回归：背包为空常态）
-    auto core = makeCore(42);
-    auto& st = core->state();
-    st.gameData.autoEquipFromWarehouseRootCounts = {1};
-    Disciple d = baseDisciple("1");
-    st.disciples.appendDisciple(d);
-
-    state::EquipmentStack eq;
-    eq.id = "e1";
-    eq.name = "精铁剑";
-    eq.rarity = 1;
-    eq.slot = "WEAPON";
-    eq.physicalAttack = 15;
-    eq.minRealm = 9;
-    eq.quantity = 2;
-    st.equipmentStacks.push_back(eq);
-
-    core->advancePhases(1);
-    const auto after = st.disciples.materialize(0);
-    EXPECT_FALSE(after.weaponId.empty());
-    ASSERT_EQ(1u, st.equipmentStacks.size());
-    EXPECT_EQ(1, st.equipmentStacks[0].quantity);
-    ASSERT_EQ(1u, st.equipmentInstances.size());
-    EXPECT_EQ("1", st.equipmentInstances[0].ownerId.value_or(""));
-    EXPECT_TRUE(st.equipmentInstances[0].isEquipped);
-}
+// ── 自动装备（B3 实例轨：候选=袋内实例单源，装备堆叠轨退役）/学习 ──
 
 TEST(PhaseSettlementTest, AutoEquipAllOffIsNoOp) {
-    // 全开关关闭 → 仓库堆叠与弟子零变化
+    // 全开关关闭 → 袋实例与弟子零变化
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
+    state::EquipmentInstance inst;
+    inst.id = "i1";
+    inst.name = "青云剑";
+    inst.part = "WEAPON";
+    inst.meta.rarity = 1;
+    inst.meta.minRealm = 9;
+    state::StorageBagItem bag;
+    bag.itemId = "i1";
+    bag.itemType = "equipment_instance";
+    bag.name = "青云剑";
+    bag.rarity = 1;
+    bag.quantity = 1;
+    bag.equipmentInstance = inst;
+    d.storageBagItems.push_back(bag);
     st.disciples.appendDisciple(d);
-    state::EquipmentStack eq;
-    eq.id = "e1";
-    eq.name = "精铁剑";
-    eq.rarity = 1;
-    eq.slot = "WEAPON";
-    eq.minRealm = 9;
-    eq.quantity = 3;
-    st.equipmentStacks.push_back(eq);
 
     core->advancePhases(1);
     EXPECT_TRUE(st.disciples.materialize(0).weaponId.empty());
-    ASSERT_EQ(1u, st.equipmentStacks.size());
-    EXPECT_EQ(3, st.equipmentStacks[0].quantity);
+    ASSERT_EQ(1u, st.disciples.materialize(0).storageBagItems.size());
     EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
-    // 袋内 equipment_instance（卸装保真实例）直接装配：孕养保真 + 袋条目移除
+    // B3：袋内 equipment_instance（完整实例）单源候选——装备堆叠轨已整体
+    // 退役（EquipmentStack 类型删除，仓库堆叠候选无从构建，编译期即拦截）。
+    // 实例入表置位 + 袋条目移除
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.autoEquipFromWarehouseRootCounts = {1};
@@ -572,14 +486,14 @@ TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
     state::EquipmentInstance inst;
     inst.id = "i1";
     inst.name = "青云剑";
-    inst.rarity = 4;
-    inst.slot = "WEAPON";
-    inst.physicalAttack = 100;
-    inst.minRealm = 9;
-    inst.nurtureLevel = 2;
-    inst.nurtureProgress = 30.0;
-    inst.ownerId = "1";
-    inst.isEquipped = false;
+    inst.part = "WEAPON";
+    inst.meta.rarity = 4;
+    inst.meta.minRealm = 9;
+    inst.growth.level = 7;
+    inst.growth.exp = 55;
+    inst.growth.affix.mainStat = state::EquipStatValue{"ATTACK", 84.0};
+    inst.growth.affix.subStats = {state::EquipStatValue{"HP", 106.0}};
+    inst.growth.affix.subRolls = {2};
     state::StorageBagItem bag;
     bag.itemId = "i1";
     bag.itemType = "equipment_instance";
@@ -589,7 +503,7 @@ TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
     bag.equipmentInstance = inst;
     d.storageBagItems.push_back(bag);
     st.disciples.appendDisciple(d);
-    // 真实不变量：袋内实例不在实例表（卸装入袋后已移除，防双持有）
+    // 袋内实例尚未入实例表（购买/掉落直入袋形状）
 
     core->advancePhases(1);
     const auto after = st.disciples.materialize(0);
@@ -598,13 +512,19 @@ TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
     ASSERT_EQ(1u, st.equipmentInstances.size());
     EXPECT_EQ("i1", st.equipmentInstances[0].id);
     EXPECT_TRUE(st.equipmentInstances[0].isEquipped);
-    EXPECT_EQ(2, st.equipmentInstances[0].nurtureLevel);   // 孕养保真
-    // 30（入袋时）+ 10（本旬装备孕养自然增长）= 40
-    EXPECT_DOUBLE_EQ(40.0, st.equipmentInstances[0].nurtureProgress);
+    EXPECT_EQ("1", st.equipmentInstances[0].ownerId.value_or(""));
+    // 成长面随实例单点保真（等级/经验/词条/强化次数）
+    EXPECT_EQ(7, st.equipmentInstances[0].growth.level);
+    EXPECT_EQ(55, st.equipmentInstances[0].growth.exp);
+    EXPECT_DOUBLE_EQ(84.0,
+        st.equipmentInstances[0].growth.affix.mainStat.value);
+    EXPECT_EQ(1u, st.equipmentInstances[0].growth.affix.subStats.size());
+    EXPECT_EQ(2, st.equipmentInstances[0].growth.affix.subRolls[0]);
 }
 
 TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
-    // 已装备 r1 铁剑 + 袋内 r4 青云剑实例 → 自动替换，旧装备回袋不丢失
+    // 已装备 r1 铁剑 + 袋内 r4 青云剑实例 → 自动替换；旧实例保真回袋 +
+    // 实例表保留行置下线（B3 卸装语义），不丢失
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.autoEquipFromWarehouseRootCounts = {1};
@@ -613,19 +533,17 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
     state::EquipmentInstance oldInst;
     oldInst.id = "w1";
     oldInst.name = "精铁剑";
-    oldInst.rarity = 1;
-    oldInst.slot = "WEAPON";
-    oldInst.physicalAttack = 15;
-    oldInst.minRealm = 9;
+    oldInst.part = "WEAPON";
+    oldInst.meta.rarity = 1;
+    oldInst.meta.minRealm = 9;
     oldInst.ownerId = "1";
     oldInst.isEquipped = true;
     state::EquipmentInstance newInst;
     newInst.id = "n1";
     newInst.name = "青云剑";
-    newInst.rarity = 4;
-    newInst.slot = "WEAPON";
-    newInst.physicalAttack = 100;
-    newInst.minRealm = 9;
+    newInst.part = "WEAPON";
+    newInst.meta.rarity = 4;
+    newInst.meta.minRealm = 9;
     newInst.ownerId = "1";
     newInst.isEquipped = false;
     state::StorageBagItem bag;
@@ -638,7 +556,7 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
     d.storageBagItems.push_back(bag);
     st.disciples.appendDisciple(d);
     st.equipmentInstances.push_back(oldInst);
-    // 真实不变量：袋内新实例不在实例表（n1 仅随袋条目携带）
+    // 袋内新实例不在实例表（购买直入袋形状）
 
     core->advancePhases(1);
     const auto after = st.disciples.materialize(0);
@@ -646,9 +564,20 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
     ASSERT_EQ(1u, after.storageBagItems.size());
     EXPECT_EQ("w1", after.storageBagItems[0].itemId);      // 旧装备回袋
     EXPECT_EQ("equipment_instance", after.storageBagItems[0].itemType);
-    ASSERT_EQ(1u, st.equipmentInstances.size());           // 旧实例已移除
-    EXPECT_EQ("n1", st.equipmentInstances[0].id);
-    EXPECT_TRUE(st.equipmentInstances[0].isEquipped);
+    // B3：旧实例保留表内（isEquipped=false）+ 新实例入表置位 → 共 2 行
+    ASSERT_EQ(2u, st.equipmentInstances.size());
+    bool oldOffline = false;
+    for (const auto& eq : st.equipmentInstances) {
+        if (eq.id == "w1") {
+            EXPECT_FALSE(eq.isEquipped);
+            EXPECT_FALSE(eq.ownerId.has_value());
+            oldOffline = true;
+        }
+        if (eq.id == "n1") {
+            EXPECT_TRUE(eq.isEquipped);
+        }
+    }
+    EXPECT_TRUE(oldOffline);
 }
 
 TEST(PhaseSettlementTest, AutoLearnFromWarehouseFillsSlot) {
@@ -751,28 +680,35 @@ TEST(PhaseSettlementTest, AutoLearnReplacesWorstWhenSlotsFull) {
 }
 
 TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
-    // 秘境探索中弟子不自动装备/学习（状态冻结语义）
+    // 秘境探索中弟子不自动装备/学习（状态冻结语义；B3 候选=袋实例）
     auto core = makeCore(42);
     auto& st = core->state();
     st.gameData.autoEquipFromWarehouseRootCounts = {1};
     st.gameData.autoLearnFromWarehouseRootCounts = {1};
     Disciple d = baseDisciple("1");
+    state::EquipmentInstance inst;
+    inst.id = "i1";
+    inst.name = "青云剑";
+    inst.part = "WEAPON";
+    inst.meta.rarity = 1;
+    inst.meta.minRealm = 9;
+    state::StorageBagItem bag;
+    bag.itemId = "i1";
+    bag.itemType = "equipment_instance";
+    bag.name = "青云剑";
+    bag.rarity = 1;
+    bag.quantity = 1;
+    bag.equipmentInstance = inst;
+    d.storageBagItems.push_back(bag);
     st.disciples.appendDisciple(d);
     state::SecretRealmMemberState member;
     member.discipleId = "1";
     member.isDead = false;
     st.gameData.secretRealmSession.members.push_back(member);
-    state::EquipmentStack eq;
-    eq.id = "e1";
-    eq.name = "精铁剑";
-    eq.rarity = 1;
-    eq.slot = "WEAPON";
-    eq.minRealm = 9;
-    eq.quantity = 1;
-    st.equipmentStacks.push_back(eq);
 
     core->advancePhases(1);
     EXPECT_TRUE(st.disciples.materialize(0).weaponId.empty());
+    ASSERT_EQ(1u, st.disciples.materialize(0).storageBagItems.size());
     EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
@@ -782,8 +718,8 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
 // runPhaseCoreBatchParallel（JobSystem 分块并行）必须与串行
 // runPhaseCoreBatch **逐位一致**——零 RNG、逐弟子独立写、读静态列，
 // 并行不改变任何抽取/写入序。本测试构造多弟子（含长老加成/功法
-// 熟练度/装备孕养/藏经阁加成/死亡跳过）场景，串行与并行各跑一遍，
-// 全状态 JSON 逐字节比对。
+// 熟练度/已装备六部位实例/藏经阁加成/死亡跳过）场景，串行与并行
+// 各跑一遍，全状态 JSON 逐字节比对。
 // ============================================================
 
 namespace {
@@ -818,13 +754,13 @@ GameState makePhaseCoreState() {
     st.disciples.appendDisciple(d3);
     st.disciples.appendDisciple(d4);
 
-    // 装备实例 e1（弟子 1 武器，孕养增长）
+    // 装备实例 e1（弟子 1 武器，B3 六部位字段面）
     state::EquipmentInstance eq;
     eq.id = "e1";
     eq.name = "木剑";
-    eq.rarity = 1;
-    eq.slot = "WEAPON";
-    eq.minRealm = 9;
+    eq.part = "WEAPON";
+    eq.meta.rarity = 1;
+    eq.meta.minRealm = 9;
     eq.ownerId = "1";
     eq.isEquipped = true;
     st.equipmentInstances.push_back(eq);
@@ -867,12 +803,14 @@ TEST(PhaseSettlementTest, CoreBatchParallelMatchesSerial) {
     gamecore::state::to_json(jp, par);
     EXPECT_EQ(js.dump(), jp.dump()) << "并行核心批次必须与串行逐位一致";
 
-    // 显式关键字段抽查：修为/HP/MP/熟练度/装备孕养确实变化（场景生效）
+    // 显式关键字段抽查：修为/HP/MP/熟练度确实变化（场景生效）
     EXPECT_GT(serial.disciples.materialize(1).cultivation, 40.0);
     EXPECT_GT(serial.disciples.materialize(0).currentHp, 100);
     EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("1"));
     EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("2"));
-    EXPECT_GT(serial.equipmentInstances[0].nurtureProgress, 0.0);
+    // B3：孕养管线退役——核心批次不再写装备成长（实例面零抽取零写入）
+    EXPECT_EQ(1, serial.equipmentInstances[0].growth.level);
+    EXPECT_EQ(0, serial.equipmentInstances[0].growth.exp);
 }
 
 // ECS 调度同构路径守护——核心批次经 SystemScheduler::runAll(World)
@@ -901,8 +839,8 @@ TEST(PhaseSettlementTest, CoreBatchThroughEcsSchedulerMatchesSerial) {
 // 保序验证（桥接规范红线）：弟子增删后实体集漂移
 // （行前移 + 旧 DiscipleRef 过期），system 内 syncDiscipleEntities 必须重建
 // 恢复"View 序 == 行序"，结算结果仍与串行逐位一致。
-// 旁证行级独立性：核心批次逐弟子独立写（修为/HP/MP/熟练度按 id 键控/
-// 孕养按装备 id）——先结算后删行 == 先删行后结算（对剩余行）。
+// 旁证行级独立性：核心批次逐弟子独立写（修为/HP/MP/熟练度按 id 键控）
+// ——先结算后删行 == 先删行后结算（对剩余行）。
 TEST(PhaseSettlementTest, CoreBatchResyncsStaleWorldAfterStoreShrink) {
     GameState serial = makePhaseCoreState();
     GameState par = makePhaseCoreState();

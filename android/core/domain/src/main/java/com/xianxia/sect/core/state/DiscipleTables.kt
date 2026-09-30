@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import android.util.Log
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.StorageBagItem
 
 /**
@@ -136,18 +135,15 @@ class DiscipleTables {
     // === 战斗属性（窄表） ===
     val baseHps = IntComponentTable()
     val baseMps = IntComponentTable()
-    val basePhysicalAttacks = IntComponentTable()
-    val baseMagicAttacks = IntComponentTable()
-    val basePhysicalDefenses = IntComponentTable()
-    val baseMagicDefenses = IntComponentTable()
+    val baseAttacks = IntComponentTable()
+    val baseDefenses = IntComponentTable()
     val baseSpeeds = IntComponentTable()
     val hpVariances = IntComponentTable()
     val mpVariances = IntComponentTable()
-    val physicalAttackVariances = IntComponentTable()
-    val magicAttackVariances = IntComponentTable()
-    val physicalDefenseVariances = IntComponentTable()
-    val magicDefenseVariances = IntComponentTable()
+    val attackVariances = IntComponentTable()
+    val defenseVariances = IntComponentTable()
     val speedVariances = IntComponentTable()
+    val innateDamageTypes = ComponentTable<String>()
     val totalCultivations = ComponentTable<Long>()
     val breakthroughCounts = IntComponentTable()
     val breakthroughFailCounts = IntComponentTable()
@@ -155,10 +151,8 @@ class DiscipleTables {
     val currentMps = IntComponentTable()
 
     // === 丹药效果 ===
-    val pillPhysicalAttackBonuses = IntComponentTable()
-    val pillMagicAttackBonuses = IntComponentTable()
-    val pillPhysicalDefenseBonuses = IntComponentTable()
-    val pillMagicDefenseBonuses = IntComponentTable()
+    val pillAttackBonuses = IntComponentTable()
+    val pillDefenseBonuses = IntComponentTable()
     val pillHpBonuses = IntComponentTable()
     val pillMpBonuses = IntComponentTable()
     val pillSpeedBonuses = IntComponentTable()
@@ -167,27 +161,22 @@ class DiscipleTables {
     val pillCritEffectBonuses = DoubleComponentTable()
     val pillCultivationSpeedBonuses = DoubleComponentTable()
     val pillSkillExpSpeedBonuses = DoubleComponentTable()
-    val pillNurtureSpeedBonuses = DoubleComponentTable()
     val activePillCategories = ComponentTable<String>()
     val activePillTypes = ComponentTable<Set<String>>()
 
-    // === 装备 ===
+    // === 装备（B3 六部位：头/身/手/脚/武/腿 按显示序；孕养与旧四槽列随迁移删除） ===
+    val headIds = ComponentTable<String>()
+    val bodyIds = ComponentTable<String>()
+    val handsIds = ComponentTable<String>()
+    val feetIds = ComponentTable<String>()
     val weaponIds = ComponentTable<String>()
-    val armorIds = ComponentTable<String>()
-    val bootsIds = ComponentTable<String>()
-    val accessoryIds = ComponentTable<String>()
-    val weaponNurtures = ComponentTable<EquipmentNurtureData>()
-    val armorNurtures = ComponentTable<EquipmentNurtureData>()
-    val bootsNurtures = ComponentTable<EquipmentNurtureData>()
-    val accessoryNurtures = ComponentTable<EquipmentNurtureData>()
+    val legsIds = ComponentTable<String>()
     val storageBagItems = ComponentTable<List<StorageBagItem>>()
     val storageBagSpiritStones = ComponentTable<Long>()
     val discipleSpiritStones = IntComponentTable()
     val cultivationCompletionMonths = IntComponentTable()
     val manualCompletionMonths = IntComponentTable()
     val manualCompletionPhases = IntComponentTable()
-    val equipmentNurturingCompletionMonths = IntComponentTable()
-    val equipmentNurturingCompletionPhases = IntComponentTable()
 
     // === 技能属性 ===
     val intelligences = IntComponentTable()

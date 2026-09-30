@@ -7,10 +7,6 @@ import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.data.model.SaveData
 import org.junit.Assert.*
 import org.junit.Test
@@ -51,10 +47,12 @@ class SaveValidatorTest {
         realmLayer: Int = 1,
         cultivation: Double = 10.0,
         isAlive: Boolean = true,
+        headId: String = "",
+        bodyId: String = "",
+        handsId: String = "",
+        feetId: String = "",
         weaponId: String = "",
-        armorId: String = "",
-        bootsId: String = "",
-        accessoryId: String = ""
+        legsId: String = ""
     ): Disciple {
         return Disciple(
             id = id,
@@ -64,10 +62,12 @@ class SaveValidatorTest {
             cultivation = cultivation,
             isAlive = isAlive,
             equipment = EquipmentSet(
+                headId = headId,
+                bodyId = bodyId,
+                handsId = handsId,
+                feetId = feetId,
                 weaponId = weaponId,
-                armorId = armorId,
-                bootsId = bootsId,
-                accessoryId = accessoryId
+                legsId = legsId
             )
         )
     }
@@ -84,9 +84,7 @@ class SaveValidatorTest {
     private fun makeEquipmentInstance(id: String, name: String = "玄铁甲"): EquipmentInstance {
         return EquipmentInstance(
             id = id,
-            name = name,
-            rarity = 1,
-            description = ""
+            name = name
         )
     }
 
@@ -110,11 +108,11 @@ class SaveValidatorTest {
     }
 
     @Test
-    fun `validate - valid disciples with equipment - 仅招募恒空修复`() {
-        val stack = makeEquipmentStack("eq-1")
+    fun `validate - valid disciples with equipment instance - 仅招募恒空修复`() {
+        val instance = makeEquipmentInstance("eq-1")
         val disciple = makeDisciple(weaponId = "eq-1")
         val data = minimalValidSaveData().copy(
-            equipmentStacks = listOf(stack),
+            equipmentInstances = listOf(instance),
             disciples = listOf(disciple)
         )
         assertOnlyRecruitListRepair(SaveValidator.validate(data))
@@ -246,28 +244,37 @@ class SaveValidatorTest {
     @Test
     fun `validate - all equipment fields orphan - clears all`() {
         val disciple = makeDisciple(
-            weaponId = "w", armorId = "a", bootsId = "b", accessoryId = "c"
+            headId = "h", bodyId = "b", handsId = "ha",
+            feetId = "f", weaponId = "w", legsId = "l"
         )
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
+        assertEquals("", equip.headId)
+        assertEquals("", equip.bodyId)
+        assertEquals("", equip.handsId)
+        assertEquals("", equip.feetId)
         assertEquals("", equip.weaponId)
-        assertEquals("", equip.armorId)
-        assertEquals("", equip.bootsId)
-        assertEquals("", equip.accessoryId)
+        assertEquals("", equip.legsId)
     }
 
     @Test
-    fun `validate - equipment ref to existing stack - keeps`() {
-        val disciple = makeDisciple(weaponId = "sword-1", armorId = "armor-1")
+    fun `validate - equipment ref to legacy stack - cleared（B3 堆叠退役）`() {
+        // B3 起装备一行一实例，装备堆叠已退役：堆叠载体中的 id 不再是合法引用目标，
+        // 指向堆叠的引用按孤立引用清除（与 allEquipmentIds 仅含 instances 一致）。
+        val disciple = makeDisciple(weaponId = "sword-1", headId = "armor-1")
         val stack1 = makeEquipmentStack("sword-1", "青云剑")
         val stack2 = makeEquipmentStack("armor-1", "玄铁甲")
         val data = minimalValidSaveData().copy(
             equipmentStacks = listOf(stack1, stack2),
             disciples = listOf(disciple)
         )
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        val result = SaveValidator.validate(data)
+        assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
+        assertEquals("", equip.weaponId)
+        assertEquals("", equip.headId)
     }
 
     @Test
@@ -284,18 +291,18 @@ class SaveValidatorTest {
     @Test
     fun `validate - mixed valid and orphan equipment - only clears orphan`() {
         val disciple = makeDisciple(
-            weaponId = "valid-sword", armorId = "ghost-armor"
+            weaponId = "valid-sword", headId = "ghost-armor"
         )
-        val stack = makeEquipmentStack("valid-sword", "好剑")
+        val instance = makeEquipmentInstance("valid-sword", "好剑")
         val data = minimalValidSaveData().copy(
-            equipmentStacks = listOf(stack),
+            equipmentInstances = listOf(instance),
             disciples = listOf(disciple)
         )
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
         assertEquals("valid-sword", equip.weaponId)
-        assertEquals("", equip.armorId)
+        assertEquals("", equip.headId)
     }
 
     // ── 6. Building consistency ───────────────────────────────
@@ -369,7 +376,7 @@ class SaveValidatorTest {
         val d1 = makeDisciple("d-1", "甲", realm = 9, realmLayer = 1, cultivation = 999.0,
             weaponId = "ghost-sword")
         val d2 = makeDisciple("d-2", "乙", realm = 8, realmLayer = 5, cultivation = 1e6,
-            armorId = "ghost-armor")
+            headId = "ghost-armor")
         val data = minimalValidSaveData().copy(disciples = listOf(d1, d2))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
@@ -381,7 +388,7 @@ class SaveValidatorTest {
         // d2: cultivation capped, armor cleared
         val expectedMaxD2 = 1950.0 + 4.0 * (7800.0 - 1950.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)
-        assertEquals("", disciples[1].equipment.armorId)
+        assertEquals("", disciples[1].equipment.headId)
     }
 
     @Test

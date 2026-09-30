@@ -15,14 +15,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -77,12 +74,9 @@ private data class ItemDetailInfo(
     val effects: List<String>
 )
 
-/** 物品详情解析：按物品类型解析名称/稀有度/描述/效果列表 */
+/** 物品详情解析：按物品类型解析名称/稀有度/描述/效果列表（B3：装备恒实例轨） */
 @Suppress("CyclomaticComplexMethod")
 private fun resolveItemDetailInfo(item: Any): ItemDetailInfo = when (item) {
-    is EquipmentStack -> ItemDetailInfo(
-        name = item.name, rarity = item.rarity, description = item.description, effects = getEquipmentStackEffects(item)
-    )
     is EquipmentInstance -> ItemDetailInfo(
         name = item.name, rarity = item.rarity, description = item.description, effects = getEquipmentEffects(item)
     )
@@ -120,10 +114,6 @@ private fun resolveItemDetailInfo(item: Any): ItemDetailInfo = when (item) {
         name = item.name, rarity = item.rarity, description = item.description,
         effects = listOf("可随机获得5-20件同品阶物品", "品阶: ${getRarityName(item.rarity)}")
     )
-    is EquipmentDatabase.EquipmentTemplate -> ItemDetailInfo(
-        name = item.name, rarity = item.rarity, description = item.description,
-        effects = equipmentTemplateEffects(item = item)
-    )
     is ManualDatabase.ManualTemplate -> ItemDetailInfo(
         name = item.name, rarity = item.rarity, description = item.description,
         effects = manualTemplateEffects(item = item)
@@ -136,7 +126,7 @@ private fun resolveItemDetailInfo(item: Any): ItemDetailInfo = when (item) {
 
 /** 商人物品描述解析 */
 private fun merchantItemDescription(item: MerchantItem): String = when (item.type) {
-    "equipment" -> EquipmentDatabase.getTemplateByName(item.name)?.description ?: item.description
+    "equipment" -> findEquipmentEntry(id = item.itemId, name = item.name)?.description ?: item.description
     "manual" -> ManualDatabase.getByName(item.name)?.description ?: item.description
     "pill" -> ItemDatabase.getPillByName(item.name)?.description ?: item.description
     "herb" -> HerbDatabase.getHerbByName(item.name)?.description ?: item.description
@@ -148,26 +138,13 @@ private fun merchantItemDescription(item: MerchantItem): String = when (item.typ
 
 /** 储物袋物品描述解析 */
 private fun storageBagItemDescription(item: StorageBagItem): String = when (item.itemType) {
-    "equipment" -> EquipmentDatabase.getTemplateByName(item.name)?.description ?: ""
+    "equipment" -> findEquipmentEntry(id = item.itemId, name = item.name)?.description ?: ""
     "manual" -> ManualDatabase.getByName(item.name)?.description ?: ""
     "pill" -> ItemDatabase.getPillByName(item.name)?.description ?: ""
     "herb" -> HerbDatabase.getHerbByName(item.name)?.description ?: ""
     "seed" -> HerbDatabase.getSeedByName(item.name)?.description ?: ""
     "material" -> com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: ""
     else -> ""
-}
-
-/** 装备模板效果列表 */
-private fun equipmentTemplateEffects(item: EquipmentDatabase.EquipmentTemplate): List<String> = buildList {
-    add("槽位: ${item.slot.displayName}")
-    if (item.physicalAttack > 0) add("物理攻击: +${item.physicalAttack}")
-    if (item.magicAttack > 0) add("法术攻击: +${item.magicAttack}")
-    if (item.physicalDefense > 0) add("物理防御: +${item.physicalDefense}")
-    if (item.magicDefense > 0) add("法术防御: +${item.magicDefense}")
-    if (item.speed > 0) add("速度: +${item.speed}")
-    if (item.hp > 0) add("生命: +${item.hp}")
-    if (item.mp > 0) add("灵力: +${item.mp}")
-    if (item.critChance > 0) add("暴击率: +${(item.critChance * 100).toInt()}%")
 }
 
 /** 功法模板效果列表 */
@@ -210,11 +187,6 @@ private fun ItemDetailDialogContent(
     Spacer(modifier = Modifier.height(8.dp))
 
     ItemDetailEffectsList(effects = info.effects)
-
-    // 装备孕养进度条
-    if (item is EquipmentInstance) {
-        ItemDetailNurtureProgress(item = item)
-    }
 
     if (info.description.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -262,63 +234,6 @@ private fun ItemDetailEffectsList(effects: List<String>) {
                     GameColors.TextPrimary
                 },
                 modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-/** 装备孕养进度条 */
-@Composable
-private fun ItemDetailNurtureProgress(item: EquipmentInstance) {
-    val nurtureLevel = item.nurtureLevel
-    val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(item.rarity)
-    if (nurtureLevel < maxLevel) {
-        val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, item.rarity)
-        val progressFraction = (item.nurtureProgress / expRequired).toFloat().coerceIn(0f, 1f)
-
-        val animatedNurtureProgress by rememberChasingProgress(
-            target = progressFraction
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "孕养进度",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Lv.$nurtureLevel",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = getRarityColor(item.rarity)
-            )
-            Text(
-                text = "${item.nurtureProgress.toInt()}/${expRequired.toInt()}",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFE8E8E8))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction = animatedNurtureProgress)
-                    .fillMaxHeight()
-                    .background(getRarityColor(item.rarity))
             )
         }
     }

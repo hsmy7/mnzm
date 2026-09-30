@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions") // 拆分域文件（B1 先例口径）：函数数=装备接线增量后的属性计算协议面，文件本身即拆分产物，再拆只会碎片化
+
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
@@ -26,10 +28,10 @@ internal fun DiscipleStatCalculator.computeBaseStats(
     val realmConfig = GameConfig.Realm.get(realm)
     val layerMult = safeLayerMult(realmLayer)
 
-    val paVar = safeVarianceMultiplier(variances.physicalAttackVariance)
-    val maVar = safeVarianceMultiplier(variances.magicAttackVariance)
-    val pdVar = safeVarianceMultiplier(variances.physicalDefenseVariance)
-    val mdVar = safeVarianceMultiplier(variances.magicDefenseVariance)
+    // 单列口径（B1 §15.4/Q2）：境界面物法两列各自 round 后相加进单列——
+    // 同一方差乘区作用于物法两半，与战力取和公式线性一致（迁移前后战力不变）
+    val atkVar = safeVarianceMultiplier(variances.attackVariance)
+    val defVar = safeVarianceMultiplier(variances.defenseVariance)
     val spdVar = safeVarianceMultiplier(variances.speedVariance)
 
     // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
@@ -42,10 +44,10 @@ internal fun DiscipleStatCalculator.computeBaseStats(
         maxHp = maxHp,
         mp = maxMp,
         maxMp = maxMp,
-        physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult).roundToInt(),
-        magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult).roundToInt(),
-        physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult).roundToInt(),
-        magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult).roundToInt(),
+        attack = (realmConfig.basePhysicalAttack * atkVar * layerMult).roundToInt() +
+            (realmConfig.baseMagicAttack * atkVar * layerMult).roundToInt(),
+        defense = (realmConfig.basePhysicalDefense * defVar * layerMult).roundToInt() +
+            (realmConfig.baseMagicDefense * defVar * layerMult).roundToInt(),
         speed = (realmConfig.baseSpeed * spdVar * layerMult).roundToInt(),
         critRate = BASE_CRIT_RATE,
         intelligence = skills.intelligence,
@@ -71,10 +73,8 @@ fun DiscipleStatCalculator.getBaseStats(
         variances = VarianceInputs(
             hpVariance = c.hpVariance,
             mpVariance = c.mpVariance,
-            physicalAttackVariance = c.physicalAttackVariance,
-            magicAttackVariance = c.magicAttackVariance,
-            physicalDefenseVariance = c.physicalDefenseVariance,
-            magicDefenseVariance = c.magicDefenseVariance,
+            attackVariance = c.attackVariance,
+            defenseVariance = c.defenseVariance,
             speedVariance = c.speedVariance
         ),
         skills = SkillInputs(
@@ -96,10 +96,8 @@ fun DiscipleStatCalculator.getBaseStats(
 internal fun DiscipleStatCalculator.varianceInputsOf(cs: DiscipleCombatStats?): VarianceInputs = VarianceInputs(
     hpVariance = cs?.hpVariance ?: 0,
     mpVariance = cs?.mpVariance ?: 0,
-    physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
-    magicAttackVariance = cs?.magicAttackVariance ?: 0,
-    physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
-    magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+    attackVariance = cs?.attackVariance ?: 0,
+    defenseVariance = cs?.defenseVariance ?: 0,
     speedVariance = cs?.speedVariance ?: 0
 )
 
@@ -147,35 +145,22 @@ fun DiscipleStatCalculator.getPermanentBaseStats(
     )
 }
 
-// ==================== 装备属性 ====================
+// ==================== 装备属性（B3：EquipStatResolver 单点结算） ====================
 
 internal fun DiscipleStatCalculator.computeStatsWithEquipment(
     baseStats: DiscipleStats,
     equipmentIds: List<String>,
     equipments: Map<String, EquipmentInstance>
 ): DiscipleStats {
-    var total = baseStats
-    var totalCritChance = 0.0
-    equipmentIds.forEach { equipId ->
-        val equipment = equipments[equipId]
-        if (equipment != null) {
-            equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-            totalCritChance += equipment.critChance
-        }
-    }
-    return total.copy(critRate = total.critRate + totalCritChance)
+    val instances = equipmentIds.mapNotNull { equipments[it] }
+    return applyEquipBonus(baseStats, EquipStatResolver.resolve(instances))
 }
 
 fun DiscipleStatCalculator.getStatsWithEquipment(
     disciple: Disciple,
     equipments: Map<String, EquipmentInstance>
 ): DiscipleStats {
-    val equipmentIds = listOfNotNull(
-        disciple.equipment.weaponId,
-        disciple.equipment.armorId,
-        disciple.equipment.bootsId,
-        disciple.equipment.accessoryId
-    )
+    val equipmentIds = disciple.equipment.equippedItemIds
     return computeStatsWithEquipment(getBaseStats(disciple), equipmentIds, equipments)
 }
 
@@ -183,10 +168,7 @@ fun DiscipleStatCalculator.getStatsWithEquipment(
     aggregate: DiscipleAggregate,
     equipments: Map<String, EquipmentInstance>
 ): DiscipleStats {
-    val eq = aggregate.equipment
-    val equipmentIds = listOfNotNull(
-        eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
-    ).filter { it.isNotEmpty() }
+    val equipmentIds = aggregate.equipment?.equippedItemIds ?: emptyList()
     return computeStatsWithEquipment(getBaseStats(aggregate), equipmentIds, equipments)
 }
 
@@ -211,23 +193,19 @@ internal fun DiscipleStatCalculator.computeFinalStats(
     return acc.total.copy(critRate = acc.critRate)
 }
 
-/** 装备加成：面板属性与暴击率按装备序累加 */
-
+/**
+ * 装备加成（B3，方案 §3.4.1 乘区口径）：
+ * `atk = (baseAtk + Σ装备flatAtk) × (1 + Σ装备atkPct) + Σ功法flat + Σ丹药flat`——
+ * 装备乘区只放大装备自身贡献；功法/丹药加法序与既有对拍基线逐位不变。
+ * critRate（含套装）与 critDamage（暴击伤害，接线 D3）单列累加。
+ */
 internal fun DiscipleStatCalculator.applyEquipmentStats(
     acc: StatAccum,
     equipmentIds: List<String>,
     equipments: Map<String, EquipmentInstance>
 ): StatAccum {
-    var total = acc.total
-    var critRate = acc.critRate
-    equipmentIds.forEach { equipId ->
-        val equipment = equipments[equipId]
-        if (equipment != null) {
-            equipment.getFinalStats().toDiscipleStats().let { total = total + it }
-            critRate += equipment.critChance
-        }
-    }
-    return StatAccum(total, critRate)
+    val instances = equipmentIds.mapNotNull { equipments[it] }
+    return applyEquipBonusToAccum(acc, EquipStatResolver.resolve(instances))
 }
 
 /** 功法加成：熟练度加成的面板属性与暴击率按功法序累加 */
@@ -249,15 +227,16 @@ internal fun DiscipleStatCalculator.applyManualStats(
 
             val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
             val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+            // 功法保留物法双列数据（Q2：150+ 功法数据与 codegen 一字不改），结算层相加进单列
             val manualStats = DiscipleStats(
                 hp = (hpValue * masteryBonus).toInt(),
                 maxHp = (hpValue * masteryBonus).toInt(),
                 mp = (mpValue * masteryBonus).toInt(),
                 maxMp = (mpValue * masteryBonus).toInt(),
-                physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
-                magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
-                physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
-                magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
+                attack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt() +
+                    ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
+                defense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
+                    ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
                 speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
                 critRate = 1.0
             )
@@ -277,12 +256,44 @@ internal fun DiscipleStatCalculator.applyPillStats(acc: StatAccum, pillEffects: 
         maxHp = pillEffects.pillHpBonus,
         mp = pillEffects.pillMpBonus,
         maxMp = pillEffects.pillMpBonus,
-        physicalAttack = pillEffects.pillPhysicalAttackBonus,
-        magicAttack = pillEffects.pillMagicAttackBonus,
-        physicalDefense = pillEffects.pillPhysicalDefenseBonus,
-        magicDefense = pillEffects.pillMagicDefenseBonus,
+        attack = pillEffects.pillAttackBonus,
+        defense = pillEffects.pillDefenseBonus,
         speed = pillEffects.pillSpeedBonus,
         critRate = pillEffects.pillCritRateBonus
     )
     return StatAccum(acc.total + pillBonus, acc.critRate + pillEffects.pillCritRateBonus)
 }
+
+// ==================== 装备加成应用（共享实现，Ops4 列直读版复用） ====================
+
+/** 面板版：装备块乘区只作用于 (base + 装备 flat)，功法/丹药在调用方后续加法序 */
+internal fun DiscipleStatCalculator.applyEquipBonus(baseStats: DiscipleStats, bonus: EquipBonus): DiscipleStats {
+    val withFlat = baseStats.copy(
+        attack = baseStats.attack + bonus.flatAttack.toInt(),
+        defense = baseStats.defense + bonus.flatDefense.toInt(),
+        maxHp = baseStats.maxHp + bonus.flatHp.toInt(),
+        hp = baseStats.hp + bonus.flatHp.toInt(),
+        critRate = baseStats.critRate + bonus.critRate
+    )
+    val pctAttack = (withFlat.attack.toDouble() * bonus.pctAttack).toInt()
+    return withFlat.copy(attack = withFlat.attack + pctAttack)
+}
+
+/** 累加器版（computeFinalStats 管线）：flat 直接加、乘区在装备块内一次乘 */
+internal fun DiscipleStatCalculator.applyEquipBonusToAccum(acc: StatAccum, bonus: EquipBonus): StatAccum {
+    val flat = acc.total.copy(
+        attack = acc.total.attack + bonus.flatAttack.toInt(),
+        defense = acc.total.defense + bonus.flatDefense.toInt(),
+        maxHp = acc.total.maxHp + bonus.flatHp.toInt(),
+        hp = acc.total.hp + bonus.flatHp.toInt()
+    )
+    val pctAttack = (flat.attack.toDouble() * bonus.pctAttack).toInt()
+    val total = flat.copy(attack = flat.attack + pctAttack)
+    return StatAccum(total, acc.critRate + bonus.critRate)
+}
+
+/** 暴击伤害加成（D3 接线）：战斗期字段消费，面板列不展示 */
+fun DiscipleStatCalculator.critDamageBonusOf(
+    equipments: Map<String, EquipmentInstance>,
+    equipmentIds: List<String>
+): Double = EquipStatResolver.resolve(equipmentIds.mapNotNull { equipments[it] }).critDamage

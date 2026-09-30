@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -26,7 +25,6 @@ import com.xianxia.sect.core.model.StorageBag
 interface GameStateSnapshotProvider {
     val gameDataSnapshot: GameData
     val disciplesSnapshot: List<Disciple>
-    val equipmentStacksSnapshot: List<EquipmentStack>
     val equipmentInstancesSnapshot: List<EquipmentInstance>
     val manualStacksSnapshot: List<ManualStack>
     val manualInstancesSnapshot: List<ManualInstance>

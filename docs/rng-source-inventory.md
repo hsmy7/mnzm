@@ -254,6 +254,7 @@ G10 重盘 2026-09-26：共 **72** 命中，按分区归并；G02–G09 删除�
 | `BATTLE(0)`（7） | `BattleSystem` / `AISectAttackDecisionOps` / `AISectAttackManager`(2) / `ExplorationService` / `GameEngineBattleOps`(2) |
 | `AI_SECT(6)`（7，含 KDoc 与注册点） | `AISectDiscipleManager`(6) / `GameRngManager`(注册点) |
 | `GACHA(12)`（6） | `GachaPullLedger`(2) / `GachaFacade` / `GachaService`(3)（§9） |
+| `EQUIPMENT(13)`（B3 新增，主源 15 处命中 = 9 代码消费点 + 6 KDoc 引用） | 代码消费：`EquipmentFactory` 调用方 `GameEngineWorldBattleOps` / `BuildingService` / `DiplomacyService` / `InventoryFacadeImpl` / `AutoBuyService` / `ProductionProcessor处理Ops1` / `ProductionProcessorBatcOps4` / `RedeemCodeService` / `EquipmentUpgradeService`(强化节点)（§10） |
 | `CHAT(10)`（6） | `GameEngineConversationDraw`(5) / `GameEngineCoordination`(KDoc) |
 | `MAIL(5)`（5） | `GameEngineSectLevelOps`(2) / `MailAttachmentDistributeOps` / `RedeemCodeService`(2) |
 | `AI_SECT_MIRROR(9)`（4） | `AISectDiscipleManager`(3) / `GameRngManager`(注册点) |
@@ -358,3 +359,16 @@ G10 重盘 2026-09-26：共 **72** 命中，按分区归并；G02–G09 删除�
 | 守卫面 | `RngSourceGuardTest`：`registeredPartitionIds`/`snapshotPartitionIds` +12、`expectedNames` 追加 `GACHA`、新增 `G09 抽卡分区必须是 12 号委托分区且参与快照` 用例；`rng_test.cpp`：快照分区数 11→12、`kMaxPartitionId` 11→12 + 五条 GACHA 用例；`ResidualRngLocalityGuardTest`：最大快照键 11→12 |
 | 不扰动既有金黄的实证口径 | `DeterminismProbe` 哈希的是行为 transcript，**不含 `rngStates` 映射**，且既有金黄夹具不做抽卡 ⇒ 本分区追加不改变任何既有掷点序（详见 `docs/design/gacha-batches/BENCHMARK-gacha-rng-partition.md` 与 `report-G09.md`） |
 | 本行未覆盖 | §2/§3 的**整行盘点仍属 G10**（本文件多处行号自 2026-09-14 起已随 G02–G08 的删除面失真，按 `grep -rn "RngPartition\."` 重跑，不做局部修补） |
+
+---
+
+## 10. B3 新增分区 `EQUIPMENT`（id=13）——装备生成与升级独立随机域（2026-09-30，EQ-B3）
+
+| 项 | 内容 |
+|---|---|
+| 分区 | `RngPartition.EQUIPMENT`（id=**13**，`inSnapshot=true`，`isLocal=false`）/ C++ `RngPartition::kEquipment = 13` |
+| 消费点 | **C++ 权威臂**：`gamecore/system/equipment_tx.h`（生成期主词条/副词条抽取）+ `execute_dispatch.cpp`（强化节点 roll）。**Kotlin 侧**：`EquipmentFactory.create`（主词条 → 副词条抽取序）及其调用方（`GameEngineWorldBattleOps` / `BuildingService` / `DiplomacyService` / `InventoryFacadeImpl` / `AutoBuyService`）与 `EquipmentUpgradeService`（每 3 级强化节点）取同一分区——抽取时机由锻造/掉落/购买/升级等**离散事务**驱动，与 GACHA 同因（玩家时序独立流，不与任何结算分区共用） |
+| 播种公式 | `DeterministicRng.fromSeed(systemSeed + 13)`（Kotlin `rebuildPartitions` / `reseedMissingPartitions` 与 C++ `RngManager::initSystemSeed` 同式） |
+| 持久化 | `rngStates` **13 号键**（schema 零变更，只多一键）；旧档缺该键 ⇒ 按 `systemSeed + 13` 确定性重种（MISSION(8)/CHAT(10)/RESIDUAL(11)/GACHA(12) 同款恢复语义） |
+| C++ 同步 | `rng_manager.h`：枚举 `kEquipment = 13` + `initSystemSeed` 播种 `seed + 13`（EQ-B3 已落）。⚠️ **本批残留缺口（归 cpp 面，非本文件登记范围）**：`RngManager::kMaxPartitionId` 仍 = `kGacha`(12)，未随新最大 id 上移到 `kEquipment`——按 G09 前例（MISSION(8)）会导致 AUTHORITATIVE 下 13 号掷点被 JNI 合法性守卫拒绝，须由主会话同步上移 |
+| 守卫面 | `RngSourceGuardTest`：`registeredPartitionIds`/`snapshotPartitionIds` +13、`expectedNames` 追加 `EQUIPMENT`；`ResidualRngLocalityGuardTest`：最大快照键 12→13 |

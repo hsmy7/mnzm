@@ -212,11 +212,27 @@ class DiscipleLifecycleProcessorTest {
     fun `handleDiscipleDeath - bag materialized and cleared - repeated death idempotent`() = runTest {
         // 死亡物化袋物品（玩家保留）+ 清空袋条目（幂等防复制）
         insertDisciple(1)
+        // B3 实例轨：卸装/在册实例恒在实例表——袋条目 payload 与实例表同件（同 id）
+        mockStore.update {
+            equipmentInstances.replaceAll(listOf(
+                EquipmentInstance(id = "i1", name = "精铁剑",
+                part = EquipmentSlot.WEAPON,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.ATTACK, 10.0
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 1),
+                    isEquipped = false
+                )
+            ))
+        }
         tables.storageBagItems[1] = listOf(
             StorageBagItem(
                 itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
-                equipmentInstance = EquipmentInstance(id = "i1", name = "精铁剑", rarity = 1,
-                    slot = EquipmentSlot.WEAPON)
+                equipmentInstance = mockStore.equipmentInstances.value.first()
             )
         )
         val deadDisciple = tables.assemble(1)
@@ -226,12 +242,9 @@ class DiscipleLifecycleProcessorTest {
             processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
         }
 
-        // 物化：仓库新增实例堆叠恰 1 条（重复处理不重复物化；toStack 随机堆叠 id）；
-        // 实例表已移除防双持有
-        assertEquals("实例堆叠入仓恰 1 条", 1, mockStore.equipmentStacks.value.size)
-        // 幂等关键守卫：重复死亡处理不复制——数量仍为 1（若二次物化会 merge 成 2）
-        assertEquals("重复死亡不复制（数量仍 1）", 1, mockStore.equipmentStacks.value.first().quantity)
-        assertEquals("实例表已移除防双持有", 0, mockStore.equipmentInstances.value.count { it.id == "i1" })
+        // B3：实例保留实例表（下线态，玩家保留装备），袋条目清空防双持有
+        assertEquals("实例应保留实例表（玩家保留）", 1, mockStore.equipmentInstances.value.size)
+        assertEquals("实例仍为下线态", false, mockStore.equipmentInstances.value.first().isEquipped)
         // 袋清空（幂等）
         assertTrue("袋条目已清空", tables.storageBagItems[1].isNullOrEmpty())
     }

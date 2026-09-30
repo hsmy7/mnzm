@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.model.ManualInstance
@@ -12,8 +11,6 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.util.AppError
 
 // ── InventorySystem 拆分域 4/7（行为零变更） ──
-fun InventorySystem.getEquipmentStackById(id: String): EquipmentStack? = getById(currentEquipmentStacks(), id)
-
 fun InventorySystem.getEquipmentInstanceById(
     id: String): EquipmentInstance? = getById(currentEquipmentInstances(),
     id
@@ -89,7 +86,7 @@ fun InventorySystem.addPill(item: Pill, merge: Boolean = true): DomainResult<Pil
     if (validation is DomainResult.Failure) return validation
 
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
+        val otherTypes = equipmentInstances.size + manualStacks.size + materials.size + herbs.size + seeds.size
         val store = StackableItemStore(
             initialItems = pills.all(),
             stackKeyOf = StackKeys::pill,

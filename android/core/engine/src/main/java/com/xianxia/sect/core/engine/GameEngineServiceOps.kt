@@ -106,7 +106,6 @@ fun GameEngine.getMemoryUsageInfo(): String {
     val sb = StringBuilder()
     sb.appendLine("=== 内存使用情况 ===")
     sb.appendLine("弟子数量: ${stateStore.discipleTables.count}"); sb
-        .appendLine("装备栈数量: ${stateStore.equipmentStacks.value.size}")
     sb.appendLine("装备实例数量: ${stateStore.equipmentInstances.value.size}"); sb
         .appendLine("功法栈数量: ${stateStore.manualStacks.value.size}")
     sb.appendLine("功法实例数量: ${stateStore.manualInstances.value.size}"); sb

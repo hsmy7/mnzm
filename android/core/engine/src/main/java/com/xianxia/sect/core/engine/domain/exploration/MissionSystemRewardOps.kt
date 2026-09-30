@@ -1,13 +1,13 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngRandomAdapter
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem.WeightedEntry
@@ -287,15 +287,26 @@ internal fun MissionSystem.generatePills(rewards: MissionRewardConfig, rng: Dete
 internal fun MissionSystem.generateEquipment(
     rewards: MissionRewardConfig,
     rng: DeterministicRng
-): List<com.xianxia.sect.core.model.EquipmentStack> {
+): List<com.xianxia.sect.core.model.EquipmentInstance> {
     if (rewards.equipmentChance <= 0.0) return emptyList()
     if (rng.nextDouble() >= rewards.equipmentChance) return emptyList()
 
-    // S5：装备模板选择经 MISSION 分区适配器（同上——非确定性修正）
-    return listOf(EquipmentDatabase.generateRandom(
-        rewards.equipmentMinRarity, rewards.equipmentMaxRarity, RngRandomAdapter(rng)
-    ))
+    // 装备重构 B3：品阶抽取走 EquipmentFactory 分层口径（任务奖励无弟子境界
+    // 上下文，不钳制），并收敛到配置品阶上限；部件按品阶在 72 条展开条目中均匀选。
+    // 产出 = EquipmentFactory.create 实例（词条 EQUIPMENT 分区 roll）。
+    val rarity = EquipmentFactory.pickRarity(
+        rewards.equipmentMinRarity, EquipmentFactory.REALM_UNRESTRICTED, RngRandomAdapter(rng)
+    ).coerceAtMost(rewards.equipmentMaxRarity)
+    val kr = RngRandomAdapter(rng)
+    val setId = if (kr.nextBoolean()) SET_ID_PHYSICAL_MISSION else SET_ID_MAGIC_MISSION
+    return listOf(
+        EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, kr), rarity, kr)
+    )
 }
+
+/** 任务奖励套装二选一（B3：lietian 物理 / zifu 法术） */
+private const val SET_ID_PHYSICAL_MISSION = "lietian"
+private const val SET_ID_MAGIC_MISSION = "zifu"
 
 internal fun MissionSystem.generateManuals(
     rewards: MissionRewardConfig,

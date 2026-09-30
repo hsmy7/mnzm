@@ -15,7 +15,6 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.CultivationSettlement
 import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
-import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
@@ -252,7 +251,6 @@ internal fun buildMonthDiffHarness(
         autoPillService = AutoPillService(
             DisciplePillManager(PillEffectApplier())
         ),
-        equipmentNurtureService = EquipmentNurtureService(),
         manualProficiencyService = ManualProficiencyService(),
         cultivationRateCalculator = CultivationRateCalculator(store)
     )
@@ -360,8 +358,11 @@ internal fun buildMonthDiffEventProcessor(
         manualManager = mockSmart(),
         autoBuyService = AutoBuyService(
             stateStore = store,
-            inventorySystem = inventorySystem,            merchantAndRecruitService = mockSmart(),
-            spiritStoneWallet = wallet
+            inventorySystem = inventorySystem,
+            merchantAndRecruitService = mockSmart(),
+            spiritStoneWallet = wallet,
+            merchantConverter = com.xianxia.sect.core.engine.system.MerchantItemConverter.companionInstance,
+            gameRngManagerForAutoBuy = gameRng
         ),
         // 真实附庸服务（脱离流对拍主体——玩家宗门 + 至交附属
         // 场景下恰抽 1 次 SYSTEM 且必不脱离）
@@ -452,7 +453,6 @@ internal fun advanceKotlinMonthSide(
     val store = FakeGameStateStore().also {
         it.gameDataValue = snapshot.gameData
         it.disciplesValue = snapshot.disciples
-        it.equipmentStacksValue = snapshot.equipmentStacks
         it.equipmentInstancesValue = snapshot.equipmentInstances
         it.manualStacksValue = snapshot.manualStacks
         it.manualInstancesValue = snapshot.manualInstances
@@ -511,7 +511,6 @@ internal fun advanceKotlinMonthSide(
         disciples = store.disciplesValue,
         // 库存集合参与对拍（FakeGameStateStore 嵌套事务下
         // Kotlin 臂的库存写入保留于 store——含 12 月 autoBuy 入库）
-        equipmentStacks = store.equipmentStacksValue,
         equipmentInstances = store.equipmentInstancesValue,
         manualStacks = store.manualStacksValue,
         manualInstances = store.manualInstancesValue,

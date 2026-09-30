@@ -31,12 +31,13 @@ import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
 import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
 
 /**
- * 功法熟练度 + 装备孕养每旬增长测试。
+ * 功法熟练度每旬增长测试。
  *
  * 覆盖范围：
  * - [CultivationCore.processManualProficiencyPerPhase]：每旬功法熟练度增长
- * - [CultivationCore.processEquipmentNurturePerPhase]：每旬装备孕养经验增长
  * - 边界条件：无功法/无装备弟子、死亡弟子、满熟练度
+ * （装备孕养体系已随 B3 装备重构退役——升级/分解走 EquipmentUpgradeService，
+ * 其用例见 EquipmentUpgradeServiceTest）
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -119,7 +120,6 @@ class CultivationCoreProficiencyNurtureTest {
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
             autoPillService = AutoPillService(mockPillManager),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
@@ -159,7 +159,6 @@ class CultivationCoreProficiencyNurtureTest {
         return MutableGameState(
             gameData = gameData,
             discipleTables = tables,
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),
@@ -299,127 +298,6 @@ class CultivationCoreProficiencyNurtureTest {
         // 悟性不影响功法熟练度：不同悟性弟子增长一致
         assertEquals("不同悟性弟子熟练度增长应一致",
             p1[0].proficiency, p2[0].proficiency, 0.01)
-    }
-
-    // ==================== 装备孕养每旬增长 ====================
-
-    @Test
-    fun `processEquipmentNurturePerPhase - 有装备弟子孕养经验增长`() {
-        val disciple = createDisciple(id = "1")
-        val state = createMutableGameState(
-            listOf(disciple),
-            gameData = GameData()
-        )
-        // 给弟子装备武器
-        val weapon = EquipmentInstance(
-            id = "eq_1", name = "测试剑", rarity = 1,
-            nurtureProgress = 0.0, nurtureLevel = 0
-        )
-        state.equipmentInstances = EntityStore(listOf(weapon))
-        state.discipleTables.weaponIds[1] = "eq_1"
-
-        core.processEquipmentNurturePerPhase(state)
-
-        val updated = checkNotNull(state.equipmentInstances.find { it.id == "eq_1" }) {
-            "装备应存在"
-        }
-        assertTrue("孕养经验应大于0", updated.nurtureProgress > 0.0)
-        // NURTURE_GAIN_PER_PHASE = 5.0 * 2000 / 1000 = 10.0
-        assertEquals("孕养经验应等于10.0", 10.0, updated.nurtureProgress, 0.01)
-    }
-
-    @Test
-    fun `processEquipmentNurturePerPhase - 无装备弟子不影响`() {
-        val disciple = createDisciple(id = "1")
-        val state = createMutableGameState(
-            listOf(disciple),
-            gameData = GameData()
-        )
-
-        core.processEquipmentNurturePerPhase(state)
-
-        assertTrue("无装备时不应有更新",
-            state.equipmentInstances.isEmpty())
-    }
-
-    @Test
-    fun `processEquipmentNurturePerPhase - 死亡弟子跳过`() {
-        val disciple = createDisciple(id = "1")
-        val state = createMutableGameState(
-            listOf(disciple),
-            gameData = GameData()
-        )
-        val weapon = EquipmentInstance(
-            id = "eq_1", name = "测试剑", rarity = 1
-        )
-        state.equipmentInstances = EntityStore(listOf(weapon))
-        state.discipleTables.weaponIds[1] = "eq_1"
-        state.discipleTables.isAlive[1] = 0  // 标记死亡
-
-        core.processEquipmentNurturePerPhase(state)
-
-        val updated = checkNotNull(state.equipmentInstances.find { it.id == "eq_1" }) {
-            "装备应存在"
-        }
-        assertEquals("死亡弟子装备不应有孕养增长",
-            0.0, updated.nurtureProgress, 0.01)
-    }
-
-    @Test
-    fun `processEquipmentNurturePerPhase - 满级装备不增长`() {
-        val disciple = createDisciple(id = "1")
-        val state = createMutableGameState(
-            listOf(disciple),
-            gameData = GameData()
-        )
-        // 凡品(稀有度1)最高5级，设为满级
-        val weapon = EquipmentInstance(
-            id = "eq_1", name = "测试剑", rarity = 1,
-            nurtureLevel = 5, nurtureProgress = 0.0
-        )
-        state.equipmentInstances = EntityStore(listOf(weapon))
-        state.discipleTables.weaponIds[1] = "eq_1"
-
-        core.processEquipmentNurturePerPhase(state)
-
-        val updated = checkNotNull(state.equipmentInstances.find { it.id == "eq_1" }) {
-            "装备应存在"
-        }
-        assertEquals("满级装备孕养经验不应增长",
-            0.0, updated.nurtureProgress, 0.01)
-        assertEquals("满级装备等级不应变化",
-            5, updated.nurtureLevel)
-    }
-
-    @Test
-    fun `processEquipmentNurturePerPhase - 多件装备各自增长`() {
-        val disciple = createDisciple(id = "1")
-        val state = createMutableGameState(
-            listOf(disciple),
-            gameData = GameData()
-        )
-        val weapon = EquipmentInstance(
-            id = "eq_1", name = "测试剑", rarity = 1,
-            nurtureProgress = 0.0, nurtureLevel = 0
-        )
-        val armor = EquipmentInstance(
-            id = "eq_2", name = "测试甲", rarity = 1,
-            nurtureProgress = 0.0, nurtureLevel = 0
-        )
-        state.equipmentInstances = EntityStore(listOf(weapon, armor))
-        state.discipleTables.weaponIds[1] = "eq_1"
-        state.discipleTables.armorIds[1] = "eq_2"
-
-        core.processEquipmentNurturePerPhase(state)
-
-        val updatedWeapon = checkNotNull(state.equipmentInstances.find { it.id == "eq_1" }) {
-            "武器应增长"
-        }
-        val updatedArmor = checkNotNull(state.equipmentInstances.find { it.id == "eq_2" }) {
-            "护甲应增长"
-        }
-        assertEquals("武器孕养增长应为10.0", 10.0, updatedWeapon.nurtureProgress, 0.01)
-        assertEquals("护甲孕养增长应为10.0", 10.0, updatedArmor.nurtureProgress, 0.01)
     }
 
     // ==================== 综合验证 ====================

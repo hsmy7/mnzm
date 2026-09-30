@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -12,7 +13,11 @@
 #include "gamecore/data/beast_material_db.h"
 #include "gamecore/data/data_inject.h"
 #include "gamecore/data/data_store.h"
+#include "gamecore/data/equip_affix_db.h"
+#include "gamecore/data/equip_main_stat_db.h"
+#include "gamecore/data/equip_set_db.h"
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/equipment_entries.h"
 #include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
@@ -77,8 +82,46 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
 
     // 逐行逐字段：容器 vs JSON 段（用同一 nlohmann 序列化再比对，
     // 覆盖**全部**字段而不只是抽样——避免"抽样漏字段"的假绿）
-    EXPECT_EQ(db["equipment"].get<std::vector<EquipmentTemplate>>(),
-              equipmentTemplates());
+    // B3：db.equipment = 复合结构（五子表 setPieces/sets/mainStatPools/
+    // mainStatBase/subAffixes），逐子表比对
+    EXPECT_EQ(db["equipment"]["setPieces"].get<std::vector<SetPieceTemplate>>(),
+              setPieceTemplates());
+    EXPECT_EQ(db["equipment"]["sets"].get<std::vector<EquipmentSetDef>>(),
+              equipmentSetDefs());
+    // mainStatPools JSON 段 = part 键映射 → 注入器展开为 MainStatPoolDef；
+    // 以容器行 part 为键回读 JSON 同值断言（键序无关；槽内 stats 数组序 =
+    // 抽取序，逐位比对）
+    {
+        const auto& poolsJson = db["equipment"]["mainStatPools"];
+        ASSERT_EQ(poolsJson.size(), mainStatPools().size());
+        for (const auto& pool : mainStatPools()) {
+            ASSERT_TRUE(poolsJson.contains(pool.part)) << pool.part;
+            const auto& pj = poolsJson[pool.part];
+            ASSERT_EQ(pj["stats"].size(), pool.stats.size()) << pool.part;
+            for (std::size_t i = 0; i < pool.stats.size(); ++i) {
+                EXPECT_EQ(pj["stats"][i].get<std::string>(), pool.stats[i])
+                    << pool.part << " slot " << i;
+            }
+            EXPECT_DOUBLE_EQ(pj["coefficient"].get<double>(), pool.coefficient)
+                << pool.part;
+        }
+    }
+    // mainStatBase JSON 段 = stat 键映射 → 注入器展开为 MainStatBaseRow；
+    // 以容器行 stat 为键回读 JSON 同值断言（JSON 键序无关）
+    {
+        const auto& baseJson = db["equipment"]["mainStatBase"];
+        ASSERT_EQ(baseJson.size(), mainStatBase().size());
+        for (const auto& row : mainStatBase()) {
+            ASSERT_TRUE(baseJson.contains(row.stat)) << row.stat;
+            for (int i = 0; i < 6; ++i) {
+                EXPECT_DOUBLE_EQ(baseJson[row.stat][i].get<double>(),
+                                 row.values[i])
+                    << row.stat << " rarity=" << (i + 1);
+            }
+        }
+    }
+    EXPECT_EQ(db["equipment"]["subAffixes"].get<std::vector<EquipAffixDef>>(),
+              equipAffixes());
     EXPECT_EQ(db["herbs"].get<std::vector<HerbTemplate>>(), herbTemplates());
     EXPECT_EQ(db["seeds"].get<std::vector<SeedTemplate>>(), seedTemplates());
     EXPECT_EQ(db["manuals"].get<std::vector<ManualTemplate>>(), manualTemplates());
@@ -104,13 +147,16 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
     EXPECT_EQ(pillExpected, pillRecipes());
 
     // 行数断言（消费面枚举清单的权威口径）
-    EXPECT_EQ(72u, equipmentTemplates().size());
+    // B3：装备 = 12 部件模板（×品阶展开 72 条目，equipment_entries.h 派生）
+    EXPECT_EQ(12u, setPieceTemplates().size());
+    EXPECT_EQ(72u, equipmentEntries().size());
     EXPECT_EQ(54u, herbTemplates().size());
     EXPECT_EQ(54u, seedTemplates().size());
     EXPECT_EQ(540u, manualTemplates().size());
     EXPECT_EQ(192u, beastMaterialTemplates().size());
     EXPECT_EQ(72u, forgeRecipes().size());
-    EXPECT_EQ(660u, pillRecipes().size());
+    // R11 孕养丹退役：660 − 36 = 624
+    EXPECT_EQ(624u, pillRecipes().size());
 
     // price 回填抽样：注入后 pillRecipes 的 price 必须等于 C++ 同一构建器的
     // 派生值（派生逻辑保持 C++ 侧的红线实证；全量等价由上面的逐字段比对锁定）
@@ -148,7 +194,8 @@ TEST_F(DataStoreGuardTest, 卡池两表注入计数与段长一致且关键字�
     EXPECT_EQ(1, counts.gachaPools);
     EXPECT_EQ(6, counts.characterTemplates);
     // 其余八段计数非零（一次注入喂满九张表，零段被静默跳过）
-    EXPECT_GT(counts.equipment, 0);
+    // B3：counts.equipment = setPieces 数（12）
+    EXPECT_EQ(12, counts.equipment);
     EXPECT_GT(counts.gachaPools, 0);
 
     // 按 id 查询入口命中注入值；池关键字段可读（抽卡前置校验的输入面）。
@@ -209,7 +256,13 @@ TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) 
     // 「兜底值与数据文件默认值一致」——红线要求。
     // 口径：注入前快照 == 注入后快照（证明数据文件产出的值与内联默认**逐位相同**），
     // 即数据文件不是"另一套数值"，而是内联默认的等价外置形式。
-    const auto equipBefore = equipmentTemplates();
+    // mainStatPools/mainStatBase 为键映射展开（注入序 = JSON 键序、内联序 =
+    // 声明序）→ 两面均按键排序后比对（槽内 stats/品阶数组序不重排，仍逐位）。
+    const auto setPiecesBefore = setPieceTemplates();
+    const auto setsBefore = equipmentSetDefs();
+    const auto poolsBefore = mainStatPools();
+    const auto baseBefore = mainStatBase();
+    const auto affixesBefore = equipAffixes();
     const auto herbBefore = herbTemplates();
     const auto manualBefore = manualTemplates();
     const auto forgeBefore = forgeRecipes();
@@ -219,7 +272,18 @@ TEST_F(DataStoreGuardTest, 注入后内联兜底与数据文件默认值一致) 
     if (payload.empty()) return;
     ASSERT_TRUE(inject::injectFromJson(payload));
 
-    EXPECT_EQ(equipBefore, equipmentTemplates());
+    auto sortedBy = [](auto rows, auto&& key) {
+        std::sort(rows.begin(), rows.end(),
+                  [&](const auto& a, const auto& b) { return key(a) < key(b); });
+        return rows;
+    };
+    EXPECT_EQ(setPiecesBefore, setPieceTemplates());
+    EXPECT_EQ(setsBefore, equipmentSetDefs());
+    EXPECT_EQ(sortedBy(poolsBefore, [](const MainStatPoolDef& p) { return p.part; }),
+              sortedBy(mainStatPools(), [](const MainStatPoolDef& p) { return p.part; }));
+    EXPECT_EQ(sortedBy(baseBefore, [](const MainStatBaseRow& r) { return r.stat; }),
+              sortedBy(mainStatBase(), [](const MainStatBaseRow& r) { return r.stat; }));
+    EXPECT_EQ(affixesBefore, equipAffixes());
     EXPECT_EQ(herbBefore, herbTemplates());
     EXPECT_EQ(manualBefore, manualTemplates());
     EXPECT_EQ(forgeBefore, forgeRecipes());
@@ -231,9 +295,13 @@ TEST_F(DataStoreGuardTest, 全部九表均可注入且消费入口非空) {
     if (payload.empty()) return;
     ASSERT_TRUE(inject::injectFromJson(payload));
 
-    // 九张注入表（5 简单表 + forge/pill 配方 + G09 卡池/角色模板）的消费入口
-    // 均非空；beast_config 的结构性表（C++ 侧真相源，残余登记）同验
-    EXPECT_FALSE(equipmentTemplates().empty());
+    // 九张注入表（装备五子表 + 4 简单表 + forge/pill 配方 + G09 卡池/角色模板）
+    // 的消费入口均非空；beast_config 的结构性表（C++ 侧真相源，残余登记）同验
+    EXPECT_FALSE(setPieceTemplates().empty());
+    EXPECT_FALSE(equipmentSetDefs().empty());
+    EXPECT_FALSE(mainStatPools().empty());
+    EXPECT_FALSE(mainStatBase().empty());
+    EXPECT_FALSE(equipAffixes().empty());
     EXPECT_FALSE(herbTemplates().empty());
     EXPECT_FALSE(seedTemplates().empty());
     EXPECT_FALSE(manualTemplates().empty());
@@ -272,9 +340,9 @@ TEST_F(DataStoreGuardTest, 注入前为未注入态且表等于内联默认) {
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kUninitialized);
     EXPECT_EQ(std::string("uninitialized"),
               std::string(stateName(gameDataStoreState().state)));
-    EXPECT_FALSE(equipmentTemplates().empty());
+    EXPECT_FALSE(setPieceTemplates().empty());
     EXPECT_FALSE(manualTemplates().empty());
-    EXPECT_EQ(72u, equipmentTemplates().size());
+    EXPECT_EQ(12u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, 解析失败落兜底且表非空) {
@@ -284,29 +352,29 @@ TEST_F(DataStoreGuardTest, 解析失败落兜底且表非空) {
     EXPECT_EQ(std::string("fallbackDefault"),
               std::string(stateName(gameDataStoreState().state)));
     EXPECT_EQ(1, gameDataStoreState().stats.failedParse);
-    EXPECT_FALSE(equipmentTemplates().empty());  // 兜底：仍是 72 条内联默认
-    EXPECT_EQ(72u, equipmentTemplates().size());
+    EXPECT_FALSE(setPieceTemplates().empty());  // 兜底：仍是 12 条内联默认
+    EXPECT_EQ(12u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, schema版本不符落兜底) {
     EXPECT_FALSE(inject::injectFromJson(R"({"schemaVersion":999,"db":{}})"));
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
-    EXPECT_FALSE(equipmentTemplates().empty());
+    EXPECT_FALSE(setPieceTemplates().empty());
 }
 
 TEST_F(DataStoreGuardTest, 段类型不符落兜底) {
-    // equipment 段存在但非数组 ⇒ 显式失败（不允许静默只注入一半）
+    // equipment 段存在但非对象 ⇒ 显式失败（不允许静默只注入一半）
     EXPECT_FALSE(inject::injectFromJson(
         R"({"schemaVersion":1,"db":{"equipment":"oops"}})"));
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
-    EXPECT_EQ(72u, equipmentTemplates().size());
+    EXPECT_EQ(12u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, 空段落兜底) {
     EXPECT_FALSE(inject::injectFromJson(
-        R"({"schemaVersion":1,"db":{"equipment":[]}})"));
+        R"({"schemaVersion":1,"db":{"equipment":{"setPieces":[]}}})"));
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
-    EXPECT_EQ(72u, equipmentTemplates().size());
+    EXPECT_EQ(12u, setPieceTemplates().size());
 }
 
 // ── 层 3：注入纪律（硬门）────────────────────────────────────
@@ -321,8 +389,8 @@ TEST_F(DataStoreGuardTest, 注入仅初始化期一次_重复注入被拒) {
     EXPECT_EQ(1, st.stats.attempts);
 
     // 稳态：再注入 3 次全被拒，表**地址与内容均不变**
-    const auto* addr = &equipmentTemplates();
-    const auto snapshot = equipmentTemplates();
+    const auto* addr = &setPieceTemplates();
+    const auto snapshot = setPieceTemplates();
     for (int i = 0; i < 3; ++i) {
         EXPECT_FALSE(inject::injectFromJson(payload));
     }
@@ -330,8 +398,8 @@ TEST_F(DataStoreGuardTest, 注入仅初始化期一次_重复注入被拒) {
     EXPECT_EQ(4, st.stats.attempts);
     EXPECT_EQ(3, st.stats.rejectedAlreadyLoaded);
     // 指针稳定性（指针型消费点的硬约束）
-    EXPECT_EQ(addr, &equipmentTemplates());
-    EXPECT_EQ(snapshot, equipmentTemplates());
+    EXPECT_EQ(addr, &setPieceTemplates());
+    EXPECT_EQ(snapshot, setPieceTemplates());
     EXPECT_TRUE(isGameDataSealed());
 }
 
@@ -344,9 +412,9 @@ TEST_F(DataStoreGuardTest, 稳态零跨线_失败后再成功亦被拒) {
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
     EXPECT_EQ(0, gameDataStoreState().stats.accepted);  // 首次即失败，从未被接受
 
-    const auto* addr = &equipmentTemplates();
+    const auto* addr = &setPieceTemplates();
     EXPECT_FALSE(inject::injectFromJson(payload));  // 已 seal ⇒ 拒
-    EXPECT_EQ(addr, &equipmentTemplates());
+    EXPECT_EQ(addr, &setPieceTemplates());
     // 兜底后仍不得被"修正"：accepted 恒为 0，且计入"已初始化被拒"
     EXPECT_EQ(0, gameDataStoreState().stats.accepted);
     EXPECT_EQ(1, gameDataStoreState().stats.rejectedAlreadyLoaded);

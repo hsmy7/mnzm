@@ -6,12 +6,13 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.EquipStat
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.TrialEnemyDef
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
-import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.util.RngRandomAdapter
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.DeterministicRng
 import java.util.Locale
@@ -39,10 +40,9 @@ internal fun HeavenlyTrialService.computeBeastStats(
     return BeastStats(
         hp = safeStat(realmStats.hp * layerMult * (beastType.hpMod + hpVariance)),
         mp = safeStat(realmStats.mp * layerMult * (beastType.hpMod + hpVariance)),
-        physicalAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
-        magicAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
-        physicalDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
-        magicDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
+        // 单列口径（B1）：物=法同源两半各自 round 后相加
+        attack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)) * 2,
+        defense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)) * 2,
         speed = safeStat(realmStats.speed * layerMult * (beastType.speedMod + speedVariance))
     )
 }
@@ -94,26 +94,24 @@ internal fun HeavenlyTrialService.selectTrialManuals(
     else selectManuals(eligible, def.realm)
 }
 
-/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则境界最高品阶 */
+/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则全部 12 条部件配方。
+ * 六部位口径（装备重构 B3）；部件配方不再携带品阶/tier，实例化品阶由
+ * [getMaxTierForRealm] 按敌人境界上定（见 [sumEquipStatBonuses]）。
+ */
 
 internal fun HeavenlyTrialService.selectTrialEquipment(def: TrialEnemyDef): TrialEquipmentSelection {
-    if (def.equipmentIds.isNotEmpty()) {
-        val eqRecipes = def.equipmentIds.mapNotNull { ForgeRecipeDatabase.getRecipeById(it) }
-        return TrialEquipmentSelection(
-            weapon = eqRecipes.find { it.type == EquipmentSlot.WEAPON },
-            armor = eqRecipes.find { it.type == EquipmentSlot.ARMOR },
-            boots = eqRecipes.find { it.type == EquipmentSlot.BOOTS },
-            accessory = eqRecipes.find { it.type == EquipmentSlot.ACCESSORY }
-        )
+    val recipes = if (def.equipmentIds.isNotEmpty()) {
+        def.equipmentIds.mapNotNull { ForgeRecipeDatabase.getRecipeById(it) }
+    } else {
+        ForgeRecipeDatabase.getAllRecipes()
     }
-    val eligibleEquip = ForgeRecipeDatabase.getAllRecipes()
-        .filter { it.tier <= getMaxTierForRealm(def.realm) }
-        .sortedByDescending { it.rarity }
     return TrialEquipmentSelection(
-        weapon = eligibleEquip.find { it.type == EquipmentSlot.WEAPON },
-        armor = eligibleEquip.find { it.type == EquipmentSlot.ARMOR },
-        boots = eligibleEquip.find { it.type == EquipmentSlot.BOOTS },
-        accessory = eligibleEquip.find { it.type == EquipmentSlot.ACCESSORY }
+        head = recipes.find { it.part == EquipmentSlot.HEAD },
+        body = recipes.find { it.part == EquipmentSlot.BODY },
+        hands = recipes.find { it.part == EquipmentSlot.HANDS },
+        feet = recipes.find { it.part == EquipmentSlot.FEET },
+        weapon = recipes.find { it.part == EquipmentSlot.WEAPON },
+        legs = recipes.find { it.part == EquipmentSlot.LEGS }
     )
 }
 
@@ -130,54 +128,58 @@ internal fun HeavenlyTrialService.buildTrialBaseStats(
 
     val baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
     val baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
-    val basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
-    val baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
-    val basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
-    val baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
+    // 单列口径（B1）：物法两半各自 round 后相加，同一方差乘区
+    val atkVar = rngVar()
+    val defVar = rngVar()
+    val baseAttack = (realmConfig.basePhysicalAttack * atkVar * layerMult).toInt() +
+        (realmConfig.baseMagicAttack * atkVar * layerMult).toInt()
+    val baseDefense = (realmConfig.basePhysicalDefense * defVar * layerMult).toInt() +
+        (realmConfig.baseMagicDefense * defVar * layerMult).toInt()
     val baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
 
-    val equipBonus = sumEquipStatBonuses(equipment, rng)
+    val equipBonus = sumEquipStatBonuses(equipment, getMaxTierForRealm(def.realm), rng)
     val manualBonus = sumManualStatBonuses(selected)
 
     return TrialBaseStats(
         hp = baseHp + equipBonus.hp + manualBonus.hp,
         mp = baseMp + equipBonus.mp + manualBonus.mp,
-        physAtk = basePhysAtk + equipBonus.physAtk + manualBonus.physAtk,
-        magAtk = baseMagAtk + equipBonus.magAtk + manualBonus.magAtk,
-        physDef = basePhysDef + equipBonus.physDef + manualBonus.physDef,
-        magDef = baseMagDef + equipBonus.magDef + manualBonus.magDef,
+        attack = baseAttack + equipBonus.attack + manualBonus.attack,
+        defense = baseDefense + equipBonus.defense + manualBonus.defense,
         speed = baseSpeed + equipBonus.speed + manualBonus.speed,
-        critChance = manualBonus.critChance
+        critChance = equipBonus.critChance + manualBonus.critChance
     )
 }
 
-/** 装备属性加成汇总（buildTrialBaseStats 提取）：weapon → armor → boots → accessory 顺序保持 */
+/** 装备属性加成汇总（buildTrialBaseStats 提取）。
+ * 装备重构 B3 新口径：六部位逐件经 [EquipmentFactory.create] 生成实例后按
+ * `totalBonus()` 累加（品阶 = 旧 tier 上限语义 [getMaxTierForRealm]，孕养已删）；
+ * 装备不提供速度/灵力（S14），CRIT_DAMAGE 与乘区项消费点待 B4 接线（跳过不崩）。
+ */
 
 internal fun HeavenlyTrialService.sumEquipStatBonuses(
     equipment: TrialEquipmentSelection,
+    maxRarity: Int,
     rng: DeterministicRng
 ): StatBonus {
-    var hp = 0; var physAtk = 0; var magAtk = 0
-    var physDef = 0; var magDef = 0; var speed = 0
-    val equipNames = listOfNotNull(
-        equipment.weapon?.name, equipment.armor?.name,
-        equipment.boots?.name, equipment.accessory?.name
+    var hp = 0; var attack = 0; var defense = 0; var critChance = 0.0
+    val recipes = listOfNotNull(
+        equipment.head, equipment.body, equipment.hands,
+        equipment.feet, equipment.weapon, equipment.legs
     )
-    // 应用装备属性加成，与 EnemyGenerator 一致：装备属性吃孕养倍率
-    // （模板原值 × getNurtureMultiplier，孕养等级确定性 rng 0..maxNurture）
-    for (name in equipNames) {
-        EquipmentDatabase.getTemplateByName(name)?.let { t ->
-            val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(t.rarity)
-            val nurtureMult = EquipmentNurtureSystem.getNurtureMultiplier(rng.nextInt(maxNurture + 1))
-            physAtk += (t.physicalAttack * nurtureMult).toInt()
-            magAtk += (t.magicAttack * nurtureMult).toInt()
-            physDef += (t.physicalDefense * nurtureMult).toInt()
-            magDef += (t.magicDefense * nurtureMult).toInt()
-            speed += (t.speed * nurtureMult).toInt()
-            hp += (t.hp * nurtureMult).toInt()
+    for (recipe in recipes) {
+        // 试炼敌人种子 RNG（enemySeed 派生）经适配器进 EquipmentFactory
+        val instance = EquipmentFactory.create(recipe.setId, recipe.part, maxRarity, RngRandomAdapter(rng))
+        instance.totalBonus().forEach { bonus ->
+            when (bonus.stat) {
+                EquipStat.ATTACK -> attack += bonus.value.toInt()
+                EquipStat.DEFENSE -> defense += bonus.value.toInt()
+                EquipStat.HP -> hp += bonus.value.toInt()
+                EquipStat.CRIT_RATE -> critChance += bonus.value
+                else -> {}
+            }
         }
     }
-    return StatBonus(hp = hp, physAtk = physAtk, magAtk = magAtk, physDef = physDef, magDef = magDef, speed = speed)
+    return StatBonus(hp = hp, attack = attack, defense = defense, critChance = critChance)
 }
 
 /** 功法属性加成汇总（buildTrialBaseStats 提取）：
@@ -185,26 +187,25 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
 
 internal fun HeavenlyTrialService.sumManualStatBonuses(selected: List<ManualDatabase.ManualTemplate>): StatBonus {
     var hp = 0; var mp = 0
-    var physAtk = 0; var magAtk = 0
-    var physDef = 0; var magDef = 0
+    var attack = 0; var defense = 0
     var speed = 0; var critChance = 0.0
     val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
-    // 功法属性加成
+    // 功法属性加成（单列口径 B1/Q2：功法数据双列不动，结算层相加）
     for (manual in selected) {
         val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
         val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
         hp += (hpValue * masteryBonus).toInt()
         mp += (mpValue * masteryBonus).toInt()
-        physAtk += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
-        magAtk += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
-        physDef += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
-        magDef += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+        attack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt() +
+            ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+        defense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
+            ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
         speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
         critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
     }
     return StatBonus(
-        hp = hp, mp = mp, physAtk = physAtk, magAtk = magAtk,
-        physDef = physDef, magDef = magDef, speed = speed, critChance = critChance
+        hp = hp, mp = mp, attack = attack, defense = defense,
+        speed = speed, critChance = critChance
     )
 }
 

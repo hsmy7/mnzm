@@ -26,6 +26,7 @@ import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.toLegacyInstance
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.model.MailAttachment
@@ -1240,7 +1241,7 @@ class SecretRealmService @Inject constructor(
             // 抛异常会导致 endSession 回滚 → 方向选择重试吞 RNG 的软锁
             backpack.equipment.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "equipment", item.quantity,
-                    inventorySystem.addEquipmentStack(item))
+                    inventorySystem.addEquipmentInstance(item.toLegacyInstance()))
             }
             backpack.manuals.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "manual", item.quantity,

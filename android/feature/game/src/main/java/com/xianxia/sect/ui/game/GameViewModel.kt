@@ -38,7 +38,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.ForgeSlot
 import com.xianxia.sect.core.model.ForgeSlotStatus
@@ -578,8 +577,7 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, sharingStarted, false)
 
     // 袋物品独立存储：物理不在仓库堆叠中，直接透传无需过滤
-    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = gameEngine.equipmentStacks
-
+    // （equipmentStacks 流已随 B3 堆叠轨退役；装备面 = equipmentInstances）
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
 
     val manualStacks: StateFlow<List<ManualStack>> get() = gameEngine.manualStacks
@@ -633,7 +631,9 @@ class GameViewModel @Inject constructor(
             ForgeSlot(
                 id = slot.id, slotIndex = slot.slotIndex,
                 recipeId = slot.recipeId, recipeName = slot.recipeName,
-                equipmentName = recipe?.name ?: "", equipmentRarity = recipe?.rarity ?: 1,
+                // B3：产出品阶 = 锻造完成时工作弟子 forgeLevel（配方不分 tier），
+                // 完成前未知 → 占位 1（ForgeDialog 展示面）
+                equipmentName = recipe?.name ?: "", equipmentRarity = 1,
                 startYear = slot.startYear, startMonth = slot.startMonth, duration = slot.duration,
                 status = when (slot.status) {
                     ProductionSlotStatus.WORKING -> ForgeSlotStatus.WORKING

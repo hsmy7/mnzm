@@ -10,7 +10,6 @@ import com.xianxia.sect.core.engine.service.CultivationRateCalculator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
-import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
@@ -113,6 +112,7 @@ class DiffPhaseSettlementTest {
      * - 弟子3 炼气1层 cult=98 满 满血 —— 每旬突破候选（BREAKTHROUGH RNG 序列）
      *   储物袋带 cultivationAdd 丹药 ×2 —— 自动服药路径
      */
+    @Suppress("LongMethod") // 三弟子对拍场景快照逐字段平铺构造，拆分遮蔽场景完整性
     private fun buildSnapshot(): NativeGameState {
         val manuals = listOf(
             ManualInstance(
@@ -122,10 +122,21 @@ class DiffPhaseSettlementTest {
         )
         val equipments = listOf(
             EquipmentInstance(
-                id = "w1", name = "青锋剑", rarity = 2,
-                slot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
-                physicalAttack = 10, hp = 15, nurtureLevel = 0,
-                nurtureProgress = 55.0
+                id = "w1", name = "青锋剑", setId = "lietian",
+                part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.ATTACK, 10.0
+                        ),
+                        subStats = listOf(
+                            com.xianxia.sect.core.model.EquipStatValue(
+                                com.xianxia.sect.core.model.EquipStat.HP, 15.0
+                            )
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 2)
             )
         )
         val gameData = GameData(
@@ -251,7 +262,6 @@ class DiffPhaseSettlementTest {
             autoPillService = AutoPillService(
                 DisciplePillManager(PillEffectApplier())
             ),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
@@ -400,7 +410,6 @@ class DiffPhaseSettlementTest {
         val expected = NativeGameState(
             gameData = store.gameDataValue,
             disciples = store.disciplesValue,
-            equipmentStacks = store.equipmentStacksValue,
             equipmentInstances = store.equipmentInstancesValue,
             manualStacks = store.manualStacksValue,
             manualInstances = store.manualInstancesValue,
@@ -560,7 +569,6 @@ class DiffPhaseSettlementTest {
             it.disciplesValue = snapshot.disciples
             it.equipmentInstancesValue = snapshot.equipmentInstances
             it.manualInstancesValue = snapshot.manualInstances
-            it.equipmentStacksValue = snapshot.equipmentStacks
             it.manualStacksValue = snapshot.manualStacks
             it.pillsValue = snapshot.pills
         }
@@ -583,7 +591,6 @@ class DiffPhaseSettlementTest {
         val expected = NativeGameState(
             gameData = store.gameDataValue,
             disciples = store.disciplesValue,
-            equipmentStacks = store.equipmentStacksValue,
             equipmentInstances = store.equipmentInstancesValue,
             manualStacks = store.manualStacksValue,
             manualInstances = store.manualInstancesValue,
@@ -613,10 +620,17 @@ class DiffPhaseSettlementTest {
         DiffRngBridge.nativeCoreInit()
 
         val instance = EquipmentInstance(
-            id = "i1", name = "青云剑", rarity = 4,
-            slot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
-            physicalAttack = 100, minRealm = 9,
-            nurtureLevel = 2, nurtureProgress = 30.0,
+            id = "i1", name = "青云剑",
+            part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+            growth = com.xianxia.sect.core.model.EquipGrowth(
+                level = 2,
+                affix = com.xianxia.sect.core.model.EquipAffixSet(
+                    mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                        com.xianxia.sect.core.model.EquipStat.ATTACK, 100.0
+                    )
+                )
+            ),
+            meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 4, minRealm = 9),
             ownerId = "1", isEquipped = false
         )
         val bagItem = StorageBagItem(

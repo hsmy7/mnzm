@@ -4,7 +4,6 @@ import com.xianxia.sect.core.gameview.GameDataFieldPatch
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
@@ -85,8 +84,6 @@ internal object MirrorProtoFeedFixture {
         cultivationCompletionMonth = 3,
         manualCompletionMonth = 4,
         manualCompletionPhase = 1,
-        equipmentNurturingCompletionMonth = 5,
-        equipmentNurturingCompletionPhase = 3,
     ).apply {
         combat = richCombat()
         pillEffects = richPillEffects()
@@ -96,31 +93,26 @@ internal object MirrorProtoFeedFixture {
     }
 
     private fun richCombat(): CombatAttributes = CombatAttributes(
-        baseHp = 500, baseMp = 300, basePhysicalAttack = 61, baseMagicAttack = 57,
-        basePhysicalDefense = 48, baseMagicDefense = 44, baseSpeed = 39,
-        hpVariance = 12, mpVariance = 9, physicalAttackVariance = 7,
-        magicAttackVariance = 5, physicalDefenseVariance = 4,
-        magicDefenseVariance = 3, speedVariance = 2,
+        baseHp = 500, baseMp = 300, baseAttack = 61,
+        baseDefense = 48, baseSpeed = 39,
+        hpVariance = 12, mpVariance = 9, attackVariance = 7,
+        defenseVariance = 4, speedVariance = 2,
         totalCultivation = 9999999L, breakthroughCount = 2, breakthroughFailCount = 1,
         currentHp = -1, currentMp = 120,
     )
 
     private fun richPillEffects(): PillEffects = PillEffects(
-        pillPhysicalAttackBonus = 11, pillMagicAttackBonus = 12,
-        pillPhysicalDefenseBonus = 13, pillMagicDefenseBonus = 14,
+        pillAttackBonus = 11,
+        pillDefenseBonus = 13,
         pillHpBonus = 15, pillMpBonus = 16, pillSpeedBonus = 17,
         pillCritRateBonus = 0.05, pillCritEffectBonus = 0.06,
-        pillCultivationSpeedBonus = 0.07, pillSkillExpSpeedBonus = 0.08,
-        pillNurtureSpeedBonus = 0.09, pillEffectDuration = 3,
+        pillCultivationSpeedBonus = 0.07, pillSkillExpSpeedBonus = 0.08, pillEffectDuration = 3,
         activePillTypes = setOf("dan1"), activePillCategory = "cultivation",
     )
 
     private fun richEquipment(): EquipmentSet = EquipmentSet(
-        weaponId = "w1", armorId = "a1", bootsId = "b1", accessoryId = "c1",
-        weaponNurture = EquipmentNurtureData("w1", 2, 4, 0.25),
-        armorNurture = EquipmentNurtureData("a1", 1, 1, 0.5),
-        bootsNurture = EquipmentNurtureData("b1", 3, 2, 0.75),
-        accessoryNurture = EquipmentNurtureData("c1", 4, 3, 1.0),
+        headId = "h1", bodyId = "a1", handsId = "g1",
+        feetId = "b1", weaponId = "w1", legsId = "l1",
         storageBagItems = listOf(
             StorageBagItem(
                 itemId = "s1", itemType = "material", name = "兽皮", rarity = 1,

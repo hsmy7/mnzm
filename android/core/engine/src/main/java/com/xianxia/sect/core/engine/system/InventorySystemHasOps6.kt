@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
@@ -27,7 +26,7 @@ fun InventorySystem.addSeed(item: Seed, merge: Boolean = true): DomainResult<See
     if (validation is DomainResult.Failure) return validation
 
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
+        val otherTypes = equipmentInstances.size + manualStacks.size + pills.size + materials.size + herbs.size
         val store = StackableItemStore(
             initialItems = seeds.all(),
             stackKeyOf = StackKeys::seed,
@@ -103,7 +102,7 @@ fun InventorySystem.addSeedSync(item: Seed, merge: Boolean = true): DomainResult
     if (validation is DomainResult.Failure) return validation
 
     return stateStore.updateAndReturn {
-        val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
+        val otherTypes = equipmentInstances.size + manualStacks.size + pills.size + materials.size + herbs.size
         val store = StackableItemStore(
             initialItems = seeds.all(),
             stackKeyOf = StackKeys::seed,
@@ -209,11 +208,9 @@ fun InventorySystem.hasSeed(name: String, rarity: Int, quantity: Int = 1): Boole
 
 fun InventorySystem.getItemCountByType(type: String): Int {
     return when (type.lowercase(java.util.Locale.getDefault())) {
-        "equipment_stack" -> currentEquipmentStacks().size
-        "equipment_instance" -> currentEquipmentInstances().size
+        "equipment_instance", "equipment" -> currentEquipmentInstances().size
         "manual_stack" -> currentManualStacks().size
         "manual_instance" -> currentManualInstances().size
-        "equipment" -> currentEquipmentStacks().size + currentEquipmentInstances().size
         "manual" -> currentManualStacks().size + currentManualInstances().size
         "pill" -> currentPills().size
         "material" -> currentMaterials().size
@@ -240,8 +237,6 @@ fun InventorySystem.consolidateStacks() {
 fun InventorySystem.sortWarehouse() {
     stateStore.update {
         consolidateAllStacks(this) // 先合并后排序，同一事务内
-        equipmentStacks.replaceAll(equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it
-            .rarity }.thenBy { it.name }))
         equipmentInstances.replaceAll(equipmentInstances.items
             .sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))
         manualStacks.replaceAll(manualStacks.items.sortedWith(compareByDescending<ManualStack> { it.rarity }

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/gacha_pool_db.h"  // characterTemplateById（固有属性模板臂）
 #include "gamecore/data/manual_db.h"
 #include "gamecore/ecs/disciple_component.h"  // E2：syncDiscipleEntities 行序桥接
 #include "gamecore/state/models.h"
@@ -21,22 +22,20 @@
 // 自动装备/学习
 //
 // 等价移植 Kotlin CultivationEventProcessor.processAutoFromWarehouse +
-// DiscipleEquipmentManager.processAutoEquipFromWarehouse +
-// DiscipleManualManager.processAutoLearnFromWarehouse，并扩展：
-//   1. 候选源统一：宗门仓库堆叠 + 弟子储物袋条目
-//      （equipment_instance / manual_instance 完整实例保真直接装配；
-//       equipment_stack / manual_stack 按名查模板重建——模板缺失丢弃，
-//       对齐 BagItemReconstructor 语义）
-//   2. 更高品阶自动替换（无开关，功能激活即生效）：已装备/已学功法的
-//      槽位存在严格更优候选时，先卸旧入袋再装新（旧装备/功法必回
-//      储物袋，不丢失；功法替换同步清残留熟练度）
-//   3. 统一比较键（降序）：品阶 → 攻击类型匹配 → 孕养等级
-//      （严格有序键，防同品阶震荡）
+// DiscipleEquipmentManager.processAutoEquipFromWarehouse（B3 六部位版） +
+// DiscipleManualManager.processAutoLearnFromWarehouse：
+//   1. 装备候选源 = 弟子储物袋内 equipment_instance 完整实例（装备堆叠已随
+//      B3 退役——仓库轨不存在，R6）；功法候选源不变（仓库堆叠 + 袋条目）。
+//   2. 更优自动替换（无开关，功能激活即生效）：槽位存在严格更优候选时，
+//      旧装备实例保真回储物袋 + 实例表置 isEquipped=false（卸装=保留表内，
+//      disciple_tx.h 同语义），再装新；等级/词条随实例不丢失。
+//   3. 装备比较键（降序）：品阶 → 套装流派匹配（固有伤害属性 vs
+//      setId=="lietian" 物理套）→ 等级（严格有序键，防同品阶震荡）。
 //
 // 编排（对齐 Kotlin）：
 //   - 资格：autoEquip/autoLearn 各自 focused/rootCounts 判定（或语义）
 //   - 弟子排序：followed 降序 → realm 升序 → realmLayer 降序
-//   - 每弟子先装备（WEAPON/ARMOR/BOOTS/ACCESSORY 槽序）后学习
+//   - 每弟子先装备（六部位 displayOrder 槽序）后学习
 //   - 每槽位每旬至多一次装配/替换
 //
 // 已知范围边界（对拍约定）：
@@ -52,7 +51,6 @@ using gamecore::state::Disciple;
 using gamecore::state::DiscipleColumn;
 using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentStack;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
 using gamecore::state::ManualInstance;
@@ -88,97 +86,87 @@ inline bool qualifiesForSectAuto(
            rootCounts.end();
 }
 
-// ── 装备候选（统一：仓库堆叠 或 储物袋条目） ──────────────────────
+// ── 固有伤害属性判定（Kotlin Disciple.resolvedInnateDamageType 等价） ──
 
-struct EquipCandidate {
-    const EquipmentStack* stack = nullptr;   // 非空 = 仓库源
-    const StorageBagItem* bag = nullptr;     // 非空 = 储物袋源
-    std::string slot;
-    int32_t rarity = 0;
-    int32_t minRealm = 0;
-    bool hasPhysical = false;
-    bool hasMagic = false;
-    int32_t nurtureLevel = 0;
-    bool isInstance = false;                 // 袋内完整实例（直接装配保真）
-    std::string instanceId;                  // isInstance 时的实例 id
-    int32_t bagQuantity = 0;                 // 袋条目数量（扣减用）
-    std::string stackId;                     // 仓库堆叠 id（扣减用）
-};
-
-/// 攻击类型匹配度（Kotlin prefersPhysical 判定：物攻 ≥ 法攻偏好物理）
-inline int32_t equipTypeMatch(const Disciple& d, const EquipCandidate& c) {
-    const bool prefersPhysical = d.basePhysicalAttack >= d.baseMagicAttack;
-    if (prefersPhysical && c.hasPhysical) return 1;
-    if (!prefersPhysical && c.hasMagic) return 1;
-    return 0;
+/// 固有物理判定：combat.innateDamageType 显式值优先（"PHYSICAL"/"MAGIC"，
+/// 其余串按 Kotlin valueOf 异常臂回退）；空/非法 → 模板 innateDamageType；
+/// 再否则首灵根派生（金/土→物理，水/木/火→法术，空/未知→物理兜底，
+/// 与 Room v62 迁移 SQL CASE ELSE 逐条一致）
+inline bool resolvedInnateIsPhysical(const Disciple& d) {
+    if (d.innateDamageType == "PHYSICAL") return true;
+    if (d.innateDamageType == "MAGIC") return false;
+    if (!d.templateId.empty()) {
+        const auto* tpl = gamecore::data::characterTemplateById(d.templateId);
+        if (tpl != nullptr && !tpl->innateDamageType.empty()) {
+            return tpl->innateDamageType != "MAGIC";
+        }
+    }
+    std::string firstRoot = d.spiritRootType;
+    const auto comma = firstRoot.find(',');
+    if (comma != std::string::npos) firstRoot = firstRoot.substr(0, comma);
+    while (!firstRoot.empty() &&
+           (firstRoot.front() == ' ' || firstRoot.front() == '\t')) {
+        firstRoot.erase(firstRoot.begin());
+    }
+    while (!firstRoot.empty() &&
+           (firstRoot.back() == ' ' || firstRoot.back() == '\t')) {
+        firstRoot.pop_back();
+    }
+    return firstRoot != "water" && firstRoot != "wood" && firstRoot != "fire";
 }
 
-/// 统一比较键（降序）：品阶 → 类型匹配 → 孕养等级（严格有序防震荡）
+// ── 装备候选（B3：储物袋内完整实例单源——装备堆叠轨已退役） ────────
+
+struct EquipCandidate {
+    std::string slot;                        // 六部位 EquipmentSlot.name
+    int32_t rarity = 0;
+    int32_t minRealm = 0;
+    std::string setId;                       // 套装流派（空 = 散件中性）
+    int32_t level = 0;
+    EquipmentInstance source;                // 候选实例全量拷贝（装配保真）
+    std::string bagItemId;                   // 袋条目 itemId（装配后移除用）
+};
+
+/// 套装流派匹配度（B1 §15.4 + 套装流派 §3.3）：散件中性 0；
+/// 固有物理优先物理套（setId=="lietian"）、固有法术优先法术套，匹配 1
+inline int32_t equipSchoolMatch(const Disciple& d, const EquipCandidate& c) {
+    if (c.setId.empty()) return 0;
+    const bool isPhysical = resolvedInnateIsPhysical(d);
+    const bool physicalSet = (c.setId == "lietian");
+    return (isPhysical == physicalSet) ? 1 : 0;
+}
+
+/// 统一比较键（Kotlin equipComparator 严格大于序）：品阶 → 流派匹配 → 等级
 inline bool equipBetter(
         const Disciple& d, const EquipCandidate& a, const EquipCandidate& b) {
     if (a.rarity != b.rarity) return a.rarity > b.rarity;
-    const int32_t ma = equipTypeMatch(d, a);
-    const int32_t mb = equipTypeMatch(d, b);
+    const int32_t ma = equipSchoolMatch(d, a);
+    const int32_t mb = equipSchoolMatch(d, b);
     if (ma != mb) return ma > mb;
-    return a.nurtureLevel > b.nurtureLevel;
+    return a.level > b.level;
 }
 
 /// 已装备实例 → 候选（替换比较基准）
 inline EquipCandidate candidateFromInstance(const EquipmentInstance& eq) {
     EquipCandidate c;
-    c.slot = eq.slot;
-    c.rarity = eq.rarity;
-    c.minRealm = eq.minRealm;
-    c.hasPhysical = eq.physicalAttack > 0;
-    c.hasMagic = eq.magicAttack > 0;
-    c.nurtureLevel = eq.nurtureLevel;
+    c.slot = eq.part;
+    c.rarity = eq.rarity();
+    c.minRealm = eq.minRealm();
+    c.setId = eq.setId;
+    c.level = eq.level();
+    c.source = eq;
     return c;
 }
 
-/// 按名查装备模板（袋内堆叠重建；与 Kotlin EquipmentDatabase.getTemplateByName
-/// 同源中性数据 → 名称一致）
-inline const gamecore::data::EquipmentTemplate* equipmentTemplateByName(
-        const std::string& name) {
-    const auto& ts = gamecore::data::equipmentTemplates();
-    for (const auto& t : ts) {
-        if (t.name == name) return &t;
-    }
-    return nullptr;
-}
-
-/// 从储物袋条目构建装备候选；
-/// equipment_stack 需模板重建完整字段（模板缺失 → 丢弃，对齐 BagItemReconstructor null）
+/// 从储物袋条目构建装备候选（仅 equipment_instance 完整实例参与自动装配；
+/// 其余装备类条目不参与——Kotlin candidateFromBagItem null 臂一致）
 inline std::optional<EquipCandidate> equipCandidateFromBag(
         const StorageBagItem& item) {
-    EquipCandidate c;
-    c.bag = &item;
-    if (item.itemType == "equipment_instance" && item.equipmentInstance.has_value()) {
-        const auto& eq = *item.equipmentInstance;
-        c.slot = eq.slot;
-        c.rarity = eq.rarity;
-        c.minRealm = eq.minRealm;
-        c.hasPhysical = eq.physicalAttack > 0;
-        c.hasMagic = eq.magicAttack > 0;
-        c.nurtureLevel = eq.nurtureLevel;
-        c.isInstance = true;
-        c.instanceId = eq.id;
-        c.bagQuantity = item.quantity;
-        return c;
+    if (item.itemType != "equipment_instance" ||
+        !item.equipmentInstance.has_value()) {
+        return std::nullopt;
     }
-    if (item.itemType == "equipment_stack" && item.stackedData.has_value()) {
-        const auto* tpl = equipmentTemplateByName(item.name);
-        if (tpl == nullptr) return std::nullopt;
-        c.slot = item.stackedData->slot.empty() ? tpl->slot : item.stackedData->slot;
-        c.rarity = tpl->rarity;
-        c.minRealm = item.stackedData->minRealm > 0
-            ? item.stackedData->minRealm
-            : settle_util::minRealmForRarity(tpl->rarity);
-        c.hasPhysical = tpl->physicalAttack > 0;
-        c.hasMagic = tpl->magicAttack > 0;
-        c.bagQuantity = item.quantity;
-        return c;
-    }
-    return std::nullopt;
+    return candidateFromInstance(*item.equipmentInstance);
 }
 
 // ── 功法候选（统一：仓库堆叠 或 储物袋条目） ──────────────────────
@@ -198,9 +186,9 @@ struct ManualCandidate {
     std::string stackId;
 };
 
-/// 攻击类型匹配度（功法按 skillDamageType）
+/// 攻击类型匹配度（功法按 skillDamageType；单列口径 B1 §15.4）
 inline int32_t manualTypeMatch(const Disciple& d, const ManualCandidate& c) {
-    const bool prefersPhysical = d.basePhysicalAttack >= d.baseMagicAttack;
+    const bool prefersPhysical = d.innateDamageType != "MAGIC";
     if (prefersPhysical && c.hasPhysical) return 1;
     if (!prefersPhysical && c.hasMagic) return 1;
     return 0;
@@ -264,206 +252,134 @@ inline std::optional<ManualCandidate> manualCandidateFromBag(
 // ── 槽位读写辅助 ──────────────────────────────────────────────────
 
 inline std::string equipSlotId(const Disciple& d, const std::string& slot) {
+    if (slot == "HEAD") return d.headId;
+    if (slot == "BODY") return d.bodyId;
+    if (slot == "HANDS") return d.handsId;
+    if (slot == "FEET") return d.feetId;
     if (slot == "WEAPON") return d.weaponId;
-    if (slot == "ARMOR") return d.armorId;
-    if (slot == "BOOTS") return d.bootsId;
-    if (slot == "ACCESSORY") return d.accessoryId;
+    if (slot == "LEGS") return d.legsId;
     return "";
 }
 
 inline void setEquipSlot(Disciple& d, const std::string& slot,
                          const std::string& instanceId) {
-    if (slot == "WEAPON") d.weaponId = instanceId;
-    else if (slot == "ARMOR") d.armorId = instanceId;
-    else if (slot == "BOOTS") d.bootsId = instanceId;
-    else if (slot == "ACCESSORY") d.accessoryId = instanceId;
+    if (slot == "HEAD") d.headId = instanceId;
+    else if (slot == "BODY") d.bodyId = instanceId;
+    else if (slot == "HANDS") d.handsId = instanceId;
+    else if (slot == "FEET") d.feetId = instanceId;
+    else if (slot == "WEAPON") d.weaponId = instanceId;
+    else if (slot == "LEGS") d.legsId = instanceId;
 }
 
-// ── 装备动作 ──────────────────────────────────────────────────────
-
-/// 仓库堆叠 → 实例（Kotlin EquipmentStack.toInstance：字段复制 + ownerId + isEquipped）
-inline EquipmentInstance instanceFromStack(const EquipmentStack& s,
-                                           const std::string& ownerId) {
-    EquipmentInstance inst;
-    inst.id = nextInstanceId();
-    inst.name = s.name;
-    inst.rarity = s.rarity;
-    inst.description = s.description;
-    inst.slot = s.slot;
-    inst.physicalAttack = s.physicalAttack;
-    inst.magicAttack = s.magicAttack;
-    inst.physicalDefense = s.physicalDefense;
-    inst.magicDefense = s.magicDefense;
-    inst.speed = s.speed;
-    inst.hp = s.hp;
-    inst.mp = s.mp;
-    inst.critChance = s.critChance;
-    inst.minRealm = s.minRealm;
-    inst.ownerId = ownerId;
-    inst.isEquipped = true;
-    return inst;
-}
-
-/// 仓库堆叠扣减（-1 或整条移除；作用于调用方持有的仓库快照副本）
-inline void deductWarehouseStack(std::vector<EquipmentStack>& stacks,
-                                 const std::string& stackId) {
-    for (auto& s : stacks) {
-        if (s.id != stackId) continue;
-        if (s.quantity > 1) {
-            s.quantity -= 1;
-        } else {
-            stacks.erase(std::remove_if(stacks.begin(), stacks.end(),
-                [&](const EquipmentStack& x) { return x.id == stackId; }),
-                stacks.end());
+/// 袋条目合并入袋（Kotlin StorageBagUtils.increaseItemQuantity 等价——
+/// itemId 匹配合并数量 + payload 升级，未命中追加；自动装配路径无容量门，
+/// 与 Kotlin 管理器永不失败契约一致）
+inline void bagIncreaseItemQuantity(std::vector<StorageBagItem>& bag,
+                                    StorageBagItem entry) {
+    for (auto& existing : bag) {
+        if (existing.itemId != entry.itemId) continue;
+        existing.quantity += entry.quantity;
+        if (entry.equipmentInstance.has_value()) {
+            existing.equipmentInstance = entry.equipmentInstance;
         }
+        if (entry.stackedData.has_value()) existing.stackedData = entry.stackedData;
+        if (entry.manualInstance.has_value()) existing.manualInstance = entry.manualInstance;
         return;
     }
+    bag.push_back(std::move(entry));
 }
 
-/// 旧装备卸装入袋（Kotlin depositOldEquipmentToBag：实例入袋 + 从实例表移除 + 清槽）
-inline bool depositEquippedToBag(Disciple& d, GameState& state,
+// ── 装备动作（B3：单轨实例——仓库堆叠轨不存在，instanceFromStack 删） ──
+
+/// 旧装备卸下入袋（Kotlin depositToBag 等价：实例保真入袋，**实例保留表内**，
+/// isEquipped 下线标记由调用方同步——B3 卸装=保留表内 isEquipped=false，
+/// 与 disciple_tx.h unequipInternal 同语义；等级/词条随实例不丢失）
+inline void depositEquippedToBag(Disciple& d, GameState& state,
                                  const EquipmentInstance& old) {
     StorageBagItem entry;
     entry.itemId = old.id;
     entry.itemType = "equipment_instance";
     entry.name = old.name;
-    entry.rarity = old.rarity;
+    entry.rarity = old.rarity();
     entry.quantity = 1;
     entry.obtainedYear = state.gameData.gameYear;
     entry.obtainedMonth = state.gameData.gameMonth;
     entry.equipmentInstance = old;
-    // 审计 P2-8：统一入袋入口（kind 合并 + 容量门）——满袋返回 false，
-    // 调用方中止换装（零 mutation，旧装备保持原状，不销毁）
-    if (!addToDiscipleBag(d, std::move(entry))) return false;
-    state.equipmentInstances.erase(
-        std::remove_if(state.equipmentInstances.begin(),
-                       state.equipmentInstances.end(),
-                       [&](const EquipmentInstance& x) { return x.id == old.id; }),
-        state.equipmentInstances.end());
-    return true;
+    bagIncreaseItemQuantity(d.storageBagItems, std::move(entry));
+    // 实例表置下线（保留行——等级/词条单点在表内）
+    for (EquipmentInstance& eq : state.equipmentInstances) {
+        if (eq.id == old.id) {
+            eq.isEquipped = false;
+            eq.ownerId = std::nullopt;
+            break;
+        }
+    }
 }
 
-/// 单个槽位自动装配/替换（返回是否发生变更；
-/// @param warehouseStacks 仓库堆叠快照副本（就地扣减，主流程末尾统一写回））
+/// 单个槽位自动装配/替换（B3：候选=袋内实例单源；返回是否发生变更）
 inline bool autoEquipSlot(Disciple& d, GameState& state,
-                          std::vector<EquipmentStack>& warehouseStacks,
                           const std::string& slot) {
-    // 候选收集：仓库堆叠 + 储物袋条目
+    // 候选收集：储物袋实例（部位匹配 + 境界过滤 realm <= minRealm）
     std::vector<EquipCandidate> candidates;
-    for (const EquipmentStack& s : warehouseStacks) {
-        if (s.slot != slot) continue;
-        if (d.realm > s.minRealm) continue;          // 境界不符（realm <= minRealm 才可）
-        if (s.isLocked) continue;
-        if (s.quantity <= 0) continue;
-        EquipCandidate c;
-        c.stack = &s;
-        c.slot = s.slot;
-        c.rarity = s.rarity;
-        c.minRealm = s.minRealm;
-        c.hasPhysical = s.physicalAttack > 0;
-        c.hasMagic = s.magicAttack > 0;
-        c.stackId = s.id;
-        candidates.push_back(c);
-    }
     for (const StorageBagItem& item : d.storageBagItems) {
         auto c = equipCandidateFromBag(item);
         if (!c.has_value()) continue;
         if (c->slot != slot) continue;
         if (d.realm > c->minRealm) continue;
+        c->bagItemId = item.itemId;
         candidates.push_back(*c);
     }
     if (candidates.empty()) return false;
 
-    const EquipCandidate* best = &candidates[0];
+    // 最优候选（Kotlin maxWithOrNull 首最大语义：严格更优才替换 current best）
+    std::size_t bestIdx = 0;
     for (std::size_t i = 1; i < candidates.size(); ++i) {
-        if (equipBetter(d, candidates[i], *best)) best = &candidates[i];
+        if (equipBetter(d, candidates[i], candidates[bestIdx])) bestIdx = i;
     }
+    EquipCandidate best = candidates[bestIdx];   // 拷贝自保（后续袋操作悬垂防御）
 
     const std::string currentId = equipSlotId(d, slot);
-    const EquipmentInstance* equipped = nullptr;
     if (!currentId.empty()) {
+        const EquipmentInstance* equipped = nullptr;
         for (const EquipmentInstance& eq : state.equipmentInstances) {
             if (eq.id == currentId) { equipped = &eq; break; }
         }
-        if (equipped == nullptr) return false;   // 实例缺失（损坏态）→ 跳过
-    }
-
-    // 替换判定：槽位已占用且候选不严格更优 → 不动
-    if (equipped != nullptr &&
-        !equipBetter(d, *best, candidateFromInstance(*equipped))) {
-        return false;
-    }
-
-    // 装配所需数据先拷贝：depositEquippedToBag 会 push 储物袋条目导致
-    // candidates 持有的 bag 指针悬垂（悬垂 UB）
-    const bool fromStack = best->stack != nullptr;
-    const bool fromInstance = best->isInstance;
-    const std::string actionStackId = best->stackId;
-    const std::string actionBagItemId = best->bag ? best->bag->itemId : "";
-    const std::string actionBagName = best->bag ? best->bag->name : "";
-    const int32_t actionMinRealm = best->minRealm;
-    std::optional<EquipmentInstance> actionBagInstance;
-    if (fromInstance && best->bag != nullptr &&
-        best->bag->equipmentInstance.has_value()) {
-        actionBagInstance = *best->bag->equipmentInstance;
-    }
-
-    if (equipped != nullptr) {
-        // 审计 P2-8：满袋中止换装（此时零 mutation——旧装备保持原状）
-        if (!depositEquippedToBag(d, state, *equipped)) return false;  // 旧装备回袋
-    }
-
-    // 装配
-    if (fromStack) {
-        EquipmentInstance inst = instanceFromStack(*best->stack, d.id);
-        state.equipmentInstances.push_back(inst);
-        setEquipSlot(d, slot, inst.id);
-        deductWarehouseStack(warehouseStacks, actionStackId);
-    } else if (fromInstance && actionBagInstance.has_value()) {
-        // 袋内完整实例：直接装配——实例可能不在实例表（卸装入袋后已移除，
-        // 防双持有不变量），故按袋内条目重建；已在表内则置标记
-        EquipmentInstance attached = *actionBagInstance;
-        attached.isEquipped = true;
-        attached.ownerId = d.id;
-        bool found = false;
-        for (EquipmentInstance& eq : state.equipmentInstances) {
-            if (eq.id == attached.id) {
-                eq = attached;
-                found = true;
-                break;
-            }
+        // 替换判定：当前在表且候选不严格更优 → 不动；
+        // 当前实例缺失（损坏态）→ Kotlin 臂直接装配最优（跳过卸装）
+        if (equipped != nullptr &&
+            !equipBetter(d, best, candidateFromInstance(*equipped))) {
+            return false;
         }
-        if (!found) state.equipmentInstances.push_back(std::move(attached));
-        setEquipSlot(d, slot, actionBagInstance->id);
-        d.storageBagItems.erase(
-            std::remove_if(d.storageBagItems.begin(), d.storageBagItems.end(),
-                [&](const StorageBagItem& x) { return x.itemId == actionBagItemId; }),
-            d.storageBagItems.end());
-    } else {
-        // 袋内堆叠：模板重建完整实例（equipCandidateFromBag 已保证模板存在）
-        const auto* tpl = equipmentTemplateByName(actionBagName);
-        EquipmentInstance inst;
-        inst.id = nextInstanceId();
-        inst.name = tpl->name;
-        inst.rarity = tpl->rarity;
-        inst.description = tpl->description;
-        inst.slot = tpl->slot;
-        inst.physicalAttack = tpl->physicalAttack;
-        inst.magicAttack = tpl->magicAttack;
-        inst.physicalDefense = tpl->physicalDefense;
-        inst.magicDefense = tpl->magicDefense;
-        inst.speed = tpl->speed;
-        inst.hp = tpl->hp;
-        inst.mp = tpl->mp;
-        inst.critChance = tpl->critChance;
-        inst.minRealm = actionMinRealm;
-        inst.ownerId = d.id;
-        inst.isEquipped = true;
-        state.equipmentInstances.push_back(inst);
-        setEquipSlot(d, slot, inst.id);
-        d.storageBagItems = gamecore::pill::decreaseItemQuantity(
-            d.storageBagItems, actionBagItemId, 1);
+        if (equipped != nullptr) {
+            // 旧装备实例保真回袋 + 实例表置下线（零失败臂——无容量门）
+            const EquipmentInstance oldCopy = *equipped;
+            depositEquippedToBag(d, state, oldCopy);
+        }
     }
+
+    // 装配：袋内完整实例直接装配（实例可能不在实例表——卸装入袋后防双持有，
+    // 按袋内条目 update-or-insert）
+    EquipmentInstance attached = best.source;
+    attached.isEquipped = true;
+    attached.ownerId = d.id;
+    bool found = false;
+    for (EquipmentInstance& eq : state.equipmentInstances) {
+        if (eq.id == attached.id) {
+            eq = attached;
+            found = true;
+            break;
+        }
+    }
+    if (!found) state.equipmentInstances.push_back(std::move(attached));
+    setEquipSlot(d, slot, best.source.id);
+    // 袋内该实例条目移除（itemId 匹配且带 equipmentInstance payload——
+    // Kotlin filterNot { it.itemId == source.id && it.equipmentInstance != null }）
+    d.storageBagItems.erase(
+        std::remove_if(d.storageBagItems.begin(), d.storageBagItems.end(),
+            [&](const StorageBagItem& x) {
+                return x.itemId == best.source.id && x.equipmentInstance.has_value();
+            }),
+        d.storageBagItems.end());
     return true;
 }
 
@@ -900,18 +816,17 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         return da.realmLayer > db.realmLayer;
     });
 
-    // 仓库快照（循环外读取一次；装配扣减就地更新，末尾统一写回）
-    std::vector<EquipmentStack> eqStacks = state.equipmentStacks;
+    // 功法仓库快照（装备堆叠轨已随 B3 退役——仅功法保留快照写回）
     std::vector<ManualStack> mnStacks = state.manualStacks;
 
     for (std::size_t row : rows) {
         Disciple d = ds.materialize(row);
         bool changed = false;
         if (hasAutoEquip && qualifiesForSectAuto(d, equipFocused, equipRootCounts)) {
-            if (autoEquipSlot(d, state, eqStacks, "WEAPON")) changed = true;
-            if (autoEquipSlot(d, state, eqStacks, "ARMOR")) changed = true;
-            if (autoEquipSlot(d, state, eqStacks, "BOOTS")) changed = true;
-            if (autoEquipSlot(d, state, eqStacks, "ACCESSORY")) changed = true;
+            for (const std::string& slotName :
+                 {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
+                if (autoEquipSlot(d, state, slotName)) changed = true;
+            }
         }
         if (hasAutoLearn && qualifiesForSectAuto(d, learnFocused, learnRootCounts)) {
             if (autoLearnForDisciple(d, state, mnStacks)) changed = true;
@@ -919,25 +834,28 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         if (!changed) continue;
         // 精准字段写回（Kotlin writeAutoWarehouseResults 字段面）
         ds.storageBagItems[row] = d.storageBagItems;
+        ds.headIds[row] = d.headId;
+        ds.bodyIds[row] = d.bodyId;
+        ds.handsIds[row] = d.handsId;
+        ds.feetIds[row] = d.feetId;
         ds.weaponIds[row] = d.weaponId;
-        ds.armorIds[row] = d.armorId;
-        ds.bootsIds[row] = d.bootsId;
-        ds.accessoryIds[row] = d.accessoryId;
+        ds.legsIds[row] = d.legsId;
         ds.manualIds[row] = d.manualIds;
         ds.currentHps[row] = d.currentHp;
         ds.currentMps[row] = d.currentMp;
         // R2 列级写屏障（写点标脏）：精准字段写回面整段标脏
         ds.markCol(DiscipleColumn::StorageBagItems, row);
+        ds.markCol(DiscipleColumn::HeadId, row);
+        ds.markCol(DiscipleColumn::BodyId, row);
+        ds.markCol(DiscipleColumn::HandsId, row);
+        ds.markCol(DiscipleColumn::FeetId, row);
         ds.markCol(DiscipleColumn::WeaponId, row);
-        ds.markCol(DiscipleColumn::ArmorId, row);
-        ds.markCol(DiscipleColumn::BootsId, row);
-        ds.markCol(DiscipleColumn::AccessoryId, row);
+        ds.markCol(DiscipleColumn::LegsId, row);
         ds.markCol(DiscipleColumn::ManualIds, row);
         ds.markCol(DiscipleColumn::CurrentHp, row);
         ds.markCol(DiscipleColumn::CurrentMp, row);
     }
-    // 仓库堆叠写回（就地更新的快照 → 状态）
-    state.equipmentStacks = std::move(eqStacks);
+    // 功法仓库堆叠写回（装备无仓库轨——B3 单轨实例）
     state.manualStacks = std::move(mnStacks);
 }
 

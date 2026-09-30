@@ -11,13 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.ui.game.GameViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.ItemCardData
@@ -32,13 +30,13 @@ internal const val SLOT_GRID_COLUMNS = 4
 /** 槽位网格统一间距（横向 = 纵向，等距规格） */
 internal val SLOT_GRID_SPACING = 6.dp
 
+/** 装备六宫格每行列数（3×2：上行 头·身·手，下行 脚·武·腿） */
+private const val EQUIP_GRID_ROW_SIZE = 3
+
 
 @Composable
 fun EquipmentSection(
-    weapon: EquipmentInstance?,
-    armor: EquipmentInstance?,
-    boots: EquipmentInstance?,
-    accessory: EquipmentInstance?,
+    equippedByPart: Map<EquipmentSlot, EquipmentInstance?>,
     onSlotClick: (String) -> Unit,
     onEquipmentClick: (EquipmentInstance) -> Unit
 ) {
@@ -50,14 +48,23 @@ fun EquipmentSection(
             color = Color.Black
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
-        ) {
-            EquipmentSlot("武器", weapon, Modifier.weight(1f), onSlotClick, onEquipmentClick, "weapon")
-            EquipmentSlot("护甲", armor, Modifier.weight(1f), onSlotClick, onEquipmentClick, "armor")
-            EquipmentSlot("靴子", boots, Modifier.weight(1f), onSlotClick, onEquipmentClick, "boots")
-            EquipmentSlot("饰品", accessory, Modifier.weight(1f), onSlotClick, onEquipmentClick, "accessory")
+        // 六部位宫格（显示序单一真源 = EquipmentSlot.displayOrder）
+        EquipmentSlot.displayOrder.chunked(EQUIP_GRID_ROW_SIZE).forEach { rowParts ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
+            ) {
+                rowParts.forEach { part ->
+                    EquipmentSlot(
+                        slotName = part.displayName,
+                        equipment = equippedByPart[part],
+                        modifier = Modifier.weight(1f),
+                        onSlotClick = onSlotClick,
+                        onEquipmentClick = onEquipmentClick,
+                        slotType = part.name
+                    )
+                }
+            }
         }
     }
 }
@@ -116,7 +123,6 @@ fun EquipmentSlot(
 data class EquipmentSelectionParams(
     val slotType: String,
     val allEquipment: List<EquipmentInstance>,
-    val equipmentStacks: List<EquipmentStack>,
     val currentEquipmentId: String?,
     val currentDiscipleId: String,
     val discipleRealm: Int,
@@ -138,16 +144,15 @@ fun EquipmentSelectionDialog(
 ) {
     val slotTypeText = equipmentSelectionSlotText(slotType = params.slotType)
     val watchedKeys = params.viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
-    val slotEnum = runCatching {
-        EquipmentSlot.valueOf(params.slotType.uppercase(LocalLocale.current.platformLocale))
-    }.getOrDefault(EquipmentSlot.WEAPON)
+    val slotEnum = EquipmentSlot.entries
+        .find { it.name.equals(params.slotType, ignoreCase = true) }
+        ?: EquipmentSlot.WEAPON
 
     val items = remember(
-        params.allEquipment, params.equipmentStacks, slotEnum,
+        params.allEquipment, slotEnum,
         params.currentEquipmentId, params.currentDiscipleId, params.discipleRealm, watchedKeys
     ) {
         buildEquipmentReplaceItems(
-            stacks = params.equipmentStacks,
             instances = params.allEquipment,
             slot = slotEnum,
             currentEquipmentId = params.currentEquipmentId,
@@ -173,11 +178,8 @@ fun EquipmentSelectionDialog(
     )
 }
 
-/** 装备槽位中文名 */
-private fun equipmentSelectionSlotText(slotType: String): String = when (slotType) {
-    "weapon" -> "武器"
-    "armor" -> "护甲"
-    "boots" -> "靴子"
-    "accessory" -> "饰品"
-    else -> "装备"
-}
+/** 装备槽位中文名（六部位 displayName 单一真源） */
+private fun equipmentSelectionSlotText(slotType: String): String =
+    EquipmentSlot.entries
+        .find { it.name.equals(slotType, ignoreCase = true) }
+        ?.displayName ?: "装备"

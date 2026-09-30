@@ -138,24 +138,6 @@ class BuildingServiceProfessionGateTest {
     }
 
     @Test
-    fun `startForging - 无职业锻宝品被拦截`() = runTest {
-        val store = storeWithDisciple(forgeLevel = 0)
-        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        repo.loadSlots(listOf(idleSlot(BuildingNames.FORGE, BuildingType.FORGE)))
-        val service = newService(store, repo)
-
-        val tier3Forge = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 3 }
-        val result = service.startForging(0, tier3Forge.id)
-
-        assertTrue(result.isFailure)
-        val error = (result as DomainResult.Failure).error
-        assertTrue(
-            "应为 RecipeTierLocked，实际 $error",
-            error is AppError.Domain.Production.RecipeTierLocked
-        )
-    }
-
-    @Test
     fun `startForging - 无职业锻凡品放行`() = runTest {
         val store = storeWithDisciple(forgeLevel = 0)
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
@@ -174,7 +156,8 @@ class BuildingServiceProfessionGateTest {
             .thenReturn(FormulaService.SuccessRateZones(skillZone = 0.12))
         val service = newService(store, repo, coordinator, formulaService)
 
-        val tier1Forge = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        // B3：配方无 tier 字段（产出品阶=锻造弟子职业等级）
+        val tier1Forge = ForgeRecipeDatabase.getAllRecipes().first()
         val result = service.startForging(0, tier1Forge.id)
 
         assertTrue("无职业应可锻凡品", result.isSuccess)

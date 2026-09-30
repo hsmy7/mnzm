@@ -1,8 +1,12 @@
 package com.xianxia.sect.ui.game.components.detail
 
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import org.junit.Assert.assertEquals
@@ -13,6 +17,7 @@ import org.junit.Test
 /**
  * 更换界面纯逻辑测试：
  * 列表构建（排序/过滤/心法置底禁用）与详情构建（四区域数据）全覆盖。
+ * （B3 装备重构：更换候选 = 单轨实例；装备堆叠轨用例退役）
  */
 class ReplaceSelectionDataTest {
 
@@ -26,22 +31,27 @@ class ReplaceSelectionDataTest {
         minRealm: Int = 9
     ) = ManualStack(id = id, name = name, rarity = rarity, type = type, minRealm = minRealm)
 
-    private fun equipmentStack(
-        id: String,
-        name: String,
-        rarity: Int,
-        slot: EquipmentSlot = EquipmentSlot.WEAPON,
-        minRealm: Int = 9
-    ) = EquipmentStack(id = id, name = name, rarity = rarity, slot = slot, minRealm = minRealm)
-
+    /** B3 实例轨夹具（level/rarity 经 growth/meta 承载） */
     private fun equipmentInstance(
         id: String,
         name: String,
         rarity: Int,
-        slot: EquipmentSlot = EquipmentSlot.WEAPON,
+        part: EquipmentSlot = EquipmentSlot.WEAPON,
         ownerId: String? = null,
-        minRealm: Int = 9
-    ) = EquipmentInstance(id = id, name = name, rarity = rarity, slot = slot, ownerId = ownerId, minRealm = minRealm)
+        minRealm: Int = 9,
+        level: Int = 1,
+        mainStat: EquipStat = EquipStat.ATTACK,
+        mainValue: Double = 100.0
+    ) = EquipmentInstance(
+        id = id, name = name,
+        part = part,
+        growth = EquipGrowth(
+            level = level,
+            affix = EquipAffixSet(mainStat = EquipStatValue(mainStat, mainValue))
+        ),
+        meta = EquipInstanceMeta(rarity = rarity, minRealm = minRealm),
+        ownerId = ownerId
+    )
 
     // ==================== buildManualReplaceItems ====================
 
@@ -224,16 +234,15 @@ class ReplaceSelectionDataTest {
         assertTrue(items.isEmpty())
     }
 
-    // ==================== buildEquipmentReplaceItems ====================
+    // ==================== buildEquipmentReplaceItems（B3 单轨实例） ====================
 
     @Test
-    fun `buildEquipmentReplaceItems - 槽位过滤`() {
+    fun `buildEquipmentReplaceItems - 部位过滤`() {
         val items = buildEquipmentReplaceItems(
-            stacks = listOf(
-                equipmentStack("w1", "青锋剑", 3, EquipmentSlot.WEAPON),
-                equipmentStack("a1", "玄铁甲", 5, EquipmentSlot.ARMOR)
+            instances = listOf(
+                equipmentInstance("w1", "青锋剑", 3, EquipmentSlot.WEAPON),
+                equipmentInstance("a1", "玄铁甲", 5, EquipmentSlot.BODY)
             ),
-            instances = emptyList(),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
@@ -245,11 +254,10 @@ class ReplaceSelectionDataTest {
     @Test
     fun `buildEquipmentReplaceItems - 境界不足排除`() {
         val items = buildEquipmentReplaceItems(
-            stacks = listOf(
-                equipmentStack("w1", "神兵", 6, minRealm = 3),
-                equipmentStack("w2", "凡铁剑", 1)
+            instances = listOf(
+                equipmentInstance("w1", "神兵", 6, minRealm = 3),
+                equipmentInstance("w2", "凡铁剑", 1)
             ),
-            instances = emptyList(),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
@@ -262,7 +270,6 @@ class ReplaceSelectionDataTest {
     fun `buildEquipmentReplaceItems - 排除当前装备实例`() {
         // 当前穿着的装备为实例（ownerId 绑定），应从可选列表排除
         val items = buildEquipmentReplaceItems(
-            stacks = emptyList(),
             instances = listOf(equipmentInstance("w1", "当前武器", 4, ownerId = "d1")),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = "w1",
@@ -275,7 +282,6 @@ class ReplaceSelectionDataTest {
     @Test
     fun `buildEquipmentReplaceItems - 实例归属过滤`() {
         val items = buildEquipmentReplaceItems(
-            stacks = emptyList(),
             instances = listOf(
                 equipmentInstance("i1", "无主剑", 3, ownerId = null),
                 equipmentInstance("i2", "自己剑", 2, ownerId = "d1"),
@@ -290,31 +296,32 @@ class ReplaceSelectionDataTest {
     }
 
     @Test
-    fun `buildEquipmentReplaceItems - 堆叠与实例合并按品阶降序`() {
+    fun `buildEquipmentReplaceItems - 同部位实例按品阶降序`() {
         val items = buildEquipmentReplaceItems(
-            stacks = listOf(equipmentStack("w1", "堆叠剑", 2)),
-            instances = listOf(equipmentInstance("i1", "实例剑", 5)),
+            instances = listOf(
+                equipmentInstance("i1", "低品剑", 2),
+                equipmentInstance("i2", "高品剑", 5)
+            ),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9
         )
-        assertEquals(listOf("实例剑", "堆叠剑"), items.map { it.name })
+        assertEquals(listOf("高品剑", "低品剑"), items.map { it.name })
     }
 
     @Test
     fun `buildEquipmentReplaceItems - 关注优先于品阶`() {
         val items = buildEquipmentReplaceItems(
-            stacks = listOf(
-                equipmentStack("w1", "高品未关注", 6),
-                equipmentStack("w2", "低品已关注", 1)
+            instances = listOf(
+                equipmentInstance("w1", "高品未关注", 6),
+                equipmentInstance("w2", "低品已关注", 1)
             ),
-            instances = emptyList(),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9,
-            watchedKeys = setOf("equipment:低品已关注")
+            watchedKeys = setOf("equipment:w2")
         )
         assertEquals(listOf("低品已关注", "高品未关注"), items.map { it.name })
     }
@@ -322,7 +329,6 @@ class ReplaceSelectionDataTest {
     @Test
     fun `buildEquipmentReplaceItems - 空输入返回空列表`() {
         val items = buildEquipmentReplaceItems(
-            stacks = emptyList(),
             instances = emptyList(),
             slot = EquipmentSlot.WEAPON,
             currentEquipmentId = null,
@@ -371,29 +377,22 @@ class ReplaceSelectionDataTest {
     }
 
     @Test
-    fun `equipmentStackDetail - 属性行与描述`() {
-        val stack = EquipmentStack(
-            id = "w1", name = "青锋剑", rarity = 2, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 12, speed = 3, description = "锋利的宝剑"
-        )
-        val detail = equipmentStackDetail(stack)
-        assertEquals("青锋剑", detail.spriteName)
-        assertEquals("武器 · 灵品", detail.subtitle)
-        assertEquals("装备描述", detail.skillTitle)
-        assertTrue(detail.attributeLines.any { it.contains("物理攻击") && it.contains("+12") })
-        assertTrue(detail.attributeLines.any { it.contains("速度") && it.contains("+3") })
-        assertEquals(listOf("锋利的宝剑"), detail.skillLines)
-    }
-
-    @Test
-    fun `equipmentInstanceDetail - 最终属性含孕养差值`() {
-        val instance = EquipmentInstance(
-            id = "i1", name = "传承剑", rarity = 4, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 100, nurtureLevel = 10
+    fun `equipmentInstanceDetail - 词条摘要与等级副标题`() {
+        // B3：详情 = 词条摘要（主词条×等级成长 + 副词条×强化次数）；
+        // 旧 7 项面板/孕养差值标注已退役
+        val instance = equipmentInstance(
+            "i1", "传承剑", 4,
+            part = EquipmentSlot.WEAPON,
+            level = 3, mainValue = 100.0
         )
         val detail = equipmentInstanceDetail(instance)
-        assertTrue(detail.attributeLines.any { it.startsWith("  物理攻击 +") })
-        // 孕养等级 >0 时最终属性大于基础属性，出现 (↑x) 差值标记
-        assertTrue(detail.attributeLines.any { it.contains("(↑") })
+        assertEquals("传承剑", detail.spriteName)
+        // 副标题：部位 · 品阶 · LvN
+        assertTrue(detail.subtitle.contains("武器"))
+        assertTrue(detail.subtitle.contains("Lv3"))
+        // 主词条按等级成长（Lv3 = ×1.2 → 120）出现在属性行
+        assertTrue(detail.attributeLines.any { it.contains("120") })
+        assertEquals("装备描述", detail.skillTitle)
+        assertTrue("旧孕养差值标注已退役", detail.attributeLines.none { it.contains("(↑") })
     }
 }

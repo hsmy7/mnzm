@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
@@ -97,10 +95,8 @@ internal object InventoryNativeForward {
         val name = obj.str("itemName") ?: return null
         val rarity = obj["rarity"]?.jsonPrimitive?.long?.toInt() ?: 1
         return when (itemType) {
-            "equipment" -> EquipmentStack(
-                name = name, rarity = rarity,
-                slot = enumOr(obj.str("slot"), EquipmentSlot.WEAPON)
-            )
+            // 装备已非堆叠模型（B3）：native 溢出重建不再构造装备载体
+            // （装备不走溢出邮件），仅功法/丹药等消耗品保留重建面
             "manual" -> ManualStack(
                 name = name, rarity = rarity,
                 type = enumOr(obj.str("type"), ManualType.MIND)

@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件（LevelDetailDialog/MailDialog 等同先例口径）
+
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
@@ -22,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
-import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
@@ -39,6 +40,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.game.components.WatchItemButton
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
@@ -53,7 +55,6 @@ import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalLocale
 import com.xianxia.sect.ui.game.delegate.releaseDiscipleForReassignment
 
 /** 锻造坊派生状态 */
@@ -434,28 +435,34 @@ private fun ForgeEquipmentSelectionSection(
     )
 }
 
-/** 配方 + 可制作状态 */
+/** 配方 + 可制作状态（tier = 本次锻造产出品阶，与 ForgeViewModel 口径一致） */
 private data class EquipmentRecipeWithStatus(
     val recipe: ForgeRecipeDatabase.ForgeRecipe,
+    val tier: Int,
     val canCraft: Boolean
 )
 
-/** 装备配方可制作状态 */
+/** 锻造品阶 = 工作弟子锻造等级（1..6），无弟子按 1（与 ForgeViewModel.startBestForgeRecipe 同源） */
+private fun forgeTierOf(workerDisciple: DiscipleAggregate?): Int =
+    workerDisciple?.forgeLevel?.coerceIn(1, 6) ?: 1
+
+/** 装备配方可制作状态（材料按产出品阶取档 materialsFor） */
 private fun equipmentRecipesWithStatus(
     allRecipes: List<ForgeRecipeDatabase.ForgeRecipe>,
-    materialIndex: Map<Pair<String, Int>, Int>
+    materialIndex: Map<Pair<String, Int>, Int>,
+    forgeTier: Int
 ): List<EquipmentRecipeWithStatus> = allRecipes.map { recipe ->
-    val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
+    val canCraft = recipe.materialsFor(forgeTier).all { (materialId, requiredQuantity) ->
         val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
         materialData != null && run {
             val available = materialIndex[materialData.name to materialData.rarity] ?: 0
             available >= requiredQuantity
         }
     }
-    EquipmentRecipeWithStatus(recipe, canCraft)
+    EquipmentRecipeWithStatus(recipe, forgeTier, canCraft)
 }
 
-/** 装备配方排序：已关注优先 → 稀有度降序 */
+/** 装备配方排序：已关注优先 → 产出品阶降序 */
 private fun sortEquipmentRecipes(
     recipesWithStatus: List<EquipmentRecipeWithStatus>,
     watchedKeys: Set<String>
@@ -464,11 +471,11 @@ private fun sortEquipmentRecipes(
     val comparator =
         compareByDescending<EquipmentRecipeWithStatus> {
             watchKey("equipment", it.recipe.name) in watchedKeys
-        }.thenByDescending { it.recipe.rarity }
+        }.thenByDescending { it.tier }
     return craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
 }
 
-/** 点击锻造配方：无弟子/职业等级不够弹提示，否则切换选中状态 */
+/** 点击锻造配方：无弟子弹提示，否则切换选中状态 */
 private fun handleEquipmentRecipeClick(
     recipe: ForgeRecipeDatabase.ForgeRecipe,
     workerDisciple: DiscipleAggregate?,
@@ -476,10 +483,8 @@ private fun handleEquipmentRecipeClick(
     isSelected: Boolean,
     onSelectionChange: (ForgeRecipeDatabase.ForgeRecipe?) -> Unit
 ) {
-    val workerLevel = workerDisciple?.forgeLevel ?: 0
     when {
         workerDisciple == null -> forgeViewModel.showNoWorkerHint()
-        !ProfessionRules.canCraftTier(workerLevel, recipe.tier) -> forgeViewModel.showTierLockedHint()
         isSelected -> onSelectionChange(null)
         else -> onSelectionChange(recipe)
     }
@@ -500,6 +505,7 @@ private fun EquipmentSelectionDialog(
     var showDetail by remember { mutableStateOf(false) }
 
     val allRecipes by forgeViewModel.allForgeRecipes.collectAsStateWithLifecycle()
+    val forgeTier = remember(workerDisciple) { forgeTierOf(workerDisciple) }
 
     ProductionCommonDialog(
         title = FORGE_THEME.selectionDialogTitle,
@@ -511,8 +517,8 @@ private fun EquipmentSelectionDialog(
             materials.groupBy { it.name to it.rarity }
                 .mapValues { (_, list) -> list.sumOf { it.quantity } }
         }
-        val recipesWithStatus = remember(allRecipes, materialIndex) {
-            equipmentRecipesWithStatus(allRecipes, materialIndex)
+        val recipesWithStatus = remember(allRecipes, materialIndex, forgeTier) {
+            equipmentRecipesWithStatus(allRecipes, materialIndex, forgeTier)
         }
 
         val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
@@ -552,7 +558,7 @@ private fun EquipmentSelectionDialog(
     if (showDetail) {
         clickedRecipe?.let { recipe ->
             EquipmentDetailDialog(
-                recipe = recipe, materials = materials, viewModel = viewModel,
+                recipe = recipe, tier = forgeTier, materials = materials, viewModel = viewModel,
                 onDismiss = { showDetail = false }
             )
         }
@@ -583,7 +589,7 @@ private fun ColumnScope.EquipmentRecipeGrid(
                 UnifiedItemCard(
                     data = ItemCardData(
                         name = recipeWithStatus.recipe.name,
-                        rarity = recipeWithStatus.recipe.rarity
+                        rarity = recipeWithStatus.tier
                     ),
                     isSelected = selectedRecipeId == recipeWithStatus.recipe.id,
                     isFollowed = watchKey("equipment", recipeWithStatus.recipe.name) in watchedKeys,
@@ -609,6 +615,7 @@ private fun ColumnScope.EquipmentRecipeGrid(
 @Composable
 private fun EquipmentDetailDialog(
     recipe: ForgeRecipeDatabase.ForgeRecipe,
+    tier: Int,
     materials: List<Material>,
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit
@@ -621,40 +628,16 @@ private fun EquipmentDetailDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color.Black)
-                    Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
+                    Text(text = "品阶: ${getRarityName(tier)}", fontSize = 12.sp, color = Color.Black)
+                    Text(text = "时间: ${recipe.durationFor(tier)}月", fontSize = 12.sp, color = Color.Black)
                 }
 
-                EquipmentMaterialRequirementList(recipe = recipe, materials = materials)
-
-                Text(text = "属性加成:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                EquipmentMaterialRequirementList(recipe = recipe, tier = tier, materials = materials)
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = "部位: ${recipe.type.displayName}", fontSize = 11.sp, color = Color.Black)
-
-                    val template = com.xianxia.sect.core.registry.EquipmentDatabase.getTemplateByName(recipe.name)
-                    if (template != null) {
-                        if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}",
-                            fontSize = 11.sp, color = Color.Black)
-                        if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp,
-                            color = Color.Black)
-                        if (template.physicalDefense > 0) Text(text = "物理防御 +${template.physicalDefense}",
-                            fontSize = 11.sp, color = Color.Black)
-                        if (template.magicDefense > 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp,
-                            color = Color.Black)
-                        if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp,
-                            color = Color.Black)
-                        if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color.Black)
-                        if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color.Black)
-                        if (template.critChance > 0) {
-                            val critRateText = String.format(
-                                LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)
-                            Text(
-                                text = "暴击率 +$critRateText%",
-                                fontSize = 11.sp, color = Color.Black,
-                            )
-                        }
-                    }
+                    Text(text = "部位: ${recipe.part.displayName}", fontSize = 11.sp, color = Color.Black)
+                    Text(text = "成功率: ${GameUtils.formatPercent(recipe.successRateFor(tier))}",
+                        fontSize = 11.sp, color = Color.Black)
                 }
 
                 Text(text = "描述:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
@@ -676,16 +659,17 @@ private fun EquipmentDetailDialog(
     }
 }
 
-/** 所需材料列表 */
+/** 所需材料列表（按产出品阶取档） */
 @Composable
 private fun EquipmentMaterialRequirementList(
     recipe: ForgeRecipeDatabase.ForgeRecipe,
+    tier: Int,
     materials: List<Material>
 ) {
     Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        recipe.materials.forEach { (materialId, requiredQuantity) ->
+        recipe.materialsFor(tier).forEach { (materialId, requiredQuantity) ->
             val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
             val materialName = materialData?.name
             val materialRarity = materialData?.rarity ?: 1

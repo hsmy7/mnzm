@@ -3,8 +3,12 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -17,8 +21,8 @@ import com.xianxia.sect.core.engine.domain.disciple.getMaxManualSlots
  * 俘虏/旧档 AI 弟子入玩家池时的装备/功法落库工具。
  *
  * 必须在 stateStore.update {} 事务内调用（接收 [MutableGameState]）。
- * 将 AI 侧持久化的模板 id 装备/功法重建为玩家侧 UUID 实例并写入：
- * 1. 4 槽位 → [MutableGameState.equipmentInstances] + 回写 DiscipleTables 槽位列（孕养继承）
+ * 将 AI 侧持久化的部件 id 装备/功法重建为玩家侧 UUID 实例并写入：
+ * 1. 六槽位 → [MutableGameState.equipmentInstances] + 回写 DiscipleTables 槽位列
  * 2. 功法 → [MutableGameState.manualInstances] + 回写 manualIds/manualMasteries 列（实例 id 键）+ HP/MP 增量
  * 3. 熟练度 → [MutableGameState.gameData].manualProficiencies（按新弟子 id 注册）
  *
@@ -46,58 +50,46 @@ private fun MutableGameState.shouldMaterializeCaptiveGear(
     if (!discipleTables.ids.contains(intId) || gameData.manualProficiencies.containsKey(newId)) {
         return false
     }
-    val anySlotInstance = listOf(
-        discipleTables.weaponIds[intId],
-        discipleTables.armorIds[intId],
-        discipleTables.bootsIds[intId],
-        discipleTables.accessoryIds[intId]
-    ).any { slotId ->
-        !slotId.isNullOrEmpty() &&
-            slotId != captive.equipment.weaponId &&
-            slotId != captive.equipment.armorId &&
-            slotId != captive.equipment.bootsId &&
-            slotId != captive.equipment.accessoryId
+    val anySlotInstance = EquipmentSlot.displayOrder.any { slot ->
+        val slotId = discipleTables.slotIdOf(intId, slot)
+        !slotId.isNullOrEmpty() && slotId != captive.equipment.slotId(slot)
     }
     return !anySlotInstance
 }
 
-/** 按模板重建 4 槽位装备实例（新 UUID、ownerId、isEquipped），孕养数据从俘虏继承。 */
+/** 按部件展开条目重建六槽位装备实例（新 UUID、ownerId、isEquipped；词条占位空面——AI 载荷不存词条，I5）。 */
 private fun MutableGameState.materializeEquipments(captive: Disciple, intId: Int) {
-    val slots = listOf(
-        Triple(EquipmentSlot.WEAPON, captive.equipment.weaponId, captive.equipment.weaponNurture),
-        Triple(EquipmentSlot.ARMOR, captive.equipment.armorId, captive.equipment.armorNurture),
-        Triple(EquipmentSlot.BOOTS, captive.equipment.bootsId, captive.equipment.bootsNurture),
-        Triple(EquipmentSlot.ACCESSORY, captive.equipment.accessoryId, captive.equipment.accessoryNurture)
-    )
-    for ((slot, templateId, nurture) in slots) {
-        val instance = buildEquipmentInstanceForCaptive(templateId, intId, nurture) ?: continue
+    for (slot in EquipmentSlot.displayOrder) {
+        val pieceEntryId = captive.equipment.slotId(slot)
+        val instance = buildEquipmentInstanceForCaptive(pieceEntryId, intId) ?: continue
         equipmentInstances.add(instance)
-        when (slot) {
-            EquipmentSlot.WEAPON -> discipleTables.weaponIds[intId] = instance.id
-            EquipmentSlot.ARMOR -> discipleTables.armorIds[intId] = instance.id
-            EquipmentSlot.BOOTS -> discipleTables.bootsIds[intId] = instance.id
-            EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[intId] = instance.id
-        }
+        discipleTables.setSlotId(intId, slot, instance.id)
     }
 }
 
-/** 从模板构建单个装备实例（模板缺失/空 id 返回 null）。 */
+/** 从部件展开条目构建单个装备实例（条目缺失/空 id 返回 null）。 */
 private fun buildEquipmentInstanceForCaptive(
-    templateId: String,
-    intId: Int,
-    nurture: EquipmentNurtureData
+    pieceEntryId: String,
+    intId: Int
 ): EquipmentInstance? {
-    val template = templateId.takeIf { it.isNotEmpty() }
+    val entry = pieceEntryId.takeIf { it.isNotEmpty() }
         ?.let { EquipmentDatabase.getById(it) } ?: return null
-    var instance = EquipmentDatabase.createFromTemplate(template)
-        .toInstance(id = UUID.randomUUID().toString(), ownerId = intId.toString(), isEquipped = true)
-    if (nurture.equipmentId == templateId) {
-        instance = instance.copy(
-            nurtureLevel = nurture.nurtureLevel,
-            nurtureProgress = nurture.nurtureProgress
-        )
-    }
-    return instance
+    return EquipmentInstance(
+        id = UUID.randomUUID().toString(),
+        name = entry.name,
+        setId = entry.setId,
+        part = entry.part,
+        growth = EquipGrowth(
+            affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))
+        ),
+        meta = EquipInstanceMeta(
+            rarity = entry.rarity,
+            minRealm = entry.minRealm,
+            description = entry.description
+        ),
+        ownerId = intId.toString(),
+        isEquipped = true
+    )
 }
 
 /**
@@ -191,4 +183,25 @@ private fun createManualForCaptive(
                 .fromProficiency(mastery.toDouble()).level
         )
     )
+}
+
+/** DiscipleTables 六部位槽位读写扩展（与 DiscipleEquipmentService 同族） */
+private fun DiscipleTables.slotIdOf(id: Int, slot: EquipmentSlot): String = when (slot) {
+    EquipmentSlot.HEAD -> headIds[id]
+    EquipmentSlot.BODY -> bodyIds[id]
+    EquipmentSlot.HANDS -> handsIds[id]
+    EquipmentSlot.FEET -> feetIds[id]
+    EquipmentSlot.WEAPON -> weaponIds[id]
+    EquipmentSlot.LEGS -> legsIds[id]
+}
+
+private fun DiscipleTables.setSlotId(id: Int, slot: EquipmentSlot, value: String) {
+    when (slot) {
+        EquipmentSlot.HEAD -> headIds[id] = value
+        EquipmentSlot.BODY -> bodyIds[id] = value
+        EquipmentSlot.HANDS -> handsIds[id] = value
+        EquipmentSlot.FEET -> feetIds[id] = value
+        EquipmentSlot.WEAPON -> weaponIds[id] = value
+        EquipmentSlot.LEGS -> legsIds[id] = value
+    }
 }

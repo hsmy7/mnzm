@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.config.InventoryConfig
@@ -17,7 +18,7 @@ import com.xianxia.sect.core.model.TrialEnemyDef
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.rebaselineNativeMirror
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -55,6 +56,11 @@ class HeavenlyTrialService @Inject constructor(
      * 经 [javax.inject.Provider] 注入（DiplomacyService 同款惰性破环边）。
      */
     private val gameEngineCoreProvider: javax.inject.Provider<com.xianxia.sect.core.engine.GameEngineCore>? = null,
+    /**
+     * 装备 RNG（RngPartition.EQUIPMENT 分区，B3）。可空默认仅供测试直构
+     * （落固定种子兜底，确定性不破 RNG 治理）；生产由 Hilt 注入单例。
+     */
+    private val rngManager: com.xianxia.sect.core.util.GameRngManager? = null,
 ) {
     /** 基线重建用引擎核心；无 Provider（测试直构）时为 null → 跳过（JVM 语义等价） */
     private val gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore?
@@ -84,6 +90,10 @@ class HeavenlyTrialService @Inject constructor(
         )
 
         val beastSkills = buildBeastSkills(beastType = beastType)
+        // 妖兽伤害类型按种类元素固定（$15.3：金/土→物理、水/木/火→法术）
+        val innateType =
+            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
+            else DamageType.MAGIC
 
         val typeIndex = GameConfig.Beast.TYPES.indexOf(beastType)
 
@@ -95,10 +105,9 @@ class HeavenlyTrialService @Inject constructor(
             maxHp = stats.hp,
             mp = stats.mp,
             maxMp = stats.mp,
-            physicalAttack = stats.physicalAttack,
-            magicAttack = stats.magicAttack,
-            physicalDefense = stats.physicalDefense,
-            magicDefense = stats.magicDefense,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = innateType,
             speed = stats.speed,
             critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
             skills = beastSkills,
@@ -115,10 +124,8 @@ class HeavenlyTrialService @Inject constructor(
     internal data class BeastStats(
         val hp: Int,
         val mp: Int,
-        val physicalAttack: Int,
-        val magicAttack: Int,
-        val physicalDefense: Int,
-        val magicDefense: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int
     )
 
@@ -147,38 +154,40 @@ class HeavenlyTrialService @Inject constructor(
             maxHp = stats.hp,
             mp = stats.mp,
             maxMp = stats.mp,
-            physicalAttack = stats.physAtk,
-            magicAttack = stats.magAtk,
-            physicalDefense = stats.physDef,
-            magicDefense = stats.magDef,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = DamageType.PHYSICAL,
             speed = stats.speed,
             critRate = 0.05 + def.realm * 0.01 + stats.critChance,
             skills = buildTrialSkills(selected),
             realm = def.realm,
             realmName = GameConfig.Realm.getName(def.realm),
             realmLayer = def.realmLayer,
+            headName = equipment.head?.name,
+            bodyName = equipment.body?.name,
+            handsName = equipment.hands?.name,
+            feetName = equipment.feet?.name,
             weaponName = equipment.weapon?.name,
-            armorName = equipment.armor?.name,
-            bootsName = equipment.boots?.name,
-            accessoryName = equipment.accessory?.name,
+            legsName = equipment.legs?.name,
             isBeast = false
         )
     }
 
+    /** 试炼敌人装备选取（装备重构 B3 六部位口径：部件模板 = 12 条 ForgeRecipe） */
     internal data class TrialEquipmentSelection(
-        val weapon: ForgeRecipeDatabase.ForgeRecipe?,
-        val armor: ForgeRecipeDatabase.ForgeRecipe?,
-        val boots: ForgeRecipeDatabase.ForgeRecipe?,
-        val accessory: ForgeRecipeDatabase.ForgeRecipe?
+        val head: ForgeRecipeDatabase.ForgeRecipe? = null,
+        val body: ForgeRecipeDatabase.ForgeRecipe? = null,
+        val hands: ForgeRecipeDatabase.ForgeRecipe? = null,
+        val feet: ForgeRecipeDatabase.ForgeRecipe? = null,
+        val weapon: ForgeRecipeDatabase.ForgeRecipe? = null,
+        val legs: ForgeRecipeDatabase.ForgeRecipe? = null
     )
 
     internal data class TrialBaseStats(
         val hp: Int,
         val mp: Int,
-        val physAtk: Int,
-        val magAtk: Int,
-        val physDef: Int,
-        val magDef: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int,
         val critChance: Double
     )
@@ -186,8 +195,7 @@ class HeavenlyTrialService @Inject constructor(
     /** 试炼功法选取（buildDiscipleEnemy 提取）：固定 manualIds → 角色精选 → 随机 */
     internal data class StatBonus(
         val hp: Int = 0, val mp: Int = 0,
-        val physAtk: Int = 0, val magAtk: Int = 0,
-        val physDef: Int = 0, val magDef: Int = 0,
+        val attack: Int = 0, val defense: Int = 0,
         val speed: Int = 0, val critChance: Double = 0.0
     )
 
@@ -472,23 +480,29 @@ class HeavenlyTrialService @Inject constructor(
         val targetRarity = item.rarity
         val generated = mutableListOf<RewardCardItem>()
         repeat(qty) {
-            val stack = EquipmentDatabase.generateRandom(
-                minRarity = targetRarity,
-                maxRarity = targetRarity
+            // 装备重构 B3：实例经 EquipmentFactory 唯一产出入口生成，直接入
+            // equipmentInstances 实例轨（不再 addEquipmentStack 堆叠轨）。
+            // 品阶契约=精确 targetRarity（对齐 randomPill 路径 min==max 与年度来源键
+            // trial:{rarity}；pickRarity 分层升档属任务/掉落链口径，天劫奖励卡面
+            // 稀有度必须与发放实例一致）。抽取走 EQUIPMENT 分区（生产=rngManager；
+            // 测试直构=固定种子兜底，确定性）。
+            val rng = com.xianxia.sect.core.util.RngRandomAdapter(
+                rngManager?.getRng(com.xianxia.sect.core.util.RngPartition.EQUIPMENT)
+                    ?: com.xianxia.sect.core.util.DeterministicRng.fromSeed(20260930L)
             )
-            // 统一委托 addEquipmentStack：进仓库堆叠轨道（equipmentStacks，仓库 UI 可见）。
-            // 仓库 UI 只渲染堆叠不渲染实例——直接写实例轨道会导致领取后装备不可见，
-            // 且无来源追踪/溢出兜底。
-            when (val result = inventorySystem.addEquipmentStack(stack)) {
+            val rarity = targetRarity.coerceIn(1, 6)
+            val setId = if (rng.nextBoolean()) "lietian" else "zifu"
+            val instance = EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, rng), rarity, rng)
+            when (val result = inventorySystem.addEquipmentInstance(instance)) {
                 is DomainResult.Success -> {}
                 is DomainResult.Partial ->
-                    error("装备 ${stack.name} 仓库空间不足，溢出 ${result.overflow} 个")
+                    error("装备 ${instance.name} 仓库空间不足，溢出 ${result.overflow} 个")
                 is DomainResult.Failure ->
-                    error("装备 ${stack.name} 发放失败: ${result.error}")
+                    error("装备 ${instance.name} 发放失败: ${result.error}")
             }
             generated.add(RewardCardItem(
-                itemName = stack.name, itemType = "equipment",
-                rarity = stack.rarity, quantity = 1
+                itemName = instance.name, itemType = "equipment",
+                rarity = instance.rarity, quantity = 1
             ))
         }
         generatedCards.addAll(mergeCardsByName(generated))

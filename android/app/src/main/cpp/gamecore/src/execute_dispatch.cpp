@@ -17,6 +17,7 @@
 #include "gamecore/system/disciple_lifecycle_tx.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/economy.h"
+#include "gamecore/system/equipment_tx.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/exploration_tx.h"
 #include "gamecore/system/government.h"
@@ -176,14 +177,10 @@ nlohmann::json handleInventory(GameCore* core, int32_t actionId,
 
     switch (actionId) {
         case action::INV_ADD_EQUIPMENT_STACK: {
-            gamecore::state::EquipmentStack item;
-            item.id = params.value("id", "");
-            item.name = params.at("name").get<std::string>();
-            item.rarity = params.value("rarity", 1);
-            item.slot = params.value("slot", "WEAPON");
-            item.quantity = params.at("quantity").get<int32_t>();
-            const auto r = gamecore::system::addEquipmentStack(
-                state, item, mail, source, suppressed);
+            // B3 单轨实例：1010 号语义适配为「添加装备实例」（号保留，JSON 形状=实例）
+            gamecore::state::EquipmentInstance item =
+                params.get<gamecore::state::EquipmentInstance>();
+            const auto r = gamecore::system::addEquipmentInstance(state, item);
             data = invResult(r);
             break;
         }
@@ -378,10 +375,8 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.realmLayer = params.value("realmLayer", 1);
             in.hpVariance = params.value("hpVariance", 0);
             in.mpVariance = params.value("mpVariance", 0);
-            in.physicalAttackVariance = params.value("physicalAttackVariance", 0);
-            in.magicAttackVariance = params.value("magicAttackVariance", 0);
-            in.physicalDefenseVariance = params.value("physicalDefenseVariance", 0);
-            in.magicDefenseVariance = params.value("magicDefenseVariance", 0);
+            in.attackVariance = params.value("attackVariance", 0);
+            in.defenseVariance = params.value("defenseVariance", 0);
             in.speedVariance = params.value("speedVariance", 0);
             in.intelligence = params.value("intelligence", 0);
             in.charm = params.value("charm", 0);
@@ -394,8 +389,7 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
             in.pillRefining = params.value("pillRefining", 0);
             const auto s = gamecore::disciple::computeBaseStats(in);
             return ok({{"maxHp", s.maxHp}, {"maxMp", s.maxMp},
-                       {"physicalAttack", s.physicalAttack}, {"magicAttack", s.magicAttack},
-                       {"physicalDefense", s.physicalDefense}, {"magicDefense", s.magicDefense},
+                       {"attack", s.attack}, {"defense", s.defense},
                        {"speed", s.speed}, {"critRate", s.critRate}});
         }
         case action::DISCIPLE_CULTIVATION_PER_PHASE: {
@@ -486,7 +480,6 @@ nlohmann::json handleBattle(int32_t actionId, const nlohmann::json& params) {
             DamageZones zones;
             if (params.contains("zones")) {
                 const auto& z = params.at("zones");
-                zones.attackBuffs = z.value("attackBuffs", 0.0);
                 zones.damageAmplification = z.value("damageAmplification", 0.0);
                 zones.damageReduction = z.value("damageReduction", 0.0);
                 zones.realmGapDamageAmplification = z.value("realmGapDamageAmplification", 0.0);
@@ -869,30 +862,26 @@ nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
         case action::SECT_POWER_DISCIPLE: {
             // star 缺省 0 ⇒ 恒 ×1.00：与 Kotlin calculateDisciplePower(aggregate, star)
             // 同参同式（属性加权和先算、星级乘数后乘、最后向零截断）
+            // 单列口径（B1）：attack/defense 单参
             return ok({{"power", gamecore::system::discipleCombatPowerWithStar(
-                                     params.at("physicalAttack").get<int32_t>(),
-                                     params.at("magicAttack").get<int32_t>(),
+                                     params.at("attack").get<int32_t>(),
                                      params.at("maxHp").get<int32_t>(),
-                                     params.at("physicalDefense").get<int32_t>(),
-                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("defense").get<int32_t>(),
                                      params.at("speed").get<int32_t>(),
                                      params.value("star", 0))}});
         }
         case action::SECT_POWER_BEAST: {
             return ok({{"power", gamecore::system::beastCombatPower(
                                      params.at("maxHp").get<int32_t>(),
-                                     params.at("physicalAttack").get<int32_t>(),
-                                     params.at("magicAttack").get<int32_t>(),
-                                     params.at("physicalDefense").get<int32_t>(),
-                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("attack").get<int32_t>(),
+                                     params.at("defense").get<int32_t>(),
                                      params.at("speed").get<int32_t>())}});
         }
         case action::SECT_POWER_FINGERPRINT: {
             const int32_t fp = gamecore::system::sectPowerFingerprint(
                 params.at("realm").get<int32_t>(), params.at("realmLayer").get<int32_t>(),
-                params.value("hpVariance", 0), params.value("physicalAttackVariance", 0),
-                params.value("magicAttackVariance", 0), params.value("physicalDefenseVariance", 0),
-                params.value("magicDefenseVariance", 0), params.value("speedVariance", 0));
+                params.value("hpVariance", 0), params.value("attackVariance", 0),
+                params.value("defenseVariance", 0), params.value("speedVariance", 0));
             return ok({{"fingerprint", fp}});
         }
         case action::SECT_RARITY_ROLL: {
@@ -996,8 +985,7 @@ nlohmann::json handleSecretRealm(GameCore* core, int32_t actionId,
                 params.value("beastLayer", 1));
             return ok({
                 {"maxHp", stats.maxHp}, {"maxMp", stats.maxMp},
-                {"physicalAttack", stats.physicalAttack}, {"magicAttack", stats.magicAttack},
-                {"physicalDefense", stats.physicalDefense}, {"magicDefense", stats.magicDefense},
+                {"attack", stats.attack}, {"defense", stats.defense},
                 {"speed", stats.speed}, {"realmLayer", stats.realmLayer},
             });
         }
@@ -1682,6 +1670,7 @@ nlohmann::json handleRoadTx(GameCore* core, int32_t actionId,
 nlohmann::json handleDiscipleTx(GameCore* core, int32_t actionId,
                                 const nlohmann::json& params) {
     namespace disciple_tx = gamecore::system::disciple_tx;
+    namespace equipment_tx = gamecore::system::equipment_tx;
     auto& state = core->state();
     switch (actionId) {
         case action::DISCIPLE_TX_EQUIP: {
@@ -1735,6 +1724,22 @@ nlohmann::json handleDiscipleTx(GameCore* core, int32_t actionId,
                 params.at("slotIndex").get<int32_t>());
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"unassigned", true}, {"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::EQUIP_UPGRADE: {
+            // B3 装备升级（方案 §3.6）：扣灵石/兽材 + 经验推进 + 强化节点，
+            // 强化抽取走 kEquipment 分区；失败信封 → Kotlin 回退臂
+            const auto r = equipment_tx::upgradeEquipmentTx(
+                state, core->rng().getRng(gamecore::rng::RngPartition::kEquipment),
+                params.at("equipmentId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"upgraded", true}, {"newLevel", r.newLevel}});
+        }
+        case action::EQUIP_DISMANTLE: {
+            // B3 装备分解（方案 §3.9）：返还 50% 累计消耗 + 袋条目清除防复活
+            const auto r = equipment_tx::dismantleEquipmentTx(
+                state, params.at("equipmentId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"dismantled", true}});
         }
         default:
             return fail("UNKNOWN_ACTION", "disciple tx action " + std::to_string(actionId));
@@ -2043,7 +2048,8 @@ nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
         case action::INV_BUY_MERCHANT_ITEM: {
             const auto r = inventory_tx::buyMerchantItemTx(
                 state, params.at("itemId").get<std::string>(),
-                params.at("quantity").get<int32_t>());
+                params.at("quantity").get<int32_t>(),
+                core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
             if (!r.ok) return fail(r.errorType, r.message);
             nlohmann::json drafts = nlohmann::json::array();
             for (const auto& d : r.overflowDrafts) {
@@ -2467,7 +2473,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
                    actionId == action::ROAD_REMOVE) {
             result = handleRoadTx(this, actionId, params);
         } else if (actionId >= action::DISCIPLE_TX_EQUIP &&
-                   actionId <= action::DISCIPLE_TX_UNASSIGN_SLOT) {
+                   actionId <= action::EQUIP_DISMANTLE) {
             result = handleDiscipleTx(this, actionId, params);
         } else if (actionId >= action::DIPLOMACY_TX &&
                    actionId <= action::VASSAL_TX) {

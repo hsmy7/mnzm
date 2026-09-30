@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
@@ -61,10 +65,12 @@ class HpMpRecoveryEquivalenceTest {
                 currentHp = curHp, currentMp = curMp
             ),
             equipment = base.equipment.copy(
-                weaponId = equipment.getOrNull(0)?.id ?: "",
-                armorId = equipment.getOrNull(1)?.id ?: "",
-                bootsId = equipment.getOrNull(2)?.id ?: "",
-                accessoryId = equipment.getOrNull(3)?.id ?: ""
+                headId = equipment.getOrNull(0)?.id ?: "",
+                bodyId = equipment.getOrNull(1)?.id ?: "",
+                handsId = equipment.getOrNull(2)?.id ?: "",
+                feetId = equipment.getOrNull(3)?.id ?: "",
+                weaponId = equipment.getOrNull(4)?.id ?: "",
+                legsId = equipment.getOrNull(5)?.id ?: ""
             ),
             manualIds = manuals.map { it.id }
         )
@@ -79,7 +85,6 @@ class HpMpRecoveryEquivalenceTest {
         return MutableGameState(
             gameData = gameData,
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(equipment),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(manuals),
@@ -161,13 +166,37 @@ class HpMpRecoveryEquivalenceTest {
         assertEquals(maxMp, state.discipleTables.currentMps[1])
     }
 
+    /** B3 实例轨夹具：六部位实例，HP 加成经副词条承载（EquipStatResolver 消费面；
+     *  词条族无 MP 维度——MP 恢复仅由功法/丹药驱动，本夹具以 HP 单维覆盖装备分支） */
+    private fun eq(
+        id: String, part: EquipmentSlot,
+        hp: Double = 0.0
+    ): EquipmentInstance {
+        val subs = buildList {
+            if (hp != 0.0) add(EquipStatValue(EquipStat.HP, hp))
+        }
+        return EquipmentInstance(
+            id = id,
+            name = id,
+            part = part,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(
+                    mainStat = EquipStatValue(EquipStat.ATTACK, 10.0),
+                    subStats = subs
+                )
+            )
+        )
+    }
+
     @Test
-    fun `等价性 - 装备四槽全配与空`() {
+    fun `等价性 - 装备六部位全配与空`() {
         val eq = listOf(
-            EquipmentInstance(id = "w1", name = "剑", rarity = 3, slot = EquipmentSlot.WEAPON, hp = 120, mp = 30),
-            EquipmentInstance(id = "a1", name = "甲", rarity = 2, slot = EquipmentSlot.ARMOR, hp = 80),
-            EquipmentInstance(id = "b1", name = "靴", rarity = 1, slot = EquipmentSlot.BOOTS, mp = 50),
-            EquipmentInstance(id = "acc1", name = "饰", rarity = 4, slot = EquipmentSlot.ACCESSORY, hp = 60, mp = 60)
+            eq("h1", EquipmentSlot.HEAD, hp = 120.0),
+            eq("b1", EquipmentSlot.BODY, hp = 80.0),
+            eq("g1", EquipmentSlot.HANDS, hp = 20.0),
+            eq("f1", EquipmentSlot.FEET, hp = 50.0),
+            eq("w1", EquipmentSlot.WEAPON, hp = 60.0),
+            eq("l1", EquipmentSlot.LEGS, hp = 45.0)
         )
         assertEquivalence(equipment = eq, curHp = 100, curMp = 100)
         assertEquivalence(equipment = emptyList(), curHp = 100, curMp = 100)

@@ -44,7 +44,6 @@ class GameStateStoreAssembleRaceGuardTest {
             store.loadFromSnapshot(
                 gameData = GameData(),
                 disciples = listOf(disciple(10, "新弟子10"), disciple(11, "新弟子11")),
-                equipmentStacks = emptyList(),
                 equipmentInstances = emptyList(),
                 manualStacks = emptyList(),
                 manualInstances = emptyList(),

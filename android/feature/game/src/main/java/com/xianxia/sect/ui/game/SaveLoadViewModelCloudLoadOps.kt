@@ -155,7 +155,6 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
         gameEngine.loadData(
             gameData = resolvedGameData,
             disciples = reconciled.disciples,
-            equipmentStacks = reconciled.equipmentStacks,
             equipmentInstances = reconciled.equipmentInstances,
             manualStacks = reconciled.manualStacks,
             manualInstances = reconciled.manualInstances,

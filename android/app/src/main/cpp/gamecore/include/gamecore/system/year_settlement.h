@@ -483,7 +483,9 @@ inline MerchantItemPools buildMerchantItemPools() {
     MerchantItemPools pools;
     pools.poolByRarity.assign(7, {});
     constexpr int64_t kRatio = 10'000L;  // SpiritStoneExchange.RATIO
-    for (const auto& t : data::equipmentTemplates()) {
+    // B3：装备池 = 72 条展开条目（名称去重面随条目走——Kotlin
+    // allTemplates.values 同源）
+    for (const auto& t : data::equipmentEntries()) {
         pools.poolByRarity[static_cast<std::size_t>(t.rarity)].push_back({t.name, "equipment"});
         pools.rarityMap[t.name] = t.rarity;
         pools.priceMap[t.name] = static_cast<int64_t>(t.price);
@@ -696,18 +698,28 @@ inline const T& pickTradeTemplate(rng::DeterministicRng& rngLocal,
         rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
 }
 
-/// 装备类商品（Kotlin generateEquipmentItem）：模板池选 1×nextInt +
-/// 价格波动 1×nextDouble + 库存 1×nextInt
+/// 装备类商品（B3；Kotlin generateEquipmentItem 逐位移植）：按品阶过滤
+/// 72 条展开条目后随机取一条（该品阶无条目时按全局条目兜底）；itemId =
+/// 条目 id（非新分配）；价格波动/库存抽取序不变
 inline state::MerchantItem generateTradeEquipmentItem(
     rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
-    const auto& tpl = pickTradeTemplate(rngLocal, data::equipmentTemplates(), rarity);
+    std::vector<const data::EquipPieceEntry*> pool;
+    for (const auto& e : data::equipmentEntries()) {
+        if (e.rarity == rarity) pool.push_back(&e);
+    }
+    if (pool.empty()) {
+        for (const auto& e : data::equipmentEntries()) pool.push_back(&e);
+    }
+    const data::EquipPieceEntry entry =
+        *pool[static_cast<std::size_t>(
+            rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
     state::MerchantItem item;
     item.id = nextTradeItemId();
-    item.name = tpl.name;
+    item.name = entry.name;
     item.type = "equipment";
-    item.itemId = nextTradeItemId();
-    item.rarity = tpl.rarity;
-    item.price = sectTradePriceFluctuation(static_cast<int64_t>(tpl.price), rngLocal);
+    item.itemId = entry.id;
+    item.rarity = entry.rarity;
+    item.price = sectTradePriceFluctuation(static_cast<int64_t>(entry.price), rngLocal);
     item.quantity = sectTradeStock(rngLocal, "equipment", rarity);
     item.obtainedYear = year;
     item.obtainedMonth = 1;
@@ -1244,7 +1256,8 @@ inline void runYearSettlement(state::GameState& state,
     detail::runYearlyReportSnapshot(state);
     // #8 autoBuy（merchant_settlement.h；年变 T1 无条件调用
     // executeAutoBuy——与月变 12 月同函数，1 月执行新年购买）
-    merchant_settle::executeAutoBuy(state);
+    merchant_settle::executeAutoBuy(
+        state, rng.getRng(rng::RngPartition::kEquipment));
 
     // ── T2 延迟组（Kotlin yearlyOpsQueue 分帧 drain；C++ 无分帧——
     //    子项按原相对序同步执行）──

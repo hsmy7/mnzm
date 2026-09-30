@@ -59,7 +59,7 @@ class PatrolBattleSystemTest {
     private fun emptyState() = MutableGameState(
         gameData = GameData(patrolConfigs = listOf(PatrolConfig()), gameYear = 5, gameMonth = 6),
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
+        equipmentInstances = EntityStore(),
         manualStacks = EntityStore(), manualInstances = EntityStore(),
         pills = EntityStore(), materials = EntityStore(),
         herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),

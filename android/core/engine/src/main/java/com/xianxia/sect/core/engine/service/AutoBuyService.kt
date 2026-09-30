@@ -16,6 +16,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import java.util.Locale
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.engine.system.canAddItemInTransaction
@@ -34,7 +36,9 @@ class AutoBuyService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
     private val merchantAndRecruitService: MerchantAndRecruitService,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val merchantConverter: com.xianxia.sect.core.engine.system.MerchantItemConverter,
+    private val gameRngManagerForAutoBuy: com.xianxia.sect.core.util.GameRngManager
 ) {
     companion object {
         /**
@@ -186,10 +190,7 @@ class AutoBuyService @Inject constructor(
     private fun MutableGameState.canAddToWarehouse(item: MerchantItem): Boolean {
         if (!inventorySystem.canAddItemInTransaction(this)) return false
         return when (item.type.lowercase(Locale.ROOT)) {
-            "equipment" -> {
-                val eq = MerchantItemConverter.toEquipment(item)
-                inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)
-            }
+            "equipment" -> inventorySystem.canAddEquipment()
             "manual" -> {
                 val m = MerchantItemConverter.toManual(item)
                 inventorySystem.canAddManual(m.name, m.rarity, m.type)
@@ -229,8 +230,13 @@ class AutoBuyService @Inject constructor(
     ) {
         inventorySystem.withTrackingSource("merchant") {
             when (item.type.lowercase(Locale.ROOT)) {
-                "equipment" ->
-                    inventorySystem.addEquipmentStack(MerchantItemConverter.toEquipment(item).copy(quantity = quantity))
+                "equipment" -> {
+                    // B3 实例轨：quantity 件 = quantity 条实例（EQUIPMENT 分区确定性 roll）
+                    val kr = gameRngManagerForAutoBuy.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+                    repeat(quantity) {
+                        inventorySystem.addEquipmentInstance(merchantConverter.toEquipment(item, kr))
+                    }
+                }
                 "manual" ->
                     inventorySystem.addManualStack(MerchantItemConverter.toManual(item).copy(quantity = quantity))
                 "pill" ->

@@ -4,7 +4,7 @@ import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.WATCHABLE_ITEM_TYPES
 import com.xianxia.sect.core.util.normalizeItemType
@@ -15,7 +15,8 @@ import com.xianxia.sect.core.util.watchKey
  * 覆盖 ItemDetailDialog 全部分派类型；未来新增物品类别仅需追加分支。
  */
 fun watchKeyOf(item: Any?): String? = when (item) {
-    is EquipmentDatabase.EquipmentTemplate -> watchKey("equipment", item.name)
+    // B3 实例轨：装备关注键 = 实例 id（一件一键；模板类型已退役）
+    is EquipmentInstance -> watchKey("equipment", item.id)
     is ManualDatabase.ManualTemplate -> watchKey("manual", item.name)
     is MerchantItem -> {
         val type = normalizeItemType(item.type)

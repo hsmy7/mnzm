@@ -189,8 +189,7 @@ struct CombatBuff {
 
 /// 技能类型（Kotlin SkillType）
 enum class SkillType : int32_t { kAttack = 0, kSupport = 1 };
-/// 伤害类型（Kotlin DamageType）
-enum class DamageType : int32_t { kPhysical = 0, kMagic = 1 };
+// DamageType 已前置定义于 battle.h（单列口径 B1 依赖前置可见）
 /// 治疗类型（Kotlin HealType）
 enum class HealType : int32_t { kHp = 0, kMp = 1 };
 /// 阵营（Kotlin CombatantSide）
@@ -231,12 +230,20 @@ struct Combatant {
     int32_t maxHp = 0;
     int32_t mp = 0;
     int32_t maxMp = 0;
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
+    // 单列口径（B1，方案 §15）：攻防各一列；物法之分走三条通道
+    //（普攻 innateDamageType / 技能 damageType / 类型增减伤分桶，默认 0 ⇒ S19）
+    int32_t attack = 0;
+    int32_t defense = 0;
+    DamageType innateDamageType = DamageType::kPhysical;
+    double physicalDamageBonus = 0.0;
+    double magicDamageBonus = 0.0;
+    double physicalDamageReduction = 0.0;
+    double magicDamageReduction = 0.0;
     int32_t speed = 0;
     double critRate = 0.05;
+    // 暴击伤害加成（B3 接线 D3：暴击时 critMult = 1 + 基础暴伤 + 本字段；
+    // 来源 = EquipStatResolver.critDamage（套装 4 件档等），默认 0.0 逐位一致）
+    double critDamageBonus = 0.0;
     std::vector<CombatSkill> skills;
     std::vector<CombatBuff> buffs;
     int32_t realm = 9;
@@ -263,30 +270,6 @@ struct Combatant {
         return sum;
     }
 
-    int32_t effectivePhysicalAttack() const {
-        const double v = physicalAttack *
-            (1.0 + buffSum(BuffType::kPhysicalAttackBoost) -
-             buffSum(BuffType::kPhysicalAttackReduce));
-        return std::max(0, static_cast<int32_t>(v));
-    }
-    int32_t effectiveMagicAttack() const {
-        const double v = magicAttack *
-            (1.0 + buffSum(BuffType::kMagicAttackBoost) -
-             buffSum(BuffType::kMagicAttackReduce));
-        return std::max(0, static_cast<int32_t>(v));
-    }
-    int32_t effectivePhysicalDefense() const {
-        const double v = physicalDefense *
-            (1.0 + buffSum(BuffType::kPhysicalDefenseBoost) -
-             buffSum(BuffType::kPhysicalDefenseReduce));
-        return std::max(0, static_cast<int32_t>(v));
-    }
-    int32_t effectiveMagicDefense() const {
-        const double v = magicDefense *
-            (1.0 + buffSum(BuffType::kMagicDefenseBoost) -
-             buffSum(BuffType::kMagicDefenseReduce));
-        return std::max(0, static_cast<int32_t>(v));
-    }
     double effectiveCritRate() const {
         return std::max(0.0, critRate + buffSum(BuffType::kCritRateBoost) -
                                  buffSum(BuffType::kCritRateReduce));
@@ -308,12 +291,13 @@ struct Combatant {
 // buildDamageZones（Kotlin BattleCalculator.buildDamageZones）
 // ============================================================
 
-/// 从 Combatant 的 Buff 列表构建战斗乘区（单遍历分桶求和——物理/魔法
-/// 互不干扰 + 增伤桶；防守方 DAMAGE_REDUCTION 求和 + 境界三因子）
+/// 从 Combatant 的 Buff 列表构建战斗乘区（单遍历分桶求和；单列口径 B1——
+/// 物法攻 buff 迁移为类型增伤分桶、物法防 buff 迁移为类型减伤分桶）
 inline DamageZones buildDamageZones(const Combatant& attacker,
                                     const Combatant* defender = nullptr,
                                     double extraAmplification = 0.0) {
     double physBoost = 0.0, physReduce = 0.0, magBoost = 0.0, magReduce = 0.0;
+    double physDefBoost = 0.0, physDefReduce = 0.0, magDefBoost = 0.0, magDefReduce = 0.0;
     double dmgBoost = 0.0;
     for (const auto& buff : attacker.buffs) {
         switch (buff.type) {
@@ -328,13 +312,22 @@ inline DamageZones buildDamageZones(const Combatant& attacker,
     double dmgReduce = 0.0;
     if (defender) {
         for (const auto& buff : defender->buffs) {
-            if (buff.type == BuffType::kDamageReduction) dmgReduce += buff.value;
+            switch (buff.type) {
+                case BuffType::kDamageReduction: dmgReduce += buff.value; break;
+                case BuffType::kPhysicalDefenseBoost: physDefBoost += buff.value; break;
+                case BuffType::kPhysicalDefenseReduce: physDefReduce += buff.value; break;
+                case BuffType::kMagicDefenseBoost: magDefBoost += buff.value; break;
+                case BuffType::kMagicDefenseReduce: magDefReduce += buff.value; break;
+                default: break;
+            }
         }
     }
     // 境界压制因子（Kotlin realmGapFactorsOf）
     DamageZones zones;
     zones.physicalAttackBuffs = physBoost - physReduce;
     zones.magicAttackBuffs = magBoost - magReduce;
+    zones.physicalDefenseBuffs = physDefBoost - physDefReduce;
+    zones.magicDefenseBuffs = magDefBoost - magDefReduce;
     zones.damageAmplification = dmgBoost + extraAmplification;
     zones.damageReduction = dmgReduce;
     if (defender) {
@@ -379,7 +372,7 @@ inline std::optional<DamageResult> tryInstantKill(const Combatant& attacker,
     }
     const bool isPhysical =
         skill ? skill->damageType == DamageType::kPhysical
-              : attacker.physicalAttack >= attacker.magicAttack;
+              : attacker.innateDamageType == DamageType::kPhysical;
     DamageResult r;
     r.damage = std::max(0, defender.maxHp);  // T-C2：maxHp 篡改钳制
     r.isCrit = false;
@@ -406,7 +399,7 @@ inline std::optional<DamageResult> tryDodge(const Combatant& attacker,
     r.isCrit = false;
     r.isPhysical = isSkillAttack
         ? (skill ? skill->damageType == DamageType::kPhysical : true)
-        : attacker.physicalAttack >= attacker.magicAttack;
+        : attacker.innateDamageType == DamageType::kPhysical;
     r.isDodged = true;
     r.hits = skill ? skill->hits : 1;
     return r;
@@ -421,28 +414,32 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
                                           const DamageZones* zones,
                                           bool isSkillAttack,
                                           rng::DeterministicRng& rng) {
+    // 单列口径（B1）：技能按 skill->damageType、普攻按固有伤害属性
     const bool isPhysical = isSkillAttack
         ? (skill ? skill->damageType == DamageType::kPhysical : true)
-        : attacker.physicalAttack >= attacker.magicAttack;
-    const int32_t attack =
-        isPhysical ? attacker.physicalAttack : attacker.magicAttack;
-    const int32_t defense =
-        isPhysical ? defender.effectivePhysicalDefense() : defender.effectiveMagicDefense();
+        : attacker.innateDamageType == DamageType::kPhysical;
+    const int32_t attack = attacker.attack;
+    const int32_t defense = defender.defense;
 
     const bool isCrit = rng.nextDouble() < attacker.effectiveCritRate();
     const double skillMultiplier = skill ? skill->damageMultiplier : 1.0;
     const double variance = calculateDamageVariance(rng);
 
     DamageZones baseZones = zones ? *zones : buildDamageZones(attacker, &defender);
-    // 攻击 Buff 按攻击类型注入分桶 + damageModifier 注入增伤乘区
-    baseZones.attackBuffs = baseZones.attackBuffs +
+    // 类型通道选桶合并（固有类型桶 + buff 分桶 → 结算位）+ damageModifier 注入
+    baseZones.typeDamageBonus =
+        (isPhysical ? attacker.physicalDamageBonus : attacker.magicDamageBonus) +
         (isPhysical ? baseZones.physicalAttackBuffs : baseZones.magicAttackBuffs);
+    baseZones.typeDamageReduction =
+        (isPhysical ? defender.physicalDamageReduction : defender.magicDamageReduction) +
+        (isPhysical ? baseZones.physicalDefenseBuffs : baseZones.magicDefenseBuffs);
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
     // 多段伤害：单段 × 段数（Long 防溢出；hits 篡改钳制 1）
     const int32_t safeHits = std::max(1, skill ? skill->hits : 1);
     const int64_t total = static_cast<int64_t>(calculateFinalDamage(
-        attack, defense, skillMultiplier, baseZones, isCrit, variance)) * safeHits;
+        attack, defense, skillMultiplier, baseZones, isCrit, variance,
+        attacker.critDamageBonus)) * safeHits;
     const int64_t clamped =
         std::clamp(total, static_cast<int64_t>(kMinDamage), static_cast<int64_t>(INT32_MAX));
 
@@ -502,10 +499,11 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
         return r;
     }
 
+    // 单列口径（B1）：无技能时按攻击方固有伤害属性判定
     const bool usePhysical = isPhysicalAttack.value_or(
-        attacker.physicalAttack >= attacker.magicAttack);
-    const int32_t attack = usePhysical ? attacker.physicalAttack : attacker.magicAttack;
-    const int32_t defense = usePhysical ? defender.physicalDefense : defender.magicDefense;
+        attacker.innateDamageType == DamageType::kPhysical);
+    const int32_t attack = attacker.attack;
+    const int32_t defense = defender.defense;
 
     // CombatantStats.effectiveCritRate 默认实现返回基础 critRate（Kotlin 接口默认值）
     const bool isCrit = rng.nextDouble() < attacker.critRate;
@@ -519,7 +517,8 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
 
     const double variance = calculateDamageVariance(rng);
     const int32_t finalDamage = calculateFinalDamage(
-        attack, defense, skillDamageMultiplier, zonesWithRealmGap, isCrit, variance);
+        attack, defense, skillDamageMultiplier, zonesWithRealmGap, isCrit, variance,
+        attacker.critDamageBonus);
 
     DamageResult r;
     r.damage = finalDamage;
@@ -539,30 +538,35 @@ inline int32_t estimateDamage(const Combatant& attacker, const Combatant& defend
                               const CombatSkill& skill, const DamageZones* zones = nullptr,
                               double damageModifier = 1.0) {
     const bool isPhysical = skill.damageType == DamageType::kPhysical;
-    const int32_t atk = isPhysical ? attacker.physicalAttack : attacker.magicAttack;
-    const int32_t def =
-        isPhysical ? defender.effectivePhysicalDefense() : defender.effectiveMagicDefense();
+    const int32_t atk = attacker.attack;
+    const int32_t def = defender.defense;
 
     DamageZones baseZones = zones ? *zones : buildDamageZones(attacker, &defender);
-    baseZones.attackBuffs = baseZones.attackBuffs +
+    // 类型通道选桶合并（与实际伤害一致）
+    baseZones.typeDamageBonus =
+        (isPhysical ? attacker.physicalDamageBonus : attacker.magicDamageBonus) +
         (isPhysical ? baseZones.physicalAttackBuffs : baseZones.magicAttackBuffs);
+    baseZones.typeDamageReduction =
+        (isPhysical ? defender.physicalDamageReduction : defender.magicDamageReduction) +
+        (isPhysical ? baseZones.physicalDefenseBuffs : baseZones.magicDefenseBuffs);
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
-    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤)
-    const double buffCritMult = 1.0 + kCritBaseMultiplier;
+    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤+暴伤加成)（B3 D3 同式）
+    const double buffCritMult =
+        1.0 + kCritBaseMultiplier + attacker.critDamageBonus;
     const double critRate = clamp(attacker.effectiveCritRate(), 0.0, 1.0);
     const double avgCritMult =
         (1.0 - critRate) * 1.0 + critRate * buffCritMult;
 
     const double reduction = def / (def + kDefenseConstant);
 
-    const double preCritDmg = static_cast<double>(atk) * (1.0 + baseZones.attackBuffs) *
+    const double preCritDmg = static_cast<double>(atk) *
         skill.damageMultiplier * (1.0 - reduction);
     const double rawDmg = preCritDmg * avgCritMult *
-        (1.0 + baseZones.damageAmplification) *
+        (1.0 + baseZones.damageAmplification + baseZones.typeDamageBonus) *
         (1.0 + baseZones.realmGapDamageAmplification) *
         (1.0 + baseZones.majorRealmDamageAmplification) *
-        (1.0 - baseZones.damageReduction) *
+        (1.0 - baseZones.damageReduction - baseZones.typeDamageReduction) *
         (1.0 - baseZones.realmGapDamageReduction) * skill.hits;
     return std::max(kMinDamage, static_cast<int32_t>(rawDmg));
 }

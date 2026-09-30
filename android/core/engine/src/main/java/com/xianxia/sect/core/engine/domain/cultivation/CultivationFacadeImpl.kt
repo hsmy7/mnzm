@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.road.RoadFacade
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
+import com.xianxia.sect.core.engine.service.EquipmentUpgradeService
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import javax.inject.Inject
@@ -16,6 +17,7 @@ import javax.inject.Singleton
 class CultivationFacadeImpl @Inject constructor(
     override val cultivationService: CultivationService,
     override val discipleService: DiscipleService,
+    override val equipmentUpgradeService: EquipmentUpgradeService,
     override val productionCoordinator: ProductionCoordinator,
     override val formulaService: FormulaService,
     override val discipleFacade: DiscipleFacade,

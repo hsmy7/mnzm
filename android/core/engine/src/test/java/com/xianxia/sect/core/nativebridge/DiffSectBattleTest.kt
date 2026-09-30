@@ -89,10 +89,8 @@ class DiffSectBattleTest {
         put("maxHp", c.maxHp)
         put("mp", c.mp)
         put("maxMp", c.maxMp)
-        put("physicalAttack", c.physicalAttack)
-        put("magicAttack", c.magicAttack)
-        put("physicalDefense", c.physicalDefense)
-        put("magicDefense", c.magicDefense)
+        put("attack", c.attack)
+        put("defense", c.defense)
         put("speed", c.speed)
         put("critRate", c.critRate)
         putJsonArray("skills") { c.skills.forEach { add(skillJson(it)) } }
@@ -213,15 +211,15 @@ class DiffSectBattleTest {
             )
         )
         val attacker2 = baseCombatant("a2", "攻二").copy(
-            side = CombatantSide.ATTACKER, physicalAttack = 180,
-            physicalDefense = 90, speed = 60,
+            side = CombatantSide.ATTACKER, attack = 180,
+            defense = 90, speed = 60,
             skills = listOf(attackSkill("碎岩击", 1.7, 10, 2))
         )
         val defender1 = baseCombatant("d1", "守一").copy(
             skills = listOf(attackSkill("重斩", 1.8, 10, 2))
         )
         val defender2 = baseCombatant("d2", "守二").copy(
-            magicAttack = 140, magicDefense = 70, speed = 75,
+            
             skills = listOf(attackSkill("冰锥", 1.9, 12, 2))
         )
         for (seed in longArrayOf(42, 20260901, 987654321)) {
@@ -244,10 +242,10 @@ class DiffSectBattleTest {
             skills = listOf(stunSkill("定身咒", 15, 3))
         )
         val defender1 = baseCombatant("d1", "守一").copy(
-            hp = 500, physicalAttack = 160
+            hp = 500, attack = 160
         )
         val defender2 = baseCombatant("d2", "守二").copy(
-            physicalAttack = 150
+            attack = 150
         )
         for (seed in longArrayOf(7, 99, 2024)) {
             runAiBattleDiff(seed, listOf(healer, controller), listOf(defender1, defender2))
@@ -266,7 +264,7 @@ class DiffSectBattleTest {
         )
         val defenders = (1..3).map { i ->
             baseCombatant("d$i", "守$i").copy(
-                hp = 600, maxHp = 600, physicalAttack = 100 + i * 20
+                hp = 600, maxHp = 600, attack = 100 + i * 20
             )
         }
         for (seed in longArrayOf(42, 555)) {
@@ -299,11 +297,11 @@ class DiffSectBattleTest {
         // 攻击方境界压制 → 快速全灭防御方 → ATTACKER 胜利
         val overPowered = baseCombatant("a1", "高境界").copy(
             side = CombatantSide.ATTACKER, realm = 5, realmLayer = 9,
-            physicalAttack = 500,
+            attack = 500,
             skills = listOf(attackSkill("破军斩", 3.0, 20, 3))
         )
         val weakDefender = baseCombatant("d1", "弱守").copy(
-            realm = 8, hp = 300, maxHp = 300, physicalDefense = 20
+            realm = 8, hp = 300, maxHp = 300, defense = 20
         )
         for (seed in longArrayOf(1, 42)) {
             runAiBattleDiff(seed, listOf(overPowered), listOf(weakDefender))
@@ -320,8 +318,7 @@ class DiffSectBattleTest {
         id = id, name = name,
         side = CombatantSide.DEFENDER,
         hp = 1000, maxHp = 1000, mp = 100, maxMp = 100,
-        physicalAttack = 120, magicAttack = 100,
-        physicalDefense = 60, magicDefense = 50,
+        attack = 120, defense = 60,
         speed = 80, critRate = 0.15,
         skills = emptyList(),
         realm = 9, realmLayer = 1

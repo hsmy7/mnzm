@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.road.RoadFacade
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
+import com.xianxia.sect.core.engine.service.EquipmentUpgradeService
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 
@@ -16,6 +17,7 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 interface CultivationFacade {
     val cultivationService: CultivationService
     val discipleService: DiscipleService
+    val equipmentUpgradeService: EquipmentUpgradeService
     val productionCoordinator: ProductionCoordinator
     val formulaService: FormulaService
     val discipleFacade: DiscipleFacade

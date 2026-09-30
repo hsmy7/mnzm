@@ -244,10 +244,9 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["templateId"] = d.templateId;
     out["hpVariance"] = d.hpVariance;
     out["mpVariance"] = d.mpVariance;
-    out["physicalAttackVariance"] = d.physicalAttackVariance;
-    out["magicAttackVariance"] = d.magicAttackVariance;
-    out["physicalDefenseVariance"] = d.physicalDefenseVariance;
-    out["magicDefenseVariance"] = d.magicDefenseVariance;
+    out["attackVariance"] = d.attackVariance;
+    out["defenseVariance"] = d.defenseVariance;
+    out["innateDamageType"] = d.innateDamageType;
     out["speedVariance"] = d.speedVariance;
     out["comprehension"] = d.comprehension;
     out["intelligence"] = d.intelligence;
@@ -260,10 +259,8 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
     out["teaching"] = d.teaching;
     out["baseHp"] = d.baseHp;
     out["baseMp"] = d.baseMp;
-    out["basePhysicalAttack"] = d.basePhysicalAttack;
-    out["baseMagicAttack"] = d.baseMagicAttack;
-    out["basePhysicalDefense"] = d.basePhysicalDefense;
-    out["baseMagicDefense"] = d.baseMagicDefense;
+    out["baseAttack"] = d.baseAttack;
+    out["baseDefense"] = d.baseDefense;
     out["baseSpeed"] = d.baseSpeed;
     return env->NewStringUTF(out.dump().c_str());
 }
@@ -650,10 +647,8 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         in.realmLayer = op.value("realmLayer", 1);
         in.hpVariance = op.value("hpVariance", 0);
         in.mpVariance = op.value("mpVariance", 0);
-        in.physicalAttackVariance = op.value("physicalAttackVariance", 0);
-        in.magicAttackVariance = op.value("magicAttackVariance", 0);
-        in.physicalDefenseVariance = op.value("physicalDefenseVariance", 0);
-        in.magicDefenseVariance = op.value("magicDefenseVariance", 0);
+        in.attackVariance = op.value("attackVariance", 0);
+        in.defenseVariance = op.value("defenseVariance", 0);
         in.speedVariance = op.value("speedVariance", 0);
         in.intelligence = op.value("intelligence", 0);
         in.charm = op.value("charm", 0);
@@ -667,8 +662,7 @@ nlohmann::json execDiscipleOp(const nlohmann::json& op) {
         const auto s = gamecore::disciple::computeBaseStats(in);
         result = {
             {"maxHp", s.maxHp}, {"maxMp", s.maxMp},
-            {"physicalAttack", s.physicalAttack}, {"magicAttack", s.magicAttack},
-            {"physicalDefense", s.physicalDefense}, {"magicDefense", s.magicDefense},
+            {"attack", s.attack}, {"defense", s.defense},
             {"speed", s.speed}, {"critRate", s.critRate},
             {"intelligence", s.intelligence}, {"charm", s.charm},
             {"comprehension", s.comprehension},
@@ -1065,9 +1059,12 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
         DamageZones zones;
         if (op.contains("zones")) {
             const auto& z = op.at("zones");
-            zones.attackBuffs = z.value("attackBuffs", 0.0);
             zones.physicalAttackBuffs = z.value("physicalAttackBuffs", 0.0);
             zones.magicAttackBuffs = z.value("magicAttackBuffs", 0.0);
+            zones.physicalDefenseBuffs = z.value("physicalDefenseBuffs", 0.0);
+            zones.magicDefenseBuffs = z.value("magicDefenseBuffs", 0.0);
+            zones.typeDamageBonus = z.value("typeDamageBonus", 0.0);
+            zones.typeDamageReduction = z.value("typeDamageReduction", 0.0);
             zones.damageAmplification = z.value("damageAmplification", 0.0);
             zones.damageReduction = z.value("damageReduction", 0.0);
             zones.realmGapDamageAmplification = z.value("realmGapDamageAmplification", 0.0);
@@ -1115,9 +1112,12 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
         if (op.contains("zones") && !op["zones"].is_null()) {
             gamecore::battle::DamageZones z;
             const auto& zj = op.at("zones");
-            z.attackBuffs = zj.value("attackBuffs", 0.0);
             z.physicalAttackBuffs = zj.value("physicalAttackBuffs", 0.0);
             z.magicAttackBuffs = zj.value("magicAttackBuffs", 0.0);
+            z.physicalDefenseBuffs = zj.value("physicalDefenseBuffs", 0.0);
+            z.magicDefenseBuffs = zj.value("magicDefenseBuffs", 0.0);
+            z.typeDamageBonus = zj.value("typeDamageBonus", 0.0);
+            z.typeDamageReduction = zj.value("typeDamageReduction", 0.0);
             z.damageAmplification = zj.value("damageAmplification", 0.0);
             z.damageReduction = zj.value("damageReduction", 0.0);
             z.realmGapDamageAmplification = zj.value("realmGapDamageAmplification", 0.0);
@@ -1244,8 +1244,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreBattleOp(
 //   {"op":"walletAdd","grade":"LOW","amount":100,"source":"Battle"}
 //   {"op":"walletDeduct","grade":"LOW","amount":50,"reason":"Purchase","source":"Internal","autoConvert":true}
 //   {"op":"walletBatch","autoConvert":false,"ops":[{...delta/grade/reason/source}]}
-//   {"op":"invAddEquipment","id":"eq-1","name":"木剑","rarity":1,"slot":"WEAPON","quantity":5,
-//     "source":"battle","suppressed":false}
+//   {"op":"invAddEquipment", <EquipmentInstance JSON 形状——B3 单轨实例>}
 //   {"op":"invAddPill",...,"category":"CULTIVATION","grade":"MEDIUM"}
 //   {"op":"invAddMaterial",...,"category":"BEAST_HIDE"}
 //   {"op":"invAddHerb",...,"category":"灵草"}
@@ -1259,7 +1258,7 @@ namespace {
 
 using gamecore::system::SpiritStoneGrade;
 using gamecore::system::spiritStoneGradeFromName;
-using gamecore::state::EquipmentStack;
+using gamecore::state::EquipmentInstance;
 using gamecore::state::ManualStack;
 using gamecore::state::Material;
 using gamecore::state::Pill;
@@ -1272,16 +1271,9 @@ SpiritStoneGrade gradeFromJson(const nlohmann::json& j) {
     return SpiritStoneGrade::LOW;
 }
 
-/// 构造装备堆叠（invAddEquipment / invRemove 共用字段）
-EquipmentStack equipmentFromJson(const nlohmann::json& op) {
-    EquipmentStack e;
-    e.id = op.value("id", "");
-    e.name = op.value("name", "");
-    e.rarity = op.value("rarity", 1);
-    e.slot = op.value("slot", "WEAPON");
-    e.quantity = op.value("quantity", 1);
-    e.isLocked = op.value("isLocked", false);
-    return e;
+/// 构造装备实例（invAddEquipment；B3 单轨实例——JSON 形状走 json_codec 适配器）
+EquipmentInstance equipmentFromJson(const nlohmann::json& op) {
+    return op.get<EquipmentInstance>();
 }
 
 ManualStack manualFromJson(const nlohmann::json& op) {
@@ -1420,12 +1412,10 @@ nlohmann::json execOp(gamecore::GameCore* core, nlohmann::json& result,
         rj["results"] = results;
         result["lastBatch"] = rj;
     } else if (opName == "invAddEquipment") {
-        gamecore::system::OverflowMailCollector mail;
-        const auto r = gamecore::system::addEquipmentStack(
-            state, equipmentFromJson(op), mail, op.value("source", "unknown"),
-            op.value("suppressed", false));
+        // B3 单轨实例：校验（id/name/rarity/重复 id）直加入实例表（无溢出面）
+        const auto r = gamecore::system::addEquipmentInstance(
+            state, equipmentFromJson(op));
         result["lastInventory"] = inventoryResultToJson(r);
-        result["overflowMails"] = mail.all().size();
     } else if (opName == "invAddManual") {
         gamecore::system::OverflowMailCollector mail;
         const auto r = gamecore::system::addManualStack(

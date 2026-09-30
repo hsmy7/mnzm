@@ -3,9 +3,11 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -15,15 +17,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.speedVariance
 import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.engine.generateRandomEquipment
@@ -81,12 +79,10 @@ object CaveExplorationSystem {
         playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>
     ): List<Combatant> = playerDisciples.map { disciple ->
-        val discipleEquipment = buildMap {
-            disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-        }
+        // 装备重构 B3 六部位口径：收集弟子全部已穿戴实例（id 为空串 = 未穿戴）
+        val discipleEquipment = disciple.equipment.equippedItemIds
+            .mapNotNull { id -> playerEquipmentMap[id]?.let { id to it } }
+            .toMap()
         val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
         val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
         val stats = disciple.getFinalStats(
@@ -117,10 +113,9 @@ object CaveExplorationSystem {
             maxHp = stats.maxHp,
             mp = effectiveMp,
             maxMp = stats.maxMp,
-            physicalAttack = stats.physicalAttack,
-            magicAttack = stats.magicAttack,
-            physicalDefense = stats.physicalDefense,
-            magicDefense = stats.magicDefense,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = disciple.resolvedInnateDamageType(),
             speed = stats.speed,
             critRate = stats.critRate,
             skills = skills,
@@ -148,13 +143,15 @@ object CaveExplorationSystem {
 
         val hp = (stats.hp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
         val mp = (stats.mp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
-        val physicalAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
-        val magicAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
-        val physicalDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
-        val magicDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val attack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val defense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
         val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
 
         val beastSkills = createBeastSkills(beastType = beastType)
+        // 妖兽伤害类型按种类元素固定（§15.3：金/土→物理、水/木/火→法术）
+        val innateType =
+            if (beastType.element == "metal" || beastType.element == "earth") DamageType.PHYSICAL
+            else DamageType.MAGIC
 
         val guardianName =
             if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"
@@ -167,10 +164,9 @@ object CaveExplorationSystem {
             maxHp = hp,
             mp = mp,
             maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
+            attack = attack,
+            defense = defense,
+            innateDamageType = innateType,
             speed = speed,
             critRate = 0.05 + realmIndex * 0.01 + if (isBoss) 0.1 else 0.0,
             skills = beastSkills,
@@ -275,19 +271,18 @@ object CaveExplorationSystem {
     private fun generateRandomEquipment(rarity: Int): CaveRewardItem? {
         var currentRarity = rarity
         while (currentRarity >= 1) {
-            val allEquipment = EquipmentDatabase.weapons.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.armors.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.boots.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.accessories.values.filter { it.rarity == currentRarity }
-            
-            if (allEquipment.isNotEmpty()) {
-                val template = allEquipment[rng.nextInt(allEquipment.size)]
+            // 装备重构 B3：72 条部件×品阶展开条目单源表按品阶过滤，
+            // itemId = 展开条目 id（"{pieceId}_r{rarity}"），由上层按 id 解析
+            val candidates = EquipmentDatabase.getByRarity(currentRarity)
+
+            if (candidates.isNotEmpty()) {
+                val entry = candidates[rng.nextInt(candidates.size)]
                 return CaveRewardItem(
                     type = "equipment",
-                    name = template.name,
+                    name = entry.name,
                     quantity = 1,
                     rarity = currentRarity,
-                    itemId = template.id
+                    itemId = entry.id
                 )
             }
             currentRarity--

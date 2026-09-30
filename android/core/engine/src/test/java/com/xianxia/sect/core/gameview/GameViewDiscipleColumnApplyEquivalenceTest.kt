@@ -2,12 +2,10 @@ package com.xianxia.sect.core.gameview
 
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.nativebridge.MirrorProtoFeedFixture
 import com.xianxia.sect.proto.gameview.DiscipleRow
-import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.StringIntEntry
 import com.xianxia.sect.proto.gameview.StringStringEntry
 import com.google.protobuf.ByteString
@@ -35,7 +33,7 @@ import org.robolectric.RobolectricTestRunner
  * ③ changedIdTracker 净效果全等（增量组装基建依赖）。
  *
  * 场景覆盖：热路径标量、全行 emit-always、repeated 整列替换、映射列、
- * 孕养嵌套消息 overlay（含部分子字段）、储物袋
+ * 装备六部位列（B3 孕养嵌套消息列退役后的装备面）、储物袋
  * 三表达（typed 携带 / present 清空 / 75-only 的 typed 优先怪语义）、usage
  * 集合与布尔、空补丁、新行/幽灵行回退契约。
  */
@@ -90,27 +88,17 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
     }
 
     @Test
-    fun `孕养嵌套消息 overlay 直写等价（全字段与部分子字段）`() {
-        val base = baseDisciple().copy(
-            equipment = baseDisciple().equipment.copy(
-                weaponNurture = EquipmentNurtureData("w1", 3, 4, 55.0),
-            ),
-        )
-        // 部分子字段消息：全行臂对消息列是整值替换（clearer 先清 + mergeFrom
-        // 整值写入），absent 子字段按域默认——直写同净效果
-        assertEquivalence("孕养部分子字段", base) {
-            weaponNurture = EquipmentNurtureDataView.newBuilder()
-                .setNurtureLevel(9)
-                .build()
-        }
-        // 全字段消息：整值覆盖
-        assertEquivalence("孕养全字段", base) {
-            armorNurture = EquipmentNurtureDataView.newBuilder()
-                .setEquipmentId("a2")
-                .setRarity(5)
-                .setNurtureLevel(6)
-                .setNurtureProgress(77.5)
-                .build()
+    fun `装备六部位列直写等价（头身手脚武腿整列替换）`() {
+        // B3 装备重构：孕养嵌套消息列退役，装备面 = 六部位 id 标量列
+        // （head/body/hands/feet/weapon/legs，GameViewDiscipleRows.applyEquipmentPatchColumns
+        // 同清单）——直写与全行合并臂仍须逐列全等
+        assertEquivalence("六部位列") {
+            headId = "h1"
+            bodyId = "b2"
+            handsId = "h3"
+            feetId = "f4"
+            weaponId = "w5"
+            legsId = "l6"
         }
     }
 

@@ -10,10 +10,9 @@ import com.xianxia.sect.data.model.SaveData
  */
 class RuleContext(saveData: SaveData) {
 
-    /** 所有装备 ID（equipmentStacks + equipmentInstances 的 ID 并集） */
+    /** 所有装备 ID（equipmentInstances；装备堆叠已随 B3 移除堆叠退役） */
     val allEquipmentIds: Set<String> = run {
         val ids = mutableSetOf<String>()
-        saveData.equipmentStacks.forEach { ids.add(it.id) }
         saveData.equipmentInstances.forEach { ids.add(it.id) }
         ids
     }

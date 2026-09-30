@@ -21,8 +21,7 @@ class BattleDamageApplierTest {
     ) = Combatant(
         id = id, name = id, side = side,
         hp = hp, maxHp = maxHp, mp = 500, maxMp = 500,
-        physicalAttack = 100, magicAttack = 100,
-        physicalDefense = 50, magicDefense = 50,
+        attack = 100, defense = 50,
         speed = 100, critRate = 0.05,
         skills = emptyList(), buffs = buffs
     )

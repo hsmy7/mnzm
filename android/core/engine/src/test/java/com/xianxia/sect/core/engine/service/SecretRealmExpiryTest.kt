@@ -79,7 +79,6 @@ class SecretRealmExpiryTest {
     private fun createState(): MutableGameState = MutableGameState(
         gameData = GameData(),
         discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
         equipmentInstances = EntityStore(emptyList()),
         manualStacks = EntityStore(emptyList()),
         manualInstances = EntityStore(emptyList()),

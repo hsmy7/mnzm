@@ -45,10 +45,8 @@ object MapItemMapper {
                     defeated = level.defeated,
                     beastMaxHp = level.beastMaxHp,
                     beastMaxMp = level.beastMaxMp,
-                    beastPhysicalAttack = level.beastPhysicalAttack,
-                    beastMagicAttack = level.beastMagicAttack,
-                    beastPhysicalDefense = level.beastPhysicalDefense,
-                    beastMagicDefense = level.beastMagicDefense,
+                    beastAttack = level.beastAttackTotal,
+                    beastDefense = level.beastDefenseTotal,
                     beastSpeed = level.beastSpeed
                 )
             }

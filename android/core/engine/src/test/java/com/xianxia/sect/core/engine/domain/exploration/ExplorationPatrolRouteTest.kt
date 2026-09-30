@@ -82,15 +82,13 @@ class ExplorationPatrolRouteTest {
     private fun teamCombatant(id: String, hp: Int) = Combatant(
         id = id, name = "弟子$id", side = CombatantSide.DEFENDER,
         hp = hp, maxHp = 100, mp = 60, maxMp = 60,
-        physicalAttack = 30, magicAttack = 30, physicalDefense = 20,
-        magicDefense = 20, speed = 15, critRate = 0.05, skills = emptyList()
+        attack = 30, defense = 20, speed = 15, critRate = 0.05, skills = emptyList()
     )
 
     private fun beastCombatant(id: String, hp: Int) = Combatant(
         id = id, name = "妖兽", side = CombatantSide.ATTACKER,
         hp = hp, maxHp = 200, mp = 100, maxMp = 100,
-        physicalAttack = 40, magicAttack = 40, physicalDefense = 25,
-        magicDefense = 25, speed = 12, critRate = 0.05, skills = emptyList(),
+        attack = 40, defense = 25, speed = 12, critRate = 0.05, skills = emptyList(),
         isBeast = true
     )
 
@@ -167,8 +165,8 @@ class ExplorationPatrolRouteTest {
                         id = "b1", type = LevelType.BEAST, beastName = "妖兽甲",
                         beastType = 0, realm = 5, count = 2,
                         beastMaxHp = 200, beastMaxMp = 100,
-                        beastPhysicalAttack = 40, beastMagicAttack = 40,
-                        beastPhysicalDefense = 25, beastMagicDefense = 25,
+                        beastAttack = 40,
+                        beastDefense = 25,
                         beastSpeed = 12, realmLayer = 1,
                         expiryYear = 99, expiryMonth = 12
                     )
@@ -244,8 +242,8 @@ class ExplorationPatrolRouteTest {
         id = id, type = LevelType.BEAST, beastName = name,
         beastType = 0, realm = 5, count = 1,
         beastMaxHp = 200, beastMaxMp = 100,
-        beastPhysicalAttack = 40, beastMagicAttack = 40,
-        beastPhysicalDefense = 25, beastMagicDefense = 25,
+        beastAttack = 40,
+        beastDefense = 25,
         beastSpeed = 12, realmLayer = 1,
         expiryYear = 99, expiryMonth = 12
     )
@@ -273,8 +271,7 @@ class ExplorationPatrolRouteTest {
                 aiSectDisciples = aiSectDisciples,
                 worldMapSects = listOf(WorldSect(id = "sect1", name = "青云宗"))
             ),
-            discipleTables = tables,
-            equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
+            discipleTables = tables, equipmentInstances = EntityStore(),
             manualStacks = EntityStore(), manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),

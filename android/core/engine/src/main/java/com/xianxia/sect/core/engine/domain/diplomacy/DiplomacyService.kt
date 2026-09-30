@@ -358,16 +358,17 @@ class DiplomacyService @Inject constructor(
         rarity: Int,
         year: Int
     ): MerchantItem {
-        // 传入 rngLocal：装备名选择与类型/品阶同源，保证同 (sectId, year) 完全可复现
-        val equipment = EquipmentDatabase.generateRandom(rarity, rarity, rngLocal.asKotlinRandom())
-        val template = EquipmentDatabase.getTemplateByName(equipment.name)
-        val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
+        // 传入 rngLocal：装备名选择与类型/品阶同源，保证同 (sectId, year) 完全可复现。
+        // 按品阶过滤展开条目后随机取一条；该品阶无条目时按全局条目兜底（对齐旧 generateRandom 语义）
+        val pool = EquipmentDatabase.getByRarity(rarity).ifEmpty { EquipmentDatabase.entries.values.toList() }
+        val entry = pool.random(rngLocal.asKotlinRandom())
+        val basePrice = entry.price.toLong()
         return MerchantItem(
             id = UUID.randomUUID().toString(),
-            name = equipment.name,
+            name = entry.name,
             type = "equipment",
-            itemId = equipment.id,
-            rarity = equipment.rarity,
+            itemId = entry.id,
+            rarity = entry.rarity,
             price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
             quantity = calcMerchantStock(rngLocal = rngLocal, t = "equipment", r = rarity),
             obtainedYear = year,
@@ -764,8 +765,15 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
         inventorySystem.withTrackingSource("sect_trade") {
             when (item.type.lowercase()) {
                 "equipment" -> {
-                    val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
-                    handleSectTradeResult(inventorySystem.addEquipmentStack(eq), "装备 ${eq.name}")
+                    // B3 实例轨：quantity 件 = quantity 条实例（EQUIPMENT 分区 roll）
+                    val converter = com.xianxia.sect.core.engine.system.MerchantItemConverter.companionInstance
+                    var lastName = ""
+                    repeat(actualQuantity) {
+                        val kr = rngManager.getRng(com.xianxia.sect.core.util.RngPartition.EQUIPMENT).asKotlinRandom()
+                        val eq = converter.toEquipment(item, kr)
+                        lastName = eq.name
+                        handleSectTradeResult(inventorySystem.addEquipmentInstance(eq), "装备 ${eq.name}")
+                    }
                 }
                 "manual" -> {
                     val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)

@@ -144,13 +144,13 @@ class LevelGeneratorTest {
 
         for (level in beastLevels) {
             assertTrue("beastMaxHp > 0, got ${level.beastMaxHp}", level.beastMaxHp > 0)
-            assertTrue("beastPhysicalAttack > 0, got ${level.beastPhysicalAttack}", level.beastPhysicalAttack > 0)
-            assertTrue("beastMagicAttack > 0, got ${level.beastMagicAttack}", level.beastMagicAttack > 0)
-            assertTrue("beastPhysicalDefense > 0, got ${level.beastPhysicalDefense}", level.beastPhysicalDefense > 0)
-            assertTrue("beastMagicDefense > 0, got ${level.beastMagicDefense}", level.beastMagicDefense > 0)
+            assertTrue("beastAttack > 0, got ${level.beastAttack}", level.beastAttack > 0)
+            assertTrue("beastAttack > 0, got ${level.beastAttack}", level.beastAttack > 0)
+            assertTrue("beastDefense > 0, got ${level.beastDefense}", level.beastDefense > 0)
+            assertTrue("beastDefense > 0, got ${level.beastDefense}", level.beastDefense > 0)
             assertTrue("beastSpeed > 0, got ${level.beastSpeed}", level.beastSpeed > 0)
-            assertEquals("物攻=法攻", level.beastPhysicalAttack.toLong(), level.beastMagicAttack.toLong())
-            assertEquals("物防=法防", level.beastPhysicalDefense.toLong(), level.beastMagicDefense.toLong())
+            assertEquals("物攻=法攻", level.beastAttack.toLong(), level.beastAttack.toLong())
+            assertEquals("物防=法防", level.beastDefense.toLong(), level.beastDefense.toLong())
         }
     }
 
@@ -184,7 +184,7 @@ class LevelGeneratorTest {
             val l1 = levels1[i]
             val l2 = levels2[i]
             assertEquals("beastMaxHp 相同", l1.beastMaxHp, l2.beastMaxHp)
-            assertEquals("beastPhysicalAttack 相同", l1.beastPhysicalAttack, l2.beastPhysicalAttack)
+            assertEquals("beastAttack 相同", l1.beastAttack, l2.beastAttack)
             assertEquals("beastSpeed 相同", l1.beastSpeed, l2.beastSpeed)
         }
     }

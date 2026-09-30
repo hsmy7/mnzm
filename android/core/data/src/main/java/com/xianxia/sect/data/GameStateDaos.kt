@@ -1,7 +1,6 @@
 package com.xianxia.sect.data
 
 import com.xianxia.sect.data.local.EquipmentInstanceDao
-import com.xianxia.sect.data.local.EquipmentStackDao
 import com.xianxia.sect.data.local.HerbDao
 import com.xianxia.sect.data.local.ManualInstanceDao
 import com.xianxia.sect.data.local.ManualStackDao
@@ -23,7 +22,6 @@ import com.xianxia.sect.data.incremental.ChangeLogDao
 
 /** 物品域 DAO 分组 */
 data class ItemDaos(
-    val equipmentStackDao: EquipmentStackDao,
     val equipmentInstanceDao: EquipmentInstanceDao,
     val manualStackDao: ManualStackDao,
     val manualInstanceDao: ManualInstanceDao,

@@ -102,31 +102,24 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::CultivationCompletionMonth: return "cultivationCompletionMonth";
         case DiscipleColumn::ManualCompletionMonth: return "manualCompletionMonth";
         case DiscipleColumn::ManualCompletionPhase: return "manualCompletionPhase";
-        case DiscipleColumn::EquipmentNurturingCompletionMonth: return "equipmentNurturingCompletionMonth";
-        case DiscipleColumn::EquipmentNurturingCompletionPhase: return "equipmentNurturingCompletionPhase";
         case DiscipleColumn::BaseHp: return "baseHp";
         case DiscipleColumn::BaseMp: return "baseMp";
-        case DiscipleColumn::BasePhysicalAttack: return "basePhysicalAttack";
-        case DiscipleColumn::BaseMagicAttack: return "baseMagicAttack";
-        case DiscipleColumn::BasePhysicalDefense: return "basePhysicalDefense";
-        case DiscipleColumn::BaseMagicDefense: return "baseMagicDefense";
+        case DiscipleColumn::BaseAttack: return "baseAttack";
+        case DiscipleColumn::BaseDefense: return "baseDefense";
         case DiscipleColumn::BaseSpeed: return "baseSpeed";
         case DiscipleColumn::HpVariance: return "hpVariance";
         case DiscipleColumn::MpVariance: return "mpVariance";
-        case DiscipleColumn::PhysicalAttackVariance: return "physicalAttackVariance";
-        case DiscipleColumn::MagicAttackVariance: return "magicAttackVariance";
-        case DiscipleColumn::PhysicalDefenseVariance: return "physicalDefenseVariance";
-        case DiscipleColumn::MagicDefenseVariance: return "magicDefenseVariance";
+        case DiscipleColumn::AttackVariance: return "attackVariance";
+        case DiscipleColumn::DefenseVariance: return "defenseVariance";
+        case DiscipleColumn::InnateDamageType: return "innateDamageType";
         case DiscipleColumn::SpeedVariance: return "speedVariance";
         case DiscipleColumn::TotalCultivation: return "totalCultivation";
         case DiscipleColumn::BreakthroughCount: return "breakthroughCount";
         case DiscipleColumn::BreakthroughFailCount: return "breakthroughFailCount";
         case DiscipleColumn::CurrentHp: return "currentHp";
         case DiscipleColumn::CurrentMp: return "currentMp";
-        case DiscipleColumn::PillPhysicalAttackBonus: return "pillPhysicalAttackBonus";
-        case DiscipleColumn::PillMagicAttackBonus: return "pillMagicAttackBonus";
-        case DiscipleColumn::PillPhysicalDefenseBonus: return "pillPhysicalDefenseBonus";
-        case DiscipleColumn::PillMagicDefenseBonus: return "pillMagicDefenseBonus";
+        case DiscipleColumn::PillAttackBonus: return "pillAttackBonus";
+        case DiscipleColumn::PillDefenseBonus: return "pillDefenseBonus";
         case DiscipleColumn::PillHpBonus: return "pillHpBonus";
         case DiscipleColumn::PillMpBonus: return "pillMpBonus";
         case DiscipleColumn::PillSpeedBonus: return "pillSpeedBonus";
@@ -134,18 +127,15 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::PillCritEffectBonus: return "pillCritEffectBonus";
         case DiscipleColumn::PillCultivationSpeedBonus: return "pillCultivationSpeedBonus";
         case DiscipleColumn::PillSkillExpSpeedBonus: return "pillSkillExpSpeedBonus";
-        case DiscipleColumn::PillNurtureSpeedBonus: return "pillNurtureSpeedBonus";
         case DiscipleColumn::PillEffectDuration: return "pillEffectDuration";
         case DiscipleColumn::ActivePillTypes: return "activePillTypes";
         case DiscipleColumn::ActivePillCategory: return "activePillCategory";
+        case DiscipleColumn::HeadId: return "headId";
+        case DiscipleColumn::BodyId: return "bodyId";
+        case DiscipleColumn::HandsId: return "handsId";
+        case DiscipleColumn::FeetId: return "feetId";
         case DiscipleColumn::WeaponId: return "weaponId";
-        case DiscipleColumn::ArmorId: return "armorId";
-        case DiscipleColumn::BootsId: return "bootsId";
-        case DiscipleColumn::AccessoryId: return "accessoryId";
-        case DiscipleColumn::WeaponNurture: return "weaponNurture";
-        case DiscipleColumn::ArmorNurture: return "armorNurture";
-        case DiscipleColumn::BootsNurture: return "bootsNurture";
-        case DiscipleColumn::AccessoryNurture: return "accessoryNurture";
+        case DiscipleColumn::LegsId: return "legsId";
         case DiscipleColumn::StorageBagItems: return "storageBagItems";
         case DiscipleColumn::StorageBagSpiritStones: return "storageBagSpiritStones";
         case DiscipleColumn::SpiritStones: return "spiritStones";
@@ -220,40 +210,21 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::ManualCompletionPhase:
             row["manualCompletionPhase"] = ds.manualCompletionPhases[r];
             break;
-        case DiscipleColumn::EquipmentNurturingCompletionMonth:
-            row["equipmentNurturingCompletionMonth"] = ds.equipmentNurturingCompletionMonths[r];
-            break;
-        case DiscipleColumn::EquipmentNurturingCompletionPhase:
-            row["equipmentNurturingCompletionPhase"] = ds.equipmentNurturingCompletionPhases[r];
-            break;
         case DiscipleColumn::BaseHp: row["baseHp"] = ds.baseHps[r]; break;
         case DiscipleColumn::BaseMp: row["baseMp"] = ds.baseMps[r]; break;
-        case DiscipleColumn::BasePhysicalAttack:
-            row["basePhysicalAttack"] = ds.basePhysicalAttacks[r];
-            break;
-        case DiscipleColumn::BaseMagicAttack:
-            row["baseMagicAttack"] = ds.baseMagicAttacks[r];
-            break;
-        case DiscipleColumn::BasePhysicalDefense:
-            row["basePhysicalDefense"] = ds.basePhysicalDefenses[r];
-            break;
-        case DiscipleColumn::BaseMagicDefense:
-            row["baseMagicDefense"] = ds.baseMagicDefenses[r];
-            break;
+        case DiscipleColumn::BaseAttack: row["baseAttack"] = ds.baseAttacks[r]; break;
+        case DiscipleColumn::BaseDefense: row["baseDefense"] = ds.baseDefenses[r]; break;
         case DiscipleColumn::BaseSpeed: row["baseSpeed"] = ds.baseSpeeds[r]; break;
         case DiscipleColumn::HpVariance: row["hpVariance"] = ds.hpVariances[r]; break;
         case DiscipleColumn::MpVariance: row["mpVariance"] = ds.mpVariances[r]; break;
-        case DiscipleColumn::PhysicalAttackVariance:
-            row["physicalAttackVariance"] = ds.physicalAttackVariances[r];
+        case DiscipleColumn::AttackVariance:
+            row["attackVariance"] = ds.attackVariances[r];
             break;
-        case DiscipleColumn::MagicAttackVariance:
-            row["magicAttackVariance"] = ds.magicAttackVariances[r];
+        case DiscipleColumn::DefenseVariance:
+            row["defenseVariance"] = ds.defenseVariances[r];
             break;
-        case DiscipleColumn::PhysicalDefenseVariance:
-            row["physicalDefenseVariance"] = ds.physicalDefenseVariances[r];
-            break;
-        case DiscipleColumn::MagicDefenseVariance:
-            row["magicDefenseVariance"] = ds.magicDefenseVariances[r];
+        case DiscipleColumn::InnateDamageType:
+            row["innateDamageType"] = ds.innateDamageTypes[r];
             break;
         case DiscipleColumn::SpeedVariance: row["speedVariance"] = ds.speedVariances[r]; break;
         case DiscipleColumn::TotalCultivation:
@@ -267,17 +238,11 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
             break;
         case DiscipleColumn::CurrentHp: row["currentHp"] = ds.currentHps[r]; break;
         case DiscipleColumn::CurrentMp: row["currentMp"] = ds.currentMps[r]; break;
-        case DiscipleColumn::PillPhysicalAttackBonus:
-            row["pillPhysicalAttackBonus"] = ds.pillPhysicalAttackBonuses[r];
+        case DiscipleColumn::PillAttackBonus:
+            row["pillAttackBonus"] = ds.pillAttackBonuses[r];
             break;
-        case DiscipleColumn::PillMagicAttackBonus:
-            row["pillMagicAttackBonus"] = ds.pillMagicAttackBonuses[r];
-            break;
-        case DiscipleColumn::PillPhysicalDefenseBonus:
-            row["pillPhysicalDefenseBonus"] = ds.pillPhysicalDefenseBonuses[r];
-            break;
-        case DiscipleColumn::PillMagicDefenseBonus:
-            row["pillMagicDefenseBonus"] = ds.pillMagicDefenseBonuses[r];
+        case DiscipleColumn::PillDefenseBonus:
+            row["pillDefenseBonus"] = ds.pillDefenseBonuses[r];
             break;
         case DiscipleColumn::PillHpBonus: row["pillHpBonus"] = ds.pillHpBonuses[r]; break;
         case DiscipleColumn::PillMpBonus: row["pillMpBonus"] = ds.pillMpBonuses[r]; break;
@@ -294,9 +259,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::PillSkillExpSpeedBonus:
             row["pillSkillExpSpeedBonus"] = ds.pillSkillExpSpeedBonuses[r];
             break;
-        case DiscipleColumn::PillNurtureSpeedBonus:
-            row["pillNurtureSpeedBonus"] = ds.pillNurtureSpeedBonuses[r];
-            break;
         case DiscipleColumn::PillEffectDuration:
             row["pillEffectDuration"] = ds.pillEffectDurations[r];
             break;
@@ -304,16 +266,12 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::ActivePillCategory:
             row["activePillCategory"] = ds.activePillCategories[r];
             break;
+        case DiscipleColumn::HeadId: row["headId"] = ds.headIds[r]; break;
+        case DiscipleColumn::BodyId: row["bodyId"] = ds.bodyIds[r]; break;
+        case DiscipleColumn::HandsId: row["handsId"] = ds.handsIds[r]; break;
+        case DiscipleColumn::FeetId: row["feetId"] = ds.feetIds[r]; break;
         case DiscipleColumn::WeaponId: row["weaponId"] = ds.weaponIds[r]; break;
-        case DiscipleColumn::ArmorId: row["armorId"] = ds.armorIds[r]; break;
-        case DiscipleColumn::BootsId: row["bootsId"] = ds.bootsIds[r]; break;
-        case DiscipleColumn::AccessoryId: row["accessoryId"] = ds.accessoryIds[r]; break;
-        case DiscipleColumn::WeaponNurture: row["weaponNurture"] = ds.weaponNurtures[r]; break;
-        case DiscipleColumn::ArmorNurture: row["armorNurture"] = ds.armorNurtures[r]; break;
-        case DiscipleColumn::BootsNurture: row["bootsNurture"] = ds.bootsNurtures[r]; break;
-        case DiscipleColumn::AccessoryNurture:
-            row["accessoryNurture"] = ds.accessoryNurtures[r];
-            break;
+        case DiscipleColumn::LegsId: row["legsId"] = ds.legsIds[r]; break;
         case DiscipleColumn::StorageBagItems: row["storageBagItems"] = ds.storageBagItems[r]; break;
         case DiscipleColumn::StorageBagSpiritStones:
             row["storageBagSpiritStones"] = ds.storageBagSpiritStones[r];

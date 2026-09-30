@@ -28,8 +28,7 @@ class TimeSystemPureLogicTest {
             gameData = GameData().apply {
                 gamePhase = currentPhase; gameMonth = currentMonth; gameYear = currentYear
             },
-            discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
+            discipleTables = DiscipleTables(), equipmentInstances = EntityStore(),
             manualStacks = EntityStore(), manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),

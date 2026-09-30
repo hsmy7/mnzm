@@ -120,10 +120,9 @@ inline gamecore::battle::Combatant worldLevelBeastPreGen(
     b.maxHp = b.hp;
     b.mp = std::max(level.beastMaxMp, 0);
     b.maxMp = b.mp;
-    b.physicalAttack = std::max(level.beastPhysicalAttack, 0);
-    b.magicAttack = std::max(level.beastMagicAttack, 0);
-    b.physicalDefense = std::max(level.beastPhysicalDefense, 0);
-    b.magicDefense = std::max(level.beastMagicDefense, 0);
+    // 单列口径（B1）
+    b.attack = std::max(level.beastAttack, 0);
+    b.defense = std::max(level.beastDefense, 0);
     b.speed = std::max(level.beastSpeed, 0);
     b.critRate = 0.05 + realmIndex * 0.01;
     b.realm = realmIndex;

@@ -94,7 +94,9 @@ inline SecretRealmTypeCandidates buildTypeCandidates() {
                             const std::string& id, const std::string& name) {
         out[type][rarity].emplace_back(id, name);
     };
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
+    // B3：装备候选 = 72 条部件×品阶展开条目（Kotlin EquipmentDatabase
+    // .allTemplates.values 同源同序）
+    for (const auto& t : gamecore::data::equipmentEntries()) {
         put("equipment", t.rarity, t.id, t.name);
     }
     for (const auto& t : gamecore::data::manualTemplates()) {
@@ -119,14 +121,6 @@ inline SecretRealmTypeCandidates buildTypeCandidates() {
 // 模板 id 查表；篡改档未知 id 静默跳过。实例 id 为 Kotlin UUID 镜像字段——
 // C++ 侧 nextItemId 计数器占位（对拍 diff 面排除，新生儿 id 契约同族）。
 
-inline const gamecore::data::EquipmentTemplate* equipmentTemplateById(
-    const std::string& id) {
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.id == id) return &t;
-    }
-    return nullptr;
-}
-
 inline const gamecore::data::HerbTemplate* herbTemplateById(const std::string& id) {
     for (const auto& t : gamecore::data::herbTemplates()) {
         if (t.id == id) return &t;
@@ -146,25 +140,22 @@ inline state::SecretRealmBackpack instantiateRewards(
     state::SecretRealmBackpack backpack) {
     for (const auto& item : rewards) {
         if (item.type == "equipment") {
-            const auto* tpl = equipmentTemplateById(item.itemId);
-            if (tpl == nullptr) continue;
-            state::EquipmentStack s;
-            s.id = nextItemId("gc-equip-stack");
-            s.name = tpl->name;
-            s.rarity = tpl->rarity;
-            s.description = tpl->description;
-            s.slot = tpl->slot;
-            s.physicalAttack = tpl->physicalAttack;
-            s.magicAttack = tpl->magicAttack;
-            s.physicalDefense = tpl->physicalDefense;
-            s.magicDefense = tpl->magicDefense;
-            s.speed = tpl->speed;
-            s.hp = tpl->hp;
-            s.mp = tpl->mp;
-            s.critChance = tpl->critChance;
-            s.minRealm = mission_settle::detail::realmMinForRarity(tpl->rarity);
-            s.quantity = 1;
-            backpack.equipment.push_back(std::move(s));
+            // B3：按部件×品阶展开条目查表（Kotlin EquipmentDatabase.getById）；
+            // C++ 背包装备轨已迁实例——构造零词条占位实例（name/setId/part/
+            // rarity/minRealm/description 自条目，等级恒 1；实例 id 为镜像
+            // 生成字段，确定性自增占位）
+            const auto* entry = gamecore::data::equipmentEntryById(item.itemId);
+            if (entry == nullptr) continue;
+            state::EquipmentInstance inst;
+            inst.id = nextItemId("gc-equip-stack");
+            inst.name = entry->name;
+            inst.setId = entry->setId;
+            inst.part = entry->part;
+            inst.growth.affix.mainStat = state::EquipStatValue{"ATTACK", 0.0};
+            inst.meta.rarity = entry->rarity;
+            inst.meta.minRealm = entry->minRealm;
+            inst.meta.description = entry->description;
+            backpack.equipment.push_back(std::move(inst));
         } else if (item.type == "manual") {
             const auto* tpl = gamecore::data::manualById(item.itemId);
             if (tpl == nullptr) continue;
@@ -215,10 +206,8 @@ inline state::SecretRealmBackpack instantiateRewards(
             p.effects.isAscension = tpl->isAscension;
             p.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
             p.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-            p.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
             p.effects.cultivationAdd = tpl->cultivationAdd;
             p.effects.skillExpAdd = tpl->skillExpAdd;
-            p.effects.nurtureAdd = tpl->nurtureAdd;
             p.effects.duration = tpl->duration;
             p.effects.cannotStack = tpl->cannotStack;
             p.effects.physicalAttackAdd = tpl->physicalAttackAdd;
@@ -283,30 +272,6 @@ inline state::SecretRealmBackpack instantiateRewards(
 
 // ── 袋条目物化（Kotlin BagItemReconstructor + InventorySystem 物化段）──────
 
-/// EquipmentInstance → EquipmentStack（Kotlin instance.toStack(quantity=1)——
-/// 实例字段直拷，id 新分配）
-inline state::EquipmentStack equipmentInstanceToStack(
-    const state::EquipmentInstance& inst) {
-    state::EquipmentStack s;
-    s.id = nextItemId("gc-equip-stack");
-    s.slotId = inst.slotId;
-    s.name = inst.name;
-    s.rarity = inst.rarity;
-    s.description = inst.description;
-    s.slot = inst.slot;
-    s.physicalAttack = inst.physicalAttack;
-    s.magicAttack = inst.magicAttack;
-    s.physicalDefense = inst.physicalDefense;
-    s.magicDefense = inst.magicDefense;
-    s.speed = inst.speed;
-    s.hp = inst.hp;
-    s.mp = inst.mp;
-    s.critChance = inst.critChance;
-    s.minRealm = inst.minRealm;
-    s.quantity = 1;
-    return s;
-}
-
 /// ManualInstance → ManualStack（Kotlin instance.toStack 同义）
 inline state::ManualStack manualInstanceToStack(const state::ManualInstance& inst) {
     state::ManualStack s;
@@ -321,7 +286,6 @@ inline state::ManualStack manualInstanceToStack(const state::ManualInstance& ins
 /// 补齐 stats/category 等库内字段；查不到返回 false 随丢弃路径）。
 /// 成功时 item 写入对应类型的堆叠载体（reconstructed.outStack 系列）。
 inline bool reconstructStackedItem(const state::StorageBagItem& item,
-                                   state::EquipmentStack* outEquipment,
                                    state::ManualStack* outManual,
                                    state::Pill* outPill,
                                    state::Herb* outHerb,
@@ -335,33 +299,8 @@ inline bool reconstructStackedItem(const state::StorageBagItem& item,
         return v;
     };
     const std::string t = toLower(type);
-    if (t == "equipment" || t == "equipment_stack") {
-        if (outEquipment == nullptr) return false;
-        const gamecore::data::EquipmentTemplate* tpl = nullptr;
-        for (const auto& cand : gamecore::data::equipmentTemplates()) {
-            if (cand.name == item.name) { tpl = &cand; break; }
-        }
-        if (tpl == nullptr) return false;
-        state::EquipmentStack s;
-        s.id = nextItemId("gc-equip-stack");
-        s.name = tpl->name;
-        s.slot = tpl->slot;
-        s.rarity = tpl->rarity;
-        s.physicalAttack = tpl->physicalAttack;
-        s.magicAttack = tpl->magicAttack;
-        s.physicalDefense = tpl->physicalDefense;
-        s.magicDefense = tpl->magicDefense;
-        s.speed = tpl->speed;
-        s.hp = tpl->hp;
-        s.mp = tpl->mp;
-        s.description = tpl->description;
-        s.minRealm = item.stackedData.has_value() && item.stackedData->minRealm > 0
-                         ? item.stackedData->minRealm
-                         : mission_settle::detail::realmMinForRarity(tpl->rarity);
-        s.quantity = std::max(item.quantity, 1);
-        *outEquipment = std::move(s);
-        return true;
-    }
+    // B3：装备分支已随堆叠轨退役——袋内装备条目恒带 equipmentInstance
+    // payload（卸装入袋），模板重建不再覆盖装备类条目
     if (t == "manual" || t == "manual_stack") {
         if (outManual == nullptr) return false;
         const gamecore::data::ManualTemplate* tpl = nullptr;
@@ -423,10 +362,8 @@ inline bool reconstructStackedItem(const state::StorageBagItem& item,
         p.effects.isAscension = tpl->isAscension;
         p.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
         p.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-        p.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
         p.effects.cultivationAdd = tpl->cultivationAdd;
         p.effects.skillExpAdd = tpl->skillExpAdd;
-        p.effects.nurtureAdd = tpl->nurtureAdd;
         p.effects.duration = tpl->duration;
         p.effects.cannotStack = tpl->cannotStack;
         p.effects.physicalAttackAdd = tpl->physicalAttackAdd;
@@ -581,10 +518,9 @@ inline gamecore::battle::Combatant secretRealmBeast(
     b.maxHp = b.hp;
     b.mp = std::max(pre.maxMp, 0);
     b.maxMp = b.mp;
-    b.physicalAttack = std::max(pre.physicalAttack, 0);
-    b.magicAttack = std::max(pre.magicAttack, 0);
-    b.physicalDefense = std::max(pre.physicalDefense, 0);
-    b.magicDefense = std::max(pre.magicDefense, 0);
+    // 单列口径（B1）
+    b.attack = std::max(pre.attack, 0);
+    b.defense = std::max(pre.defense, 0);
     b.speed = std::max(pre.speed, 0);
     b.critRate = 0.05 + realmIndex * 0.01;
     b.realm = realmIndex;
@@ -1379,10 +1315,9 @@ inline std::set<std::string> endSession(
             SpiritStoneWallet::add(data, backpack.spiritStones,
                                    SpiritStoneGrade::LOW, "SecretRealm");
         }
-        for (auto& item : backpack.equipment) {
-            if (item.quantity <= 0) continue;
-            gamecore::system::addEquipmentStack(state, item, overflowMail,
-                                                "secret_realm", false);
+        for (const auto& item : backpack.equipment) {
+            // B3 实例轨：探索所得装备即完整实例，直加入实例表（无堆叠溢出面）
+            (void)addEquipmentInstance(state, item);
         }
         for (auto& item : backpack.manuals) {
             if (item.quantity <= 0) continue;

@@ -43,6 +43,7 @@
 
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/recipe_db.h"
+#include "gamecore/system/equipment_factory.h"  // B3 锻造产出唯一入口
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/beast_material_db.h"
 #include "gamecore/rng/rng_manager.h"
@@ -296,10 +297,8 @@ inline bool producePill(GameState& state, const ProductionSlot& slot,
     pill.effects.isAscension = tpl->isAscension;
     pill.effects.cultivationSpeedPercent = tpl->cultivationSpeedPercent;
     pill.effects.skillExpSpeedPercent = tpl->skillExpSpeedPercent;
-    pill.effects.nurtureSpeedPercent = tpl->nurtureSpeedPercent;
     pill.effects.cultivationAdd = tpl->cultivationAdd;
     pill.effects.skillExpAdd = tpl->skillExpAdd;
-    pill.effects.nurtureAdd = tpl->nurtureAdd;
     pill.effects.duration = tpl->duration;
     pill.effects.cannotStack = tpl->cannotStack;
     pill.effects.physicalAttackAdd = tpl->physicalAttackAdd;
@@ -329,64 +328,49 @@ inline bool producePill(GameState& state, const ProductionSlot& slot,
 
 /// 装备模板按名线性查找（Kotlin EquipmentDatabase.getTemplateByName；
 /// 72 条模板线性扫——月结每槽最多 1 次）
-inline const gamecore::data::EquipmentTemplate* equipmentTemplateByName(
-    const std::string& name) {
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.name == name) return &t;
-    }
-    return nullptr;
-}
-
-/// 锻造产出（Kotlin produceForgeEquipment：配方查询 → 装备构造 → addEquipmentStack）。
-/// @return true=产出成功（溢出转邮件也算成功）；false=配方无效/入库失败
+/// 锻造产出（B3 实例轨；Kotlin produceForgeEquipmentFromSlot 逐位移植：
+/// 配方查询 → 锻造品阶 = 全宗存活弟子最高 forgeLevel（1..6，无则 1）→
+/// EquipmentFactory.create（配方 setId/part，词条 kEquipment 分区 roll，
+/// 境界钳制在 Factory 内）→ addEquipmentInstance）。
+/// @return true=产出成功；false=配方无效/入库失败
 inline bool produceForgeEquipment(GameState& state, const ProductionSlot& slot,
+                                  rng::DeterministicRng& equipRng,
                                   OverflowMailCollector& overflowMail) {
+    (void)overflowMail;
     const std::string recipeId = slot.recipeId.value_or("");
-    const auto recipe = gamecore::data::forgeRecipeById(recipeId);
-    if (!recipe.has_value()) return false;
-    state::EquipmentStack eq;
-    if (const auto* tpl = equipmentTemplateByName(recipe->name)) {
-        eq.id = nextItemId("gc-eq");
-        eq.name = tpl->name;
-        eq.slot = tpl->slot;
-        eq.rarity = recipe->rarity;
-        eq.physicalAttack = tpl->physicalAttack;
-        eq.magicAttack = tpl->magicAttack;
-        eq.physicalDefense = tpl->physicalDefense;
-        eq.magicDefense = tpl->magicDefense;
-        eq.speed = tpl->speed;
-        eq.hp = tpl->hp;
-        eq.mp = tpl->mp;
-        eq.description = tpl->description;
-        eq.minRealm = settle_util::minRealmForRarity(recipe->rarity);
-    } else {
-        // Kotlin fallback generateRandom(rarity, rarity) 用全局 Random（非分区
-        // RNG，双端不确定）——C++ 确定性回退取首个同 rarity 模板；配方名与
-        // 模板名同源（recipe_db.h 头注释），本分支生产不可达，对拍场景规避。
-        for (const auto& t : gamecore::data::equipmentTemplates()) {
-            if (t.rarity == recipe->rarity) {
-                eq.id = nextItemId("gc-eq");
-                eq.name = t.name;
-                eq.slot = t.slot;
-                eq.rarity = t.rarity;
-                eq.physicalAttack = t.physicalAttack;
-                eq.magicAttack = t.magicAttack;
-                eq.physicalDefense = t.physicalDefense;
-                eq.magicDefense = t.magicDefense;
-                eq.speed = t.speed;
-                eq.hp = t.hp;
-                eq.mp = t.mp;
-                eq.description = t.description;
-                eq.critChance = t.critChance;
-                eq.minRealm = settle_util::minRealmForRarity(t.rarity);
-                break;
+    // B3 12 条套装部件配方（Kotlin ForgeRecipeDatabase 同构派生）：配方 id
+    // 规则 = "forge_{pieceId}"，pieceId ∈ 12 部件表——setId/part 由部件表
+    // 反查（产出品阶 = forgeTier，配方材料/时长/成功率按 tier 取档在
+    // Kotlin SlotOps 启动面，C++ 完成期只需 setId/part）。旧 73 条部位
+    // 变体配方 id 在此一律失配 → 产出失败（与 Kotlin getRecipeById null
+    // 臂一致——B3 迁移后在途旧配方槽位按失败结算）
+    if (recipeId.rfind("forge_", 0) != 0) return false;
+    const std::string pieceId = recipeId.substr(6);
+    const int pieceIdx = gamecore::data::setPieceIndexOf(pieceId);
+    if (pieceIdx < 0) return false;
+    const auto& piece = gamecore::data::setPieceTemplates()[
+        static_cast<std::size_t>(pieceIdx)];
+    // 锻造品阶：存活弟子 forgeLevel 最大值钳 [1,6]，全无 → 1（Kotlin
+    // maxOfOrNull { it.skills.forgeLevel }?.coerceIn(1, 6) ?: 1 同式）
+    int32_t forgeTier = 1;
+    bool hasLevel = false;
+    {
+        DiscipleStore& ds = state.disciples;
+        for (std::size_t row = 0; row < ds.ids.size(); ++row) {
+            if (ds.isAlive[row] != 1) continue;
+            const int32_t lv = ds.forgeLevels[row];
+            if (!hasLevel || lv > forgeTier) {
+                forgeTier = lv;
+                hasLevel = true;
             }
         }
-        if (eq.id.empty()) return false;
+        if (hasLevel) forgeTier = std::min(std::max(forgeTier, 1), 6);
+        else forgeTier = 1;
     }
-    eq.quantity = 1;
-    const auto r = addEquipmentStack(state, eq, overflowMail, "forge",
-                                     /*overflowMailSuppressed=*/false);
+    auto instOpt = gamecore::system::equipment_factory::create(
+        piece.setId, piece.part, forgeTier, equipRng);
+    if (!instOpt.has_value()) return false;
+    const auto r = addEquipmentInstance(state, *instOpt, "building");
     return r.status == InventoryStatus::kSuccess || r.status == InventoryStatus::kPartial;
 }
 
@@ -433,7 +417,10 @@ inline bool completeSlot(GameState& state, ProductionSlot& slot, bool isAlchemy,
     // 2. 产出（失败视为炼制失败，不结算晋升——B4）
     if (success) {
         success = isAlchemy ? producePill(state, slot, rng, overflowMail)
-                            : produceForgeEquipment(state, slot, overflowMail);
+                            : produceForgeEquipment(
+                                  state, slot,
+                                  rng.getRng(rng::RngPartition::kEquipment),
+                                  overflowMail);
     }
     // 3. 统计 + 晋升（guideCounters/annual 计数无条件——成功与否独立）
     auto& gd = state.gameData;

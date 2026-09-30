@@ -325,10 +325,8 @@ class EncounterBattleService @Inject constructor(
             BattleSystem.BeastPreGenStats(
                 maxHp = beast.beastMaxHp,
                 maxMp = beast.beastMaxMp,
-                physicalAttack = beast.beastPhysicalAttack,
-                magicAttack = beast.beastMagicAttack,
-                physicalDefense = beast.beastPhysicalDefense,
-                magicDefense = beast.beastMagicDefense,
+                attack = beast.beastAttackTotal,
+                defense = beast.beastDefenseTotal,
                 speed = beast.beastSpeed,
                 realmLayer = beast.realmLayer
             )

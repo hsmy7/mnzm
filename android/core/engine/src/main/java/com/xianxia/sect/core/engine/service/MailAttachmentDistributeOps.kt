@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -226,7 +227,7 @@ internal suspend fun MailService.ensureCapacity(attachments: List<MailAttachment
         when (attachment.type) {
             "spiritStones", "spiritHerbs", "storageBag" -> {}
             "equipment", "manual", "pill", "material", "beastMaterial", "herb", "seed" -> {
-                val totalItems = stateStore.equipmentStacks.value.size +
+                val totalItems = stateStore.equipmentInstances.value.size +
                         stateStore.manualStacks.value.size +
                         stateStore.pills.value.size +
                         stateStore.materials.value.size +
@@ -316,23 +317,25 @@ internal fun MailService.handleResult(result: DomainResult<*>, label: String) {
     }
 }
 
-/** 装备附件：itemId 优先精确发放指定模板；未命中回退按品阶逐件随机生成，委托 addEquipmentStack 合并 */
+/** 装备附件（B3 实例轨）：itemId 命中套装部件名按部件发放；未命中按品阶经 EquipmentFactory 逐件生成 */
 
 internal fun MailService.distributeEquipmentAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
     val qty = attachment.quantity.coerceAtLeast(1)
-    val template = attachment.itemId?.let { EquipmentDatabase.getById(it) }
-    if (template != null) {
-        val stack = EquipmentDatabase.createFromTemplate(template).copy(quantity = qty)
-        handleResult(inventorySystem.addEquipmentStack(stack), "装备 ${stack.name}")
+    val piece = attachment.itemId?.let { EquipmentDatabase.setPieces.find { p -> p.name == attachment.itemId } }
+        ?: EquipmentDatabase.setPieces.find { it.name == attachment.name }
+    if (piece != null) {
+        repeat(qty) {
+            val instance = EquipmentFactory.create(piece.setId, piece.part, attachment.rarity, mailRng)
+            handleResult(inventorySystem.addEquipmentInstance(instance), "装备 ${instance.name}")
+        }
         return
     }
     repeat(qty) {
-        val newEquipment = EquipmentDatabase.generateRandom(
-            minRarity = attachment.rarity,
-            maxRarity = attachment.rarity,
-            random = mailRng
-        ).copy(quantity = 1)
-        handleResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
+        val setId = if (mailRng.nextBoolean()) "lietian" else "zifu"
+        val instance = EquipmentFactory.create(
+            setId, EquipmentFactory.pickPart(setId, mailRng), attachment.rarity, mailRng
+        )
+        handleResult(inventorySystem.addEquipmentInstance(instance), "装备 ${instance.name}")
     }
 }
 

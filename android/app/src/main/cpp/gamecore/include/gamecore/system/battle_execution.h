@@ -245,8 +245,7 @@ inline const Combatant* calcSelectTarget(const Combatant& attacker,
 
     std::vector<const Combatant*> highThreatTargets;
     for (const auto* t : targets) {
-        if (!t->skills.empty() &&
-            t->effectivePhysicalAttack() > attacker.effectivePhysicalDefense()) {
+        if (!t->skills.empty() && t->attack > attacker.defense) {
             highThreatTargets.push_back(t);
         }
     }
@@ -255,11 +254,10 @@ inline const Combatant* calcSelectTarget(const Combatant& attacker,
             static_cast<int32_t>(highThreatTargets.size())))];
     }
 
+    // 单列口径（B1）：防御单列
     std::vector<const Combatant*> lowDefenseTargets;
     for (const auto* t : targets) {
-        const double avgDefense =
-            (t->effectivePhysicalDefense() + t->effectiveMagicDefense()) / 2.0;
-        if (avgDefense < attacker.effectivePhysicalAttack() * 0.5) {
+        if (t->defense < attacker.attack * 0.5) {
             lowDefenseTargets.push_back(t);
         }
     }

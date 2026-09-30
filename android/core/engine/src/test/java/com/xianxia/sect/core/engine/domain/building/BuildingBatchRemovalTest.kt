@@ -145,7 +145,6 @@ class BuildingBatchRemovalTest {
     private fun createMutableState(tables: DiscipleTables) = MutableGameState(
         gameData = GameData(),
         discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
         equipmentInstances = EntityStore(emptyList()),
         manualStacks = EntityStore(emptyList()),
         manualInstances = EntityStore(emptyList()),

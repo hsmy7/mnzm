@@ -1,17 +1,17 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.EquipStat
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -79,16 +79,16 @@ object EnemyGenerator {
     }
 
     /**
-     * 随机装备生成（W3 从 generateHumanEnemy 提取，逐行搬移 RNG 调用序不变）。
+     * 随机装备生成（W3 从 generateHumanEnemy 提取）。
+     * 装备重构 B3 新口径：六部位随机排列、敌人随机穿其中若干件；实例经
+     * [EquipmentFactory.create] 唯一产出入口生成（套装随机二选一），属性按
+     * 逐件 `totalBonus()` 累加（孕养随机等级逻辑已随孕养系统删除）。
      * @return (装备实例列表, 装备属性累加器)
      */
     private fun generateEquipmentForEnemy(
         minRarity: Int, maxRarity: Int, rng: DeterministicRng
     ): Pair<List<EquipmentInstance>, EquipmentStatsAccumulator> {
-        val equipmentSlots = listOf(
-            EquipmentSlot.WEAPON, EquipmentSlot.ARMOR,
-            EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY
-        ).let { list ->
+        val equipmentSlots = EquipmentSlot.entries.let { list ->
             val seed = rng.nextInt()
             list.shuffled(java.util.Random(seed.toLong()))
         }
@@ -98,18 +98,15 @@ object EnemyGenerator {
         val equipmentStatsAccumulator = EquipmentStatsAccumulator()
 
         for (i in 0 until equipmentCount) {
-            val slot = equipmentSlots[i]
+            val part = equipmentSlots[i]
+            // 品阶沿用旧口径：在 [minRarity, maxRarity] 均匀抽取
             val rarity = minRarity + rng.nextInt(maxRarity + 1 - minRarity)
-            // 模板选择经 ENEMY_GEN 分区适配器（读档可重放的确定性来源）
-            val stack = EquipmentDatabase.generateRandomBySlot(
-                slot, rarity, RngRandomAdapter(rng)
-            )
-            val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(rarity)
-            val nurtureLevel = rng.nextInt(maxNurture + 1)
-            val instance = stackToInstance(stack, nurtureLevel)
+            // 套装随机二选一（"lietian" 物理 / "zifu" 法术）；适配器接 ENEMY_GEN 分区
+            //（与旧 generateRandomBySlot 同一确定性来源）
+            val setId = if (rng.nextDouble() < 0.5) "lietian" else "zifu"
+            val instance = EquipmentFactory.create(setId, part, rarity, RngRandomAdapter(rng))
             equipmentInstances.add(instance)
-            equipmentStatsAccumulator.add(instance.getFinalStats())
-            equipmentStatsAccumulator.addCrit(instance.critChance)
+            equipmentStatsAccumulator.add(instance)
         }
         return Pair(equipmentInstances, equipmentStatsAccumulator)
     }
@@ -181,20 +178,25 @@ object EnemyGenerator {
 
         fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
 
+        // 单列口径（B1 §15.4）：境界面物法两列各自 round 后相加（与 computeBaseStats 同式），
+        // 攻/防各一个方差；装备/功法段取和相加
+        // （装备重构 B3：装备不再提供速度/灵力——S14，故 mp/speed 只含功法段）
         val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp + manualStats.hp
-        val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp + manualStats.mp
-        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() +
-            equipmentStats.physicalAttack + manualStats.physicalAttack
-        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() +
-            equipmentStats.magicAttack + manualStats.magicAttack
-        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() +
-            equipmentStats.physicalDefense + manualStats.physicalDefense
-        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() +
-            equipmentStats.magicDefense + manualStats.magicDefense
-        val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed + manualStats.speed
+        val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + manualStats.mp
+        val atkVar = rngVar()
+        val defVar = rngVar()
+        val attack = (realmConfig.basePhysicalAttack * atkVar * layerMult).toInt() +
+            (realmConfig.baseMagicAttack * atkVar * layerMult).toInt() +
+            equipmentStats.attack + manualStats.attack
+        val defense = (realmConfig.basePhysicalDefense * defVar * layerMult).toInt() +
+            (realmConfig.baseMagicDefense * defVar * layerMult).toInt() +
+            equipmentStats.defense + manualStats.defense
+        val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + manualStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements[rng.nextInt(5)]
+        // 散修敌人伤害类型按元素派生（金/土→物理、水/木/火→法术，§15.3 同弟子口径）
+        val innateType = if (element == "metal" || element == "earth") DamageType.PHYSICAL else DamageType.MAGIC
 
         val enemyNames = listOf("魔修", "邪修", "散修", "山匪", "暗杀者", "邪道修士")
 
@@ -206,13 +208,12 @@ object EnemyGenerator {
             maxHp = hp,
             mp = mp,
             maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
+            attack = attack,
+            defense = defense,
+            innateDamageType = innateType,
             speed = speed,
             // 基础暴击(与玩家 BASE_CRIT_RATE 一致) + 境界暴击 + 装备 + 功法暴击
-            critRate = 0.05 + realm * 0.01 + equipmentStats.critChance + manualStats.critChance,
+            critRate = 0.05 + realm * 0.01 + equipmentStats.critRate + manualStats.critChance,
             skills = if (skills.isNotEmpty()) skills else listOf(createDefaultAttackSkill()),
             realm = realm,
             realmName = GameConfig.Realm.getName(realm),
@@ -229,25 +230,6 @@ object EnemyGenerator {
         mpCost = 0,
         cooldown = 0
     )
-
-    private fun stackToInstance(stack: EquipmentStack, nurtureLevel: Int = 0): EquipmentInstance {
-        return EquipmentInstance(
-            name = stack.name,
-            rarity = stack.rarity,
-            description = stack.description,
-            slot = stack.slot,
-            physicalAttack = stack.physicalAttack,
-            magicAttack = stack.magicAttack,
-            physicalDefense = stack.physicalDefense,
-            magicDefense = stack.magicDefense,
-            speed = stack.speed,
-            hp = stack.hp,
-            mp = stack.mp,
-            critChance = stack.critChance,
-            nurtureLevel = nurtureLevel,
-            minRealm = stack.minRealm
-        )
-    }
 
     private fun stackToInstance(stack: ManualStack): ManualInstance {
         return ManualInstance(
@@ -283,18 +265,15 @@ object EnemyGenerator {
      * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起），
      * critRate 为百分比值 ÷ 100。
      */
+    /** 功法属性累加器（单列口径 B1：物法攻/防相加进 attack/defense，Q2 结算层相加） */
     internal class ManualStatsAccumulator {
         var hp: Int = 0
             private set
         var mp: Int = 0
             private set
-        var physicalAttack: Int = 0
+        var attack: Int = 0
             private set
-        var magicAttack: Int = 0
-            private set
-        var physicalDefense: Int = 0
-            private set
-        var magicDefense: Int = 0
+        var defense: Int = 0
             private set
         var speed: Int = 0
             private set
@@ -307,45 +286,41 @@ object EnemyGenerator {
             val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
             hp += (hpValue * masteryBonus).toInt()
             mp += (mpValue * masteryBonus).toInt()
-            physicalAttack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
-            magicAttack += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
-            physicalDefense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
-            magicDefense += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+            attack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt() +
+                ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+            defense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
+                ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
             speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
             critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
         }
     }
 
+    /**
+     * 装备属性累加器（装备重构 B3 新口径）：逐件 `totalBonus()` 累加——
+     * ATTACK/DEFENSE/HP 为 flat（Int 取整），CRIT_RATE 为比例值直加；
+     * CRIT_DAMAGE 与乘区项（ATTACK_PCT/物理/法术伤害%）的战斗公式消费点
+     * 待 B4 接线，此处跳过不崩。装备不提供速度/灵力（S14）。
+     */
     private class EquipmentStatsAccumulator {
-        var physicalAttack: Int = 0
+        var attack: Int = 0
             private set
-        var magicAttack: Int = 0
-            private set
-        var physicalDefense: Int = 0
-            private set
-        var magicDefense: Int = 0
-            private set
-        var speed: Int = 0
+        var defense: Int = 0
             private set
         var hp: Int = 0
             private set
-        var mp: Int = 0
-            private set
-        var critChance: Double = 0.0
+        var critRate: Double = 0.0
             private set
 
-        fun add(stats: com.xianxia.sect.core.model.EquipmentStats) {
-            physicalAttack += stats.physicalAttack
-            magicAttack += stats.magicAttack
-            physicalDefense += stats.physicalDefense
-            magicDefense += stats.magicDefense
-            speed += stats.speed
-            hp += stats.hp
-            mp += stats.mp
-        }
-
-        fun addCrit(chance: Double) {
-            critChance += chance
+        fun add(instance: EquipmentInstance) {
+            instance.totalBonus().forEach { bonus ->
+                when (bonus.stat) {
+                    EquipStat.ATTACK -> attack += bonus.value.toInt()
+                    EquipStat.DEFENSE -> defense += bonus.value.toInt()
+                    EquipStat.HP -> hp += bonus.value.toInt()
+                    EquipStat.CRIT_RATE -> critRate += bonus.value
+                    else -> {}
+                }
+            }
         }
     }
 }

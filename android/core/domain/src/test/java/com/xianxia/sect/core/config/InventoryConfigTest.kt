@@ -103,8 +103,9 @@ class InventoryConfigTest {
     }
 
     @Test
-    fun typeSpecificStackLimit_equipment_stack() {
-        assertEquals(999, config.getMaxStackSize("equipment_stack"))
+    fun typeSpecificStackLimit_equipment_stack_retired_fallsBackToDefault() {
+        // B3：equipment_stack 键已随堆叠轨退役（R6），未登记的退役键走默认上限
+        assertEquals(9999, config.getMaxStackSize("equipment_stack"))
     }
 
     @Test
@@ -380,7 +381,7 @@ class InventoryConfigTest {
         assertEquals(9999, limits["seed"])
         assertEquals(999, limits["manual_stack"])
         assertEquals(1, limits["manual_instance"])
-        assertEquals(999, limits["equipment_stack"])
+        assertEquals("equipment_stack 键已随 B3 堆叠轨退役，序列化面不得复活", null, limits["equipment_stack"])
         assertEquals(1, limits["equipment_instance"])
     }
 
@@ -499,7 +500,7 @@ class InventoryConfigTest {
         assertEquals(9999, config.getMaxStackSize("seed"))
         assertEquals(999, config.getMaxStackSize("manual_stack"))
         assertEquals(1, config.getMaxStackSize("manual_instance"))
-        assertEquals(999, config.getMaxStackSize("equipment_stack"))
+        assertEquals("退役键 reset 后仍走默认（不得复活 999 登记）", 9999, config.getMaxStackSize("equipment_stack"))
         assertEquals(1, config.getMaxStackSize("equipment_instance"))
     }
 

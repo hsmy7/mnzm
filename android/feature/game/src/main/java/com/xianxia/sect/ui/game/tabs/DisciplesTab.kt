@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -37,7 +36,6 @@ internal fun DisciplesTab(
     equipment: List<EquipmentInstance>,
     manuals: List<ManualInstance>,
     manualStacks: List<ManualStack>,
-    equipmentStacks: List<EquipmentStack>,
     viewModel: GameViewModel
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }

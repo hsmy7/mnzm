@@ -209,7 +209,6 @@ class TransactionRngRollbackTest {
             store.loadFromSnapshot(
                 gameData = newData,
                 disciples = emptyList(),
-                equipmentStacks = emptyList(),
                 equipmentInstances = emptyList(),
                 manualStacks = emptyList(),
                 manualInstances = emptyList(),
@@ -244,7 +243,6 @@ class TransactionRngRollbackTest {
         store.loadFromSnapshot(
             gameData = newData,
             disciples = emptyList(),
-            equipmentStacks = emptyList(),
             equipmentInstances = emptyList(),
             manualStacks = emptyList(),
             manualInstances = emptyList(),

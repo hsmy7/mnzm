@@ -145,23 +145,23 @@ message DiscipleRow {
   optional int32 cultivationCompletionPhase = 28;
   optional int32 manualCompletionMonth = 29;
   optional int32 manualCompletionPhase = 30;
-  optional int32 equipmentNurturingCompletionMonth = 31;
-  optional int32 equipmentNurturingCompletionPhase = 32;
+  // reserved 31,32;（equipmentNurturingCompletion* 装备孕养 checkpoint，B3 退役，禁复用）
 
   // ── CombatAttributes（C++/JSON 协议为扁平字段，本消息同构扁平）──
+  // 属性单列口径（装备重构 B1，方案 §15）：旧物法双列 35-38/42-45 退役 reserved；
+  // 新单列 113-117。C++/Kotlin 同发同版（JNI 镜像协议），旧号不再写出。
+  reserved 35, 36, 37, 38, 42, 43, 44, 45;
   optional int32 baseHp = 33;
   optional int32 baseMp = 34;
-  optional int32 basePhysicalAttack = 35;
-  optional int32 baseMagicAttack = 36;
-  optional int32 basePhysicalDefense = 37;
-  optional int32 baseMagicDefense = 38;
+  optional int32 baseAttack = 113;
+  optional int32 baseDefense = 114;
   optional int32 baseSpeed = 39;
   optional int32 hpVariance = 40;
   optional int32 mpVariance = 41;
-  optional int32 physicalAttackVariance = 42;
-  optional int32 magicAttackVariance = 43;
-  optional int32 physicalDefenseVariance = 44;
-  optional int32 magicDefenseVariance = 45;
+  optional int32 attackVariance = 116;
+  optional int32 defenseVariance = 117;
+  /// 固有伤害属性（"PHYSICAL"/"MAGIC"；空串 = 存量旧弟子按模板/灵根派生）
+  optional string innateDamageType = 115;
   optional int32 speedVariance = 46;
   optional int64 totalCultivation = 47;
   optional int32 breakthroughCount = 48;
@@ -171,10 +171,10 @@ message DiscipleRow {
   optional int32 currentMp = 51;
 
   // ── PillEffects ────────────────────────────────────────
-  optional int32 pillPhysicalAttackBonus = 52;
-  optional int32 pillMagicAttackBonus = 53;
-  optional int32 pillPhysicalDefenseBonus = 54;
-  optional int32 pillMagicDefenseBonus = 55;
+  // 丹药攻防加成单列（B1）：旧四列 52-55 退役 reserved，新单列 118-119
+  reserved 52, 53, 54, 55;
+  optional int32 pillAttackBonus = 118;
+  optional int32 pillDefenseBonus = 119;
   optional int32 pillHpBonus = 56;
   optional int32 pillMpBonus = 57;
   optional int32 pillSpeedBonus = 58;
@@ -182,20 +182,20 @@ message DiscipleRow {
   optional double pillCritEffectBonus = 60;
   optional double pillCultivationSpeedBonus = 61;
   optional double pillSkillExpSpeedBonus = 62;
-  optional double pillNurtureSpeedBonus = 63;
+  // reserved 63;（pillNurtureSpeedBonus 孕养丹速度加成，EQ-B2 退役，禁复用）
   optional int32 pillEffectDuration = 64;
   repeated string activePillTypes = 65;
   optional string activePillCategory = 66;
 
-  // ── EquipmentSet ───────────────────────────────────────
-  optional string weaponId = 67;
-  optional string armorId = 68;
-  optional string bootsId = 69;
-  optional string accessoryId = 70;
-  optional EquipmentNurtureDataView weaponNurture = 71;
-  optional EquipmentNurtureDataView armorNurture = 72;
-  optional EquipmentNurtureDataView bootsNurture = 73;
-  optional EquipmentNurtureDataView accessoryNurture = 74;
+  // ── EquipmentSet（B3 六部位按显示序 头/身/手/脚/武/腿） ──
+  optional string headId = 67;
+  optional string bodyId = 68;
+  optional string handsId = 69;
+  optional string feetId = 70;
+  // reserved 71..74;（armorId/bootsId/accessoryId 旧槽列与四 nurture 视图，B3 退役，禁复用；
+  // weaponId 旧 67 号随六部位改造让位于 headId，weaponId 新取 122）
+  optional string weaponId = 122;
+  optional string legsId = 123;
   /// 🔴 停写保留（B18-P1-A2，号冻结永不复用）：储物袋条目 JSON 数组原文
   /// （v1 过渡编码历史形态）。C++ 编码器已改走 110 号 typed 行；本字段
   /// 保留供**旧格式 golden 夹具**解码（对照面保留，非删断言）。
@@ -251,13 +251,6 @@ message DiscipleRow {
   optional string templateId = 112;
 }
 
-/// 装备孕育数据（EquipmentNurtureData 的视图投影）
-message EquipmentNurtureDataView {
-  optional string equipmentId = 1;
-  optional int32 rarity = 2;
-  optional int32 nurtureLevel = 3;
-  optional double nurtureProgress = 4;
-}
 
 /// string → int32 映射条目（禁 proto map 的等价承载；顺序 = C++ 侧
 /// std::map 键有序遍历，确定性）

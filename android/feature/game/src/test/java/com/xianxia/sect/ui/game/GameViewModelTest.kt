@@ -32,7 +32,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleCore
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.SectPolicies
@@ -168,7 +168,7 @@ class GameViewModelTest {
             com.xianxia.sect.core.gameview.EventLogView(emptyList())
         )
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
-        every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
+        every { gameEngine.equipmentInstances } returns MutableStateFlow(emptyList<EquipmentInstance>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())
 
         // ── Stub gameDataSnapshot：玩家宗门 HUGE 级，绕过 placeBuilding 的

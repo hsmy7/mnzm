@@ -115,12 +115,16 @@ struct CharacterTemplate {
     std::string avatarKey;
     std::string portraitKey;
     std::vector<std::string> spiritRoots;
+    // 固有伤害属性（"PHYSICAL"/"MAGIC"；B1 §15.3 / InnateDamageType.derive
+    // 模板优先臂——Kotlin CharacterTemplate.innateDamageType 镜像面）
+    std::string innateDamageType;
 };
 
 inline bool operator==(const CharacterTemplate& a, const CharacterTemplate& b) {
     return a.id == b.id && a.name == b.name && a.gender == b.gender &&
         a.avatarKey == b.avatarKey && a.portraitKey == b.portraitKey &&
-        a.spiritRoots == b.spiritRoots;
+        a.spiritRoots == b.spiritRoots &&
+        a.innateDamageType == b.innateDamageType;
 }
 
 /// 卡池表容器（注入期写入；`const&` 消费口在 [gachaPools]）

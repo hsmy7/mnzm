@@ -115,7 +115,19 @@ enum class RngPartition(val id: Int, val inSnapshot: Boolean = true) {
      * `rngStates` 无 12 号键时按 `systemSeed + 12` 确定性重种（MISSION(8) /
      * CHAT(10) / RESIDUAL(11) 同款恢复语义，见 [GameRngManager] 的缺失键重播路径）。
      */
-    GACHA(12);
+    GACHA(12),
+
+    /**
+     * 装备系统（B3 新增）：装备生成主词条/副词条抽取与升级强化节点 roll。
+     *
+     * 消费方：`EquipmentFactory.create`（生成期词条 roll）、
+     * `EquipmentUpgradeService`（每 3 级强化节点 roll）。抽取时机由锻造/掉落/
+     * 升级等离散事务驱动（与 [GACHA] 同因：玩家时序独立流，不与任何结算
+     * 分区共用）。AUTHORITATIVE 下真实消费在 C++（`equipment_tx.h` 取
+     * `kEquipment`），委托模式与 [GACHA] 同构。老档缺 13 号键时按
+     * `systemSeed + 13` 确定性重种（MISSION(8)/CHAT(10) 同款恢复语义）。
+     */
+    EQUIPMENT(13);
 
     /**
      * 是否**本地 PCG 分区**（不参与 native 委托）。

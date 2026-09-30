@@ -2,7 +2,6 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.util.DeterministicRng
@@ -258,29 +257,14 @@ object BattleAI {
 
         // 高威胁优先
         if (rng.nextDouble() < PROB_TARGET_HIGH_THREAT) {
-            return alive.maxByOrNull {
-                it.effectivePhysicalAttack +
-                    it.effectiveMagicAttack
-            }
+            return alive.maxByOrNull { it.attack }
         }
 
         // 低防御优先（根据技能伤害类型）
         if (rng.nextDouble() < PROB_TARGET_LOW_DEF) {
-            return when (skill?.damageType) {
-                DamageType.PHYSICAL ->
-                    alive.minByOrNull {
-                        it.effectivePhysicalDefense
-                    }
-                DamageType.MAGIC ->
-                    alive.minByOrNull {
-                        it.effectiveMagicDefense
-                    }
-                null ->
-                    alive.minByOrNull {
-                        it.effectivePhysicalDefense +
-                            it.effectiveMagicDefense
-                    }
-            }
+            // 单列口径（B1）：防御单列，物法技能同看 defense
+            //（类型差异由守方类型减伤桶承载，目标选择不再按物防/法防分列）
+            return alive.minByOrNull { it.defense }
         }
 
         // 兜底：第一个存活
@@ -306,11 +290,7 @@ object BattleAI {
                 candidates.minByOrNull { it.hpPercent }
             skill.shieldPercent > 0 ->
                 candidates.minByOrNull { it.hpPercent }
-            else ->
-                candidates.minByOrNull {
-                    it.effectivePhysicalDefense +
-                        it.effectiveMagicDefense
-                }
+            else -> candidates.minByOrNull { it.defense }
         }
     }
 
@@ -361,10 +341,7 @@ object BattleAI {
         if (lowHp.isEmpty()) return null
 
         // 按威胁降序：优先斩杀高威胁残血目标
-        val sorted = lowHp.sortedByDescending {
-            it.effectivePhysicalAttack +
-                it.effectiveMagicAttack
-        }
+        val sorted = lowHp.sortedByDescending { it.attack }
         // 非 AoE 单体技能中倍率最高者（循环不变量，提升出循环；无可用技能即无可斩杀）
         val bestSkill = attackSkills
             .filter { !it.isAoe }
@@ -536,10 +513,7 @@ object BattleAI {
         }
         if (uncontrolled.isEmpty()) return null
 
-        val target = uncontrolled.maxByOrNull {
-            it.effectivePhysicalAttack +
-                it.effectiveMagicAttack
-        } ?: return null
+        val target = uncontrolled.maxByOrNull { it.attack } ?: return null
 
         val bestCC = ccSkills.first()
         return AIAction(

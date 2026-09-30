@@ -63,7 +63,7 @@ class EquipmentDatabaseTest {
                 assertEquals(
                     "Equipment ${template.id} has wrong slot",
                     slot,
-                    template.slot
+                    template.part
                 )
             }
         }

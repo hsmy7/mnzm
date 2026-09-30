@@ -353,7 +353,6 @@ class DiscipleSlotCleanupTest {
     private fun mutableState(): MutableGameState = MutableGameState(
         gameData = GameData(),
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(),
         equipmentInstances = EntityStore(),
         manualStacks = EntityStore(),
         manualInstances = EntityStore(),

@@ -28,15 +28,13 @@ class SectCombatPowerCalculatorTest {
     fun `calculateDiscipleCombatPower - both attacks counted`() {
         val stats = DiscipleStats(
             maxHp = 1000,
-            physicalAttack = 200,
-            magicAttack = 100,
-            physicalDefense = 50,
-            magicDefense = 30,
+            attack = 200,
+            defense = 50,
             speed = 80
         )
         val result = SectCombatPowerCalculator.calculateDiscipleCombatPower(stats)
-        // (200+100)*5 + 1000*4 + (50+30)*3 + 80*2
-        assertEquals((200 + 100) * 5L + 1000 * 4L + (50 + 30) * 3L + 80 * 2L, result)
+        // 单列口径（B1）：200*5 + 1000*4 + 50*3 + 80*2（旧双列取和口径线性等价）
+        assertEquals(200 * 5L + 1000 * 4L + 50 * 3L + 80 * 2L, result)
     }
 
     @Test
@@ -179,13 +177,13 @@ class SectCombatPowerCalculatorTest {
     @Test
     fun `calculateDiscipleCombatPowerWithStar - 整体乘算后向零截断`() {
         val stats = starFixtureStats()
-        // (100+80)*5 + 1000*4 + (60+50)*3 + 40*2 = 5310（与 C++ 金标同值）
-        assertEquals(5310L, SectCombatPowerCalculator.calculateDiscipleCombatPower(stats))
-        // 5310 × 1.32 = 7009.2 → 向零截断
-        assertEquals(7009L, SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
+        // 单列口径（B1）：100*5 + 1000*4 + 60*3 + 40*2 = 4760（与 C++ 金标同式同值）
+        assertEquals(4760L, SectCombatPowerCalculator.calculateDiscipleCombatPower(stats))
+        // 4760 × 1.32 = 6283.2 → 向零截断
+        assertEquals(6283L, SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
             stats, GameConfig.Gacha.MAX_STAR))
-        // 5310 × 1.08 = 5734.8 → 向零截断
-        assertEquals(5734L, SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
+        // 4760 × 1.08 = 5140.8 → 向零截断
+        assertEquals(5140L, SectCombatPowerCalculator.calculateDiscipleCombatPowerWithStar(
             stats, STAR_TWO))
     }
 
@@ -223,10 +221,8 @@ class SectCombatPowerCalculatorTest {
     /** 与 C++ `sect_power` 金标用例同组的六维属性（纯公式基线 5310） */
     private fun starFixtureStats(): DiscipleStats = DiscipleStats(
         maxHp = 1000,
-        physicalAttack = 100,
-        magicAttack = 80,
-        physicalDefense = 60,
-        magicDefense = 50,
+        attack = 100,
+        defense = 60,
         speed = 40
     )
 
@@ -237,19 +233,17 @@ class SectCombatPowerCalculatorTest {
         // 虎妖 (beastType=0): hpMod=1.3, atkMod=1.4, defMod=0.7, speedMod=1.0
         // 属性已含随机方差（此处直接传入预计算值验证公式）
         val result = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 5000, physicalAttack = 300, magicAttack = 300,
-            physicalDefense = 150, magicDefense = 150, speed = 100
+            maxHp = 5000, attack = 300, defense = 150, speed = 100
         )
-        // (300+300)*5 + 5000*4 + (150+150)*3 + 100*2
-        val expected = (300 + 300) * 5L + 5000 * 4L + (150 + 150) * 3L + 100 * 2L
+        // 单列口径（B1）：300*5 + 5000*4 + 150*3 + 100*2
+        val expected = 300 * 5L + 5000 * 4L + 150 * 3L + 100 * 2L
         assertEquals(expected, result)
     }
 
     @Test
     fun `calculateBeastCombatPower - zero stats`() {
         val result = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 0, physicalAttack = 0, magicAttack = 0,
-            physicalDefense = 0, magicDefense = 0, speed = 0
+            maxHp = 0, attack = 0, defense = 0, speed = 0
         )
         assertEquals(0L, result)
     }
@@ -257,12 +251,10 @@ class SectCombatPowerCalculatorTest {
     @Test
     fun `calculateBeastCombatPower - deterministic output`() {
         val first = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 15236, physicalAttack = 2283, magicAttack = 2283,
-            physicalDefense = 853, magicDefense = 853, speed = 866
+            maxHp = 15236, attack = 2283, defense = 853, speed = 866
         )
         val second = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 15236, physicalAttack = 2283, magicAttack = 2283,
-            physicalDefense = 853, magicDefense = 853, speed = 866
+            maxHp = 15236, attack = 2283, defense = 853, speed = 866
         )
         assertEquals("相同输入必须返回相同结果", first, second)
     }
@@ -270,12 +262,10 @@ class SectCombatPowerCalculatorTest {
     @Test
     fun `calculateBeastCombatPower - higher stats yield higher power`() {
         val low = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 1000, physicalAttack = 100, magicAttack = 100,
-            physicalDefense = 50, magicDefense = 50, speed = 50
+            maxHp = 1000, attack = 100, defense = 50, speed = 50
         )
         val high = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 2000, physicalAttack = 200, magicAttack = 200,
-            physicalDefense = 100, magicDefense = 100, speed = 100
+            maxHp = 2000, attack = 200, defense = 100, speed = 100
         )
         assertEquals(true, high > low)
     }
@@ -284,12 +274,10 @@ class SectCombatPowerCalculatorTest {
     fun `calculateBeastCombatPower - same formula as disciple`() {
         // 同一组属性值，妖兽和弟子使用完全相同的公式
         val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 1000, physicalAttack = 200, magicAttack = 100,
-            physicalDefense = 50, magicDefense = 30, speed = 80
+            maxHp = 1000, attack = 200, defense = 50, speed = 80
         )
         val stats = com.xianxia.sect.core.model.DiscipleStats(
-            maxHp = 1000, physicalAttack = 200, magicAttack = 100,
-            physicalDefense = 50, magicDefense = 30, speed = 80
+            maxHp = 1000, attack = 200, defense = 50, speed = 80
         )
         val disciplePower = SectCombatPowerCalculator.calculateDiscipleCombatPower(stats)
         assertEquals("妖兽与弟子使用同一战力公式", disciplePower, beastPower)
@@ -299,8 +287,7 @@ class SectCombatPowerCalculatorTest {
     fun `calculateBeastCombatPower - negative inputs coerced to zero`() {
         // 负数应被钳制为 0 计算，不产生负战力
         val result = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = -100, physicalAttack = -50, magicAttack = -30,
-            physicalDefense = -20, magicDefense = -10, speed = -5
+            maxHp = -100, attack = -50, defense = -20, speed = -5
         )
         assertEquals("负数入参应返回 0", 0L, result)
     }
@@ -308,11 +295,10 @@ class SectCombatPowerCalculatorTest {
     @Test
     fun `calculateBeastCombatPower - mixed negative positive`() {
         val result = SectCombatPowerCalculator.calculateBeastCombatPower(
-            maxHp = 1000, physicalAttack = -50, magicAttack = 100,
-            physicalDefense = 50, magicDefense = 30, speed = 80
+            maxHp = 1000, attack = -50, defense = 50, speed = 80
         )
-        // hp=1000, patk=0(钳制), matk=100, pdef=50, mdef=30, speed=80
-        // (0+100)*5 + 1000*4 + (50+30)*3 + 80*2 = 500+4000+240+160 = 4900
-        assertEquals(4900L, result)
+        // hp=1000, attack=0(钳制), defense=50, speed=80
+        // 0*5 + 1000*4 + 50*3 + 80*2 = 4000+150+160 = 4310
+        assertEquals(4310L, result)
     }
 }

@@ -4,24 +4,24 @@ import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSet
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
-
-
-
-
+/**
+ * EquipmentRefRule 六部位引用校验测试（B3：孤立部位引用清除）。
+ */
 class EquipmentRefRuleTest {
 
     @Before
@@ -35,11 +35,19 @@ class EquipmentRefRuleTest {
         SaveValidationRuleRegistry.clear()
     }
 
+    private fun instance(id: String) = EquipmentInstance(
+        id = id,
+        name = "部件",
+        setId = "lietian",
+        part = EquipmentSlot.WEAPON,
+        growth = EquipGrowth(affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))),
+        meta = EquipInstanceMeta()
+    )
+
     @Test
     fun `valid equipment refs return Passed`() {
         val d = makeDisciple(weaponId = "sword-1")
-        val stack = EquipmentStack(id = "sword-1", name = "剑", rarity = 1, description = "")
-        val data = saveData(disciples = listOf(d), stacks = listOf(stack))
+        val data = saveData(disciples = listOf(d), instances = listOf(instance("sword-1")))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
 
@@ -54,22 +62,23 @@ class EquipmentRefRuleTest {
 
     @Test
     fun `all orphan fields are cleared`() {
-        val d = makeDisciple(weaponId = "w", armorId = "a", bootsId = "b", accessoryId = "c")
+        val d = makeDisciple(
+            headId = "h", bodyId = "b", handsId = "ha", feetId = "f",
+            weaponId = "w", legsId = "l"
+        )
         val data = saveData(disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
         assertEquals("", equip.weaponId)
-        assertEquals("", equip.armorId)
-        assertEquals("", equip.bootsId)
-        assertEquals("", equip.accessoryId)
+        assertEquals("", equip.headId)
+        assertEquals("", equip.legsId)
     }
 
     @Test
     fun `ref to equipment instance is valid`() {
         val d = makeDisciple(weaponId = "inst-1")
-        val inst = EquipmentInstance(id = "inst-1", name = "神兵", rarity = 1, description = "")
-        val data = saveData(disciples = listOf(d), instances = listOf(inst))
+        val data = saveData(disciples = listOf(d), instances = listOf(instance("inst-1")))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
 
@@ -81,22 +90,27 @@ class EquipmentRefRuleTest {
 
     private fun makeDisciple(
         id: String = "d-1", name: String = "甲",
-        weaponId: String = "", armorId: String = "", bootsId: String = "", accessoryId: String = ""
+        headId: String = "", bodyId: String = "", handsId: String = "",
+        feetId: String = "", weaponId: String = "", legsId: String = ""
     ) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
         isAlive = true,
-        equipment = EquipmentSet(weaponId = weaponId, armorId = armorId,
-            bootsId = bootsId, accessoryId = accessoryId)
+        equipment = EquipmentSet(
+            headId = headId, bodyId = bodyId, handsId = handsId,
+            feetId = feetId, weaponId = weaponId, legsId = legsId
+        )
     )
 
     private fun saveData(
         disciples: List<Disciple> = emptyList(),
-        stacks: List<EquipmentStack> = emptyList(),
         instances: List<EquipmentInstance> = emptyList()
-    ) = SaveData(
+    ): SaveData = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
-        disciples = disciples, equipmentStacks = stacks, equipmentInstances = instances,
-        pills = emptyList(), materials = emptyList(), herbs = emptyList(),
+        disciples = disciples,
+        equipmentInstances = instances,
+        pills = emptyList(),
+        materials = emptyList(),
+        herbs = emptyList(),
         seeds = emptyList()
     )
 }

@@ -4,34 +4,24 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.accessoryNurture
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.armorNurture
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.bootsNurture
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
-import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.weaponNurture
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
 import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
 
 // ── AISectDiscipleManager 拆分域（行为零变更） ──
 
-/** 按境界上限品阶从槽位模板池选取装备（无该品阶时取槽位最高品阶兜底）。 */
+/** 按境界上限品阶从槽位条目池选取装备条目（无该品阶时取槽位最高品阶兜底）。 */
 
 internal fun AISectDiscipleManager.pickEquipmentTemplate(
     slot: EquipmentSlot,
     maxRarity: Int
-): EquipmentDatabase.EquipmentTemplate? {
+): EquipmentDatabase.EquipPieceEntry? {
     val allSlotTemplates = EquipmentDatabase.getBySlot(slot)
     return if (allSlotTemplates.isEmpty()) {
         null
@@ -45,7 +35,7 @@ internal fun AISectDiscipleManager.pickEquipmentTemplate(
     }
 }
 
-/** 随机选取 [count] 个装备槽位并生成境界上限品阶装备 id，返回 槽位 → 模板 id 映射。 */
+/** 随机选取 [count] 个装备槽位并生成境界上限品阶装备条目 id，返回 槽位 → 条目 id 映射。 */
 
 internal fun AISectDiscipleManager.generateEquipmentIds(maxRarity: Int, count: Int): Map<EquipmentSlot, String> {
     if (count <= 0) return emptyMap()
@@ -89,26 +79,15 @@ internal fun AISectDiscipleManager.generateManuals(
     return selected.map { manual -> Pair(manual.id, 0) }
 }
 
-/** 读取指定槽位已装备的模板 id。 */
+/** 将装备 id 写入指定槽位（返回新副本，不改原对象）。 */
 
-internal fun EquipmentSet.idFor(slot: EquipmentSlot): String = when (slot) {
-    EquipmentSlot.WEAPON -> weaponId
-    EquipmentSlot.ARMOR -> armorId
-    EquipmentSlot.BOOTS -> bootsId
-    EquipmentSlot.ACCESSORY -> accessoryId
-}
-
-/** 将装备写入指定槽位（含孕养数据）。 */
-
-internal fun EquipmentSet.withEquipped(
-    slot: EquipmentSlot,
-    id: String,
-    nurture: EquipmentNurtureData
-): EquipmentSet = when (slot) {
-    EquipmentSlot.WEAPON -> copy(weaponId = id, weaponNurture = nurture)
-    EquipmentSlot.ARMOR -> copy(armorId = id, armorNurture = nurture)
-    EquipmentSlot.BOOTS -> copy(bootsId = id, bootsNurture = nurture)
-    EquipmentSlot.ACCESSORY -> copy(accessoryId = id, accessoryNurture = nurture)
+internal fun EquipmentSet.withEquipped(slot: EquipmentSlot, id: String): EquipmentSet = when (slot) {
+    EquipmentSlot.HEAD -> copy(headId = id)
+    EquipmentSlot.BODY -> copy(bodyId = id)
+    EquipmentSlot.HANDS -> copy(handsId = id)
+    EquipmentSlot.FEET -> copy(feetId = id)
+    EquipmentSlot.WEAPON -> copy(weaponId = id)
+    EquipmentSlot.LEGS -> copy(legsId = id)
 }
 
 /**
@@ -145,7 +124,7 @@ internal fun AISectDiscipleManager.settleMonthlyCultivation(disciple: Disciple, 
     }
 
     // 大境界变化且品阶上限提升时才刷新装备/功法——品阶不变的
-    // 突破若重刷会清空已有孕养/熟练度积累，无收益只有损失
+    // 突破若重刷会清空已有熟练度积累，无收益只有损失
     return if (working.realm != disciple.realm &&
         GameConfig.Realm.getMaxRarity(working.realm) >
         GameConfig.Realm.getMaxRarity(disciple.realm)
@@ -215,59 +194,4 @@ internal fun AISectDiscipleManager.applyMonthlyProficiencyGain(disciple: Discipl
             }
         }
     return disciple.copy(manualMasteries = updated)
-}
-
-/**
- * 装备孕养月度增长（AI 装备孕养度正常增长）。
- *
- * 速率与玩家"每旬自动温养"一致：每月 exp = [EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE] × 3 旬；
- * 升级曲线/上限走 [EquipmentNurtureSystem.getExpRequiredForLevelUp]/[EquipmentNurtureSystem.getMaxNurtureLevel]，
- * 与玩家共用同一套数值（品阶越高升级越慢）。满级后不再增长；空槽位跳过。
- *
- * 老档兼容：存量弟子 [EquipmentNurtureData] 序列化默认
- * equipmentId=""，此处对"槽位有装备但 nurture 记录为空"的做一次性回填
- * （0 级 0 进度，由模板 id + rarity 初始化），此后正常增长。
- */
-
-internal fun AISectDiscipleManager.applyMonthlyNurtureGain(disciple: Disciple): Disciple {
-    if (!EquipmentDatabase.isInitialized) return disciple
-    val monthlyGain = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE * PHASES_PER_MONTH
-
-    fun growNurture(slotEquipmentId: String, nurture: EquipmentNurtureData): EquipmentNurtureData {
-        // 老档回填：槽位有装备但记录为空 → 0 级起步
-        val normalized = if (slotEquipmentId.isNotEmpty() && nurture.equipmentId.isEmpty()) {
-            generateInitialNurture(slotEquipmentId)
-        } else {
-            nurture
-        }
-        // 防御篡改：负数等级钳 0、NaN 进度归零（NaN 比较恒 false 会永久卡死不升级）
-        val safeLevel = normalized.nurtureLevel.coerceAtLeast(0)
-        val safeProgress = normalized.nurtureProgress.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
-        val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(normalized.rarity)
-        val canGrow = normalized.equipmentId.isNotEmpty() && safeLevel < maxLevel
-        if (!canGrow) return normalized
-        val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(safeLevel, normalized.rarity)
-        val newProgress = safeProgress + monthlyGain
-        val newLevel = safeLevel + 1
-        return if (newProgress >= expRequired) {
-            EquipmentNurtureData(
-                equipmentId = normalized.equipmentId,
-                rarity = normalized.rarity,
-                nurtureLevel = newLevel,
-                nurtureProgress = if (newLevel >= maxLevel) 0.0 else newProgress - expRequired
-            )
-        } else {
-            normalized.copy(nurtureProgress = newProgress)
-        }
-    }
-
-    /** 当前设备的电源管理配置 */
-    val current = disciple.equipment
-    val updated = current.copy(
-        weaponNurture = growNurture(current.weaponId, current.weaponNurture),
-        armorNurture = growNurture(current.armorId, current.armorNurture),
-        bootsNurture = growNurture(current.bootsId, current.bootsNurture),
-        accessoryNurture = growNurture(current.accessoryId, current.accessoryNurture)
-    )
-    return if (updated != current) disciple.copy(equipment = updated) else disciple
 }

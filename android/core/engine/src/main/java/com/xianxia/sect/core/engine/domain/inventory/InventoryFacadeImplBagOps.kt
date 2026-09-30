@@ -2,17 +2,16 @@ package com.xianxia.sect.core.engine.domain.inventory
 
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl.StorageBagRewardBatch
 import com.xianxia.sect.core.model.BattleRewardItem
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBag
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.util.asKotlinRandom
@@ -93,15 +92,15 @@ internal fun generateStorageBagRewardsFromDraws(
     return batch
 }
 
-/** 装备条目（模板抽取显式消费分区 rng——原默认实参回落 Random.Default 已消除） */
+/** 装备条目（B3：EquipmentFactory 产实例；批内装备列表为实例轨） */
 internal fun StorageBagRewardBatch.generateEquipmentReward(rarity: Int, rng: DeterministicRng) {
-    val stack: EquipmentStack = EquipmentDatabase.generateRandom(
-        minRarity = rarity, maxRarity = rarity, random = rng.asKotlinRandom()
-    )
-    equipment.add(stack)
+    val kr = rng.asKotlinRandom()
+    val setId = if (kr.nextBoolean()) "lietian" else "zifu"
+    val instance = EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, kr), rarity, kr)
+    equipment.add(instance)
     rewards.add(
         BattleRewardItem(
-            itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity,
+            itemId = instance.id, name = instance.name, quantity = 1, rarity = instance.rarity,
             type = "equipment"
         )
     )

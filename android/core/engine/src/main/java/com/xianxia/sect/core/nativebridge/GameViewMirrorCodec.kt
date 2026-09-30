@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.proto.gameview.DiscipleRow
-import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.GameView
 import com.xianxia.sect.proto.gameview.StringIntEntry
 import com.xianxia.sect.proto.gameview.StringStringEntry
@@ -315,15 +314,6 @@ internal object GameViewMirrorCodec {
 
     private fun List<String>.toJsonIdArray(): JsonArray = JsonArray(map { JsonPrimitive(it) })
 
-    private fun EquipmentNurtureDataView.nurtureToJson(): JsonObject {
-        val m = LinkedHashMap<String, JsonElement>()
-        if (hasEquipmentId()) m["equipmentId"] = JsonPrimitive(equipmentId)
-        if (hasRarity()) m["rarity"] = JsonPrimitive(rarity.toLong())
-        if (hasNurtureLevel()) m["nurtureLevel"] = JsonPrimitive(nurtureLevel.toLong())
-        if (hasNurtureProgress()) m["nurtureProgress"] = JsonPrimitive(nurtureProgress)
-        return JsonObject(m)
-    }
-
     @Suppress("UNCHECKED_CAST")
     private fun DiscipleRow.toJsonObject(): JsonObject {
         val map = LinkedHashMap<String, JsonElement>()
@@ -334,6 +324,7 @@ internal object GameViewMirrorCodec {
                 Kind.INT, Kind.LONG -> JsonPrimitive((spec.value(this) as Number).toLong())
                 Kind.BOOL -> JsonPrimitive(spec.value(this) as Boolean)
                 Kind.DOUBLE -> JsonPrimitive(spec.value(this) as Double)
+                Kind.NURTURE -> JsonObject(emptyMap()) // B3 退役位：无消费者（枚举位保留防序漂移）
                 Kind.STR_LIST ->
                     JsonArray((spec.value(this) as List<String>).map { JsonPrimitive(it) })
                 Kind.INT_MAP -> JsonObject(
@@ -346,7 +337,6 @@ internal object GameViewMirrorCodec {
                         it.key to JsonPrimitive(it.value)
                     }
                 )
-                Kind.NURTURE -> (spec.value(this) as EquipmentNurtureDataView).nurtureToJson()
                 Kind.JSON_ELEMENT -> spec.value(this) as JsonElement
             }
         }
@@ -386,12 +376,6 @@ internal object GameViewMirrorCodec {
 
     private fun sm(k: String, get: (DiscipleRow) -> List<StringStringEntry>) =
         Spec(k, Kind.STR_MAP, { get(it).isNotEmpty() }, get)
-
-    private fun nu(
-        k: String,
-        has: (DiscipleRow) -> Boolean,
-        get: (DiscipleRow) -> EquipmentNurtureDataView,
-    ) = Spec(k, Kind.NURTURE, has, get)
 
     /**
      * JSON 元素直接承载（B18-P1-A2：`storageBagItems` 由 75 号 bytes 原文换轨
@@ -439,43 +423,24 @@ internal object GameViewMirrorCodec {
         ),
         i32("manualCompletionMonth", { it.hasManualCompletionMonth() }, { it.manualCompletionMonth }),
         i32("manualCompletionPhase", { it.hasManualCompletionPhase() }, { it.manualCompletionPhase }),
-        i32(
-            "equipmentNurturingCompletionMonth", { it.hasEquipmentNurturingCompletionMonth() },
-            { it.equipmentNurturingCompletionMonth },
-        ),
-        i32(
-            "equipmentNurturingCompletionPhase", { it.hasEquipmentNurturingCompletionPhase() },
-            { it.equipmentNurturingCompletionPhase },
-        ),
         i32("baseHp", { it.hasBaseHp() }, { it.baseHp }),
         i32("baseMp", { it.hasBaseMp() }, { it.baseMp }),
-        i32("basePhysicalAttack", { it.hasBasePhysicalAttack() }, { it.basePhysicalAttack }),
-        i32("baseMagicAttack", { it.hasBaseMagicAttack() }, { it.baseMagicAttack }),
-        i32("basePhysicalDefense", { it.hasBasePhysicalDefense() }, { it.basePhysicalDefense }),
-        i32("baseMagicDefense", { it.hasBaseMagicDefense() }, { it.baseMagicDefense }),
+        i32("baseAttack", { it.hasBaseAttack() }, { it.baseAttack }),
+        i32("baseDefense", { it.hasBaseDefense() }, { it.baseDefense }),
+        str("innateDamageType", { it.hasInnateDamageType() }, { it.innateDamageType }),
         i32("baseSpeed", { it.hasBaseSpeed() }, { it.baseSpeed }),
         i32("hpVariance", { it.hasHpVariance() }, { it.hpVariance }),
         i32("mpVariance", { it.hasMpVariance() }, { it.mpVariance }),
-        i32("physicalAttackVariance", { it.hasPhysicalAttackVariance() }, { it.physicalAttackVariance }),
-        i32("magicAttackVariance", { it.hasMagicAttackVariance() }, { it.magicAttackVariance }),
-        i32(
-            "physicalDefenseVariance", { it.hasPhysicalDefenseVariance() },
-            { it.physicalDefenseVariance },
-        ),
-        i32("magicDefenseVariance", { it.hasMagicDefenseVariance() }, { it.magicDefenseVariance }),
+        i32("attackVariance", { it.hasAttackVariance() }, { it.attackVariance }),
+        i32("defenseVariance", { it.hasDefenseVariance() }, { it.defenseVariance }),
         i32("speedVariance", { it.hasSpeedVariance() }, { it.speedVariance }),
         i64("totalCultivation", { it.hasTotalCultivation() }, { it.totalCultivation }),
         i32("breakthroughCount", { it.hasBreakthroughCount() }, { it.breakthroughCount }),
         i32("breakthroughFailCount", { it.hasBreakthroughFailCount() }, { it.breakthroughFailCount }),
         i32("currentHp", { it.hasCurrentHp() }, { it.currentHp }),
         i32("currentMp", { it.hasCurrentMp() }, { it.currentMp }),
-        i32("pillPhysicalAttackBonus", { it.hasPillPhysicalAttackBonus() }, { it.pillPhysicalAttackBonus }),
-        i32("pillMagicAttackBonus", { it.hasPillMagicAttackBonus() }, { it.pillMagicAttackBonus }),
-        i32(
-            "pillPhysicalDefenseBonus", { it.hasPillPhysicalDefenseBonus() },
-            { it.pillPhysicalDefenseBonus },
-        ),
-        i32("pillMagicDefenseBonus", { it.hasPillMagicDefenseBonus() }, { it.pillMagicDefenseBonus }),
+        i32("pillAttackBonus", { it.hasPillAttackBonus() }, { it.pillAttackBonus }),
+        i32("pillDefenseBonus", { it.hasPillDefenseBonus() }, { it.pillDefenseBonus }),
         i32("pillHpBonus", { it.hasPillHpBonus() }, { it.pillHpBonus }),
         i32("pillMpBonus", { it.hasPillMpBonus() }, { it.pillMpBonus }),
         i32("pillSpeedBonus", { it.hasPillSpeedBonus() }, { it.pillSpeedBonus }),
@@ -486,18 +451,17 @@ internal object GameViewMirrorCodec {
             { it.pillCultivationSpeedBonus },
         ),
         dbl("pillSkillExpSpeedBonus", { it.hasPillSkillExpSpeedBonus() }, { it.pillSkillExpSpeedBonus }),
-        dbl("pillNurtureSpeedBonus", { it.hasPillNurtureSpeedBonus() }, { it.pillNurtureSpeedBonus }),
         i32("pillEffectDuration", { it.hasPillEffectDuration() }, { it.pillEffectDuration }),
         sl("activePillTypes", { it.activePillTypesList }),
         str("activePillCategory", { it.hasActivePillCategory() }, { it.activePillCategory }),
+        // B3 六部位槽位列（proto 67-70 头/身/手/脚 + weaponId=122 / legsId=123；
+        // 漏登记 = 镜像 JSON 树静默丢五列，投影两臂分歧——GameViewDiscipleProjection 守卫抓获）
+        str("headId", { it.hasHeadId() }, { it.headId }),
+        str("bodyId", { it.hasBodyId() }, { it.bodyId }),
+        str("handsId", { it.hasHandsId() }, { it.handsId }),
+        str("feetId", { it.hasFeetId() }, { it.feetId }),
         str("weaponId", { it.hasWeaponId() }, { it.weaponId }),
-        str("armorId", { it.hasArmorId() }, { it.armorId }),
-        str("bootsId", { it.hasBootsId() }, { it.bootsId }),
-        str("accessoryId", { it.hasAccessoryId() }, { it.accessoryId }),
-        nu("weaponNurture", { it.hasWeaponNurture() }, { it.weaponNurture }),
-        nu("armorNurture", { it.hasArmorNurture() }, { it.armorNurture }),
-        nu("bootsNurture", { it.hasBootsNurture() }, { it.bootsNurture }),
-        nu("accessoryNurture", { it.hasAccessoryNurture() }, { it.accessoryNurture }),
+        str("legsId", { it.hasLegsId() }, { it.legsId }),
         jx(
             "storageBagItems",
             { it.storageBagItemsTypedCount > 0 || it.storageBagItemsJson.isEmpty.not() },

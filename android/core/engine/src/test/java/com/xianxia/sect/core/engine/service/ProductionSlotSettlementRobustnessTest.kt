@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.BuildingType
@@ -44,7 +43,7 @@ import com.xianxia.sect.core.repository.getSlotsByBuildingId
  * 生产槽位结算健壮性测试。
  *
  * - 死弟子槽位卡死：月变结算后死弟子槽位重置同时清空关联（三路径之一）
- * - 锁内吞失败：产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
+ * - 锁内吞失败：产出入库失败（addPill/addEquipmentInstance Failure）视为炼制失败，
  *       不结算晋升但计数照常（防装备/丹药静默丢失）
  * - resetSlotToIdle 与 auto-restart 排班异步竞争——repository 写串行化
  *       （缓存 RMW + DAO 写原子段）+ reset 守卫（仅 WORKING 且身份一致的槽才重置，
@@ -116,17 +115,22 @@ class ProductionSlotSettlementRobustnessTest {
         )
     }
 
-    /** 产出成功 stub（withTrackingSource 透传 + 入库成功） */
+    /**
+     * B3 实例轨：锻造走 EquipmentFactory + addEquipmentInstance—— forging 用例
+     * 用真实 InventorySystem（读 stateStore 弟子列定产出品阶），丹药用例沿用 mock。
+     */
+    private fun realInventory(store: FakeAtomicStateStore): InventorySystem = InventorySystem(
+        stateStore = store,
+        inventoryConfig = com.xianxia.sect.core.config.InventoryConfig(),
+        overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+    )
+
+    /** 丹药产出成功 stub（withTrackingSource 透传 + addPill 成功） */
     private fun stubInventorySuccess(): InventorySystem {
         val inv = mock<InventorySystem>()
         whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
             @Suppress("UNCHECKED_CAST")
             (invocation.getArgument(1) as () -> Any)()
-        }
-        whenever(inv.createEquipmentFromRecipe(any()))
-            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
-        whenever(inv.addEquipmentStack(any())).thenAnswer { invocation ->
-            DomainResult.Success(invocation.getArgument(0) as EquipmentStack)
         }
         whenever(inv.addPill(any())).thenAnswer { invocation ->
             DomainResult.Success(invocation.getArgument(0) as Pill)
@@ -155,9 +159,9 @@ class ProductionSlotSettlementRobustnessTest {
     @Test
     fun `月变结算 - 死弟子槽位重置同时清空弟子关联`() = runTest {
         val store = newStore(alive = false)
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = newRepo(listOf(forgeWorkingSlot(tier1.id, "1")))
-        val processor = newProcessor(store, repo, stubInventorySuccess())
+        val processor = newProcessor(store, repo, realInventory(store))
 
         processor.processBuildingProduction(1, 3)
 
@@ -170,9 +174,9 @@ class ProductionSlotSettlementRobustnessTest {
     @Test
     fun `月变结算 - 存活弟子槽位保留关联供自动续炼`() = runTest {
         val store = newStore(alive = true)
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = newRepo(listOf(forgeWorkingSlot(tier1.id, "1")))
-        val processor = newProcessor(store, repo, stubInventorySuccess())
+        val processor = newProcessor(store, repo, realInventory(store))
 
         processor.processBuildingProduction(1, 3)
 
@@ -187,9 +191,12 @@ class ProductionSlotSettlementRobustnessTest {
     fun `月变结算 - 锻造入库失败视为炼制失败不晋升但计数照常`() = runTest {
         val store = newStore(alive = true)
         val inv = stubInventorySuccess()
-        whenever(inv.addEquipmentStack(any()))
+        // B3 实例轨：入库失败改 stub addEquipmentInstance；stateStore 须指向真实
+        // store（产出链读弟子锻造等级定品阶）
+        whenever(inv.addEquipmentInstance(any()))
             .thenReturn(DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = 0)))
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        whenever(inv.stateStore).thenReturn(store)
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = newRepo(listOf(forgeWorkingSlot(tier1.id, "1")))
         val processor = newProcessor(store, repo, inv)
 
@@ -227,7 +234,7 @@ class ProductionSlotSettlementRobustnessTest {
      */
     @Test
     fun `reset 守卫 - 身份一致重置许可 身份不符与已重置跳过（调用真身）`() {
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val settled = forgeWorkingSlot(tier1.id, "1").copy(completionMonth = 2)
 
         assertTrue(
@@ -255,7 +262,7 @@ class ProductionSlotSettlementRobustnessTest {
 
     @Test
     fun `reset 守卫 - 集成：缓存槽已是排班新炼制时 repo transform 跳过重置`() = runTest {
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         // 本次结算的炼制（reset 参数持有）：completionMonth = 2
         val oldProduction = forgeWorkingSlot(tier1.id, "1").copy(completionMonth = 2)
         // 缓存槽已被排班启动新炼制：completionMonth/recipeId 均与旧炼制不同
@@ -288,7 +295,7 @@ class ProductionSlotSettlementRobustnessTest {
 
     @Test
     fun `reset 守卫 - 集成：缓存槽已被玩家取消（IDLE）时不被快照重建复活`() = runTest {
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         // 结算快照：WORKING 炼制（completionMonth = 2）
         val settled = forgeWorkingSlot(tier1.id, "1").copy(completionMonth = 2)
         // 缓存槽：玩家在 reset 执行前已取消（IDLE，配方已清）
@@ -331,7 +338,7 @@ class ProductionSlotSettlementRobustnessTest {
     @Test
     fun `并发双写 - reset 与排班交错时 writeMutex 保证缓存与 DAO 最终一致不分叉`() = runTest {
         val dao = GatedDao()
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val completedSlot = forgeWorkingSlot(tier1.id, "1")
             .copy(status = ProductionSlotStatus.COMPLETED)
         val repo = newRepo(listOf(completedSlot), dao)

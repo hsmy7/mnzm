@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -71,7 +70,7 @@ internal fun normalizeDiscipleIds(disciples: List<Disciple>): List<Disciple> {
 // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 @Suppress("UnusedParameter", "TooGenericExceptionCaught")
 suspend fun GameEngine.loadData(
-    gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
+    gameData: GameData, disciples: List<Disciple>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
     manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material> = emptyList(),
     herbs: List<Herb> = emptyList(), seeds: List<Seed> = emptyList(),
@@ -88,7 +87,7 @@ suspend fun GameEngine.loadData(
         // 迁移 + null 槽净化 + 幽灵过滤 + id 归一化 + 快照装载
         prepareLoadedGameData(
             gameData = gameData, disciples = disciples,
-            equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
+            equipmentInstances = equipmentInstances,
             manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
             materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
             battleLogs = battleLogs
@@ -139,7 +138,7 @@ suspend fun GameEngine.loadData(
  */
 @Suppress("LongParameterList")
 private suspend fun GameEngine.prepareLoadedGameData(
-    gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
+    gameData: GameData, disciples: List<Disciple>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
     manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material>,
     herbs: List<Herb>, seeds: List<Seed>, storageBags: List<StorageBag>,
@@ -171,7 +170,7 @@ private suspend fun GameEngine.prepareLoadedGameData(
     val idSafeDisciples = normalizeDiscipleIds(cleanedDisciples)
     stateStore.loadFromSnapshot(
         gameData = safeGameData, disciples = idSafeDisciples,
-        equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
+        equipmentInstances = equipmentInstances,
         manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
         materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
         battleLogs = battleLogs

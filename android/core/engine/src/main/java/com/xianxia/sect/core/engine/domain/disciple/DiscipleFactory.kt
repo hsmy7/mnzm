@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.InnateDamageType
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SkillStats
@@ -119,10 +120,10 @@ class DiscipleFactory @Inject constructor() {
             combat = CombatAttributes(
                 hpVariance = variances.hpVariance,
                 mpVariance = variances.mpVariance,
-                physicalAttackVariance = variances.physicalAttackVariance,
-                magicAttackVariance = variances.magicAttackVariance,
-                physicalDefenseVariance = variances.physicalDefenseVariance,
-                magicDefenseVariance = variances.magicDefenseVariance,
+                attackVariance = variances.attackVariance,
+                defenseVariance = variances.defenseVariance,
+                // 固有伤害属性：模板命中取模板值，否则按首灵根派生（§15.3，创建后不变）
+                innateDamageType = InnateDamageType.derive(seed.templateId, seed.spiritRootType),
                 speedVariance = variances.speedVariance
             ),
             skills = rollSkills(r = r, comprehension = comprehension)
@@ -146,25 +147,21 @@ class DiscipleFactory @Inject constructor() {
     }
 }
 
-/** 六维方差值 */
+/** 五维方差值（单列口径 B1：攻/防各一个方差） */
 private data class DiscipleVariances(
     val hpVariance: Int,
     val mpVariance: Int,
-    val physicalAttackVariance: Int,
-    val magicAttackVariance: Int,
-    val physicalDefenseVariance: Int,
-    val magicDefenseVariance: Int,
+    val attackVariance: Int,
+    val defenseVariance: Int,
     val speedVariance: Int
 )
 
-/** 六维方差随机：正态分布，越接近0概率越高 */
+/** 五维方差随机：正态分布，越接近0概率越高 */
 private fun rollVariances(r: (Int, Int) -> Int): DiscipleVariances = DiscipleVariances(
     hpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
     mpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
-    physicalAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
-    magicAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
-    physicalDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
-    magicDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    attackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    defenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
     speedVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
 )
 
@@ -197,15 +194,12 @@ private fun rollSkills(
 private fun Disciple.applyBaseStats(variances: DiscipleVariances) {
     val baseStats = Disciple.calculateBaseStatsWithVariance(
         variances.hpVariance, variances.mpVariance,
-        variances.physicalAttackVariance, variances.magicAttackVariance,
-        variances.physicalDefenseVariance, variances.magicDefenseVariance,
+        variances.attackVariance, variances.defenseVariance,
         variances.speedVariance
     )
     combat.baseHp = baseStats.baseHp
     combat.baseMp = baseStats.baseMp
-    combat.basePhysicalAttack = baseStats.basePhysicalAttack
-    combat.baseMagicAttack = baseStats.baseMagicAttack
-    combat.basePhysicalDefense = baseStats.basePhysicalDefense
-    combat.baseMagicDefense = baseStats.baseMagicDefense
+    combat.baseAttack = baseStats.baseAttack
+    combat.baseDefense = baseStats.baseDefense
     combat.baseSpeed = baseStats.baseSpeed
 }

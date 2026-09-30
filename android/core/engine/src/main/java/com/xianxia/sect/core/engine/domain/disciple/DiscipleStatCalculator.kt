@@ -25,13 +25,12 @@ object DiscipleStatCalculator {
      * 战斗属性方差输入组（computeBaseStats 参数收拢——满足 detekt
      * LongParameterList 阈值约束）。
      */
+    /** 单列口径（B1）：攻/防各一个方差 */
     internal data class VarianceInputs(
         val hpVariance: Int,
         val mpVariance: Int,
-        val physicalAttackVariance: Int,
-        val magicAttackVariance: Int,
-        val physicalDefenseVariance: Int,
-        val magicDefenseVariance: Int,
+        val attackVariance: Int,
+        val defenseVariance: Int,
         val speedVariance: Int
     )
 
@@ -63,10 +62,12 @@ object DiscipleStatCalculator {
         val realmLayer: Int,
         val hpVariance: Int,
         val mpVariance: Int,
+        val headId: String?,
+        val bodyId: String?,
+        val handsId: String?,
+        val feetId: String?,
         val weaponId: String?,
-        val armorId: String?,
-        val bootsId: String?,
-        val accessoryId: String?,
+        val legsId: String?,
         val manualIds: List<String>,
         val pillEffectDuration: Int,
         val pillHpBonus: Int,

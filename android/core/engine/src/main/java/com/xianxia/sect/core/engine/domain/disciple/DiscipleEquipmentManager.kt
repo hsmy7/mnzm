@@ -1,315 +1,189 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.engine.system.BagItemReconstructor
-import com.xianxia.sect.core.engine.system.ReconstructedBagStack
-import com.xianxia.sect.core.engine.system.StackUpdate
+import com.xianxia.sect.core.DamageType
+import com.xianxia.sect.core.engine.domain.battle.resolvedInnateDamageType
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
 
 
+/**
+ * 弟子装备自动管理器（装备重构 B3：六部位、单轨实例、等级随实例）。
+ *
+ * 自动装配候选源 = **储物袋内完整实例**（装备堆叠已随 B3 移除，R6）；
+ * 比较键（降序）：品阶 → 部位适配（固有属性 vs 套装流派）→ 等级（严格有序防震荡）。
+ * 与 C++ `auto_gear.h` 逐位对齐（对拍 `DiffPhaseSettlementTest`）。
+ */
 @Singleton
 class DiscipleEquipmentManager @Inject constructor() {
 
     data class EquipmentProcessResult(
         val disciple: Disciple,
-        val newInstances: List<EquipmentInstance>,
+        val newInstances: List<EquipmentInstance> = emptyList(),
         /** 袋内实例条目直接装配（实例可能不在实例表——防双持有），
          *  调用方需将本列表加入实例表 */
         val attachedInstances: List<EquipmentInstance>,
-        /** 被更高品阶候选替换卸下的旧实例（已回弟子储物袋），调用方需从实例表移除 */
-        val replacedInstances: List<EquipmentInstance>,
-        val stackUpdates: List<StackUpdate>
+        /** 被更高品阶候选替换卸下的旧实例（已回弟子储物袋、保留实例表内下线态），
+         *  调用方需同步实例表 isEquipped=false */
+        val replacedInstances: List<EquipmentInstance>
     )
 
-    private data class SlotConfig(
-        val slotType: EquipmentSlot,
-        val currentEquipIdGetter: (Disciple) -> String?,
-        val equipSetter: (Disciple, String) -> Disciple
-    )
+    private fun currentEquipId(disciple: Disciple, slot: EquipmentSlot): String =
+        disciple.equipment.slotId(slot)
 
-    private val slotConfigs = listOf(
-        SlotConfig(
-            slotType = EquipmentSlot.WEAPON,
-            currentEquipIdGetter = { it.equipment.weaponId },
-            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(weaponId = id)) }
-        ),
-        SlotConfig(
-            slotType = EquipmentSlot.ARMOR,
-            currentEquipIdGetter = { it.equipment.armorId },
-            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(armorId = id)) }
-        ),
-        SlotConfig(
-            slotType = EquipmentSlot.BOOTS,
-            currentEquipIdGetter = { it.equipment.bootsId },
-            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(bootsId = id)) }
-        ),
-        SlotConfig(
-            slotType = EquipmentSlot.ACCESSORY,
-            currentEquipIdGetter = { it.equipment.accessoryId },
-            equipSetter = { d, id -> d.copy(equipment = d.equipment.copy(accessoryId = id)) }
-        )
-    )
+    private fun setEquipId(disciple: Disciple, slot: EquipmentSlot, id: String): Disciple =
+        disciple.copy(equipment = disciple.equipment.copy().apply { setSlotId(slot, id) })
 
-    fun canEquip(disciple: Disciple, stack: EquipmentStack): Boolean {
-        return disciple.realm <= stack.minRealm
+    fun canEquip(disciple: Disciple, instance: EquipmentInstance): Boolean {
+        return disciple.realm <= instance.minRealm
     }
 
-    // ── 候选模型（B：仓库堆叠 + 储物袋条目统一） ──────────────────────
+    // ── 候选模型（B3：储物袋实例单源） ──────────────────────
 
-    private sealed interface EquipSource {
-        data class Warehouse(val stack: EquipmentStack) : EquipSource
-        data class BagInstance(val bagItem: StorageBagItem, val instance: EquipmentInstance) : EquipSource
-        data class BagStack(val bagItem: StorageBagItem, val stack: EquipmentStack) : EquipSource
-    }
-
+    /** 候选：品阶/部位/等级 + 套装流派适配面 */
     private data class EquipCandidate(
-        val name: String,
-        val slot: EquipmentSlot,
+        val part: EquipmentSlot,
         val rarity: Int,
         val minRealm: Int,
-        val hasPhysical: Boolean,
-        val hasMagic: Boolean,
-        val nurtureLevel: Int,
-        val source: EquipSource
+        val setId: String,
+        val level: Int,
+        val source: EquipmentInstance
     )
 
-    /** 攻击类型匹配度（物攻 ≥ 法攻偏好物理） */
-    private fun typeMatch(disciple: Disciple, candidate: EquipCandidate): Int {
-        val prefersPhysical = disciple.basePhysicalAttack >= disciple.baseMagicAttack
-        return if (prefersPhysical && candidate.hasPhysical) 1
-        else if (!prefersPhysical && candidate.hasMagic) 1
-        else 0
+    /**
+     * 流派匹配度（属性单列口径 B1 §15.4 + 套装流派 §3.3）——
+     * 固有物理的弟子优先物理套、固有法术的优先法术套；散件中性。
+     */
+    private fun schoolMatch(disciple: Disciple, candidate: EquipCandidate): Int {
+        if (candidate.setId.isEmpty()) return 0
+        val isPhysical = disciple.resolvedInnateDamageType() == DamageType.PHYSICAL
+        val physicalSet = candidate.setId == SET_ID_PHYSICAL
+        return if (isPhysical == physicalSet) 1 else 0
     }
 
-    /** 统一比较键（降序）：品阶 → 类型匹配 → 孕养等级（严格有序防震荡） */
+    /** 统一比较键（降序）：品阶 → 流派匹配 → 等级（严格有序防震荡） */
     private fun equipComparator(disciple: Disciple): Comparator<EquipCandidate> =
         Comparator { a, b ->
             val rarityCmp = a.rarity.compareTo(b.rarity)
             if (rarityCmp != 0) return@Comparator rarityCmp
-            val typeCmp = typeMatch(disciple, a).compareTo(typeMatch(disciple, b))
+            val typeCmp = schoolMatch(disciple, a).compareTo(schoolMatch(disciple, b))
             if (typeCmp != 0) return@Comparator typeCmp
-            a.nurtureLevel.compareTo(b.nurtureLevel)
+            a.level.compareTo(b.level)
         }
 
-    /** 已装备实例 → 候选（替换比较基准） */
-    private fun candidateFromInstance(instance: EquipmentInstance): EquipCandidate =
-        EquipCandidate(
-            name = instance.name,
-            slot = instance.slot,
+    /** 储物袋条目 → 候选（仅 equipment_instance 完整实例；其余装备类条目不参与自动装配） */
+    private fun candidateFromBagItem(item: StorageBagItem): EquipCandidate? {
+        val instance = item.equipmentInstance ?: return null
+        return EquipCandidate(
+            part = instance.part,
             rarity = instance.rarity,
             minRealm = instance.minRealm,
-            hasPhysical = instance.physicalAttack > 0,
-            hasMagic = instance.magicAttack > 0,
-            nurtureLevel = instance.nurtureLevel,
-            source = EquipSource.BagInstance(StorageBagItem("", "", "", 0), instance)
+            setId = instance.setId,
+            level = instance.level,
+            source = instance
         )
-
-    /** 单槽处理结果累加器（processEquipSlot 输出面分组，避免超长参数表） */
-    private class EquipAccumulator {
-        val newInstances = mutableListOf<EquipmentInstance>()
-        val attachedInstances = mutableListOf<EquipmentInstance>()
-        val replacedInstances = mutableListOf<EquipmentInstance>()
-        val stackUpdates = mutableListOf<StackUpdate>()
     }
 
-    /** 储物袋条目 → 候选（equipment_instance 完整实例 / equipment_stack 模板重建） */
-    private fun candidateFromBagItem(item: StorageBagItem): EquipCandidate? = when (item.itemType) {
-        ITEM_TYPE_EQUIPMENT_INSTANCE ->
-            item.equipmentInstance?.let { instance ->
-                EquipCandidate(
-                    name = item.name,
-                    slot = instance.slot,
-                    rarity = instance.rarity,
-                    minRealm = instance.minRealm,
-                    hasPhysical = instance.physicalAttack > 0,
-                    hasMagic = instance.magicAttack > 0,
-                    nurtureLevel = instance.nurtureLevel,
-                    source = EquipSource.BagInstance(item, instance)
-                )
-            }
-        ITEM_TYPE_EQUIPMENT_STACK -> {
-            // 模板重建（模板缺失 → 丢弃，对齐 BagItemReconstructor null 语义）
-            val reconstructed = BagItemReconstructor.reconstruct(item)
-                as? ReconstructedBagStack.Equipment ?: return null
-            val stack = reconstructed.stack
-            EquipCandidate(
-                name = stack.name,
-                slot = stack.slot,
-                rarity = stack.rarity,
-                minRealm = stack.minRealm,
-                hasPhysical = stack.physicalAttack > 0,
-                hasMagic = stack.magicAttack > 0,
-                nurtureLevel = 0,
-                source = EquipSource.BagStack(item, stack)
-            )
-        }
-        else -> null
-    }
-
-    /** 单槽候选收集：仓库堆叠 + 储物袋条目（境界/锁过滤） */
+    /** 单槽候选收集：储物袋实例（境界过滤） */
     private fun collectEquipCandidates(
         disciple: Disciple,
-        slotType: EquipmentSlot,
-        warehouseStacks: List<EquipmentStack>
-    ): List<EquipCandidate> {
-        val candidates = mutableListOf<EquipCandidate>()
-        warehouseStacks.forEach { stack ->
-            if (stack.slot != slotType) return@forEach
-            if (!canEquip(disciple, stack)) return@forEach
-            if (stack.isLocked) return@forEach
-            candidates += EquipCandidate(
-                name = stack.name, slot = stack.slot, rarity = stack.rarity,
-                minRealm = stack.minRealm,
-                hasPhysical = stack.physicalAttack > 0,
-                hasMagic = stack.magicAttack > 0,
-                nurtureLevel = 0,
-                source = EquipSource.Warehouse(stack)
-            )
+        slotType: EquipmentSlot
+    ): List<EquipCandidate> =
+        disciple.equipment.storageBagItems.mapNotNull { item ->
+            val candidate = candidateFromBagItem(item) ?: return@mapNotNull null
+            if (candidate.part != slotType) return@mapNotNull null
+            if (!canEquip(disciple, candidate.source)) return@mapNotNull null
+            candidate
         }
-        disciple.equipment.storageBagItems.forEach { item ->
-            val candidate = candidateFromBagItem(item) ?: return@forEach
-            if (candidate.slot != slotType) return@forEach
-            if (!canEquip(disciple, candidate)) return@forEach
-            candidates += candidate
-        }
-        return candidates
-    }
 
     fun processAutoEquipFromWarehouse(
         disciple: Disciple,
-        warehouseStacks: List<EquipmentStack>,
-        equipmentInstances: Map<String, EquipmentInstance>,
-        gameYear: Int,
-        gameMonth: Int
+        warehouseStacks: List<Nothing> = emptyList(),
+        equipmentInstances: Map<String, EquipmentInstance> = emptyMap(),
+        gameYear: Int = 0,
+        gameMonth: Int = 0
     ): EquipmentProcessResult {
+        @Suppress("UNUSED_PARAMETER") val unusedStacks = warehouseStacks
         var updatedDisciple = disciple
-        val acc = EquipAccumulator()
+        val attached = mutableListOf<EquipmentInstance>()
+        val replaced = mutableListOf<EquipmentInstance>()
 
-        slotConfigs.forEach { config ->
-            updatedDisciple = processEquipSlot(
-                updatedDisciple, config, warehouseStacks, equipmentInstances,
-                gameYear, gameMonth, acc
-            ) ?: updatedDisciple
+        for (slot in EquipmentSlot.displayOrder) {
+            val updated = processEquipSlot(
+                updatedDisciple, slot, equipmentInstances, gameYear, gameMonth, attached, replaced
+            )
+            if (updated != null) updatedDisciple = updated
         }
 
         return EquipmentProcessResult(
             disciple = updatedDisciple,
-            newInstances = acc.newInstances,
-            attachedInstances = acc.attachedInstances,
-            replacedInstances = acc.replacedInstances,
-            stackUpdates = acc.stackUpdates
+            attachedInstances = attached,
+            replacedInstances = replaced
         )
     }
 
     /**
-     * 单槽自动装配/替换（B：更高品阶替换 + 袋内实例/堆叠装配）。
+     * 单槽自动装配/替换（更高品阶替换 + 袋内实例装配）。
      * @return 更新后的弟子；无变化返回 null（调用方保留原值）
      */
     @Suppress("ReturnCount")  // 多出口=逐槽判定天然结构：空候选/最优缺失/实例缺失/不更优/成功
     private fun processEquipSlot(
         disciple: Disciple,
-        config: SlotConfig,
-        warehouseStacks: List<EquipmentStack>,
+        slot: EquipmentSlot,
         equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
-        acc: EquipAccumulator
+        attached: MutableList<EquipmentInstance>,
+        replaced: MutableList<EquipmentInstance>
     ): Disciple? {
         var updatedDisciple = disciple
-        val currentEquipId = config.currentEquipIdGetter(updatedDisciple)
+        val currentEquipId = currentEquipId(updatedDisciple, slot)
 
-        val candidates = collectEquipCandidates(updatedDisciple, config.slotType, warehouseStacks)
+        val candidates = collectEquipCandidates(updatedDisciple, slot)
         if (candidates.isEmpty()) return null
 
         val best = candidates.maxWithOrNull(equipComparator(updatedDisciple)) ?: return null
 
         // 替换判定：槽位已占用且候选不严格更优 → 不动
-        if (!currentEquipId.isNullOrEmpty()) {
-            val current = equipmentInstances[currentEquipId] ?: return null
-            if (equipComparator(updatedDisciple).compare(best, candidateFromInstance(current)) <= 0) {
-                return null
+        if (currentEquipId.isNotEmpty()) {
+            val current = equipmentInstances[currentEquipId]
+            if (current != null) {
+                val currentCandidate = EquipCandidate(
+                    part = current.part,
+                    rarity = current.rarity,
+                    minRealm = current.minRealm,
+                    setId = current.setId,
+                    level = current.level,
+                    source = current
+                )
+                if (equipComparator(updatedDisciple).compare(best, currentCandidate) <= 0) {
+                    return null
+                }
+                // 旧装备卸装入袋（等级/词条随实例保真入袋）
+                updatedDisciple = depositToBag(updatedDisciple, current, gameYear, gameMonth)
+                replaced.add(current)
             }
-            // 旧装备卸装入袋（实例保真入袋 + 从实例表移除由调用方执行）
-            updatedDisciple = depositToBag(updatedDisciple, current, gameYear, gameMonth)
-            acc.replacedInstances.add(current)
         }
 
-        // 装配
-        updatedDisciple = applyEquipAction(updatedDisciple, config, best.source, acc)
+        // 装配：袋内完整实例直接装配（实例可能不在实例表——防双持有，
+        // 调用方按 attachedInstances 重建/更新入表）
+        val equipped = best.source.copy(isEquipped = true, ownerId = updatedDisciple.id)
+        updatedDisciple = setEquipId(updatedDisciple, slot, equipped.id)
+        updatedDisciple = updatedDisciple.copy(
+            equipment = updatedDisciple.equipment.copy(
+                storageBagItems = updatedDisciple.equipment.storageBagItems
+                    .filterNot { it.itemId == best.source.id && it.equipmentInstance != null }
+            )
+        )
+        attached.add(equipped)
         return updatedDisciple
     }
 
-    /** 装配动作（仓库堆叠 / 袋内实例 / 袋内堆叠模板重建） */
-    private fun applyEquipAction(
-        disciple: Disciple,
-        config: SlotConfig,
-        source: EquipSource,
-        acc: EquipAccumulator
-    ): Disciple {
-        var updated = disciple
-        when (source) {
-            is EquipSource.Warehouse -> {
-                val instanceId = java.util.UUID.randomUUID().toString()
-                val newInstance = source.stack.toInstance(
-                    id = instanceId, ownerId = updated.id, isEquipped = true
-                )
-                val newQty = source.stack.quantity - 1
-                val stackUpdate = if (newQty <= 0) {
-                    StackUpdate(stackId = source.stack.id, newQuantity = 0, isDeletion = true)
-                } else {
-                    StackUpdate(stackId = source.stack.id, newQuantity = newQty, isDeletion = false)
-                }
-                updated = config.equipSetter(updated, instanceId)
-                acc.newInstances.add(newInstance)
-                acc.stackUpdates.add(stackUpdate)
-            }
-            is EquipSource.BagInstance -> {
-                // 袋内完整实例：直接装配（实例可能不在实例表——防双持有，
-                // 调用方按 attachedInstances 重建/更新入表）
-                val attached = source.instance.copy(isEquipped = true, ownerId = updated.id)
-                updated = config.equipSetter(updated, attached.id)
-                updated = updated.copy(
-                    equipment = updated.equipment.copy(
-                        storageBagItems = updated.equipment.storageBagItems
-                            .filterNot { it.itemId == source.bagItem.itemId }
-                    )
-                )
-                acc.attachedInstances.add(attached)
-            }
-            is EquipSource.BagStack -> {
-                // 模板重建实例（reconstruct 已保证模板存在）
-                val instanceId = java.util.UUID.randomUUID().toString()
-                val newInstance = source.stack.copy(quantity = 1).toInstance(
-                    id = instanceId, ownerId = updated.id, isEquipped = true
-                )
-                updated = config.equipSetter(updated, instanceId)
-                updated = updated.copy(
-                    equipment = updated.equipment.copy(
-                        storageBagItems = StorageBagUtils.decreaseItemQuantity(
-                            updated.equipment.storageBagItems,
-                            source.bagItem.itemId
-                        )
-                    )
-                )
-                acc.newInstances.add(newInstance)
-            }
-        }
-        return updated
-    }
-
-    /** 旧装备卸装入袋（实例保真入袋，对齐 unequipEquipmentLogic / depositOldEquipmentToBag） */
+    /** 旧装备卸装入袋（实例保真入袋，对齐 unequipEquipmentLogic） */
     private fun depositToBag(
         disciple: Disciple,
         old: EquipmentInstance,
@@ -329,20 +203,11 @@ class DiscipleEquipmentManager @Inject constructor() {
         )
     )
 
-    fun canEquip(disciple: Disciple, instance: EquipmentInstance): Boolean {
-        return disciple.realm <= instance.minRealm
-    }
+    fun getEquipSlot(disciple: Disciple, slot: EquipmentSlot): String? =
+        disciple.equipment.slotId(slot).takeIf { it.isNotEmpty() }
 
-    private fun canEquip(disciple: Disciple, candidate: EquipCandidate): Boolean {
-        return disciple.realm <= candidate.minRealm
-    }
-
-    fun getEquipSlot(disciple: Disciple, slot: EquipmentSlot): String? {
-        return when (slot) {
-            EquipmentSlot.WEAPON -> disciple.equipment.weaponId
-            EquipmentSlot.ARMOR -> disciple.equipment.armorId
-            EquipmentSlot.BOOTS -> disciple.equipment.bootsId
-            EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
-        }
+    companion object {
+        /** 物理套装 id（与 [com.xianxia.sect.core.registry.EquipmentSetDatabase] 的 lietian 对应） */
+        const val SET_ID_PHYSICAL = "lietian"
     }
 }

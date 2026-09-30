@@ -1,12 +1,12 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.CharacterTemplateDb
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.RedeemRewardType
 import com.xianxia.sect.core.model.RewardSelectedItem
 
@@ -113,8 +113,10 @@ internal fun RedeemCodeManager.addManualPackRewards(
 }
 
 internal fun RedeemCodeManager.generateRandomEquipment(rarity: Int,
-    random: kotlin.random.Random = kotlin.random.Random): EquipmentStack {
-    return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity, random = random)
+    random: kotlin.random.Random): EquipmentInstance {
+    // B3：装备产出唯一入口 EquipmentFactory（品阶指定、套装二选一）
+    val setId = if (random.nextBoolean()) "lietian" else "zifu"
+    return EquipmentFactory.create(setId, EquipmentFactory.pickPart(setId, random), rarity, random)
 }
 
 /**

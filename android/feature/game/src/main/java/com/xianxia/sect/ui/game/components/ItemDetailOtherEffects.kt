@@ -9,13 +9,13 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.getRarityName
 
 
 
@@ -31,10 +31,7 @@ internal fun getMaterialEffects(item: Material): List<String> = buildList {
     val templateId = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.id ?: item.id
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {
@@ -145,21 +142,15 @@ private fun MutableList<String>.addMerchantItemHeader(item: MerchantItem) {
     add("")
 }
 
-/** 商人物品装备信息 */
+/** 商人物品装备信息（B3 实例轨：模板面板已退役，展示条目部位/品阶/描述） */
 private fun MutableList<String>.addMerchantEquipmentInfo(item: MerchantItem) {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        add("部位: ${template.slot.displayName}")
-        add("属性:")
-        if (template.physicalAttack > 0) add("  物理攻击 +${template.physicalAttack}")
-        if (template.magicAttack > 0) add("  法术攻击 +${template.magicAttack}")
-        if (template.physicalDefense > 0) add("  物理防御 +${template.physicalDefense}")
-        if (template.magicDefense > 0) add("  法术防御 +${template.magicDefense}")
-        if (template.hp > 0) add("  生命 +${template.hp}")
-        if (template.mp > 0) add("  灵力 +${template.mp}")
-        if (template.speed > 0) add("  速度 +${template.speed}")
-        if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
-        addForgeMaterialsInfo(item.name)
+    val entry = findEquipmentEntry(id = item.itemId, name = item.name)
+    if (entry != null) {
+        add("部位: ${entry.part.displayName}")
+        add("品阶: ${getRarityName(entry.rarity)}")
+        if (entry.description.isNotBlank()) {
+            add("  ${entry.description}")
+        }
     }
 }
 
@@ -223,7 +214,6 @@ private fun merchantPillIsInstant(pill: ItemDatabase.PillTemplate): Boolean =
     (pill.category == PillCategory.CULTIVATION && pill.pillType == "breakthrough") ||
     pill.cultivationAdd > 0 ||
     pill.skillExpAdd > 0 ||
-    pill.nurtureAdd > 0 ||
     pill.healMaxHpPercent > 0 ||
     pill.mpRecoverMaxMpPercent > 0 ||
     pill.revive ||
@@ -259,10 +249,8 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
     if (pill.clearAll) add("  清除所有负面状态")
     if (pill.hpAdd > 0) add("  生命 +${pill.hpAdd}")
     if (pill.mpAdd > 0) add("  灵力 +${pill.mpAdd}")
-    if (pill.physicalAttackAdd > 0) add("  物理攻击 +${pill.physicalAttackAdd}")
-    if (pill.magicAttackAdd > 0) add("  法术攻击 +${pill.magicAttackAdd}")
-    if (pill.physicalDefenseAdd > 0) add("  物理防御 +${pill.physicalDefenseAdd}")
-    if (pill.magicDefenseAdd > 0) add("  法术防御 +${pill.magicDefenseAdd}")
+    if (pill.attackAdd > 0) add("  攻击力 +${pill.attackAdd}")
+    if (pill.defenseAdd > 0) add("  防御力 +${pill.defenseAdd}")
     if (pill.speedAdd > 0) add("  速度 +${pill.speedAdd}")
 }
 
@@ -270,10 +258,8 @@ private fun MutableList<String>.addFunctionalPillTemplateEffects(pill: ItemDatab
 private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemDatabase.PillTemplate) {
     if (pill.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(pill.cultivationSpeedPercent)}")
     if (pill.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(pill.skillExpSpeedPercent)}")
-    if (pill.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(pill.nurtureSpeedPercent)}")
     if (pill.cultivationAdd > 0) add("  修为 +${pill.cultivationAdd}")
     if (pill.skillExpAdd > 0) add("  功法熟练度 +${pill.skillExpAdd}")
-    if (pill.nurtureAdd > 0) add("  孕养值 +${pill.nurtureAdd}")
     if (pill.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pill.breakthroughChance)}")
     if (pill.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(pill.targetRealm)}")
     if (pill.isAscension) add("  可用于渡劫")
@@ -281,10 +267,8 @@ private fun MutableList<String>.addCultivationPillTemplateEffects(pill: ItemData
 
 /** 商人物品丹药战斗类效果 */
 private fun MutableList<String>.addBattlePillTemplateEffects(pill: ItemDatabase.PillTemplate) {
-    if (pill.physicalAttackAdd > 0) add("  物理攻击 +${pill.physicalAttackAdd}")
-    if (pill.magicAttackAdd > 0) add("  法术攻击 +${pill.magicAttackAdd}")
-    if (pill.physicalDefenseAdd > 0) add("  物理防御 +${pill.physicalDefenseAdd}")
-    if (pill.magicDefenseAdd > 0) add("  法术防御 +${pill.magicDefenseAdd}")
+    if (pill.attackAdd > 0) add("  攻击力 +${pill.attackAdd}")
+    if (pill.defenseAdd > 0) add("  防御力 +${pill.defenseAdd}")
     if (pill.hpAdd > 0) add("  生命 +${pill.hpAdd}")
     if (pill.mpAdd > 0) add("  灵力 +${pill.mpAdd}")
     if (pill.speedAdd > 0) add("  速度 +${pill.speedAdd}")
@@ -305,10 +289,7 @@ private fun MutableList<String>.addMerchantMaterialInfo(item: MerchantItem) {
     val templateId = materialData?.id ?: item.itemId
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {
@@ -437,22 +418,20 @@ private fun MutableList<String>.addStorageBagItemHeader(item: StorageBagItem) {
     add("")
 }
 
-/** 储物袋物品装备信息 */
-@Suppress("CyclomaticComplexMethod")
+/** 储物袋物品装备信息（已物化条目直接展示实例词条；未物化旧条目回退条目面） */
 private fun MutableList<String>.addStorageBagEquipmentInfo(item: StorageBagItem) {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        add("部位: ${template.slot.displayName}")
-        add("属性:")
-        if (template.physicalAttack > 0) add("  物理攻击 +${template.physicalAttack}")
-        if (template.magicAttack > 0) add("  法术攻击 +${template.magicAttack}")
-        if (template.physicalDefense > 0) add("  物理防御 +${template.physicalDefense}")
-        if (template.magicDefense > 0) add("  法术防御 +${template.magicDefense}")
-        if (template.hp > 0) add("  生命 +${template.hp}")
-        if (template.mp > 0) add("  灵力 +${template.mp}")
-        if (template.speed > 0) add("  速度 +${template.speed}")
-        if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
-        addForgeMaterialsInfo(item.name)
+    val instance = item.equipmentInstance
+    if (instance != null) {
+        addAll(getEquipmentEffects(instance))
+        return
+    }
+    val entry = findEquipmentEntry(id = item.itemId, name = item.name)
+    if (entry != null) {
+        add("部位: ${entry.part.displayName}")
+        add("品阶: ${getRarityName(entry.rarity)}")
+        if (entry.description.isNotBlank()) {
+            add("  ${entry.description}")
+        }
     } else {
         item.effect?.let { effect ->
             add("属性:")
@@ -539,7 +518,6 @@ private fun storageBagPillIsInstant(effect: ItemEffect): Boolean =
     (effect.pillCategory == PillCategory.CULTIVATION.name && effect.pillType == "breakthrough") ||
     effect.cultivationAdd > 0 ||
     effect.skillExpAdd > 0 ||
-    effect.nurtureAdd > 0 ||
     effect.extendLife > 0 ||
     effect.healMaxHpPercent > 0 ||
     effect.mpRecoverMaxMpPercent > 0 ||
@@ -588,10 +566,8 @@ private fun MutableList<String>.addStorageBagFunctionalPillEffects(effect: ItemE
 private fun MutableList<String>.addStorageBagCultivationPillEffects(effect: ItemEffect) {
     if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
     if (effect.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")
-    if (effect.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(effect.nurtureSpeedPercent)}")
     if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
     if (effect.skillExpAdd > 0) add("  功法熟练度 +${effect.skillExpAdd}")
-    if (effect.nurtureAdd > 0) add("  孕养值 +${effect.nurtureAdd}")
     if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
     if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
     if (effect.isAscension) add("  可用于渡劫")
@@ -620,10 +596,7 @@ private fun MutableList<String>.addStorageBagMaterialInfo(item: StorageBagItem) 
     val templateId = materialData?.id ?: item.itemId
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {

@@ -14,7 +14,8 @@
 //   → 悟性 1×nextInt → 7×nextGaussian（14×nextDouble）
 //   → 肖像 1×nextInt → 年龄 1×nextInt → 技能
 //   9×nextGaussian（18×nextDouble）→ 基础属性/寿命（纯计算）
-// 装备/功法（applyGearToAiDisciple）：槽位洗牌与攻防池洗牌用
+// 装备/功法（applyGearToAiDisciple，B3：六部位直写条目 id——堆叠/孕养面
+// 已退役）：槽位洗牌与攻防池洗牌用
 // java.util.Random 种子（1×nextInt 播种，48 位 LCG 序列由
 // JavaRandomCompat 复刻——redeem_code.h），模板选取 1×nextInt/零消费。
 //
@@ -32,6 +33,7 @@
 #include <vector>
 
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/equipment_entries.h"  // 72 条展开条目（AI 选件池）
 #include "gamecore/system/inventory.h"  // nextItemIdCounter（id 注册表）
 #include "gamecore/data/manual_db.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
@@ -120,14 +122,12 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         std::count(d.spiritRootType.begin(), d.spiritRootType.end(), ','));
     // 3. 悟性（1×nextInt）
     const int32_t comprehension = aiRollByRootCount(rng, rootCount);
-    // 4. 六维方差（7×nextGaussian = 14×nextDouble——AI 版非 gaussianInt）
+    // 4. 五维方差（5×nextGaussian = 10×nextDouble——AI 版非 gaussianInt；单列 B1）
     const double kVarianceSigma = 16.667;
     d.hpVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.mpVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.physicalAttackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.magicAttackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.physicalDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
-    d.magicDefenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
+    d.attackVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
+    d.defenseVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     d.speedVariance = aiGaussianInt(rng, 0.0, kVarianceSigma, -50, 50);
     // 5. 肖像（1×nextInt——male 20 / female 17 池）
     const auto& portraits =
@@ -151,10 +151,8 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
         DiscipleRolls rolls;  // 复用聚合结构（值来自 AI 版 variance）
         rolls.hpVariance = d.hpVariance;
         rolls.mpVariance = d.mpVariance;
-        rolls.physicalAttackVariance = d.physicalAttackVariance;
-        rolls.magicAttackVariance = d.magicAttackVariance;
-        rolls.physicalDefenseVariance = d.physicalDefenseVariance;
-        rolls.magicDefenseVariance = d.magicDefenseVariance;
+        rolls.attackVariance = d.attackVariance;
+        rolls.defenseVariance = d.defenseVariance;
         rolls.speedVariance = d.speedVariance;
         applyBaseStats(d, rolls);
     }
@@ -166,48 +164,47 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     return d;
 }
 
-// ── 装备/功法（Kotlin applyGearToDisciple 链）──────────────────
+// ── 装备/功法（Kotlin applyGearToDisciple 链，B3 六部位条目版）──────
 
-/// 按槽位选模板（Kotlin pickEquipmentTemplate）：品阶精确池 1×nextInt；
-/// 精确池空 → 同槽最高品阶兜底（maxByOrNull——零消费）；槽池空 → null
-inline std::optional<const data::EquipmentTemplate*> aiPickEquipmentTemplate(
-    rng::DeterministicRng& rng, const std::string& slot, int32_t maxRarity) {
-    std::vector<const data::EquipmentTemplate*> slotTemplates;
-    for (const auto& t : data::equipmentTemplates()) {
-        if (t.slot == slot) slotTemplates.push_back(&t);
-    }
-    if (slotTemplates.empty()) return std::nullopt;
-    std::vector<const data::EquipmentTemplate*> exact;
-    for (const auto* t : slotTemplates) {
-        if (t->rarity == maxRarity) exact.push_back(t);
+/// 按部位选条目（Kotlin pickEquipmentTemplate，B3 = 72 条展开条目池）：
+/// 品阶精确池 1×nextInt；精确池空 → 同槽最高品阶兜底（maxByOrNull 首最大
+/// ——零消费）；槽池空 → null
+inline std::optional<gamecore::data::EquipPieceEntry> aiPickEquipmentTemplate(
+    rng::DeterministicRng& rng, const std::string& part, int32_t maxRarity) {
+    const auto slotEntries = gamecore::data::equipmentEntriesByPart(part);
+    if (slotEntries.empty()) return std::nullopt;
+    std::vector<const gamecore::data::EquipPieceEntry*> exact;
+    for (const auto* e : slotEntries) {
+        if (e->rarity == maxRarity) exact.push_back(e);
     }
     if (!exact.empty()) {
-        return exact[static_cast<std::size_t>(
+        return *exact[static_cast<std::size_t>(
             rng.nextInt(static_cast<int32_t>(exact.size())))];
     }
-    const data::EquipmentTemplate* best = nullptr;
-    for (const auto* t : slotTemplates) {
-        if (best == nullptr || t->rarity > best->rarity) best = t;
+    const gamecore::data::EquipPieceEntry* best = slotEntries.front();
+    for (const auto* e : slotEntries) {
+        if (e->rarity > best->rarity) best = e;
     }
-    return best;
+    return *best;
 }
 
-/// 随机选 count 个槽位生成装备（Kotlin generateEquipmentIds：
-/// 4 槽 java.util.Random 洗牌（1×nextInt 播种）→ take(count) → 逐槽选模板）。
-/// 返回 槽位 → 模板 id 的有序对列表（槽位序 = 洗牌后 take 序）。
-inline std::vector<std::pair<std::string, const data::EquipmentTemplate*>>
+/// 随机选 count 个部位生成装备条目 id（Kotlin generateEquipmentIds，B3）：
+/// 六部位 java.util.Random 洗牌（1×nextInt 播种）→ take(count) → 逐部位选条目。
+/// 返回 部位 → 条目 的有序对列表（部位序 = 洗牌后 take 序）。
+inline std::vector<std::pair<std::string, gamecore::data::EquipPieceEntry>>
 aiGenerateEquipmentIds(rng::DeterministicRng& rng, int32_t maxRarity, int32_t count) {
-    std::vector<std::pair<std::string, const data::EquipmentTemplate*>> out;
+    std::vector<std::pair<std::string, gamecore::data::EquipPieceEntry>> out;
     if (count <= 0) return out;
-    std::vector<std::string> slots = {"WEAPON", "ARMOR", "BOOTS", "ACCESSORY"};
+    // 枚举声明序 = HEAD/BODY/HANDS/FEET/WEAPON/LEGS（Kotlin values() 序）
+    std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"};
     // Kotlin: EquipmentSlot.values().shuffled(java.util.Random(rng.nextInt().toLong()))
     const int64_t javaSeed = static_cast<int64_t>(rng.nextInt());
     const auto shuffled = JavaRandomCompat::shuffle(slots, javaSeed);
     const int32_t takeCount = std::min(count, static_cast<int32_t>(shuffled.size()));
     for (int32_t i = 0; i < takeCount; ++i) {
-        const auto picked = aiPickEquipmentTemplate(rng, shuffled[static_cast<std::size_t>(i)],
-                                                    maxRarity);
-        if (picked.has_value() && *picked != nullptr) {
+        const auto picked = aiPickEquipmentTemplate(
+            rng, shuffled[static_cast<std::size_t>(i)], maxRarity);
+        if (picked.has_value()) {
             out.emplace_back(shuffled[static_cast<std::size_t>(i)], *picked);
         }
     }
@@ -248,9 +245,9 @@ inline std::vector<std::pair<std::string, int32_t>> aiGenerateManuals(
     return selected;
 }
 
-/// 装备/功法装配（Kotlin applyGearToDisciple：数量按宗门等级；
+/// 装备/功法装配（Kotlin applyGearToDisciple，B3 六部位版：数量按宗门等级；
 /// 品阶恒为境界上限 aiRealmMaxRarity(realm)——AI 新弟子炼气 → 凡品 1；
-/// 孕养初始 0 级 0 进度（generateInitialNurture））。
+/// 六部位单 id 直写（条目 id = {pieceId}_r{rarity}），孕养面已随 B3 退役）
 inline void applyGearToAiDisciple(rng::DeterministicRng& rng, state::Disciple& d,
                                   int32_t sectLevel) {
     const int32_t levelIdx = std::clamp(sectLevel, 0, 3);
@@ -261,26 +258,19 @@ inline void applyGearToAiDisciple(rng::DeterministicRng& rng, state::Disciple& d
     const auto equipmentIds = aiGenerateEquipmentIds(rng, maxRarity, equipCount);
     const auto manuals = aiGenerateManuals(rng, maxRarity, manualCount);
 
-    auto nurtureFor = [](const std::string& slotId,
-                         const std::vector<std::pair<std::string, const data::EquipmentTemplate*>>& list)
-        -> state::EquipmentNurtureData {
-        for (const auto& kv : list) {
-            if (kv.first == slotId) {
-                return state::EquipmentNurtureData{
-                    kv.second->id, kv.second->rarity, 0, 0.0};
-            }
-        }
-        return state::EquipmentNurtureData{};
-    };
-    d.weaponNurture = nurtureFor("WEAPON", equipmentIds);
-    d.armorNurture = nurtureFor("ARMOR", equipmentIds);
-    d.bootsNurture = nurtureFor("BOOTS", equipmentIds);
-    d.accessoryNurture = nurtureFor("ACCESSORY", equipmentIds);
+    d.headId.clear();
+    d.bodyId.clear();
+    d.handsId.clear();
+    d.feetId.clear();
+    d.weaponId.clear();
+    d.legsId.clear();
     for (const auto& kv : equipmentIds) {
-        if (kv.first == "WEAPON") d.weaponId = kv.second->id;
-        else if (kv.first == "ARMOR") d.armorId = kv.second->id;
-        else if (kv.first == "BOOTS") d.bootsId = kv.second->id;
-        else if (kv.first == "ACCESSORY") d.accessoryId = kv.second->id;
+        if (kv.first == "HEAD") d.headId = kv.second.id;
+        else if (kv.first == "BODY") d.bodyId = kv.second.id;
+        else if (kv.first == "HANDS") d.handsId = kv.second.id;
+        else if (kv.first == "FEET") d.feetId = kv.second.id;
+        else if (kv.first == "WEAPON") d.weaponId = kv.second.id;
+        else if (kv.first == "LEGS") d.legsId = kv.second.id;
     }
     d.manualIds.clear();
     d.manualMasteries.clear();
@@ -301,10 +291,8 @@ inline std::vector<state::Disciple> truncateToAiLimit(
     std::stable_sort(disciples.begin(), disciples.end(),
                      [](const state::Disciple& a, const state::Disciple& b) {
                          if (a.isAlive != b.isAlive) return a.isAlive > b.isAlive;
-                         const int64_t pa = static_cast<int64_t>(a.basePhysicalAttack) +
-                                            a.baseMagicAttack + a.baseHp;
-                         const int64_t pb = static_cast<int64_t>(b.basePhysicalAttack) +
-                                            b.baseMagicAttack + b.baseHp;
+                         const int64_t pa = static_cast<int64_t>(a.baseAttack) + a.baseHp;
+                         const int64_t pb = static_cast<int64_t>(b.baseAttack) + b.baseHp;
                          return pa > pb;
                      });
     disciples.resize(static_cast<std::size_t>(kAiDisciplesPerSectLimit));

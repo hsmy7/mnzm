@@ -72,8 +72,10 @@ class DiffDiscipleTest {
             cpp["maxHp"]!!.toString().toInt()
         )
         assertEquals(
-            kotlin.math.round(rc.basePhysicalAttack * layerMult).toInt(),
-            cpp["physicalAttack"]!!.toString().toInt()
+            // 单列口径（B1）：物法两半各自 round 后相加
+            kotlin.math.round(rc.basePhysicalAttack * layerMult).toInt() +
+                kotlin.math.round(rc.baseMagicAttack * layerMult).toInt(),
+            cpp["attack"]!!.toString().toInt()
         )
         assertEquals(0.05, cpp["critRate"]!!.toString().toDouble(), 1e-12)
     }

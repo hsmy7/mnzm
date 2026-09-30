@@ -18,35 +18,20 @@ package com.xianxia.sect.core.model
 var Disciple.baseHp: kotlin.Int get() = combat.baseHp; set(value) { combat.baseHp = value }
 /** @deprecated 请改用 [combat.baseMp] */
 var Disciple.baseMp: kotlin.Int get() = combat.baseMp; set(value) { combat.baseMp = value }
-/** @deprecated 请改用 [combat.basePhysicalAttack] */
-var Disciple.basePhysicalAttack: kotlin.Int get() = combat.basePhysicalAttack; set(value) { combat
-    .basePhysicalAttack = value }
-/** @deprecated 请改用 [combat.baseMagicAttack] */
-var Disciple.baseMagicAttack: kotlin.Int get() = combat.baseMagicAttack; set(value) { combat.baseMagicAttack = value }
-/** @deprecated 请改用 [combat.basePhysicalDefense] */
-var Disciple.basePhysicalDefense: kotlin.Int get() = combat.basePhysicalDefense; set(value) { combat
-    .basePhysicalDefense = value }
-/** @deprecated 请改用 [combat.baseMagicDefense] */
-var Disciple.baseMagicDefense: kotlin.Int get() = combat.baseMagicDefense; set(value) { combat
-    .baseMagicDefense = value }
+/** @deprecated 请改用 [combat.baseAttack] */
+var Disciple.baseAttack: kotlin.Int get() = combat.baseAttack; set(value) { combat.baseAttack = value }
+/** @deprecated 请改用 [combat.baseDefense] */
+var Disciple.baseDefense: kotlin.Int get() = combat.baseDefense; set(value) { combat.baseDefense = value }
 /** @deprecated 请改用 [combat.baseSpeed] */
 var Disciple.baseSpeed: kotlin.Int get() = combat.baseSpeed; set(value) { combat.baseSpeed = value }
 /** @deprecated 请改用 [combat.hpVariance] */
 var Disciple.hpVariance: kotlin.Int get() = combat.hpVariance; set(value) { combat.hpVariance = value }
 /** @deprecated 请改用 [combat.mpVariance] */
 var Disciple.mpVariance: kotlin.Int get() = combat.mpVariance; set(value) { combat.mpVariance = value }
-/** @deprecated 请改用 [combat.physicalAttackVariance] */
-var Disciple.physicalAttackVariance: kotlin.Int get() = combat.physicalAttackVariance; set(value) { combat
-    .physicalAttackVariance = value }
-/** @deprecated 请改用 [combat.magicAttackVariance] */
-var Disciple.magicAttackVariance: kotlin.Int get() = combat.magicAttackVariance; set(value) { combat
-    .magicAttackVariance = value }
-/** @deprecated 请改用 [combat.physicalDefenseVariance] */
-var Disciple.physicalDefenseVariance: kotlin.Int get() = combat.physicalDefenseVariance; set(value) { combat
-    .physicalDefenseVariance = value }
-/** @deprecated 请改用 [combat.magicDefenseVariance] */
-var Disciple.magicDefenseVariance: kotlin.Int get() = combat.magicDefenseVariance; set(value) { combat
-    .magicDefenseVariance = value }
+/** @deprecated 请改用 [combat.attackVariance] */
+var Disciple.attackVariance: kotlin.Int get() = combat.attackVariance; set(value) { combat.attackVariance = value }
+/** @deprecated 请改用 [combat.defenseVariance] */
+var Disciple.defenseVariance: kotlin.Int get() = combat.defenseVariance; set(value) { combat.defenseVariance = value }
 /** @deprecated 请改用 [combat.speedVariance] */
 var Disciple.speedVariance: kotlin.Int get() = combat.speedVariance; set(value) { combat.speedVariance = value }
 /** @deprecated 请改用 [combat.totalCultivation] */
@@ -65,18 +50,12 @@ var Disciple.currentMp: kotlin.Int get() = combat.currentMp; set(value) { combat
 
 // ── PillEffects ──
 
-/** @deprecated 请改用 [pillEffects.pillPhysicalAttackBonus] */
-var Disciple.pillPhysicalAttackBonus: kotlin.Int get() = pillEffects.pillPhysicalAttackBonus; set(value) { pillEffects
-    .pillPhysicalAttackBonus = value }
-/** @deprecated 请改用 [pillEffects.pillMagicAttackBonus] */
-var Disciple.pillMagicAttackBonus: kotlin.Int get() = pillEffects.pillMagicAttackBonus; set(value) { pillEffects
-    .pillMagicAttackBonus = value }
-/** @deprecated 请改用 [pillEffects.pillPhysicalDefenseBonus] */
-var Disciple.pillPhysicalDefenseBonus: kotlin.Int get() = pillEffects.pillPhysicalDefenseBonus; set(value) { pillEffects
-    .pillPhysicalDefenseBonus = value }
-/** @deprecated 请改用 [pillEffects.pillMagicDefenseBonus] */
-var Disciple.pillMagicDefenseBonus: kotlin.Int get() = pillEffects.pillMagicDefenseBonus; set(value) { pillEffects
-    .pillMagicDefenseBonus = value }
+/** @deprecated 请改用 [pillEffects.pillAttackBonus] */
+var Disciple.pillAttackBonus: kotlin.Int get() = pillEffects.pillAttackBonus; set(value) { pillEffects
+    .pillAttackBonus = value }
+/** @deprecated 请改用 [pillEffects.pillDefenseBonus] */
+var Disciple.pillDefenseBonus: kotlin.Int get() = pillEffects.pillDefenseBonus; set(value) { pillEffects
+    .pillDefenseBonus = value }
 /** @deprecated 请改用 [pillEffects.pillHpBonus] */
 var Disciple.pillHpBonus: kotlin.Int get() = pillEffects.pillHpBonus; set(value) { pillEffects.pillHpBonus = value }
 /** @deprecated 请改用 [pillEffects.pillMpBonus] */
@@ -99,9 +78,6 @@ var Disciple.pillCultivationSpeedBonus: kotlin.Double get() = pillEffects
 /** @deprecated 请改用 [pillEffects.pillSkillExpSpeedBonus] */
 var Disciple.pillSkillExpSpeedBonus: kotlin.Double get() = pillEffects.pillSkillExpSpeedBonus; set(value) { pillEffects
     .pillSkillExpSpeedBonus = value }
-/** @deprecated 请改用 [pillEffects.pillNurtureSpeedBonus] */
-var Disciple.pillNurtureSpeedBonus: kotlin.Double get() = pillEffects.pillNurtureSpeedBonus; set(value) { pillEffects
-    .pillNurtureSpeedBonus = value }
 /** @deprecated 请改用 [pillEffects.activePillCategory] */
 var Disciple.activePillCategory: kotlin.String get() = pillEffects.activePillCategory; set(value) { pillEffects
     .activePillCategory = value }
@@ -110,24 +86,16 @@ var Disciple.activePillCategory: kotlin.String get() = pillEffects.activePillCat
 
 /** @deprecated 请改用 [equipment.weaponId] */
 var Disciple.weaponId: kotlin.String get() = equipment.weaponId; set(value) { equipment.weaponId = value }
-/** @deprecated 请改用 [equipment.armorId] */
-var Disciple.armorId: kotlin.String get() = equipment.armorId; set(value) { equipment.armorId = value }
-/** @deprecated 请改用 [equipment.bootsId] */
-var Disciple.bootsId: kotlin.String get() = equipment.bootsId; set(value) { equipment.bootsId = value }
-/** @deprecated 请改用 [equipment.accessoryId] */
-var Disciple.accessoryId: kotlin.String get() = equipment.accessoryId; set(value) { equipment.accessoryId = value }
-/** @deprecated 请改用 [equipment.weaponNurture] */
-var Disciple.weaponNurture: EquipmentNurtureData get() = equipment.weaponNurture; set(value) { equipment
-    .weaponNurture = value }
-/** @deprecated 请改用 [equipment.armorNurture] */
-var Disciple.armorNurture: EquipmentNurtureData get() = equipment.armorNurture; set(value) { equipment
-    .armorNurture = value }
-/** @deprecated 请改用 [equipment.bootsNurture] */
-var Disciple.bootsNurture: EquipmentNurtureData get() = equipment.bootsNurture; set(value) { equipment
-    .bootsNurture = value }
-/** @deprecated 请改用 [equipment.accessoryNurture] */
-var Disciple.accessoryNurture: EquipmentNurtureData get() = equipment.accessoryNurture; set(value) { equipment
-    .accessoryNurture = value }
+/** @deprecated 请改用 [equipment.headId] */
+var Disciple.headId: kotlin.String get() = equipment.headId; set(value) { equipment.headId = value }
+/** @deprecated 请改用 [equipment.bodyId] */
+var Disciple.bodyId: kotlin.String get() = equipment.bodyId; set(value) { equipment.bodyId = value }
+/** @deprecated 请改用 [equipment.handsId] */
+var Disciple.handsId: kotlin.String get() = equipment.handsId; set(value) { equipment.handsId = value }
+/** @deprecated 请改用 [equipment.feetId] */
+var Disciple.feetId: kotlin.String get() = equipment.feetId; set(value) { equipment.feetId = value }
+/** @deprecated 请改用 [equipment.legsId] */
+var Disciple.legsId: kotlin.String get() = equipment.legsId; set(value) { equipment.legsId = value }
 /** @deprecated 请改用 [equipment.storageBagItems] */
 var Disciple.storageBagItems: kotlin.collections.List<StorageBagItem> get() = equipment
     .storageBagItems; set(value) { equipment.storageBagItems = value }

@@ -93,8 +93,10 @@ class RoomMigrationV58To59Test {
             )
             // 全链迁移到当前链尾（v60→v61 又删 cultivationCompletionPhase 1 列）
             assertEquals(
-                "真实 Room 升级后 disciples 列数应是 ${V59_DISCIPLES_COLUMN_COUNT - 1}",
-                V59_DISCIPLES_COLUMN_COUNT - 1,
+                // ALL_MIGRATIONS 全链升到当前 DATABASE_VERSION：R11（v63）删
+                // pillNurtureSpeedBonus 后 83 列；B3（v64）再 −9 旧列 +5 部位列 ⇒ 终版 79 列
+                "真实 Room 升级到终版后 disciples 列数应是 79（v63 83 列 − B3 删 9 + 增 5）",
+                79,
                 RoomMigrationSupport.tableColumns(migrated, "disciples").size
             )
             db.close()

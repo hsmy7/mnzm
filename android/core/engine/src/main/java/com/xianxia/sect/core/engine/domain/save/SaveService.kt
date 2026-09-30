@@ -66,7 +66,7 @@ class SaveService @Inject constructor(
             spiritStones = data.spiritStones,
             sectCultivation = data.sectCultivation,
             discipleCount = stateStore.disciples.value.size,
-            equipmentCount = stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size,
+            equipmentCount = stateStore.equipmentInstances.value.size,
             manualCount = stateStore.manualStacks.value.size + stateStore.manualInstances.value.size,
             pillCount = stateStore.pills.value.size,
             materialCount = stateStore.materials.value.size,
@@ -116,9 +116,7 @@ class SaveService @Inject constructor(
             }
         }
 
-        val equipmentStackIds = stateStore.equipmentStacks.value.map { it.id }
-        val equipmentInstanceIds = stateStore.equipmentInstances.value.map { it.id }
-        val allEquipmentIds = equipmentStackIds + equipmentInstanceIds
+        val allEquipmentIds = stateStore.equipmentInstances.value.map { it.id }
         val duplicateEquipmentIds = allEquipmentIds.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
         if (duplicateEquipmentIds.isNotEmpty()) {
             errors.add("Duplicate equipment IDs found: $duplicateEquipmentIds")
@@ -137,7 +135,7 @@ class SaveService @Inject constructor(
             "sectCultivation" to data.sectCultivation,
             "discipleCount" to stateStore.disciples.value.size,
             "aliveDisciples" to stateStore.disciples.value.count { it.isAlive },
-            "equipmentCount" to (stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size),
+            "equipmentCount" to stateStore.equipmentInstances.value.size,
             "equippedEquipment" to stateStore.equipmentInstances.value.count { it.isEquipped },
             "manualCount" to (stateStore.manualStacks.value.size + stateStore.manualInstances.value.size),
             "pillCount" to stateStore.pills.value.size,

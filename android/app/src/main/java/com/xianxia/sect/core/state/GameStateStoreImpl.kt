@@ -14,7 +14,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -218,7 +217,6 @@ class GameStateStoreImpl @Inject constructor(
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
     internal val _gameDataFlow = MutableStateFlow(GameData())
     internal val _disciplesFlow = MutableStateFlow<List<Disciple>>(emptyList())
-    internal val _equipmentStacksFlow = MutableStateFlow<List<EquipmentStack>>(emptyList())
     internal val _equipmentInstancesFlow = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     internal val _manualStacksFlow = MutableStateFlow<List<ManualStack>>(emptyList())
     internal val _manualInstancesFlow = MutableStateFlow<List<ManualInstance>>(emptyList())
@@ -265,7 +263,6 @@ class GameStateStoreImpl @Inject constructor(
     // 公开 StateFlow——直接来自独立 MutableStateFlow，零 .map{} 开销
     override val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
     override val disciples: StateFlow<List<Disciple>> = _disciplesFlow.asStateFlow()
-    override val equipmentStacks: StateFlow<List<EquipmentStack>> = _equipmentStacksFlow.asStateFlow()
     override val equipmentInstances: StateFlow<List<EquipmentInstance>> = _equipmentInstancesFlow.asStateFlow()
     override val manualStacks: StateFlow<List<ManualStack>> = _manualStacksFlow.asStateFlow()
     override val manualInstances: StateFlow<List<ManualInstance>> = _manualInstancesFlow.asStateFlow()
@@ -279,7 +276,6 @@ class GameStateStoreImpl @Inject constructor(
     // === GameStateSnapshotProvider 接口实现 ===
     override val gameDataSnapshot: GameData get() = _gameDataFlow.value
     override val disciplesSnapshot: List<Disciple> get() = _disciplesFlow.value
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = _equipmentStacksFlow.value
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _equipmentInstancesFlow.value
     override val manualStacksSnapshot: List<ManualStack> get() = _manualStacksFlow.value
     override val manualInstancesSnapshot: List<ManualInstance> get() = _manualInstancesFlow.value
@@ -294,7 +290,6 @@ class GameStateStoreImpl @Inject constructor(
         GameStateStore.GameSnapshot(
             gameData = _gameDataFlow.value,
             disciples = _disciplesFlow.value,
-            equipmentStacks = _equipmentStacksFlow.value,
             equipmentInstances = _equipmentInstancesFlow.value,
             manualStacks = _manualStacksFlow.value,
             manualInstances = _manualInstancesFlow.value,
@@ -384,7 +379,6 @@ class GameStateStoreImpl @Inject constructor(
     // EntityFlow: 实体数据，distinctUntilChanged
     override val entityState: StateFlow<GameStateStore.EntityState> = combine(
         _disciplesFlow,
-        _equipmentStacksFlow,
         _equipmentInstancesFlow,
         _manualStacksFlow,
         _manualInstancesFlow,
@@ -396,17 +390,16 @@ class GameStateStoreImpl @Inject constructor(
         _battleLogsFlow
     ) { args ->
         GameStateStore.EntityState(
-            disciples = args[0] as List<Disciple>,
-            equipmentStacks = args[1] as List<EquipmentStack>,
-            equipmentInstances = args[2] as List<EquipmentInstance>,
-            manualStacks = args[3] as List<ManualStack>,
-            manualInstances = args[4] as List<ManualInstance>,
-            pills = args[5] as List<Pill>,
-            materials = args[6] as List<Material>,
-            herbs = args[7] as List<Herb>,
-            seeds = args[8] as List<Seed>,
-            storageBags = args[9] as List<StorageBag>,
-            battleLogs = args[10] as List<BattleLog>
+            disciples = args[-1] as List<Disciple>,
+            equipmentInstances = args[1] as List<EquipmentInstance>,
+            manualStacks = args[2] as List<ManualStack>,
+            manualInstances = args[3] as List<ManualInstance>,
+            pills = args[4] as List<Pill>,
+            materials = args[5] as List<Material>,
+            herbs = args[6] as List<Herb>,
+            seeds = args[7] as List<Seed>,
+            storageBags = args[8] as List<StorageBag>,
+            battleLogs = args[9] as List<BattleLog>
         )
     }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.EntityState())
 
@@ -660,7 +653,6 @@ class GameStateStoreImpl @Inject constructor(
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(),
         equipmentInstances = EntityStore(),
         manualStacks = EntityStore(),
         manualInstances = EntityStore(),
@@ -749,7 +741,6 @@ class GameStateStoreImpl @Inject constructor(
      */
     private data class UpdateBaseline(
         val gameData: GameData,
-        val equipmentStacks: List<EquipmentStack>,
         val equipmentInstances: List<EquipmentInstance>,
         val manualStacks: List<ManualStack>,
         val manualInstances: List<ManualInstance>,
@@ -980,7 +971,6 @@ class GameStateStoreImpl @Inject constructor(
     /** 捕获事务起始时全部 StateFlow 快照（字段变化检测基准）。 */
     private fun captureBaseline(): UpdateBaseline = UpdateBaseline(
         gameData = _gameDataFlow.value,
-        equipmentStacks = _equipmentStacksFlow.value,
         equipmentInstances = _equipmentInstancesFlow.value,
         manualStacks = _manualStacksFlow.value,
         manualInstances = _manualInstancesFlow.value,
@@ -1003,7 +993,6 @@ class GameStateStoreImpl @Inject constructor(
             // consumeDirtyColumns 仅为维护 DirtyTracker 状态（提交后表无事务外写入，恒为空）
             val dirtyCols = _discipleTables.dirtyTracker.consumeDirtyColumns()
             discipleTables = _discipleTables.deepCopy(dirtyCols).apply { writeAllowed = true }
-            equipmentStacks = EntityStore(baseline.equipmentStacks)
             equipmentInstances = EntityStore(baseline.equipmentInstances)
             manualStacks = EntityStore(baseline.manualStacks)
             manualInstances = EntityStore(baseline.manualInstances)
@@ -1021,7 +1010,6 @@ class GameStateStoreImpl @Inject constructor(
 
     /** 冻结全部 EntityStore 快照，确保 items 引用正确反映变化。 */
     private fun freezeStores() {
-        reusableMutableState.equipmentStacks.freeze()
         reusableMutableState.equipmentInstances.freeze()
         reusableMutableState.manualStacks.freeze()
         reusableMutableState.manualInstances.freeze()
@@ -1051,8 +1039,6 @@ class GameStateStoreImpl @Inject constructor(
     private fun emitStateFlows(baseline: UpdateBaseline) {
         if (reusableMutableState.gameData !== baseline.gameData)
             _gameDataFlow.value = reusableMutableState.gameData
-        if (reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks)
-            _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
         if (reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances)
             _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
         if (reusableMutableState.manualStacks.items !== baseline.manualStacks)
@@ -1081,7 +1067,6 @@ class GameStateStoreImpl @Inject constructor(
         flags: CommitFlags
     ): Boolean = reusableMutableState.gameData !== baseline.gameData
         || disciplesNeedReassemble
-        || reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks
         || reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances
         || reusableMutableState.manualStacks.items !== baseline.manualStacks
         || reusableMutableState.manualInstances.items !== baseline.manualInstances
@@ -1158,7 +1143,6 @@ class GameStateStoreImpl @Inject constructor(
     private data class LoadBaseline(
         val gameData: GameData,
         val disciples: List<Disciple>,
-        val equipmentStacks: List<EquipmentStack>,
         val equipmentInstances: List<EquipmentInstance>,
         val manualStacks: List<ManualStack>,
         val manualInstances: List<ManualInstance>,
@@ -1177,7 +1161,6 @@ class GameStateStoreImpl @Inject constructor(
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>,
         equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>,
         manualInstances: List<ManualInstance>,
@@ -1211,7 +1194,6 @@ class GameStateStoreImpl @Inject constructor(
                 applyLoadedCore(gameData = gameData, disciples = disciples)
                 applyLoadedEntities(
                     entities = LoadedEntities(
-                        equipmentStacks = equipmentStacks,
                         equipmentInstances = equipmentInstances,
                         manualStacks = manualStacks,
                         manualInstances = manualInstances,
@@ -1256,7 +1238,6 @@ class GameStateStoreImpl @Inject constructor(
             // assembleDispatcher 异步发布，update{} 刚提交后立即读档时 flow 可能
             // 仍是旧值/空，回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
             disciples = _discipleTables.assembleAll(),
-            equipmentStacks = _equipmentStacksFlow.value,
             equipmentInstances = _equipmentInstancesFlow.value,
             manualStacks = _manualStacksFlow.value,
             manualInstances = _manualInstancesFlow.value,
@@ -1284,7 +1265,6 @@ class GameStateStoreImpl @Inject constructor(
 
     /** loadFromSnapshot 拆分：10 个仓库实体流应用（实体数据经 [LoadedEntities] 聚合，避免超长参数列表） */
     private fun applyLoadedEntities(entities: LoadedEntities) {
-        _equipmentStacksFlow.value = entities.equipmentStacks
         _equipmentInstancesFlow.value = entities.equipmentInstances
         _manualStacksFlow.value = entities.manualStacks
         _manualInstancesFlow.value = entities.manualInstances
@@ -1298,7 +1278,6 @@ class GameStateStoreImpl @Inject constructor(
 
     /** loadFromSnapshot 拆分：读档实体数据聚合 */
     private data class LoadedEntities(
-        val equipmentStacks: List<EquipmentStack>,
         val equipmentInstances: List<EquipmentInstance>,
         val manualStacks: List<ManualStack>,
         val manualInstances: List<ManualInstance>,
@@ -1424,7 +1403,6 @@ class GameStateStoreImpl @Inject constructor(
         aggregatesGen = discipleVersion.get()
         _discipleTables.apply { writeAllowed = true }.clear()
         baseline.disciples.forEach { _discipleTables.insert(it) }
-        _equipmentStacksFlow.value = baseline.equipmentStacks
         _equipmentInstancesFlow.value = baseline.equipmentInstances
         _manualStacksFlow.value = baseline.manualStacks
         _manualInstancesFlow.value = baseline.manualInstances
@@ -1476,7 +1454,6 @@ class GameStateStoreImpl @Inject constructor(
             _disciplesFlow.value = emptyList()
             _discipleTables.writeAllowed = true
             try { _discipleTables.clear() } finally { _discipleTables.writeAllowed = false }
-            _equipmentStacksFlow.value = emptyList()
             _equipmentInstancesFlow.value = emptyList()
             _manualStacksFlow.value = emptyList()
             _manualInstancesFlow.value = emptyList()

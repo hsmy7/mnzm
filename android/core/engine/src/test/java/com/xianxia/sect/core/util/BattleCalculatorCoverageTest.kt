@@ -208,23 +208,23 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `calculateCombatantDamage - physical buff does not boost magic skill damage`() {
+        // 单列口径（B1 §15.2 改动点③）：物攻 buff 语义迁移为「物理类型增伤」——
+        // 对法术技能无效（同一 RNG 序列）
         val attacker = combatant(
             id = "attacker", physAtk = 300
         ).copy(
-            magicAttack = 300,
             buffs = listOf(CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 1.0, remainingDuration = 3))
         )
-        val defender = combatant(id = "defender", hp = 5000, maxHp = 5000).copy(magicDefense = 100)
+        val defender = combatant(id = "defender", hp = 5000, maxHp = 5000)
 
         val withBuff = BattleCalculator.calculateCombatantDamage(
             attacker, defender, skill(dmgType = DamageType.MAGIC), rng = freshRng()
         )
         val withoutBuff = BattleCalculator.calculateCombatantDamage(
-            combatant(id = "attacker", physAtk = 300).copy(magicAttack = 300),
+            combatant(id = "attacker", physAtk = 300),
             defender, skill(dmgType = DamageType.MAGIC), rng = freshRng()
         )
-        // 物理攻击 +100% 不应影响魔法技能伤害（同一 RNG 序列）
-        assertEquals("物理攻击buff不得加成魔法技能", withoutBuff.damage, withBuff.damage)
+        assertEquals("物理类型增伤buff不得加成魔法技能", withoutBuff.damage, withBuff.damage)
     }
 
     // ---- fixture ----
@@ -237,8 +237,7 @@ class BattleCalculatorCoverageTest {
     ) = Combatant(
         id = id, name = id, side = CombatantSide.DEFENDER,
         hp = hp, maxHp = maxHp, mp = 500, maxMp = 500,
-        physicalAttack = physAtk, magicAttack = 80,
-        physicalDefense = physDef, magicDefense = 50,
+        attack = physAtk, defense = physDef,
         speed = 100, critRate = 0.0,
         skills = emptyList(), buffs = emptyList(),
         realm = realm, realmLayer = realmLayer

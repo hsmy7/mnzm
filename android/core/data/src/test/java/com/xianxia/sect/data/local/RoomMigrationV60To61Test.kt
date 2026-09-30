@@ -92,8 +92,11 @@ class RoomMigrationV60To61Test {
                 RoomMigrationSupport.columnExists(migrated, "disciples", "cultivationCompletionPhase")
             )
             assertEquals(
-                "真实 Room 升级后 disciples 列数应是 $V61_DISCIPLES_COLUMN_COUNT",
-                V61_DISCIPLES_COLUMN_COUNT,
+                // ALL_MIGRATIONS 全链升到当前 DATABASE_VERSION：B1 单列化 84 列后，
+                // R11（v63）后 83 列；B3（v64）再 −9 旧列 +5 部位列 ⇒ 终版 79 列，
+                // 非 v61 的 89 列中间态
+                "真实 Room 升级到终版后 disciples 列数应是 79（v63 83 列 − B3 删 9 + 增 5）",
+                79,
                 RoomMigrationSupport.tableColumns(migrated, "disciples").size
             )
             db.close()

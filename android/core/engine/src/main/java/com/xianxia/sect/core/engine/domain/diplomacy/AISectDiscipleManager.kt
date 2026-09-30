@@ -6,6 +6,7 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.InnateDamageType
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.ManualInstance
@@ -14,23 +15,19 @@ import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMagicAttack
-import com.xianxia.sect.core.model.baseMagicDefense
 import com.xianxia.sect.core.model.baseMp
-import com.xianxia.sect.core.model.basePhysicalAttack
-import com.xianxia.sect.core.model.basePhysicalDefense
 import com.xianxia.sect.core.model.baseSpeed
 import com.xianxia.sect.core.model.charm
 import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.intelligence
-import com.xianxia.sect.core.model.magicAttackVariance
-import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.attackVariance
+import com.xianxia.sect.core.model.baseAttack
+import com.xianxia.sect.core.model.baseDefense
+import com.xianxia.sect.core.model.defenseVariance
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.mpVariance
-import com.xianxia.sect.core.model.physicalAttackVariance
-import com.xianxia.sect.core.model.physicalDefenseVariance
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.speedVariance
 import com.xianxia.sect.core.model.spiritPlanting
@@ -188,9 +185,9 @@ object AISectDiscipleManager {
      * AI 弟子战前准备结果。
      * 包含修改后的弟子副本（带装备/功法 ID）和对应的实例映射。
      *
-     * [equipmentMapByDisciple] 按弟子 id 索引各自装备实例（模板 id → 实例）——
-     * 两名弟子装备同模板不同孕养时不得共享全局 map
-     * （全局 map 以模板 id 为 key 会令后写者被跳过，孕养差异丢失）。
+     * [equipmentMapByDisciple] 按弟子 id 索引各自装备实例（槽位条目 id → 实例）——
+     * 两名弟子装备同条目时不得共享全局 map
+     * （全局 map 以条目 id 为 key 会令后写者被跳过，实例差异丢失）。
      */
     data class AIPreparedBattle(
         val disciples: List<Disciple>,
@@ -222,10 +219,8 @@ object AISectDiscipleManager {
         }
         val hpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val mpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        val physicalAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        val magicAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        val physicalDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        val magicDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val attackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val defenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val speedVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
 
         return Disciple(
@@ -245,10 +240,9 @@ object AISectDiscipleManager {
             combat = CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
+                attackVariance = attackVariance,
+                defenseVariance = defenseVariance,
+                innateDamageType = InnateDamageType.derive("", spiritRoot),
                 speedVariance = speedVariance
             ),
             equipment = EquipmentSet(),
@@ -265,15 +259,12 @@ object AISectDiscipleManager {
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
+                hpVariance, mpVariance, attackVariance, defenseVariance, speedVariance
             )
             combat.baseHp = baseStats.baseHp
             combat.baseMp = baseStats.baseMp
-            combat.basePhysicalAttack = baseStats.basePhysicalAttack
-            combat.baseMagicAttack = baseStats.baseMagicAttack
-            combat.basePhysicalDefense = baseStats.basePhysicalDefense
-            combat.baseMagicDefense = baseStats.baseMagicDefense
+            combat.baseAttack = baseStats.baseAttack
+            combat.baseDefense = baseStats.baseDefense
             combat.baseSpeed = baseStats.baseSpeed
         }
     }
@@ -281,8 +272,9 @@ object AISectDiscipleManager {
     /**
      * 为 AI 弟子列表准备战斗数据（读取持久化的装备/功法字段）。
      *
-     * AI 弟子装备/功法已在生成与突破刷新时持久化（模板 id + 熟练度），
-     * 本函数仅按模板构建临时实例映射供战斗使用，不修改原弟子。
+     * AI 弟子装备/功法已在生成与突破刷新时持久化（装备存槽位条目 id、
+     * 功法存模板 id + 熟练度），
+     * 本函数仅按持久化字段构建临时实例映射供战斗使用，不修改原弟子。
      * 丹药不计入。
      *
      * @param disciples AI 弟子列表
@@ -324,7 +316,6 @@ object AISectDiscipleManager {
             repeat(batchMonths) {
                 working = settleMonthlyCultivation(working, sectLevel)
                 working = applyMonthlyProficiencyGain(working)
-                working = applyMonthlyNurtureGain(working)
             }
             working
         }
@@ -363,7 +354,7 @@ object AISectDiscipleManager {
 
         val trimmed = if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
             disciples.sortedByDescending {
-                it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp
+                it.combat.baseAttack + it.combat.baseHp
             }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
         } else {
             disciples

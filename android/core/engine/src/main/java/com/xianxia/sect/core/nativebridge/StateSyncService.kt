@@ -198,7 +198,6 @@ class StateSyncService @Inject constructor(
             if (snapshot.disciples.isNotEmpty()) {
                 discipleTables.replaceAll(snapshot.disciples)
             }
-            equipmentStacks.replaceAll(snapshot.equipmentStacks)
             equipmentInstances.replaceAll(snapshot.equipmentInstances)
             manualStacks.replaceAll(snapshot.manualStacks)
             manualInstances.replaceAll(snapshot.manualInstances)
@@ -267,7 +266,6 @@ class StateSyncService @Inject constructor(
             aiSectBeastSkipCooldowns = snapshot.gameData.aiSectBeastSkipCooldowns,
             lockedBeastIds = snapshot.gameData.lockedBeastIds,
             disciples = snapshot.disciples,
-            equipmentStacks = snapshot.equipmentStacks,
             equipmentInstances = snapshot.equipmentInstances,
             manualStacks = snapshot.manualStacks,
             manualInstances = snapshot.manualInstances,
@@ -565,7 +563,6 @@ class StateSyncService @Inject constructor(
         removals: JsonArray?,
     ): Pair<Int, Int> = when (name) {
         COLLECTION_DISCIPLES -> applyDisciples(discipleTables, upserts, removals)
-        COLLECTION_EQUIPMENT_STACKS -> applyToStore(equipmentStacks, upserts, removals)
         COLLECTION_EQUIPMENT_INSTANCES -> applyToStore(equipmentInstances, upserts, removals)
         COLLECTION_MANUAL_STACKS -> applyToStore(manualStacks, upserts, removals)
         COLLECTION_MANUAL_INSTANCES -> applyToStore(manualInstances, upserts, removals)
@@ -672,7 +669,6 @@ class StateSyncService @Inject constructor(
     companion object {
         private const val GAMEDATA_PATH_PREFIX = "gameData."
         private const val COLLECTION_DISCIPLES = "disciples"
-        private const val COLLECTION_EQUIPMENT_STACKS = "equipmentStacks"
         private const val COLLECTION_EQUIPMENT_INSTANCES = "equipmentInstances"
         private const val COLLECTION_MANUAL_STACKS = "manualStacks"
         private const val COLLECTION_MANUAL_INSTANCES = "manualInstances"

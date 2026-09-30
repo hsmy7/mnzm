@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -74,46 +72,72 @@ class DiffExecuteTest {
     }
 
     @Test
-    fun `inventory add equipment via execute`() {
+    fun `inventory add equipment instance via execute`() {
+        // B3：1010 号语义=「添加装备实例」（号保留、JSON 形状=实例，与 C++
+        // execute_dispatch INV_ADD_EQUIPMENT_STACK 分支对齐）；重复 id 拒绝
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
-        val r = exec(ActionIds.INV_ADD_EQUIPMENT_STACK, buildJsonObject {
-            put("id", "eq-1"); put("name", "木剑"); put("rarity", 1)
-            put("slot", "WEAPON"); put("quantity", 5); put("source", "battle")
-            put("suppressed", false)
-        })
+        val instanceJson = """
+            {"id":"eq-1","slotId":0,"name":"木剑","setId":"lietian","part":"WEAPON",
+             "growth":{"level":1,"exp":0,
+                       "affix":{"mainStat":{"stat":"ATTACK","value":10.0},
+                                "subStats":[{"stat":"DEFENSE","value":3.0}],
+                                "subRolls":[1]}},
+             "meta":{"rarity":1,"minRealm":9,"description":"","isLocked":false},
+             "ownerId":null,"isEquipped":false}
+        """.trimIndent()
+        val r = exec(ActionIds.INV_ADD_EQUIPMENT_STACK, json.parseToJsonElement(instanceJson) as JsonObject)
         assertEquals("success", str(r.getValue("status")))
         assertEquals("success", str((r.getValue("data") as JsonObject).getValue("status")))
         val decoded = json.decodeFromString(
             NativeGameState.serializer(), DiffRngBridge.nativeCoreExportState().decodeToString()
         )
-        assertEquals(1, decoded.equipmentStacks.size)
-        assertEquals(5, decoded.equipmentStacks[0].quantity)
-        assertEquals(5, decoded.gameData.annualEquipmentBySource["battle:1"] ?: 0)
+        assertEquals("实例入表", 1, decoded.equipmentInstances.size)
+        val inst = decoded.equipmentInstances.single()
+        assertEquals("eq-1", inst.id)
+        assertEquals("lietian", inst.setId)
+        assertEquals(com.xianxia.sect.core.model.EquipmentSlot.WEAPON, inst.part)
+        assertEquals("ATTACK", inst.growth.affix.mainStat.stat.name)
+        // 重复 id 拒绝（实例轨防双持有）；信封外层恒 success，业务结果在 data.status
+        val dup = exec(ActionIds.INV_ADD_EQUIPMENT_STACK, json.parseToJsonElement(instanceJson) as JsonObject)
+        assertEquals(
+            "duplicate-id 应失败",
+            "failure",
+            str((dup.getValue("data") as JsonObject).getValue("status")),
+        )
     }
 
     @Test
-    fun `inventory remove via execute`() {
+    fun `inventory remove equipment instance via execute`() {
+        // B3：removeEquipment 实例轨语义——按 id 整件移除
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
+        val instanceJson = """
+            {"id":"eq-1","slotId":0,"name":"木剑","setId":"lietian","part":"WEAPON",
+             "growth":{"level":1,"exp":0,
+                       "affix":{"mainStat":{"stat":"ATTACK","value":10.0},"subStats":[],"subRolls":[]}},
+             "meta":{"rarity":1,"minRealm":9,"description":"","isLocked":false},
+             "ownerId":null,"isEquipped":false}
+        """.trimIndent()
         val initial = NativeGameState(
-            equipmentStacks = listOf(
-                EquipmentStack(id = "eq-1", name = "木剑", rarity = 1,
-                    slot = EquipmentSlot.WEAPON, quantity = 10)
+            equipmentInstances = listOf(
+                json.decodeFromString(
+                    com.xianxia.sect.core.model.EquipmentInstance.serializer(), instanceJson
+                )
             ),
             gameData = GameData()
         )
         assertTrue(DiffRngBridge.nativeCoreImportState(
             json.encodeToString(NativeGameState.serializer(), initial).encodeToByteArray()))
         val r = exec(ActionIds.INV_REMOVE_EQUIPMENT, buildJsonObject {
-            put("id", "eq-1"); put("quantity", 4)
+            put("id", "eq-1"); put("quantity", 1)
         })
         assertEquals("success", str(r.getValue("status")))
         assertTrue(str((r.getValue("data") as JsonObject).getValue("removed")).toBoolean())
         val decoded = json.decodeFromString(
             NativeGameState.serializer(), DiffRngBridge.nativeCoreExportState().decodeToString()
         )
-        assertEquals(6, decoded.equipmentStacks[0].quantity)
+        assertTrue("实例应整件移除", decoded.equipmentInstances.isEmpty())
     }
 
     @Test

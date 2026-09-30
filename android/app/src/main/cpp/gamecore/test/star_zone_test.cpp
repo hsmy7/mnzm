@@ -94,21 +94,21 @@ TEST(StarZoneTest, 乘区快捷入口与直接取值同值) {
 // ── 战斗侧：先加权和、后乘、最后截断 ──────────────────────────────
 
 TEST(StarZoneTest, 战力一星与无星逐位等于纯公式) {
-    // 既有金标：discipleCombatPower(100,80,1000,60,50,40) == 5310
-    const int64_t base = discipleCombatPower(100, 80, 1000, 60, 50, 40);
+    // 既有金标（单列口径 B1）：discipleCombatPower(180,1000,110,40) == 5310（旧双列取和等价）
+    const int64_t base = discipleCombatPower(180, 1000, 110, 40);
     ASSERT_EQ(5310, base);
-    EXPECT_EQ(base, discipleCombatPowerWithStar(100, 80, 1000, 60, 50, 40, 0));
-    EXPECT_EQ(base, discipleCombatPowerWithStar(100, 80, 1000, 60, 50, 40, 1));
+    EXPECT_EQ(base, discipleCombatPowerWithStar(180, 1000, 110, 40, 0));
+    EXPECT_EQ(base, discipleCombatPowerWithStar(180, 1000, 110, 40, 1));
 }
 
 TEST(StarZoneTest, 战力满星按口径A上浮并向零截断) {
-    const int64_t base = discipleCombatPower(100, 80, 1000, 60, 50, 40);
+    const int64_t base = discipleCombatPower(180, 1000, 110, 40);
     // 5310 × 1.32 = 7009.2 → 7009（向零截断；Kotlin (base * mult).toLong() 同结果）
-    EXPECT_EQ(7009, discipleCombatPowerWithStar(100, 80, 1000, 60, 50, 40, 5));
+    EXPECT_EQ(7009, discipleCombatPowerWithStar(180, 1000, 110, 40, 5));
     // 中间星级用同式回算，防止有人把乘区挪到各属性上（整数逐项截断会偏离）
     EXPECT_EQ(static_cast<int64_t>(static_cast<double>(base) * 1.08),
-              discipleCombatPowerWithStar(100, 80, 1000, 60, 50, 40, 2));
-    EXPECT_GT(discipleCombatPowerWithStar(100, 80, 1000, 60, 50, 40, 3), base);
+              discipleCombatPowerWithStar(180, 1000, 110, 40, 2));
+    EXPECT_GT(discipleCombatPowerWithStar(180, 1000, 110, 40, 3), base);
 }
 
 // ── 修炼侧：命名乘区（第 5 个）───────────────────────────────────

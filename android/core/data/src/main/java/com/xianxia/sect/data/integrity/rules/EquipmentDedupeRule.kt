@@ -1,12 +1,13 @@
 package com.xianxia.sect.data.integrity.rules
 
 import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.data.model.SaveData
 
 /**
  * 检测同一 equipment ID 被多弟子引用。
  *
- * 遍历所有弟子的装备槽（weaponId/armorId/bootsId/accessoryId），
+ * 遍历所有弟子的六部位装备槽（headId/bodyId/handsId/feetId/weaponId/legsId），
  * 统计每个 equipment ID 的引用次数。出现 >1 次时，从后续弟子的槽位中清除重复引用。
  *
  * 必须排在 [EquipmentRefRule]（order=6）之后，因为 EquipmentRefRule 先清理孤立引用。
@@ -45,19 +46,12 @@ object EquipmentDedupeRule : SaveValidationRule {
         val usage = mutableMapOf<String, MutableList<Pair<Int, String>>>()
 
         data.disciples.forEachIndexed { index, d ->
-            val equip = d.equipment
             val name = d.name.ifBlank { "ID=${d.id}" }
-            if (equip.weaponId.isNotEmpty()) {
-                usage.getOrPut(equip.weaponId) { mutableListOf() }.add(index to "${name}.weaponId")
-            }
-            if (equip.armorId.isNotEmpty()) {
-                usage.getOrPut(equip.armorId) { mutableListOf() }.add(index to "${name}.armorId")
-            }
-            if (equip.bootsId.isNotEmpty()) {
-                usage.getOrPut(equip.bootsId) { mutableListOf() }.add(index to "${name}.bootsId")
-            }
-            if (equip.accessoryId.isNotEmpty()) {
-                usage.getOrPut(equip.accessoryId) { mutableListOf() }.add(index to "${name}.accessoryId")
+            for (part in EquipmentSlot.displayOrder) {
+                val id = d.equipment.slotId(part)
+                if (id.isNotEmpty()) {
+                    usage.getOrPut(id) { mutableListOf() }.add(index to "${name}.${part.name}")
+                }
             }
         }
         return usage
@@ -76,25 +70,24 @@ object EquipmentDedupeRule : SaveValidationRule {
             // 只清除非首次引用
             val isFirst = refs.any { it.first == index && refs.first().first == index }
             if (!isFirst && refs.any { it.first == index }) {
-                // 确定该弟子的哪个槽位引用了此 equipId
-                if (result.weaponId == equipId) {
-                    localFixes.add("weaponId=$equipId")
-                    result = result.copy(weaponId = "")
-                }
-                if (result.armorId == equipId) {
-                    localFixes.add("armorId=$equipId")
-                    result = result.copy(armorId = "")
-                }
-                if (result.bootsId == equipId) {
-                    localFixes.add("bootsId=$equipId")
-                    result = result.copy(bootsId = "")
-                }
-                if (result.accessoryId == equipId) {
-                    localFixes.add("accessoryId=$equipId")
-                    result = result.copy(accessoryId = "")
-                }
+                val (cleared, fixes) = clearEquipRefs(result, equipId)
+                result = cleared
+                localFixes.addAll(fixes)
             }
         }
         return result to localFixes
+    }
+
+    /** 清除单个弟子身上指定装备 ID 的全部部位引用（clearDuplicateRefs 拆分） */
+    private fun clearEquipRefs(equip: EquipmentSet, equipId: String): Pair<EquipmentSet, List<String>> {
+        var result = equip
+        val fixes = mutableListOf<String>()
+        for (part in EquipmentSlot.displayOrder) {
+            if (result.slotId(part) == equipId) {
+                fixes.add("${part.name}=$equipId")
+                result = result.copy().apply { setSlotId(part, "") }
+            }
+        }
+        return result to fixes
     }
 }

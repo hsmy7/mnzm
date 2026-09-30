@@ -169,6 +169,11 @@ export const CATALOG = [
   { id: 1484, name: 'DISCIPLE_TX_ASSIGN_SLOT', desc: '任命事务（clearAllSlots+亲传/藏经阁槽覆写）' },
   { id: 1485, name: 'DISCIPLE_TX_UNASSIGN_SLOT', desc: '卸任事务（亲传/藏经阁单槽重置）' },
 
+  // ── 装备升级/分解事务（B3——equipment_tx.h；材料扣减/等级推进/强化节点
+  //    roll（RngPartition.EQUIPMENT=13）/分解返还；失败信封回退 Kotlin 回退臂）──
+  { id: 1486, name: 'EQUIP_UPGRADE', desc: '装备升级事务（等级/材料校验+扣材料+经验推进+强化节点 roll）' },
+  { id: 1487, name: 'EQUIP_DISMANTLE', desc: '装备分解事务（锁/穿戴校验+返还50%累计消耗+实例表移除）' },
+
   // ── 外交/好感/附庸 UI 操作事务族（batch-09——diplomacy_tx.h；
   //    校验失败 failure 信封回退 Kotlin 原路径（零抽取零写入），roll 后
   //    结果 success 信封直返——双臂 SYSTEM 分区同源、抽取序逐位一致）──

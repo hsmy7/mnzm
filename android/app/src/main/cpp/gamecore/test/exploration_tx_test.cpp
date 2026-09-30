@@ -47,10 +47,8 @@ Disciple baseDisciple(const std::string& id) {
     d.spiritRootType = "metal";
     d.baseHp = 1000000;
     d.baseMp = 100000;
-    d.basePhysicalAttack = 1000000;
-    d.baseMagicAttack = 1000000;
-    d.basePhysicalDefense = 1000000;
-    d.baseMagicDefense = 1000000;
+    d.baseAttack = 1000000;
+    d.baseDefense = 1000000;
     d.baseSpeed = 10000;
     d.portraitRes = "p" + id;
     return d;
@@ -80,10 +78,8 @@ WorldLevel weakBeastLevel(const std::string& id = "lv1") {
     l.count = 2;
     l.beastMaxHp = 10;
     l.beastMaxMp = 10;
-    l.beastPhysicalAttack = 0;
-    l.beastMagicAttack = 0;
-    l.beastPhysicalDefense = 0;
-    l.beastMagicDefense = 0;
+    l.beastAttack = 0;
+    l.beastDefense = 0;
     l.beastSpeed = 0;
     return l;
 }
@@ -100,10 +96,9 @@ WorldLevel overkillBeastLevel(const std::string& id = "lv1") {
     l.count = 3;
     l.beastMaxHp = 10000000;
     l.beastMaxMp = 100000;
-    l.beastPhysicalAttack = 1000000;
-    l.beastMagicAttack = 1000000;
-    l.beastPhysicalDefense = 1000000;
-    l.beastMagicDefense = 1000000;
+    // 单列口径（B1）：取和等价（旧物+法各 1000000 ⇒ attack/defense 2000000）
+    l.beastAttack = 2000000;
+    l.beastDefense = 2000000;
     l.beastSpeed = 100000;
     return l;
 }

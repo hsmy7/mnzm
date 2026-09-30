@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
@@ -31,13 +30,10 @@ fun InventorySystem.canAddItemInTransaction(state: MutableGameState): Boolean =
 
 fun InventorySystem.canAddItems(count: Int): Boolean = inventoryCanAddItems(stateStore, count)
 
-fun InventorySystem.canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
-    val current = stateStore.equipmentStacks.value
-    val maxStack = getMaxStackForType("equipment_stack")
-    val totalFree = current.filter { it.name == name && it.rarity == rarity && it.slot == slot }
-        .sumOf { maxStack - it.quantity }
-    return totalFree > 0 || canAddItem()
-}
+/**
+ * 能否再入库一件装备（B3 实例轨：一行一实例不合并，容量判定 = 是否有 ≥1 空槽）。
+ */
+fun InventorySystem.canAddEquipment(): Boolean = canAddItem()
 
 fun InventorySystem.canAddPill(
     name: String, rarity: Int, category: PillCategory, grade: PillGrade = PillGrade.MEDIUM

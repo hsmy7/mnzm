@@ -27,12 +27,7 @@ fun DiscipleStatCalculator.getFinalStats(
     val pe = disciple.pillEffects
     return computeFinalStats(
         baseStats = getBaseStats(disciple),
-        equipmentIds = listOfNotNull(
-            disciple.equipment.weaponId,
-            disciple.equipment.armorId,
-            disciple.equipment.bootsId,
-            disciple.equipment.accessoryId
-        ),
+        equipmentIds = disciple.equipment.equippedItemIds,
         manualIds = disciple.manualIds,
         equipments = equipments,
         manuals = manuals,
@@ -68,15 +63,12 @@ fun DiscipleStatCalculator.getMaxHpMpColumn(
     var hp = baseHp
     var mp = baseMp
 
-    // 装备（与 computeFinalStats 的 getFinalStats().toDiscipleStats() 加成一字一致）
-    listOfNotNull(input.weaponId, input.armorId, input.bootsId, input.accessoryId).forEach { equipId ->
-        val equipment = equipments[equipId]
-        if (equipment != null) {
-            val fs = equipment.getFinalStats()
-            hp += fs.hp
-            mp += fs.mp
-        }
-    }
+    // 装备（B3：六槽位实例 flat HP 求和 + 套装档位；与 EquipStatResolver 一字一致）
+    val equippedInstances = listOfNotNull(
+        input.headId, input.bodyId, input.handsId, input.feetId, input.weaponId, input.legsId
+    ).mapNotNull { equipments[it] }
+    val equipBonus = EquipStatResolver.resolve(equippedInstances)
+    hp += equipBonus.flatHp.toInt()
 
     // 功法（熟练度加成与 computeFinalStats 一致）
     input.manualIds.forEach { manualId ->
@@ -109,9 +101,7 @@ fun DiscipleStatCalculator.getFinalStats(
     val cs = aggregate.combatStats
     return computeFinalStats(
         baseStats = getBaseStats(aggregate),
-        equipmentIds = listOfNotNull(
-            eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
-        ).filter { it.isNotEmpty() },
+        equipmentIds = eq?.equippedItemIds ?: emptyList(),
         manualIds = aggregate.manualIds,
         equipments = equipments,
         manuals = manuals,
@@ -121,10 +111,8 @@ fun DiscipleStatCalculator.getFinalStats(
                 pillEffectDuration = it.pillEffectDuration,
                 pillHpBonus = it.pillHpBonus,
                 pillMpBonus = it.pillMpBonus,
-                pillPhysicalAttackBonus = it.pillPhysicalAttackBonus,
-                pillMagicAttackBonus = it.pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = it.pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = it.pillMagicDefenseBonus,
+                pillAttackBonus = it.pillAttackBonus,
+                pillDefenseBonus = it.pillDefenseBonus,
                 pillSpeedBonus = it.pillSpeedBonus,
                 pillCritRateBonus = it.pillCritRateBonus
             )

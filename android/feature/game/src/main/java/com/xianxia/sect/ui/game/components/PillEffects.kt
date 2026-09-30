@@ -42,7 +42,6 @@ internal fun isPillInstant(item: Pill): Boolean = item.category == PillCategory.
     (item.category == PillCategory.CULTIVATION && item.pillType == "breakthrough") ||
     item.cultivationAdd > 0 ||
     item.skillExpAdd > 0 ||
-    item.nurtureAdd > 0 ||
     item.extendLife > 0 ||
     item.healMaxHpPercent > 0 ||
     item.mpRecoverMaxMpPercent > 0 ||
@@ -85,10 +84,8 @@ internal fun MutableList<String>.addFunctionalPillEffects(item: Pill) {
     if (item.clearAll) add("  清除所有负面状态")
     if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
     if (item.mpAdd > 0) add("  灵力 +${item.mpAdd}")
-    if (item.physicalAttackAdd > 0) add("  物理攻击 +${item.physicalAttackAdd}")
-    if (item.magicAttackAdd > 0) add("  法术攻击 +${item.magicAttackAdd}")
-    if (item.physicalDefenseAdd > 0) add("  物理防御 +${item.physicalDefenseAdd}")
-    if (item.magicDefenseAdd > 0) add("  法术防御 +${item.magicDefenseAdd}")
+    if (item.attackAdd > 0) add("  攻击力 +${item.attackAdd}")
+    if (item.defenseAdd > 0) add("  防御力 +${item.defenseAdd}")
     if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")
 }
 
@@ -96,10 +93,8 @@ internal fun MutableList<String>.addFunctionalPillEffects(item: Pill) {
 internal fun MutableList<String>.addCultivationPillEffects(item: Pill) {
     if (item.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(item.cultivationSpeedPercent)}")
     if (item.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(item.skillExpSpeedPercent)}")
-    if (item.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(item.nurtureSpeedPercent)}")
     if (item.cultivationAdd > 0) add("  修为 +${item.cultivationAdd}")
     if (item.skillExpAdd > 0) add("  功法熟练度 +${item.skillExpAdd}")
-    if (item.nurtureAdd > 0) add("  孕养值 +${item.nurtureAdd}")
     if (item.breakthroughChance > 0) {
         add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
     }
@@ -113,10 +108,8 @@ internal fun MutableList<String>.addCultivationPillEffects(item: Pill) {
 
 /** 丹药战斗类效果 */
 internal fun MutableList<String>.addBattlePillEffects(item: Pill) {
-    if (item.physicalAttackAdd > 0) add("  物理攻击 +${item.physicalAttackAdd}")
-    if (item.magicAttackAdd > 0) add("  法术攻击 +${item.magicAttackAdd}")
-    if (item.physicalDefenseAdd > 0) add("  物理防御 +${item.physicalDefenseAdd}")
-    if (item.magicDefenseAdd > 0) add("  法术防御 +${item.magicDefenseAdd}")
+    if (item.attackAdd > 0) add("  攻击力 +${item.attackAdd}")
+    if (item.defenseAdd > 0) add("  防御力 +${item.defenseAdd}")
     if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
     if (item.mpAdd > 0) add("  灵力 +${item.mpAdd}")
     if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")

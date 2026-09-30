@@ -261,10 +261,8 @@ private fun LevelTitleRow(level: MapItem.Level) {
                     text = GameUtils.formatNumber(
                         SectCombatPowerCalculator.calculateBeastCombatPower(
                             maxHp = level.beastMaxHp,
-                            physicalAttack = level.beastPhysicalAttack,
-                            magicAttack = level.beastMagicAttack,
-                            physicalDefense = level.beastPhysicalDefense,
-                            magicDefense = level.beastMagicDefense,
+                            attack = level.beastAttack,
+                            defense = level.beastDefense,
                             speed = level.beastSpeed
                         )
                     ),

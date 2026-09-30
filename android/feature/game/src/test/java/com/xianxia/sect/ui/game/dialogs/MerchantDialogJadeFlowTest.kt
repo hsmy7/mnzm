@@ -50,7 +50,7 @@ class MerchantDialogJadeFlowTest {
         val vm = mockk<GameViewModel>(relaxed = true)
         // mockk relaxed 无法为 StateFlow<Set> 泛型生成正确 value（CCE），手动 stub 全部收集源
         every { vm.watchedItemIds } returns MutableStateFlow(emptySet())
-        every { vm.equipmentStacks } returns MutableStateFlow(emptyList())
+        every { vm.equipmentInstances } returns MutableStateFlow(emptyList())
         every { vm.manualStacks } returns MutableStateFlow(emptyList())
         every { vm.pills } returns MutableStateFlow(emptyList())
         every { vm.materials } returns MutableStateFlow(emptyList())
@@ -83,7 +83,7 @@ class MerchantDialogJadeFlowTest {
     fun `玉符不足时点击消耗玉符弹出不足提示框且小屏弹窗保留`() {
         val vm = mockk<GameViewModel>(relaxed = true)
         every { vm.watchedItemIds } returns MutableStateFlow(emptySet())
-        every { vm.equipmentStacks } returns MutableStateFlow(emptyList())
+        every { vm.equipmentInstances } returns MutableStateFlow(emptyList())
         every { vm.manualStacks } returns MutableStateFlow(emptyList())
         every { vm.pills } returns MutableStateFlow(emptyList())
         every { vm.materials } returns MutableStateFlow(emptyList())

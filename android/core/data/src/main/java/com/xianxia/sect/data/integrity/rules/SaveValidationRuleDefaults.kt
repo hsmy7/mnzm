@@ -37,6 +37,15 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             // order=24（执法堂/监牢下线：残留建筑与关联槽位清理 + 思过/执法弟子状态归一化）
             LawEnforcementPrisonCleanupRule,
             TimeAxisRule,              // order=25（双轨时间权威轴：旧档回填 + 投影一致性，结算改造 B3）
+            // order=26（孕养类加成丹药 R11 退役：存量折算补偿 + 配方回滚 + 幂等标记同事务；
+            // 排链尾——只改写已判定结构合格的资产面，与邮件附件清理规则同理由）
+            NurturePillRetirementRule,
+            // order=27（旧装备折算补偿 R2：影子表/储物袋/秘境/邮件四路折算 + 幂等标记
+            // 同事务；排链尾同上理由——读 deprecated 堆叠载体做资产改写）
+            LegacyEquipmentCompensationRule,
+            // order=28（装备实例数值消毒：coerce 口径逐位一致，方案 §3.6/§6.1；
+            // 排补偿之后——只对新生成/存量实例做数值面修正，不涉及资产折算）
+            EquipmentValueSanitizeRule,
         )
     )
 }

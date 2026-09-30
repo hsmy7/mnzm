@@ -34,10 +34,8 @@ class BattleSystem @Inject constructor(
     data class BeastPreGenStats(
         val maxHp: Int,
         val maxMp: Int,
-        val physicalAttack: Int,
-        val magicAttack: Int,
-        val physicalDefense: Int,
-        val magicDefense: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int,
         /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
         val realmLayer: Int = 1
@@ -46,10 +44,8 @@ class BattleSystem @Inject constructor(
     internal data class BeastCombatStats(
         val hp: Int,
         val mp: Int,
-        val physicalAttack: Int,
-        val magicAttack: Int,
-        val physicalDefense: Int,
-        val magicDefense: Int,
+        val attack: Int,
+        val defense: Int,
         val speed: Int,
         /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
         val realmLayer: Int
@@ -283,10 +279,9 @@ class BattleSystem @Inject constructor(
             maxHp = stats.maxHp,
             mp = effectiveMp,
             maxMp = stats.maxMp,
-            physicalAttack = stats.physicalAttack,
-            magicAttack = stats.magicAttack,
-            physicalDefense = stats.physicalDefense,
-            magicDefense = stats.magicDefense,
+            attack = stats.attack,
+            defense = stats.defense,
+            innateDamageType = disciple.resolvedInnateDamageType(),
             speed = stats.speed,
             critRate = stats.critRate,
             skills = skills,

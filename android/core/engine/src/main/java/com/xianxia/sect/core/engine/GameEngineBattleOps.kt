@@ -269,7 +269,7 @@ private fun buildWarDrops(warRewards: WarRewards?): List<String> {
     val drops = mutableListOf<String>()
     warRewards?.let { wr ->
         if (wr.spiritStones > 0) drops.add("灵石 ×${wr.spiritStones}")
-        wr.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+        wr.equipmentInstances.forEach { drops.add("${it.name} ×1") }
         wr.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
         wr.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
         wr.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
@@ -365,7 +365,7 @@ internal fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewa
     val items = mutableListOf<BattleRewardItem>()
     if (rewards.spiritStones > 0) items.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE,
         quantity = rewards.spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
-    rewards.equipmentStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity,
+    rewards.equipmentInstances.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = 1,
         rarity = it.rarity, type = "equipment")) }
     rewards.manualStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity,
         rarity = it.rarity, type = "manual")) }

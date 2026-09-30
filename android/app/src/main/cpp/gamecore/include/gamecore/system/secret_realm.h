@@ -97,10 +97,9 @@ inline constexpr const char* kAiSectEncounter = "AI_SECT_ENCOUNTER";
 struct SecretRealmBeastPreGenStats {
     int32_t maxHp = 0;
     int32_t maxMp = 0;
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
+    // 单列口径（B1）
+    int32_t attack = 0;
+    int32_t defense = 0;
     int32_t speed = 0;
     int32_t realmLayer = 1;
 };
@@ -315,12 +314,11 @@ inline SecretRealmBeastPreGenStats buildSecretRealmBeastPreGenStats(
     out.maxHp = maxHp;
     out.maxMp = std::max(
         static_cast<int32_t>(stats.mp * layerMult * (config->hpMod + hpVariance)), 1);
-    out.physicalAttack = std::max(
-        static_cast<int32_t>(stats.attack * layerMult * (config->atkMod + atkVariance)), 1);
-    out.magicAttack = out.physicalAttack;
-    out.physicalDefense = std::max(
-        static_cast<int32_t>(stats.defense * layerMult * (config->defMod + defVariance)), 1);
-    out.magicDefense = out.physicalDefense;
+    // 单列口径（B1）：物=法同源两半各自 round 后相加
+    out.attack = std::max(
+        static_cast<int32_t>(stats.attack * layerMult * (config->atkMod + atkVariance)), 1) * 2;
+    out.defense = std::max(
+        static_cast<int32_t>(stats.defense * layerMult * (config->defMod + defVariance)), 1) * 2;
     out.speed = std::max(
         static_cast<int32_t>(stats.speed * layerMult * (config->speedMod + speedVariance)), 1);
     out.realmLayer = clampedLayer;

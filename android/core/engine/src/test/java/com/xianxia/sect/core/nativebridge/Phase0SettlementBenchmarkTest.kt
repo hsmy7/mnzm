@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.service.CultivationCore
 import com.xianxia.sect.core.engine.service.CultivationRateCalculator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.CultivationSharedState
-import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.model.Disciple
@@ -121,7 +120,6 @@ class Phase0SettlementBenchmarkTest {
         val core = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(mockSmart()),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
@@ -169,7 +167,6 @@ class Phase0SettlementBenchmarkTest {
                 val state = MutableGameState(
                     gameData = store.gameData.value,
                     discipleTables = store.discipleTables,
-                    equipmentStacks = EntityStore(),
                     equipmentInstances = EntityStore(),
                     manualStacks = EntityStore(),
                     manualInstances = EntityStore(),

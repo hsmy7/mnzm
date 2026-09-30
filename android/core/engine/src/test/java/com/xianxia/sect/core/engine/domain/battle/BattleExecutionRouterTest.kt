@@ -94,10 +94,10 @@ class BattleExecutionRouterTest {
         assertEquals(a.maxHp, b.maxHp)
         assertEquals(a.mp, b.mp)
         assertEquals(a.maxMp, b.maxMp)
-        assertEquals(a.physicalAttack, b.physicalAttack)
-        assertEquals(a.magicAttack, b.magicAttack)
-        assertEquals(a.physicalDefense, b.physicalDefense)
-        assertEquals(a.magicDefense, b.magicDefense)
+        assertEquals(a.attack, b.attack)
+        assertEquals(a.attack, b.attack)
+        assertEquals(a.defense, b.defense)
+        assertEquals(a.defense, b.defense)
         assertEquals(a.speed, b.speed)
         assertEquals(a.critRate, b.critRate, 0.0)
         assertEquals(a.realm, b.realm)
@@ -150,7 +150,9 @@ class BattleExecutionRouterTest {
         val keys = j.keys
         val required = setOf(
             "id", "name", "side", "hp", "maxHp", "mp", "maxMp",
-            "physicalAttack", "magicAttack", "physicalDefense", "magicDefense",
+            "attack", "defense", "innateDamageType",
+            "physicalDamageBonus", "magicDamageBonus",
+            "physicalDamageReduction", "magicDamageReduction",
             "speed", "critRate", "skills", "buffs", "realm", "realmLayer",
             "element"
         )
@@ -172,8 +174,7 @@ class BattleExecutionRouterTest {
         id = id, name = name,
         side = CombatantSide.DEFENDER,
         hp = 1000, maxHp = 1000, mp = 100, maxMp = 100,
-        physicalAttack = 120, magicAttack = 100,
-        physicalDefense = 60, magicDefense = 50,
+        attack = 120, defense = 60,
         speed = 80, critRate = 0.15,
         skills = emptyList(),
         realm = 9, realmLayer = 1

@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -71,7 +70,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     override val gameData: StateFlow<GameData> get() = _gameData
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val discipleTables: DiscipleTables get() = persistentDiscipleTables
-    override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
     override val equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     override val manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
     override val manualInstances = MutableStateFlow<List<ManualInstance>>(emptyList())
@@ -107,7 +105,6 @@ internal class FakeAtomicStateStore : GameStateStore {
             return _gameData.value
         }
     override val disciplesSnapshot: List<Disciple> get() = disciples.value
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = equipmentStacks.value
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = equipmentInstances.value
     override val manualStacksSnapshot: List<ManualStack> get() = manualStacks.value
     override val manualInstancesSnapshot: List<ManualInstance> get() = manualInstances.value
@@ -157,7 +154,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>,
         equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>,
         manualInstances: List<ManualInstance>,
@@ -286,7 +282,6 @@ internal class FakeAtomicStateStore : GameStateStore {
         // 的契约未被本替身复制，需要该判据的测试不能以本替身绿当作生产绿。
         _gameData.value = m.gameData
         latestGameData = m.gameData
-        equipmentStacks.value = m.equipmentStacks.all()
         equipmentInstances.value = m.equipmentInstances.all()
         manualStacks.value = m.manualStacks.all()
         manualInstances.value = m.manualInstances.all()
@@ -310,7 +305,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     private fun newMutable() = MutableGameState(
         gameData = _gameData.value,
         discipleTables = persistentDiscipleTables,
-        equipmentStacks = EntityStore(equipmentStacks.value),
         equipmentInstances = EntityStore(equipmentInstances.value),
         manualStacks = EntityStore(manualStacks.value),
         manualInstances = EntityStore(manualInstances.value),

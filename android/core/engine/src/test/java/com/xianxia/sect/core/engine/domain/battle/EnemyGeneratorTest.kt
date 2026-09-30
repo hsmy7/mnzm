@@ -37,7 +37,7 @@ class EnemyGeneratorTest {
         // NOVICE(0) bonus=1.5：hp 100→150、攻击 50→75、暴击 10%→15%
         acc.add(manualInstance(hp = 100, physicalAttack = 50, critRatePercent = 10), masteryLevel = 0)
         assertEquals(150, acc.hp)
-        assertEquals(75, acc.physicalAttack)
+        assertEquals(75, acc.attack)
         assertEquals(0.15, acc.critChance, 1e-9)
         // 小成(1) bonus=2.0：hp 100→200
         acc.add(manualInstance(hp = 100), masteryLevel = 1)
@@ -56,10 +56,8 @@ class EnemyGeneratorTest {
             maxHp = 1000,
             mp = 500,
             maxMp = 500,
-            physicalAttack = 100,
-            magicAttack = 80,
-            physicalDefense = 60,
-            magicDefense = 40,
+            attack = 100,
+            defense = 60,
             speed = 50,
             critRate = 0.1,
             skills = emptyList(),
@@ -247,8 +245,8 @@ class EnemyGeneratorTest {
         for (data in results) {
             val c = data.combatant
             assertTrue("HP ${c.hp} should be > 0", c.hp > 0)
-            assertTrue("Physical attack ${c.physicalAttack} should be > 0", c.physicalAttack > 0)
-            assertTrue("Physical defense ${c.physicalDefense} should be > 0", c.physicalDefense > 0)
+            assertTrue("Physical attack ${c.attack} should be > 0", c.attack > 0)
+            assertTrue("Physical defense ${c.defense} should be > 0", c.defense > 0)
         }
     }
 

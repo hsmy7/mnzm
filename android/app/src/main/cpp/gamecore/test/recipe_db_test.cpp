@@ -12,7 +12,8 @@ namespace {
 // 锻造/炼丹配方静态表守卫测试
 //
 // 守护目标：C++ 表（recipe_db.h）与 Kotlin ForgeRecipeDatabase /
-// PillRecipeDatabase 的生成结果一致（72 锻造 + 660 丹药配方）。
+// PillRecipeDatabase 的生成结果一致（72 锻造 + 624 丹药配方；
+// 660→624 = R11 孕养类加成丹药退役移除 36 条）。
 // 数量断言对照 Kotlin 源码计数；代表性条目断言名称/品阶/时长/成功率/
 // 材料/描述/效果字段。Kotlin 侧守卫见 TemplateRegistryGuardTest 模式
 // （快照 recipe_db_sample.json ↔ Kotlin Registry，快照由
@@ -48,9 +49,10 @@ TEST(RecipeDbTest, ForgeRecipeCount) {
 }
 
 TEST(RecipeDbTest, PillRecipeCount) {
-    // Kotlin PillRecipeDatabase：修炼 138 + 战斗 288 + 功能 234 = 660
+    // Kotlin PillRecipeDatabase：修炼 102 + 战斗 288 + 功能 234 = 624
+    //（R11 孕养丹退役：修炼类原 138 中 nurtureSpeed/nurtureAdd 两系 36 条已移除）
     const auto& recipes = pillRecipes();
-    EXPECT_EQ(660u, recipes.size());
+    EXPECT_EQ(624u, recipes.size());
 
     int cultivation = 0, battle = 0, functional = 0;
     for (const auto& r : recipes) {
@@ -58,13 +60,13 @@ TEST(RecipeDbTest, PillRecipeCount) {
         if (r.category == "BATTLE") ++battle;
         if (r.category == "FUNCTIONAL") ++functional;
     }
-    EXPECT_EQ(138, cultivation);
+    EXPECT_EQ(102, cultivation);
     EXPECT_EQ(288, battle);
     EXPECT_EQ(234, functional);
 
-    // 每 tier 配方数（突破丹无 tier4 目标）
-    // tier1:108 tier2:114 tier3:111 tier4:105 tier5:108 tier6:114
-    const int expectedPerTier[7] = {0, 108, 114, 111, 105, 108, 114};
+    // 每 tier 配方数（突破丹无 tier4 目标；R11 后每 tier 修炼类减 6）
+    // tier1:102 tier2:108 tier3:105 tier4:99 tier5:102 tier6:108
+    const int expectedPerTier[7] = {0, 102, 108, 105, 99, 102, 108};
     for (int tier = 1; tier <= 6; ++tier) {
         int count = 0;
         for (const auto& r : recipes) {
@@ -207,7 +209,7 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     EXPECT_EQ("虎力丹", b1->name);
     EXPECT_EQ("BATTLE", b1->category);
     EXPECT_EQ("凡品中品物攻丹，增加5点物攻，持续9旬", b1->description);
-    EXPECT_EQ(5, b1->physicalAttackAdd);
+    EXPECT_EQ(5, b1->attackAdd);
     ASSERT_EQ(2u, b1->materials.size());
     EXPECT_EQ(2, b1->materials.at("spiritGrass1"));
     EXPECT_EQ(2, b1->materials.at("spiritFlower2"));
@@ -216,7 +218,7 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     const auto b2 = pillRecipeById("physicalAttack_1_low");
     ASSERT_TRUE(b2.has_value());
     EXPECT_EQ("凡品下品物攻丹，增加3点物攻，持续9旬", b2->description);
-    EXPECT_EQ(3, b2->physicalAttackAdd);
+    EXPECT_EQ(3, b2->attackAdd);
 
     // 双属性：hpMp 上品（格式陷阱：描述用英文属性键）
     const auto b3 = pillRecipeById("hpMp_1_high");
@@ -232,8 +234,8 @@ TEST(RecipeDbTest, PillRecipeBattleSample) {
     EXPECT_EQ("战体丹", b4->name);
     EXPECT_EQ("凡品下品物攻物防丹，增加2点physicalAttack和1点physicalDefense，持续9旬",
               b4->description);
-    EXPECT_EQ(2, b4->physicalAttackAdd);
-    EXPECT_EQ(1, b4->physicalDefenseAdd);
+    EXPECT_EQ(2, b4->attackAdd);
+    EXPECT_EQ(1, b4->defenseAdd);
 
     // 暴击率下品（0.03×0.5=0.015 → 1.5 → 2%）
     const auto b5 = pillRecipeById("critRate_1_low");
@@ -277,8 +279,11 @@ TEST(RecipeDbTest, IdsUnique) {
 TEST(RecipeDbTest, LookupHelpers) {
     // 存在查询
     EXPECT_TRUE(forgeRecipeById("immortalBoots").has_value());
-    EXPECT_TRUE(pillRecipeById("nurtureSpeed_6_high").has_value());
     EXPECT_TRUE(pillRecipeById("breakthrough_3_medium").has_value());
+
+    // R11 孕养丹退役：两类配方零产出（派发件验收判据 ④）
+    EXPECT_FALSE(pillRecipeById("nurtureSpeed_6_high").has_value());
+    EXPECT_FALSE(pillRecipeById("nurtureAdd_1_low").has_value());
 
     // 不存在查询返回空 optional
     EXPECT_FALSE(forgeRecipeById("does_not_exist").has_value());
