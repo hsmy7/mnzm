@@ -17,6 +17,11 @@ import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -628,16 +633,29 @@ class BattleSystemTest {
         val disciple = Disciple(
             id = "p1", name = "玩家弟子", realm = 3, realmLayer = 5, isAlive = true,
             manualIds = listOf("inst-m-1"),
-            equipment = EquipmentSet(weaponId = "inst-w-1", armorId = "inst-a-1")
+            equipment = EquipmentSet(weaponId = "inst-w-1", bodyId = "inst-a-1")
         )
         val weapon = EquipmentInstance(
-            id = "inst-w-1", name = "斩龙剑", slot = EquipmentSlot.WEAPON,
-            physicalAttack = 1000, minRealm = 3
-        )
+                id = "inst-w-1", name = "斩龙剑",
+                part = EquipmentSlot.WEAPON,
+                growth = EquipGrowth(
+                    affix = EquipAffixSet(
+                        mainStat = EquipStatValue(EquipStat.ATTACK, 1000.0)
+                    )
+                ),
+                meta = EquipInstanceMeta(rarity = 1, minRealm = 3)
+            )
         val armor = EquipmentInstance(
-            id = "inst-a-1", name = "玄龟甲", slot = EquipmentSlot.ARMOR,
-            physicalDefense = 500, hp = 5000, minRealm = 3
-        )
+                id = "inst-a-1", name = "玄龟甲",
+                part = EquipmentSlot.BODY,
+                growth = EquipGrowth(
+                    affix = EquipAffixSet(
+                        mainStat = EquipStatValue(EquipStat.DEFENSE, 500.0),
+                        subStats = listOf(EquipStatValue(EquipStat.HP, 5000.0))
+                    )
+                ),
+                meta = EquipInstanceMeta(rarity = 1, minRealm = 3)
+            )
         val manual = ManualInstance(
             id = "inst-m-1", name = "破军", rarity = 4, type = ManualType.ATTACK,
             skillName = "破军", skillType = "attack", skillDamageType = "physical",

@@ -332,7 +332,6 @@ class SaveLoadViewModelAutoSaveTest {
     private fun snapshot() = GameStateSnapshot(
         gameData = gameData(year = 3, month = 5),
         disciples = emptyList(),
-        equipmentStacks = emptyList(),
         equipmentInstances = emptyList(),
         manualStacks = emptyList(),
         manualInstances = emptyList(),

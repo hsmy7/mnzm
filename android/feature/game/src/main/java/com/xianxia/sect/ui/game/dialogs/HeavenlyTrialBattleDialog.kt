@@ -24,7 +24,6 @@ import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.engine.domain.battle.Combatant
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.ui.components.CloseButton
@@ -312,12 +311,8 @@ private fun EnemyInfoDetail(
         if (enemy.isBeast) {
             EnemyBeastSkills(enemy = enemy)
         } else {
-            // 装备槽位
-            EnemyEquipmentSection(
-                enemy = enemy,
-                watchedKeys = watchedKeys,
-                onLongPress = { detailTarget = it }
-            )
+            // 装备槽位（B3 六部位；部件配方仅名称展示，无实例不可长按详情）
+            EnemyEquipmentSection(enemy = enemy)
 
             // 功法槽位
             EnemyManualSection(
@@ -392,39 +387,40 @@ private fun EnemyBeastSkills(enemy: Combatant) {
     }
 }
 
-/** 装备槽位区：4 列装备卡片 */
+/** 敌方装备卡片占位品阶（部件配方无品阶语义，卡片仅作名称展示） */
+private const val ENEMY_EQUIP_CARD_RARITY = 1
+
+/** 敌方装备六宫格每行列数（3×2：上行 头·身·手，下行 脚·武·腿） */
+private const val ENEMY_EQUIP_GRID_ROW_SIZE = 3
+
+/** 装备槽位区：六部位装备卡片（3×2，按显示序 头·身·手 / 脚·武·腿） */
 @Composable
-private fun EnemyEquipmentSection(
-    enemy: Combatant,
-    watchedKeys: Set<String>,
-    onLongPress: (Any) -> Unit
-) {
-    // 装备槽位 — 4列，卡片自带名称无需底部文字
+private fun EnemyEquipmentSection(enemy: Combatant) {
+    // 装备槽位 — 卡片自带名称无需底部文字
     Spacer(Modifier.height(6.dp))
     Text("装备", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
     Spacer(Modifier.height(4.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
-    ) {
-        listOf(enemy.weaponName, enemy.armorName,
-            enemy.bootsName, enemy.accessoryName).forEach { name ->
-            val recipe = name?.let { n -> ForgeRecipeDatabase.getAllRecipes().find { it.name == n } }
-            val template = name?.let { n -> EquipmentDatabase.getTemplateByName(n) }
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                if (recipe != null) {
-                    UnifiedItemCard(
-                        data = ItemCardData(name = recipe.name, rarity = recipe.rarity),
-                        showQuantity = false,
-                        isFollowed = template?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
-                            ?: false,
-                        onLongPress = if (template != null) {
-                            { onLongPress(template) }
-                        } else null
-                    )
+    val partNames = listOf(
+        enemy.headName, enemy.bodyName, enemy.handsName,
+        enemy.feetName, enemy.weaponName, enemy.legsName
+    )
+    partNames.chunked(ENEMY_EQUIP_GRID_ROW_SIZE).forEach { rowNames ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
+        ) {
+            rowNames.forEach { name ->
+                val recipe = name?.let { n -> ForgeRecipeDatabase.getAllRecipes().find { it.name == n } }
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (recipe != null) {
+                        UnifiedItemCard(
+                            data = ItemCardData(name = recipe.name, rarity = ENEMY_EQUIP_CARD_RARITY),
+                            showQuantity = false
+                        )
+                    }
                 }
             }
         }

@@ -271,8 +271,7 @@ class ExplorationPatrolRouteTest {
                 aiSectDisciples = aiSectDisciples,
                 worldMapSects = listOf(WorldSect(id = "sect1", name = "青云宗"))
             ),
-            discipleTables = tables,
-            equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
+            discipleTables = tables, equipmentInstances = EntityStore(),
             manualStacks = EntityStore(), manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),

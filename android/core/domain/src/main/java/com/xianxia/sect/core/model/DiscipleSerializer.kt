@@ -61,9 +61,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             discipleType = value.discipleType,
             cultivationCompletionMonth = value.cultivationCompletionMonth,
             manualCompletionMonth = value.manualCompletionMonth,
-            manualCompletionPhase = value.manualCompletionPhase,
-            equipmentNurturingCompletionMonth = value.equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = value.equipmentNurturingCompletionPhase
+            manualCompletionPhase = value.manualCompletionPhase
         )
         surrogate = withCombatPillFields(surrogate = surrogate, value = value)
         surrogate = withEquipmentUsageFields(surrogate = surrogate, value = value)
@@ -110,15 +108,14 @@ object DiscipleSerializer : KSerializer<Disciple> {
     /** 装备 + 使用追踪段 */
     private fun withEquipmentUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
-            // ===== EquipmentSet @Embedded =====
+            // ===== EquipmentSet @Embedded（六部位，B3 接线：weaponId(17) 复用 +
+            // headId(112)..legsId(116) 新增段；旧四槽 id 与 nurture 退役不写） =====
+            headId = value.equipment.headId,
+            bodyId = value.equipment.bodyId,
+            handsId = value.equipment.handsId,
+            feetId = value.equipment.feetId,
             weaponId = value.equipment.weaponId,
-            armorId = value.equipment.armorId,
-            bootsId = value.equipment.bootsId,
-            accessoryId = value.equipment.accessoryId,
-            weaponNurture = value.equipment.weaponNurture,
-            armorNurture = value.equipment.armorNurture,
-            bootsNurture = value.equipment.bootsNurture,
-            accessoryNurture = value.equipment.accessoryNurture,
+            legsId = value.equipment.legsId,
             storageBagItems = value.equipment.storageBagItems,
             storageBagSpiritStones = value.equipment.storageBagSpiritStones,
             spiritStones = value.equipment.spiritStones,
@@ -184,9 +181,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             discipleType = surrogate.discipleType,
             cultivationCompletionMonth = surrogate.cultivationCompletionMonth,
             manualCompletionMonth = surrogate.manualCompletionMonth,
-            manualCompletionPhase = surrogate.manualCompletionPhase,
-            equipmentNurturingCompletionMonth = surrogate.equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = surrogate.equipmentNurturingCompletionPhase
+            manualCompletionPhase = surrogate.manualCompletionPhase
         )
         disciple = withCombatPillValues(disciple = disciple, surrogate = surrogate)
         disciple = withEquipmentUsageValues(disciple = disciple, surrogate = surrogate)
@@ -240,14 +235,15 @@ object DiscipleSerializer : KSerializer<Disciple> {
     private fun withEquipmentUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             equipment = EquipmentSet(
+                // 六部位读面（B3 接线）：weaponId(17) 复用 + headId(112)..legsId(116)；
+                // 旧四槽 id（18/19/20）与 nurture（24..27）退役不读——旧档值由
+                // MIGRATION_63_64 清空/删列，读默认值即正确语义
+                headId = surrogate.headId,
+                bodyId = surrogate.bodyId,
+                handsId = surrogate.handsId,
+                feetId = surrogate.feetId,
                 weaponId = surrogate.weaponId,
-                armorId = surrogate.armorId,
-                bootsId = surrogate.bootsId,
-                accessoryId = surrogate.accessoryId,
-                weaponNurture = surrogate.weaponNurture,
-                armorNurture = surrogate.armorNurture,
-                bootsNurture = surrogate.bootsNurture,
-                accessoryNurture = surrogate.accessoryNurture,
+                legsId = surrogate.legsId,
                 storageBagItems = surrogate.storageBagItems,
                 storageBagSpiritStones = surrogate.storageBagSpiritStones,
                 spiritStones = surrogate.spiritStones
@@ -323,9 +319,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
         // ProtoNumber(95) 已退役（#10 死值 1）：旧档 field 95 宽松忽略
         @ProtoNumber(96) val manualCompletionMonth: Int = 0,
         @ProtoNumber(97) val manualCompletionPhase: Int = 1,
-        // E1 退役清单在册（装备孕养完成月/旬，B3 装备体系替换批退役）：禁改指向，退役后号禁复用
-        @ProtoNumber(98) val equipmentNurturingCompletionMonth: Int = 0,
-        @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 1,
+        // reserved 98,99;（equipmentNurturingCompletionMonth/Phase，B3/EQ-B3 退役——
+        // 旧档字节按未知字段忽略，禁复用；列式删除见 MIGRATION_63_64）
 
         // ===== CombatAttributes @Embedded =====
         // 属性单列段（B1，方案 §15 / E1 冻结表增量登记）：
@@ -392,24 +387,32 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),
 
         // ===== EquipmentSet @Embedded =====
-        // 🔴 E1 冻结表（equipment-batches §1 / 方案 §四 WP0，B0 定稿）：
+        // 🔴 E1 冻结表（equipment-batches §1 / 方案 §四 WP0，B0 定稿；B3 落地退役）：
         // weaponId(17) 复用为六部位的武器部位列（唯一复用号，禁再映射其他语义）；
-        // 18/19/20 与 24..27 已划入退役清单（B3 装备体系替换批退役）：退役前禁改指向，退役后禁复用。
+        // 18/19/20 与 24..27 已退役（B3/EQ-B3）——保留声明仅供旧档反序列化
+        // （旧档字节可读、值恒丢弃），写入/读取面已全部切六部位，退役号禁复用
+        // （守卫 EquipmentProtoNumberFrozenTest）。
         @ProtoNumber(17) val weaponId: String = "",
+        @Deprecated("旧护甲部位列，B3 退役；保留声明仅供旧档反序列化，写入走 bodyId(113)")
         @ProtoNumber(18) val armorId: String = "",
+        @Deprecated("旧靴子部位列，B3 退役；保留声明仅供旧档反序列化，写入走 feetId(115)")
         @ProtoNumber(19) val bootsId: String = "",
+        @Deprecated("旧饰品部位列，B3 退役（饰品位随六部位移除）；保留声明仅供旧档反序列化")
         @ProtoNumber(20) val accessoryId: String = "",
+        @Deprecated("旧武器孕养数据，B3 退役（等级随 EquipmentInstance.growth 单点）")
         @ProtoNumber(24) val weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+        @Deprecated("旧护甲孕养数据，B3 退役")
         @ProtoNumber(25) val armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+        @Deprecated("旧靴子孕养数据，B3 退役")
         @ProtoNumber(26) val bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+        @Deprecated("旧饰品孕养数据，B3 退役")
         @ProtoNumber(27) val accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
         @ProtoNumber(30) val storageBagItems: List<StorageBagItem> = emptyList(),
         @ProtoNumber(31) val storageBagSpiritStones: Long = 0,
         @ProtoNumber(28) val spiritStones: Int = 0,
 
-        // ===== 六部位新增段（E1 冻结表，B0 占号定稿：112..116 部位列按显示序 头/身/手/脚/武/腿，117 固有伤害属性） =====
-        // 112..116 只声明占号，不写入/不读取（B3 装备体系替换批接线，旧档读到默认值）；
-        // 117 innateDamageType 已于 B1 接线（存弟子固有伤害属性 DamageType.name，空串=未派生）。
+        // ===== 六部位新增段（E1 冻结表，B0 占号定稿：112..116 部位列按显示序 头/身/手/脚/武/腿） =====
+        // 112..116 已于 B3 接线（weaponId(17) 复用为武器部位）；117 innateDamageType 已于 B1 接线。
         // 后续批只允许使用已冻结编号，禁临时新增、禁改号（守卫 EquipmentProtoNumberFrozenTest）。
         @ProtoNumber(112) val headId: String = "",
         @ProtoNumber(113) val bodyId: String = "",

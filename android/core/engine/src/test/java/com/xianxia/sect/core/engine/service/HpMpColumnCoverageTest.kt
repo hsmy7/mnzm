@@ -9,7 +9,7 @@ import org.junit.Test
  * HP/MP 列直读覆盖守卫测试（CLAUDE.md 9.5 守卫三要素）。
  *
  * 背景：每旬 HP/MP 恢复热点的列直读版 [HpMpRecoveryService.recoverHpMpSingleColumn]
- * 只读取 12 个列直读输入（相对 assemble 的 ~90 列）——若未来新增影响 maxHp/maxMp 的
+ * 只读取 14 个列直读输入（相对 assemble 的 ~90 列）——若未来新增影响 maxHp/maxMp 的
  * Disciple 字段（如新装备槽/新加成列），忘记同步 [HpMpColumnInput] 会导致
  * 列直读与对象版结果漂移（列版少算加成）。
  *
@@ -32,10 +32,12 @@ class HpMpColumnCoverageTest {
         "realmLayer",     // 层数乘区
         "hpVariance",     // HP 方差乘区
         "mpVariance",     // MP 方差乘区
-        "weaponId",       // 装备四槽（HP/MP 加成）
-        "armorId",
-        "bootsId",
-        "accessoryId",
+        "headId",         // 装备六部位（HP/MP 加成；B3：四槽 → HEAD/BODY/HANDS/FEET/WEAPON/LEGS）
+        "bodyId",
+        "handsId",
+        "feetId",
+        "legsId",
+        "weaponId",
         "manualIds",      // 功法（stats["hp"/"mp"] × 熟练度）
         "pillEffectDuration",  // 丹药生效判定
         "pillHpBonus",    // 丹药 HP/MP 加成

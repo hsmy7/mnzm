@@ -17,8 +17,6 @@ import com.xianxia.sect.core.engine.system.ReconstructedBagStack
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -33,7 +31,6 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import java.util.UUID
 import com.xianxia.sect.core.state.EntityStore
@@ -41,7 +38,9 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 
 import com.xianxia.sect.core.util.GameRngManager
+import kotlin.random.Random
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -101,7 +100,6 @@ class InventoryFacadeImpl @Inject constructor(
         internal const val TAG = "InventoryFacade"
     }
 
-    override val equipmentStacks: StateFlow<List<EquipmentStack>> get() = inventorySystem.equipmentStacks
     override val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = inventorySystem.equipmentInstances
     override val manualStacks: StateFlow<List<ManualStack>> get() = inventorySystem.manualStacks
     override val manualInstances: StateFlow<List<ManualInstance>> get() = inventorySystem.manualInstances
@@ -116,7 +114,6 @@ class InventoryFacadeImpl @Inject constructor(
      *
      * @param item 待添加的装备堆叠
      */
-    override suspend fun addEquipmentStack(stack: EquipmentStack) { inventorySystem.addEquipmentStack(stack) }
     override suspend fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
     override suspend fun addManualStackToWarehouse(stack: ManualStack) { inventorySystem.addManualStack(stack) }
     override suspend fun addPillToWarehouse(pill: Pill) { inventorySystem.addPill(pill) }
@@ -187,8 +184,6 @@ class InventoryFacadeImpl @Inject constructor(
                     null
                 } else {
                     when (reconstructed) {
-                        is ReconstructedBagStack.Equipment ->
-                            inventorySystem.addEquipmentStack(reconstructed.stack.copy(quantity = 1))
                         is ReconstructedBagStack.Manual ->
                             inventorySystem.addManualStack(reconstructed.stack.copy(quantity = 1))
                         is ReconstructedBagStack.Pill ->
@@ -205,12 +200,8 @@ class InventoryFacadeImpl @Inject constructor(
         }
     }
 
-    override fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase
-        .ForgeRecipe): EquipmentStack =
-        inventorySystem.createEquipmentFromRecipe(recipe)
-
-    override fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack =
-        inventorySystem.createEquipmentFromMerchantItem(item)
+    override fun createEquipmentInstanceFromMerchantItem(item: MerchantItem, rng: Random): EquipmentInstance =
+        inventorySystem.createEquipmentFromMerchantItem(item, rng)
 
     override fun createManualStackFromMerchantItem(item: MerchantItem): ManualStack =
         inventorySystem.createManualFromMerchantItem(item)
@@ -248,10 +239,18 @@ class InventoryFacadeImpl @Inject constructor(
     }
 
     override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean {
-        // AUTHORITATIVE 稳态走 C++ 事务（inventory_tx.h）；未转发 → Kotlin 原路径
+        // AUTHORITATIVE 稳态走 C++ 事务（inventory_tx.h）；未转发 → Kotlin 原路径。
+        // B3 实例轨：装备无数量语义，quantity 仅作协议占位（恒按整件出售）
         nativeTx.sellItem("equipment", equipmentId, quantity)?.let { return it }
         var success = false
-        stateStore.update { success = sellStack(equipmentId, quantity, equipmentStacks, { it.basePrice }, "equipment") }
+        stateStore.update {
+            val instance = equipmentInstances.get(equipmentId) ?: return@update
+            if (instance.isLocked) return@update
+            val amount = GameConfig.Rarity.calculateSellPrice(instance.basePrice, 1)
+            spiritStoneWallet.add(this, amount, SpiritStoneGrade.LOW, SpiritStoneSource.Sell("equipment"))
+            equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+            success = true
+        }
         return success
     }
 
@@ -325,7 +324,7 @@ class InventoryFacadeImpl @Inject constructor(
         stateStore.update {
             for (op in operations) {
                 val earned = when (op.itemType) {
-                    "equipment" -> deductStack(op.id, op.quantity, equipmentStacks) { it.basePrice }
+                    "equipment" -> deductEquipmentInstance(op.id) { it.basePrice }
                     "manual" -> deductStack(op.id, op.quantity, manualStacks) { it.basePrice }
                     "pill" -> deductStack(op.id, op.quantity, pills) { it.basePrice }
                     "material" -> deductStack(op.id, op.quantity, materials) { it.basePrice }
@@ -354,7 +353,9 @@ class InventoryFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope {
             stateStore.update {
                 when (itemType) {
-                    "equipment" -> equipmentStacks.update(itemId) { it.copy(isLocked = !it.isLocked) }
+                    "equipment" -> equipmentInstances.update(itemId) {
+                        it.copy(meta = it.meta.copy(isLocked = !it.isLocked))
+                    }
                     "manual" -> manualStacks.update(itemId) { it.copy(isLocked = !it.isLocked) }
                     "pill" -> pills.update(itemId) { it.copy(isLocked = !it.isLocked) }
                     "material" -> materials.update(itemId) { it.copy(isLocked = !it.isLocked) }
@@ -439,10 +440,7 @@ class InventoryFacadeImpl @Inject constructor(
     /** 商人商品容量检查：基于最新状态做只读预测，灵石/未知类型不占槽位 */
     internal fun MutableGameState.canAddMerchantItem(merchantItem: MerchantItem): Boolean =
         when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> {
-                val eq = MerchantItemConverter.toEquipment(merchantItem)
-                inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)
-            }
+            "equipment" -> inventorySystem.canAddEquipment()
             "manual" -> {
                 val m = MerchantItemConverter.toManual(merchantItem)
                 inventorySystem.canAddManual(m.name, m.rarity, m.type)
@@ -488,14 +486,17 @@ class InventoryFacadeImpl @Inject constructor(
         return addOk
     }
 
-    /** 商人装备入库 */
-    internal fun MutableGameState.addMerchantEquipment(merchantItem: MerchantItem, quantity: Int): Boolean {
-        val result = inventorySystem.addEquipmentStack(
-            MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
-        )
-        if (result is DomainResult.Failure) {
-            DomainLog.w(TAG, "购买装备失败：${merchantItem.name}")
-            return false
+    /** 商人装备入库（B3 实例轨：quantity 件 = quantity 条实例；任一件失败整体失败） */
+    internal fun InventoryFacadeImpl.addMerchantEquipment(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val converter = merchantConverterProvider()
+        repeat(quantity) {
+            val rng = gameRngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+            val instance = converter.toEquipment(merchantItem, rng)
+            val result = inventorySystem.addEquipmentInstance(instance)
+            if (result is DomainResult.Failure) {
+                DomainLog.w(TAG, "购买装备失败：${merchantItem.name}")
+                return false
+            }
         }
         return true
     }
@@ -587,7 +588,7 @@ class InventoryFacadeImpl @Inject constructor(
     /** 出售扣减仓库库存：按物品类型分发——堆叠类扣仓库堆叠，灵石类扣玩家余额 */
     internal fun MutableGameState.deductSoldStock(acquisitionItem: MerchantItem, actualQuantity: Int) {
         when (acquisitionItem.type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> deductSoldStack(equipmentStacks, acquisitionItem, actualQuantity)
+            "equipment" -> deductSoldEquipmentInstances(acquisitionItem, actualQuantity)
             "manual" -> deductSoldStack(manualStacks, acquisitionItem, actualQuantity)
             "pill" -> deductSoldPillStack(acquisitionItem, actualQuantity)
             "material" -> deductSoldStack(materials, acquisitionItem, actualQuantity)
@@ -700,7 +701,7 @@ class InventoryFacadeImpl @Inject constructor(
     /** 储物袋奖励批次：生成期暂存物品，事务内统一入仓 */
     internal class StorageBagRewardBatch {
         val rewards = mutableListOf<BattleRewardItem>()
-        val equipment = mutableListOf<EquipmentStack>()
+        val equipment = mutableListOf<EquipmentInstance>()
         val manuals = mutableListOf<ManualStack>()
         val pills = mutableListOf<Pill>()
         val herbs = mutableListOf<Herb>()
@@ -720,7 +721,7 @@ class InventoryFacadeImpl @Inject constructor(
         // 全部物品统一委托 addXxx（重入事务操作同一缓冲；年度统计由 addXxx 按
         // "storage_bag" 来源自动累加，键格式与原手写一致，删除手写 annual 防双计）
         inventorySystem.withTrackingSource("storage_bag") {
-            for (stack in batch.equipment) inventorySystem.addEquipmentStack(stack)
+            for (instance in batch.equipment) inventorySystem.addEquipmentInstance(instance)
             for (stack in batch.manuals) inventorySystem.addManualStack(stack)
             for (pill in batch.pills) inventorySystem.addPill(pill)
             for (herb in batch.herbs) inventorySystem.addHerb(herb)
@@ -756,18 +757,18 @@ internal fun MutableGameState.listEquipmentForSale(
     quantity: Int,
     newItems: MutableList<MerchantItem>
 ): Boolean {
-    val eqStack = equipmentStacks.get(itemId) ?: return false
-    if (eqStack.isLocked || quantity !in 1..eqStack.quantity) return false
-    // 设计要求：上架时不扣减仓库数量，物品仍在仓库显示
+    // B3 实例轨：1 件 = 1 条目，quantity 仅作协议占位（整件上架）
+    val instance = equipmentInstances.get(itemId) ?: return false
+    if (instance.isLocked) return false
+    // 设计要求：上架时不移除仓库实例，物品仍在仓库显示
     val alreadyListed = gameData.playerListedItems
         .filter { it.itemId == itemId && it.type == "equipment" }
         .sumOf { it.quantity }
-    if (alreadyListed + quantity > eqStack.quantity) return true
-    val eqTemplate = EquipmentDatabase.getTemplateByName(eqStack.name)
-    val eqOriginal = eqTemplate?.price ?: GameConfig.Rarity.get(eqStack.rarity).basePrice
-    val eqPrice = (eqOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
-    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = eqStack.name,
-        type = "equipment", itemId = itemId, rarity = eqStack.rarity, price = eqPrice, quantity = quantity))
+    if (alreadyListed >= 1) return true
+    val eqPrice = (instance.basePrice.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER)
+        .roundToInt().toLong()
+    newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = instance.name,
+        type = "equipment", itemId = itemId, rarity = instance.rarity, price = eqPrice, quantity = 1))
     return true
 }
 
@@ -810,3 +811,33 @@ internal fun MutableGameState.listPillForSale(
         grade = pill.grade.displayName))
     return true
 }
+
+// ── 装备实例轨助手（B3） ─────────────────────────────────────────────
+
+/** 批量出售扣减单件装备实例（实例无数量，整条移除；返回出售额） */
+internal fun MutableGameState.deductEquipmentInstance(itemId: String, priceOf: (EquipmentInstance) -> Int): Long {
+    val instance = equipmentInstances.get(itemId) ?: return 0L
+    if (instance.isLocked) return 0L
+    equipmentInstances = equipmentInstances.filter { it.id != itemId }
+    return GameConfig.Rarity.calculateSellPrice(priceOf(instance), 1)
+}
+
+/**
+ * 商人收购扣减（B3 实例轨）：按名称+品阶匹配未锁定实例逐件移除（与堆叠臂
+ * [deductSoldStack] 同口径）。收购需求按物品类型（name+rarity）发布，
+ * itemId 是需求生成侧的模板锚而非玩家实例 id——按 itemId 查实例表会让
+ * 第二件起必然 miss（同 id 至多一条），出现"付 N 件款只扣 1 件"的复制 bug。
+ */
+internal fun MutableGameState.deductSoldEquipmentInstances(acquisitionItem: MerchantItem, soldQuantity: Int) {
+    var remain = soldQuantity
+    equipmentInstances = equipmentInstances.filter { instance ->
+        val matched = remain > 0 && !instance.isLocked &&
+            instance.name == acquisitionItem.name && instance.rarity == acquisitionItem.rarity
+        if (matched) remain -= 1
+        !matched
+    }
+}
+
+/** MerchantItemConverter 提供者：InventoryFacadeImpl 构造注入桥（companion 单例桥同族） */
+internal fun InventoryFacadeImpl.merchantConverterProvider(): MerchantItemConverter =
+    MerchantItemConverter.companionInstance

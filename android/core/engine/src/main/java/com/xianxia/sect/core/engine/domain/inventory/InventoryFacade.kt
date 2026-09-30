@@ -4,13 +4,12 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
+import kotlin.random.Random
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
@@ -24,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 interface InventoryFacade {
     val inventorySystem: InventorySystem
     val inventoryConfig: InventoryConfig
-    val equipmentStacks: StateFlow<List<EquipmentStack>>
     val equipmentInstances: StateFlow<List<EquipmentInstance>>
     val manualStacks: StateFlow<List<ManualStack>>
     val manualInstances: StateFlow<List<ManualInstance>>
@@ -34,7 +32,6 @@ interface InventoryFacade {
     val seeds: StateFlow<List<Seed>>
     val storageBags: StateFlow<List<StorageBag>>
 
-    suspend fun addEquipmentStack(stack: EquipmentStack)
     suspend fun removeEquipment(equipmentId: String): Boolean
     suspend fun addManualStackToWarehouse(stack: ManualStack)
     suspend fun addPillToWarehouse(pill: Pill)
@@ -44,9 +41,7 @@ interface InventoryFacade {
     suspend fun sortWarehouse()
     suspend fun consolidateStacks()
     suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)
-    fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase
-        .ForgeRecipe): EquipmentStack
-    fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack
+    fun createEquipmentInstanceFromMerchantItem(item: MerchantItem, rng: Random): EquipmentInstance
     fun createManualStackFromMerchantItem(item: MerchantItem): ManualStack
     fun createPillFromMerchantItem(item: MerchantItem): Pill
     fun createMaterialFromMerchantItem(item: MerchantItem): Material

@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -34,6 +33,7 @@ import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.repository.GameHeavyDataPort
 import com.xianxia.sect.core.repository.HeavyDataDecoder
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.EquipmentUpgradeService
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
@@ -76,7 +76,6 @@ typealias ElderBonusData = FormulaService.ElderBonusData
 data class GameStateSnapshot(
     val gameData: GameData,
     val disciples: List<Disciple>,
-    val equipmentStacks: List<EquipmentStack>,
     val equipmentInstances: List<EquipmentInstance>,
     val manualStacks: List<ManualStack>,
     val manualInstances: List<ManualInstance>,
@@ -118,6 +117,7 @@ class GameEngine @Inject constructor(
     internal val assignmentGate: DiscipleAssignmentGate get() = battleFacade.assignmentGate
     internal val productionCoordinator: ProductionCoordinator get() = cultivationFacade.productionCoordinator
     internal val discipleService: DiscipleService get() = cultivationFacade.discipleService
+    internal val equipmentUpgradeService: EquipmentUpgradeService get() = cultivationFacade.equipmentUpgradeService
     internal val explorationService: ExplorationService get() = explorationFacade.explorationService
     internal val secretRealmService: SecretRealmService get() = explorationFacade.secretRealmService
     internal val buildingService: BuildingService get() = cultivationFacade.buildingFacade.buildingService
@@ -250,7 +250,6 @@ class GameEngine @Inject constructor(
     val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = stateStore.discipleAggregatesSnapshot
     val discipleTables: DiscipleTables get() = stateStore.discipleTables
     val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
-    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = stateStore.equipmentInstances
     val manualStacks: StateFlow<List<ManualStack>> get() = stateStore.manualStacks
     val manualInstances: StateFlow<List<ManualInstance>> get() = stateStore.manualInstances

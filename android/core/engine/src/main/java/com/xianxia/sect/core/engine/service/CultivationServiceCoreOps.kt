@@ -103,28 +103,6 @@ fun CultivationService.commitManualProficiencies(
         cultivationCore.commitManualProficiencies(state, pending)
 }
 
-/** 每旬装备孕养经验增长（委托 CultivationCore） */
-fun CultivationService.processEquipmentNurturePerPhase(state: MutableGameState) {
-        cultivationCore.processEquipmentNurturePerPhase(state)
-}
-
-/** 单弟子每旬装备孕养经验增长（委托 CultivationCore） */
-fun CultivationService.processEquipmentNurtureSingle(
-        state: MutableGameState, id: Int,
-        equipmentMap: Map<String, EquipmentInstance>? = null,
-        sharedUpdates: MutableMap<String, EquipmentInstance>? = null
-) {
-        cultivationCore.processEquipmentNurtureSingle(state, id, equipmentMap, sharedUpdates)
-}
-
-/** 批量提交装备孕养更新（委托 CultivationCore） */
-fun CultivationService.applyEquipmentUpdates(
-        state: MutableGameState,
-        updates: Map<String, EquipmentInstance>
-) {
-        cultivationCore.applyEquipmentUpdates(state, updates)
-}
-
 /** 实时轨专用：自动服用储物袋丹药（突破丹除外） */
 fun CultivationService.processAutoPillsRealtime(state: MutableGameState) {
         cultivationCore.processRealtimeAutoPills(state)

@@ -152,7 +152,6 @@ class ProductionUiNativeTxGateTest {
     private fun createMutableState(tbl: DiscipleTables) = MutableGameState(
         gameData = GameData(),
         discipleTables = tbl,
-        equipmentStacks = EntityStore(emptyList()),
         equipmentInstances = EntityStore(emptyList()),
         manualStacks = EntityStore(emptyList()),
         manualInstances = EntityStore(emptyList()),

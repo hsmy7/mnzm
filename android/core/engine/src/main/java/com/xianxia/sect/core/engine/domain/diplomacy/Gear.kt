@@ -4,20 +4,16 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.accessoryNurture
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.armorNurture
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.bootsNurture
-import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.weaponNurture
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.exploration.generateManuals
 
@@ -35,14 +31,12 @@ fun AISectDiscipleManager.applyGearToDisciple(disciple: Disciple, sectLevel: Int
         manualIds = manuals.map { it.first },
         manualMasteries = manuals.toMap(),
         equipment = disciple.equipment.copy(
+            headId = equipmentIds[EquipmentSlot.HEAD].orEmpty(),
+            bodyId = equipmentIds[EquipmentSlot.BODY].orEmpty(),
+            handsId = equipmentIds[EquipmentSlot.HANDS].orEmpty(),
+            feetId = equipmentIds[EquipmentSlot.FEET].orEmpty(),
             weaponId = equipmentIds[EquipmentSlot.WEAPON].orEmpty(),
-            armorId = equipmentIds[EquipmentSlot.ARMOR].orEmpty(),
-            bootsId = equipmentIds[EquipmentSlot.BOOTS].orEmpty(),
-            accessoryId = equipmentIds[EquipmentSlot.ACCESSORY].orEmpty(),
-            weaponNurture = generateInitialNurture(equipmentIds[EquipmentSlot.WEAPON].orEmpty()),
-            armorNurture = generateInitialNurture(equipmentIds[EquipmentSlot.ARMOR].orEmpty()),
-            bootsNurture = generateInitialNurture(equipmentIds[EquipmentSlot.BOOTS].orEmpty()),
-            accessoryNurture = generateInitialNurture(equipmentIds[EquipmentSlot.ACCESSORY].orEmpty())
+            legsId = equipmentIds[EquipmentSlot.LEGS].orEmpty()
         )
     )
 }
@@ -68,14 +62,14 @@ fun AISectDiscipleManager.ensureDiscipleGear(disciple: Disciple, sectLevel: Int)
     var equipment = working.equipment
     val currentEquip = equipment.equippedItemIds.size
     if (currentEquip < expectedEquip) {
-        val emptySlots = EquipmentSlot.values()
-            .filter { slot -> equipment.idFor(slot).isEmpty() }
+        val emptySlots = EquipmentSlot.displayOrder
+            .filter { slot -> equipment.slotId(slot).isEmpty() }
             .shuffled(java.util.Random(rng.nextInt().toLong()))
         val toAdd = (expectedEquip - currentEquip).coerceAtMost(emptySlots.size)
         repeat(toAdd) { i ->
             val slot = emptySlots[i]
-            val template = pickEquipmentTemplate(slot, maxRarity) ?: return@repeat
-            equipment = equipment.withEquipped(slot, template.id, generateInitialNurture(template.id))
+            val entry = pickEquipmentTemplate(slot, maxRarity) ?: return@repeat
+            equipment = equipment.withEquipped(slot, entry.id)
         }
     }
     working = working.copy(equipment = equipment)
@@ -96,14 +90,11 @@ fun AISectDiscipleManager.ensureDiscipleGear(disciple: Disciple, sectLevel: Int)
     return working
 }
 
-/** 按境界上限品阶从槽位模板池选取装备（无该品阶时取槽位最高品阶兜底）。 */
-
 fun AISectDiscipleManager.buildEquipmentMapForDisciple(disciple: Disciple): Map<String, EquipmentInstance> {
     val equipmentMap = mutableMapOf<String, EquipmentInstance>()
-    buildEquipmentEntry(equipmentMap, disciple.equipment.weaponId, disciple.equipment.weaponNurture)
-    buildEquipmentEntry(equipmentMap, disciple.equipment.armorId, disciple.equipment.armorNurture)
-    buildEquipmentEntry(equipmentMap, disciple.equipment.bootsId, disciple.equipment.bootsNurture)
-    buildEquipmentEntry(equipmentMap, disciple.equipment.accessoryId, disciple.equipment.accessoryNurture)
+    for (part in EquipmentSlot.displayOrder) {
+        buildEquipmentEntry(equipmentMap, disciple.equipment.slotId(part))
+    }
     return equipmentMap
 }
 
@@ -157,19 +148,32 @@ fun AISectDiscipleManager.buildProficiencyDataFromMasteries(
 
 internal fun AISectDiscipleManager.buildEquipmentEntry(
     equipmentMap: MutableMap<String, EquipmentInstance>,
-    eqId: String,
-    nurture: EquipmentNurtureData
+    eqId: String
 ) {
     if (eqId.isEmpty() || eqId in equipmentMap) return
-    val template = EquipmentDatabase.getById(eqId) ?: return
-    var instance = EquipmentDatabase.createFromTemplate(template).toInstance(id = eqId)
-    if (nurture.equipmentId == eqId) {
-        instance = instance.copy(
-            nurtureLevel = nurture.nurtureLevel,
-            nurtureProgress = nurture.nurtureProgress
-        )
-    }
-    equipmentMap[eqId] = instance
+    val entry = EquipmentDatabase.getById(eqId) ?: return
+    equipmentMap[eqId] = aiEquipmentInstance(entry, id = eqId)
 }
 
-/** 初始装备孕养数据（AI 装备从 0 级 0 进度起步，由月度增长温养）。 */
+/**
+ * AI 装备轻量实例（AI 弟子只持久化槽位条目 id，即 (pieceId, rarity) 对，等级恒 1）：
+ * 主词条为占位空值（0 攻），AI 侧不结算词条——战斗装配按品阶固定加成
+ * （C++ 侧，B4 对齐），故实例 id = 槽位条目 id，词条/等级面全为占位。
+ */
+internal fun aiEquipmentInstance(
+    entry: EquipmentDatabase.EquipPieceEntry,
+    id: String
+): EquipmentInstance = EquipmentInstance(
+    id = id,
+    name = entry.name,
+    setId = entry.setId,
+    part = entry.part,
+    growth = EquipGrowth(
+        affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))
+    ),
+    meta = EquipInstanceMeta(
+        rarity = entry.rarity,
+        minRealm = entry.minRealm,
+        description = entry.description
+    )
+)

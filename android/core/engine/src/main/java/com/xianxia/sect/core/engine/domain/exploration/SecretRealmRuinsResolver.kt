@@ -138,7 +138,17 @@ internal object SecretRealmRuinsResolver {
     ): SecretRealmBackpack = when (type) {
         "equipment" -> instantiateFromTemplate(
             EquipmentDatabase.getById(itemId),
-            { b, t -> b.copy(equipment = b.equipment + EquipmentDatabase.createFromTemplate(t)) },
+            { b, t ->
+                // B3 过渡：秘境背包仍为旧 EquipmentStack 轨（SecretRealmBackpack 未随
+                // 本组迁移），按部件×品阶展开条目构造 @Deprecated 堆叠载体（零面板占位）；
+                // 背包装备轨迁实例后删除——待 B4
+                b.copy(equipment = b.equipment + com.xianxia.sect.core.model.EquipmentStack(
+                    name = t.name,
+                    rarity = t.rarity,
+                    description = t.description,
+                    slot = t.part
+                ))
+            },
             backpack
         )
         "manual" -> instantiateFromTemplate(

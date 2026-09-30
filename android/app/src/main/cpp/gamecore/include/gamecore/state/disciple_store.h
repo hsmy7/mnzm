@@ -58,8 +58,6 @@ enum class DiscipleColumn : uint16_t {
     CultivationCompletionMonth,
     ManualCompletionMonth,
     ManualCompletionPhase,
-    EquipmentNurturingCompletionMonth,
-    EquipmentNurturingCompletionPhase,
     // CombatAttributes（单列口径 B1）
     BaseHp,
     BaseMp,
@@ -90,15 +88,13 @@ enum class DiscipleColumn : uint16_t {
     PillEffectDuration,
     ActivePillTypes,
     ActivePillCategory,
-    // EquipmentSet
+    // EquipmentSet（B3 六部位：显示序 头/身/手/脚/武/腿）
+    HeadId,
+    BodyId,
+    HandsId,
+    FeetId,
     WeaponId,
-    ArmorId,
-    BootsId,
-    AccessoryId,
-    WeaponNurture,
-    ArmorNurture,
-    BootsNurture,
-    AccessoryNurture,
+    LegsId,
     StorageBagItems,
     StorageBagSpiritStones,
     SpiritStones,
@@ -168,8 +164,6 @@ public:
     std::vector<int32_t> cultivationCompletionMonths;
     std::vector<int32_t> manualCompletionMonths;
     std::vector<int32_t> manualCompletionPhases;
-    std::vector<int32_t> equipmentNurturingCompletionMonths;
-    std::vector<int32_t> equipmentNurturingCompletionPhases;
 
     // ── CombatAttributes 列 ──
     std::vector<int32_t> baseHps;
@@ -203,15 +197,13 @@ public:
     std::vector<std::vector<std::string>> activePillTypes;
     std::vector<std::string> activePillCategories;
 
-    // ── EquipmentSet 列 ──
+    // ── EquipmentSet 列（B3 六部位；单轨实例 id，空串 = 未穿戴）──
+    std::vector<std::string> headIds;
+    std::vector<std::string> bodyIds;
+    std::vector<std::string> handsIds;
+    std::vector<std::string> feetIds;
     std::vector<std::string> weaponIds;
-    std::vector<std::string> armorIds;
-    std::vector<std::string> bootsIds;
-    std::vector<std::string> accessoryIds;
-    std::vector<EquipmentNurtureData> weaponNurtures;
-    std::vector<EquipmentNurtureData> armorNurtures;
-    std::vector<EquipmentNurtureData> bootsNurtures;
-    std::vector<EquipmentNurtureData> accessoryNurtures;
+    std::vector<std::string> legsIds;
     std::vector<std::vector<StorageBagItem>> storageBagItems;
     std::vector<int64_t> storageBagSpiritStones;
     std::vector<int32_t> spiritStones;

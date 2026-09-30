@@ -18,7 +18,6 @@ using nlohmann::json;
 /// 实体集合名清单（与 GameState 顶层字段一一对应；顺序固定保证输出稳定）
 constexpr const char* kEntityCollections[] = {
     "disciples",
-    "equipmentStacks",
     "equipmentInstances",
     "manualStacks",
     "manualInstances",
@@ -62,7 +61,6 @@ json collectionArray(const GameState& s, const char* name) {
         }
         return arr;
     }
-    if (std::string(name) == "equipmentStacks") return json(s.equipmentStacks);
     if (std::string(name) == "equipmentInstances") return json(s.equipmentInstances);
     if (std::string(name) == "manualStacks") return json(s.manualStacks);
     if (std::string(name) == "manualInstances") return json(s.manualInstances);
@@ -87,7 +85,6 @@ std::vector<const char*> activeCollections(bool includeDisciples) {
 /// 非 disciples 集合名清单（列级导出共享段；顺序 = kEntityCollections 去
 /// disciples，保证输出遍历序稳定）
 const std::vector<const char*> kNonDiscipleCollections = {
-    "equipmentStacks",
     "equipmentInstances",
     "manualStacks",
     "manualInstances",
@@ -100,7 +97,6 @@ const std::vector<const char*> kNonDiscipleCollections = {
 
 const std::vector<const char*> kAllEntityCollections = {
     "disciples",
-    "equipmentStacks",
     "equipmentInstances",
     "manualStacks",
     "manualInstances",
@@ -164,7 +160,6 @@ void diffTreeSegments(const json& base, const json& cur,
 json stateWithoutDisciplesToJson(const GameState& s) {
     json j = json::object();
     j["gameData"] = s.gameData;
-    j["equipmentStacks"] = s.equipmentStacks;
     j["equipmentInstances"] = s.equipmentInstances;
     j["manualStacks"] = s.manualStacks;
     j["manualInstances"] = s.manualInstances;

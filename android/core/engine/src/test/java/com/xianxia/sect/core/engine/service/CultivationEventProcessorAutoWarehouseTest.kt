@@ -7,7 +7,14 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
@@ -32,7 +39,9 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * processAutoFromWarehouse（天枢殿自动从仓库装备/学习）回归测试。
+ * processAutoFromWarehouse（天枢殿自动装备/学习）回归测试。
+ * （B3 装备重构：自动装配候选源 = 弟子储物袋 equipment_instance 条目；
+ *  宗门仓库装备堆叠语义已随堆叠轨退役）
  *
  * 覆盖 860bd2a4 引入的回归：Phase 2 预过滤误用弟子储物袋内容过滤，
  * 导致背包为空的弟子（常态）永不进入自动学习/自动装备处理——
@@ -97,7 +106,7 @@ class CultivationEventProcessorAutoWarehouseTest {
         learnPolicy: AutoPolicy = AutoPolicy(),
         equipPolicy: AutoPolicy = AutoPolicy(),
         manualStacks: List<ManualStack> = emptyList(),
-        equipmentStacks: List<EquipmentStack> = emptyList(),
+        equipmentInstances: List<EquipmentInstance> = emptyList(),
         secretRealmMemberIds: List<String> = emptyList()
     ): MutableGameState {
         val tables = DiscipleTables()
@@ -115,8 +124,7 @@ class CultivationEventProcessorAutoWarehouseTest {
                 )
             ),
             discipleTables = tables,
-            equipmentStacks = EntityStore(equipmentStacks),
-            equipmentInstances = EntityStore(),
+            equipmentInstances = EntityStore(equipmentInstances),
             manualStacks = EntityStore(manualStacks),
             manualInstances = EntityStore(),
             pills = EntityStore(),
@@ -137,14 +145,16 @@ class CultivationEventProcessorAutoWarehouseTest {
         spiritRootType: String = "火",
         followed: Boolean = false,
         realm: Int = 9,
-        isAlive: Boolean = true
+        isAlive: Boolean = true,
+        bag: List<StorageBagItem> = emptyList()
     ) = Disciple(
         id = id.toString(),
         name = "弟子$id",
         realm = realm,
         spiritRootType = spiritRootType,
         isAlive = isAlive,
-        statusData = mapOf("followed" to if (followed) "true" else "false")
+        statusData = mapOf("followed" to if (followed) "true" else "false"),
+        equipment = com.xianxia.sect.core.model.EquipmentSet(storageBagItems = bag)
     )
 
     private fun manualStack(id: String, quantity: Int = 2, minRealm: Int = 9) = ManualStack(
@@ -155,12 +165,22 @@ class CultivationEventProcessorAutoWarehouseTest {
         quantity = quantity
     )
 
-    private fun equipmentStack(id: String, quantity: Int = 1) = EquipmentStack(
+    /** B3 实例轨武器（随 StorageBagItem 袋条目携带，参与自动装配） */
+    private fun equipmentInstance(id: String) = EquipmentInstance(
         id = id,
         name = "铁剑$id",
-        physicalAttack = 10,
-        minRealm = 9,
-        quantity = quantity
+        part = EquipmentSlot.WEAPON,
+        growth = EquipGrowth(
+            affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
+        ),
+        meta = EquipInstanceMeta(rarity = 1, minRealm = 9)
+    )
+
+    /** 袋内武器实例条目（B3 候选源：equipment_instance payload） */
+    private fun bagWeapon(id: String, ownerDiscipleId: String = "1") = StorageBagItem(
+        itemId = id, itemType = "equipment_instance", name = "铁剑$id",
+        rarity = 1, quantity = 1,
+        equipmentInstance = equipmentInstance(id).copy(ownerId = ownerDiscipleId)
     )
 
     // ── 核心回归：背包为空 + 仓库有堆叠 ──────────────────────────────
@@ -198,18 +218,19 @@ class CultivationEventProcessorAutoWarehouseTest {
     }
 
     @Test
-    fun `自动装备 - 弟子背包为空仓库有武器堆叠 → 装备武器且堆叠数量减一`() {
+    fun `自动装备 - 袋内武器实例 → 装备且袋条目移除实例入表`() {
+        // B3 实例轨：自动装配候选源 = 袋内 equipment_instance 条目（仓库堆叠语义退役）
         val s = state(
-            disciples = listOf(disciple(id = 1)),
-            equipPolicy = AutoPolicy(rootCounts = setOf(1)),
-            equipmentStacks = listOf(equipmentStack(id = "e1", quantity = 1))
+            disciples = listOf(disciple(id = 1, bag = listOf(bagWeapon("e1")))),
+            equipPolicy = AutoPolicy(rootCounts = setOf(1))
         )
         createProcessor().processAutoFromWarehouseRealtime(s)
 
         // insert 时 weaponIds 列为空字符串，装备后为实例 id，用非空字符串判定"已装备"
-        assertFalse("背包为空的合格弟子必须自动装备武器", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
-        assertEquals("数量为1的堆叠装备后应删除", 0, s.equipmentStacks.all().size)
-        assertEquals(1, s.equipmentInstances.all().size)
+        assertFalse("袋内有武器实例的合格弟子必须自动装备", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
+        assertEquals("袋条目装配后应移除", 0,
+            s.discipleTables.storageBagItems.getOrDefault(1, emptyList()).size)
+        assertEquals("装配实例应入实例表", 1, s.equipmentInstances.all().size)
     }
 
     // ── 资格判定（预过滤正确性）──────────────────────────────────────
@@ -255,11 +276,13 @@ class CultivationEventProcessorAutoWarehouseTest {
     @Test
     fun `自动策略 - equip与learn资格分开判定且为或语义`() {
         val s = state(
-            disciples = listOf(disciple(id = 1, spiritRootType = "火"), disciple(id = 2, spiritRootType = "火,水")),
+            disciples = listOf(
+                disciple(id = 1, spiritRootType = "火", bag = listOf(bagWeapon("e1"))),
+                disciple(id = 2, spiritRootType = "火,水")
+            ),
             equipPolicy = AutoPolicy(rootCounts = setOf(1)),
             learnPolicy = AutoPolicy(rootCounts = setOf(2)),
-            manualStacks = listOf(manualStack(id = "m1", quantity = 2)),
-            equipmentStacks = listOf(equipmentStack(id = "e1", quantity = 1))
+            manualStacks = listOf(manualStack(id = "m1", quantity = 2))
         )
         createProcessor().processAutoFromWarehouseRealtime(s)
 
@@ -323,14 +346,14 @@ class CultivationEventProcessorAutoWarehouseTest {
         val s = state(
             disciples = listOf(disciple(id = 1, followed = true)),
             manualStacks = listOf(manualStack(id = "m1", quantity = 2)),
-            equipmentStacks = listOf(equipmentStack(id = "e1", quantity = 1))
+            equipmentInstances = listOf(equipmentInstance(id = "e1"))
         )
         createProcessor().processAutoFromWarehouseRealtime(s)
 
         assertEquals(2, s.manualStacks.all().single().quantity)
-        assertEquals(1, s.equipmentStacks.all().single().quantity)
+        assertEquals("实例轨零变化（无袋内候选不装配）", 1, s.equipmentInstances.all().size)
         assertTrue(s.manualInstances.all().isEmpty())
-        assertTrue(s.equipmentInstances.all().isEmpty())
+        assertTrue("未装配不应写槽位", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
     }
 
     // ── 写回完整性 ──────────────────────────────────────────────────

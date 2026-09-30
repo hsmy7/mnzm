@@ -117,7 +117,6 @@ class GameStateStoreRollbackTest {
     ): List<Any?> = listOf(
         GameData(gameYear = year, gameMonth = 1),
         disciples,
-        emptyList<com.xianxia.sect.core.model.EquipmentStack>(),
         emptyList<EquipmentInstance>(),
         emptyList<com.xianxia.sect.core.model.ManualStack>(),
         emptyList<ManualInstance>(),
@@ -149,19 +148,18 @@ class GameStateStoreRollbackTest {
             stateStore.loadFromSnapshot(
                 gameData = args[0] as GameData,
                 disciples = args[1] as List<Disciple>,
-                equipmentStacks = args[2] as List<com.xianxia.sect.core.model.EquipmentStack>,
-                equipmentInstances = args[3] as List<EquipmentInstance>,
-                manualStacks = args[4] as List<com.xianxia.sect.core.model.ManualStack>,
-                manualInstances = args[5] as List<ManualInstance>,
-                pills = args[6] as List<com.xianxia.sect.core.model.Pill>,
-                materials = args[7] as List<com.xianxia.sect.core.model.Material>,
-                herbs = args[8] as List<com.xianxia.sect.core.model.Herb>,
-                seeds = args[9] as List<com.xianxia.sect.core.model.Seed>,
-                storageBags = args[10] as List<com.xianxia.sect.core.model.StorageBag>,
-                battleLogs = args[11] as List<com.xianxia.sect.core.model.BattleLog>,
-                isPaused = args[12] as Boolean,
-                isLoading = args[13] as Boolean,
-                isSaving = args[14] as Boolean
+                equipmentInstances = args[2] as List<EquipmentInstance>,
+                manualStacks = args[3] as List<com.xianxia.sect.core.model.ManualStack>,
+                manualInstances = args[4] as List<ManualInstance>,
+                pills = args[5] as List<com.xianxia.sect.core.model.Pill>,
+                materials = args[6] as List<com.xianxia.sect.core.model.Material>,
+                herbs = args[7] as List<com.xianxia.sect.core.model.Herb>,
+                seeds = args[8] as List<com.xianxia.sect.core.model.Seed>,
+                storageBags = args[9] as List<com.xianxia.sect.core.model.StorageBag>,
+                battleLogs = args[10] as List<com.xianxia.sect.core.model.BattleLog>,
+                isPaused = args[11] as Boolean,
+                isLoading = args[12] as Boolean,
+                isSaving = args[13] as Boolean
             )
             fail("loadFromSnapshot 应抛出模拟异常")
         } catch (e: IllegalStateException) {
@@ -279,7 +277,6 @@ class GameStateStoreRollbackTest {
         stateStore.loadFromSnapshot(
             gameData = GameData(gameYear = 2, gameMonth = 1),
             disciples = listOf(makeDisciple(5, cultivation = 500.0)),
-            equipmentStacks = emptyList(),
             equipmentInstances = emptyList(),
             manualStacks = emptyList(),
             manualInstances = emptyList(),

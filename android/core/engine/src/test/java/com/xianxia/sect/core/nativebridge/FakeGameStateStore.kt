@@ -2,7 +2,6 @@ package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
@@ -43,7 +42,6 @@ import kotlinx.coroutines.flow.StateFlow
 open class FakeGameStateStore : GameStateStore {
     var gameDataValue = GameData()
     var disciplesValue: List<Disciple> = emptyList()
-    var equipmentStacksValue: List<EquipmentStack> = emptyList()
     var equipmentInstancesValue: List<com.xianxia.sect.core.model.EquipmentInstance> = emptyList()
     var manualStacksValue: List<com.xianxia.sect.core.model.ManualStack> = emptyList()
     var manualInstancesValue: List<com.xianxia.sect.core.model.ManualInstance> = emptyList()
@@ -137,13 +135,13 @@ open class FakeGameStateStore : GameStateStore {
     )
 
     private fun collectionValues(): List<List<*>> = listOf(
-        equipmentStacksValue, equipmentInstancesValue, manualStacksValue,
+        equipmentInstancesValue, manualStacksValue,
         manualInstancesValue, pillsValue, materialsValue, herbsValue,
         seedsValue, storageBagsValue
     )
 
     private fun collectionNames(): List<String> = listOf(
-        "equipmentStacks", "equipmentInstances", "manualStacks",
+        "equipmentInstances", "manualStacks",
         "manualInstances", "pills", "materials", "herbs",
         "seeds", "storageBags"
     )
@@ -153,7 +151,7 @@ open class FakeGameStateStore : GameStateStore {
         if (!NativeEngineFlagX.authoritative) return
         val gameDataChanged = mgs.gameData !== baseline.gameData
         val current = listOf(
-            mgs.equipmentStacks.items, mgs.equipmentInstances.items, mgs.manualStacks.items,
+            mgs.equipmentInstances.items, mgs.manualStacks.items,
             mgs.manualInstances.items, mgs.pills.items, mgs.materials.items,
             mgs.herbs.items, mgs.seeds.items, mgs.storageBags.items
         )
@@ -188,7 +186,6 @@ open class FakeGameStateStore : GameStateStore {
         return MutableGameState(
             gameData = gameDataValue,
             discipleTables = tables,
-            equipmentStacks = EntityStore(equipmentStacksValue),
             equipmentInstances = EntityStore(equipmentInstancesValue),
             manualStacks = EntityStore(manualStacksValue),
             manualInstances = EntityStore(manualInstancesValue),
@@ -211,7 +208,6 @@ open class FakeGameStateStore : GameStateStore {
     /** 事务结束后回读 gameData 与实体集合到 Fake 字段（弟子面走 [dispatchAssemble]）。 */
     private fun persistCollections(mgs: MutableGameState) {
         gameDataValue = mgs.gameData
-        equipmentStacksValue = mgs.equipmentStacks.all()
         equipmentInstancesValue = mgs.equipmentInstances.all()
         manualStacksValue = mgs.manualStacks.all()
         manualInstancesValue = mgs.manualInstances.all()
@@ -255,7 +251,6 @@ open class FakeGameStateStore : GameStateStore {
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot(
         gameData = gameDataValue,
         disciples = disciplesValue,
-        equipmentStacks = equipmentStacksValue,
         equipmentInstances = equipmentInstancesValue,
         manualStacks = manualStacksValue,
         manualInstances = manualInstancesValue,
@@ -282,7 +277,6 @@ open class FakeGameStateStore : GameStateStore {
             it.writeAllowed = true
             it.replaceAll(disciplesValue)
         }
-    override val equipmentStacks: StateFlow<List<EquipmentStack>> get() = MutableStateFlow(equipmentStacksValue)
     override val equipmentInstances: StateFlow<List<com.xianxia.sect.core.model.EquipmentInstance>>
         get() = MutableStateFlow(equipmentInstancesValue)
     override val manualStacks: StateFlow<List<com.xianxia.sect.core.model.ManualStack>>
@@ -325,7 +319,6 @@ open class FakeGameStateStore : GameStateStore {
     // ── GameStateSnapshotProvider 快照属性 ──
     override val gameDataSnapshot: GameData get() = gameDataValue
     override val disciplesSnapshot: List<Disciple> get() = disciplesValue
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = equipmentStacksValue
     override val equipmentInstancesSnapshot: List<com.xianxia.sect.core.model.EquipmentInstance>
         get() = equipmentInstancesValue
     override val manualStacksSnapshot: List<com.xianxia.sect.core.model.ManualStack> get() = manualStacksValue
@@ -372,7 +365,6 @@ open class FakeGameStateStore : GameStateStore {
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>,
         equipmentInstances: List<com.xianxia.sect.core.model.EquipmentInstance>,
         manualStacks: List<com.xianxia.sect.core.model.ManualStack>,
         manualInstances: List<com.xianxia.sect.core.model.ManualInstance>,
@@ -388,7 +380,6 @@ open class FakeGameStateStore : GameStateStore {
     ) {
         gameDataValue = gameData
         disciplesValue = disciples
-        equipmentStacksValue = equipmentStacks
         equipmentInstancesValue = equipmentInstances
         manualStacksValue = manualStacks
         manualInstancesValue = manualInstances

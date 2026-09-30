@@ -38,16 +38,16 @@ internal fun BuildingService.buildAlchemySuccessRate(
 
 internal fun BuildingService.buildForgingSuccessRate(
     forgeSlot: ProductionSlot,
-    recipe: ForgeRecipeDatabase.ForgeRecipe,
     forgePolicyBonus: Double
 ): Double {
     val disciple = forgeSlot.assignedDiscipleId?.let { id ->
         stateStore.disciples.value.find { it.id == id }
     }
+    // B3：锻造配方不分 tier——成功率区间按锻造弟子职业等级（= 可锻造品阶）
     return formulaService.buildSuccessRateZones(
         disciple = disciple,
         buildingId = BuildingNames.FORGE,
-        recipeTier = recipe.tier,
+        recipeTier = disciple?.skills?.forgeLevel?.coerceIn(1, 6) ?: 1,
         policyBonus = forgePolicyBonus
     ).calculate()
 }
@@ -128,8 +128,8 @@ internal suspend fun BuildingService.updateSlotToWorkingStateForging(
                 successRate = effectiveSuccessRate,
                 outputItemId = recipeId,
                 outputItemName = recipe.name,
-                outputItemRarity = recipe.rarity,
-                outputItemSlot = recipe.type.name,
+                outputItemRarity = 0, // B3 配方不分品阶（产出品阶由锻造槽位 workerLevel 定）
+                outputItemSlot = recipe.part.name,
                 completionMonth = currentAbsoluteMonth +
                     actualDuration.coerceAtLeast(1),
                 completionPhase = 2,

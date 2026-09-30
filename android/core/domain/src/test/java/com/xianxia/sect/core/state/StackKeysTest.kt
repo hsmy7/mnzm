@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.state
 
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
@@ -18,19 +16,12 @@ import org.junit.Test
 
 /**
  * 守卫测试：合并键单一事实来源。
- * 7 类物品的合并键构成断言——若键构成被意外改动（如丹药去掉品阶），
+ * 6 类物品的合并键构成断言——若键构成被意外改动（如丹药去掉品阶），
  * 此处立即失败，防止与主路径 `InventorySystem` 的合并语义再次分叉。
+ *
+ * 装备键已随 B3 退役（一行一实例，无合并语义），equipment 用例删除。
  */
 class StackKeysTest {
-
-    @Test
-    fun `equipment key - name rarity slot`() {
-        val a = EquipmentStack(id = "1", name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON)
-        val b = EquipmentStack(id = "2", name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON)
-        val c = EquipmentStack(id = "3", name = "青锋剑", rarity = 3, slot = EquipmentSlot.ARMOR)
-        assertEquals(StackKeys.equipment(a), StackKeys.equipment(b))
-        assertNotEquals(StackKeys.equipment(a), StackKeys.equipment(c))
-    }
 
     @Test
     fun `manual key - name rarity type`() {

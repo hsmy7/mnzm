@@ -155,11 +155,11 @@ private fun GameEngine.grantMissionInventoryRewards(result: MissionSystem.Missio
                 is DomainResult.Failure -> DomainLog.w("GameEngine", "添加丹药失败: ${r.error}")
             }
         }
-        result.equipmentStacks.forEach { equipment ->
-            when (val r = inventorySystem.addEquipmentStack(equipment)) {
+        result.equipmentInstances.forEach { equipment ->
+            when (val r = inventorySystem.addEquipmentInstance(equipment)) {
                 is DomainResult.Success -> {}
-                is DomainResult.Partial -> DomainLog.w("GameEngine", "装备 ${equipment.name} 溢出 ${r.overflow} 个")
                 is DomainResult.Failure -> DomainLog.w("GameEngine", "添加装备失败: ${r.error}")
+                else -> {}
             }
         }
         result.manualStacks.forEach { manual ->
@@ -211,7 +211,7 @@ private fun GameEngine.writeMissionBattleLog(
     if (result.spiritStones > 0) drops.add("灵石 ×${result.spiritStones}")
     result.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
     result.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
-    result.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+    result.equipmentInstances.forEach { drops.add("${it.name} ×1") }
     result.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
 
     gameEngineCore.launchInScope {

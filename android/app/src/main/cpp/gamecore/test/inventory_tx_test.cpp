@@ -6,8 +6,9 @@
 // 取价公式（与 Kotlin InventoryFacadeImpl 逐字对齐）、灵石精确入账、
 // 失败零写入、零 RNG 审计（签名级 + 分发面全分区快照差分）。
 //
-// 取价黄金值（Kotlin GameConfig.Rarity + ItemDatabase 同源）：
-//   装备模板价优先（精铁剑 4000）→ 品阶基准价回退
+// 取价黄金值（Kotlin GameConfig.Rarity + 部件表同源；B3 装备=实例轨）：
+//   装备实例：模板价（setId 部件表 priceByRarity）优先 → 品阶基准价回退；
+//             1 件 = 1 条目整件出售（quantity 协议占位）
 //   功法/材料/草药/种子 → 品阶基准价
 //   丹药 = roundToInt(品阶 pillBasePrice × PillGrade.priceMultiplier)
 //   出售价 = basePrice × quantity × 0.8（向零截断）
@@ -30,7 +31,7 @@
 
 namespace {
 
-using gamecore::state::EquipmentStack;
+using gamecore::state::EquipmentInstance;
 using gamecore::state::GameState;
 using gamecore::state::Herb;
 using gamecore::state::ManualStack;
@@ -40,14 +41,17 @@ using gamecore::state::Pill;
 using gamecore::state::Seed;
 namespace inventory_tx = gamecore::system::inventory_tx;
 
-EquipmentStack equipmentStack(const std::string& id, const std::string& name,
-                              int32_t rarity, int32_t quantity) {
-    EquipmentStack s;
-    s.id = id;
-    s.name = name;
-    s.rarity = rarity;
-    s.quantity = quantity;
-    return s;
+EquipmentInstance equipmentInstance(const std::string& id,
+                                    const std::string& name, int32_t rarity,
+                                    const std::string& part = "WEAPON",
+                                    const std::string& setId = "") {
+    EquipmentInstance e;
+    e.id = id;
+    e.name = name;
+    e.part = part;
+    e.setId = setId;
+    e.meta.rarity = rarity;
+    return e;
 }
 
 ManualStack manualStack(const std::string& id, int32_t rarity, int32_t quantity) {
@@ -95,22 +99,25 @@ GameState newState() {
 // ── 单类出售 ────────────────────────────────────────────────────
 
 TEST(InventoryTxTest, SellEquipmentUsesTemplatePriceAndCreditsWallet) {
+    // B3 实例轨：整件出售（quantity 协议占位）；模板价 = 部件表 priceByRarity
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 10));
-    const auto r = inventory_tx::sellItemTx(st, "equipment", "e1", 2);
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    const auto r = inventory_tx::sellItemTx(st, "equipment", "e1", 1);
     ASSERT_TRUE(r.ok);
-    // 模板价 4000 × 2 × 0.8 = 6400
-    EXPECT_EQ(r.earned, 6400);
-    EXPECT_EQ(st.gameData.spiritStones, 6400);
-    ASSERT_EQ(st.equipmentStacks.size(), 1u);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 8);
+    // 部件表品阶 1 价 4000 × 1 × 0.8 = 3200
+    EXPECT_EQ(r.earned, 3200);
+    EXPECT_EQ(st.gameData.spiritStones, 3200);
+    // 实例整条移除
+    EXPECT_TRUE(st.equipmentInstances.empty());
     // 年度报告来源键 = Kotlin SpiritStoneSource.Sell("equipment")
-    EXPECT_EQ(st.gameData.annualIncomeBySource["Sell(equipment)"], 6400);
+    EXPECT_EQ(st.gameData.annualIncomeBySource["Sell(equipment)"], 3200);
 }
 
 TEST(InventoryTxTest, SellEquipmentFallsBackToRarityBasePrice) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "未知装备", 2, 1));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "未知装备", 2));
     const auto r = inventory_tx::sellItemTx(st, "equipment", "e1", 1);
     ASSERT_TRUE(r.ok);
     // 品阶 2 basePrice 16000 × 1 × 0.8 = 12800
@@ -154,39 +161,40 @@ TEST(InventoryTxTest, SellTypePricesMatchKotlinRarityTables) {
 }
 
 TEST(InventoryTxTest, SellGuardsRejectWithoutWriting) {
+    // B3 实例轨守卫臂：锁定/不存在/未知类型 → 0 且零写入
+    //（quantity 协议占位后，"数量 0/超持有"守卫臂不再适用——恒整件出售）
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 2));
-    st.equipmentStacks[0].isLocked = true;
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances[0].meta.isLocked = true;
     // 锁定
     EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "e1", 1).earned, 0);
-    // 数量 0
-    EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "e1", 0).earned, 0);
-    // 数量超过持有
-    EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "e1", 3).earned, 0);
     // 不存在
     EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "nope", 1).earned, 0);
     // 未知类型
     EXPECT_EQ(inventory_tx::sellItemTx(st, "unknown", "e1", 1).earned, 0);
     EXPECT_EQ(st.gameData.spiritStones, 0);
-    ASSERT_EQ(st.equipmentStacks.size(), 1u);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 2);
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
     EXPECT_TRUE(st.gameData.annualIncomeBySource.empty());
 }
 
 TEST(InventoryTxTest, SellUnlocksOnlyAfterLockCleared) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 2));
-    st.equipmentStacks[0].isLocked = true;
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances[0].meta.isLocked = true;
     EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "e1", 1).earned, 0);
-    st.equipmentStacks[0].isLocked = false;
+    st.equipmentInstances[0].meta.isLocked = false;
     EXPECT_EQ(inventory_tx::sellItemTx(st, "equipment", "e1", 1).earned, 3200);
+    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 // ── 批量出售 ────────────────────────────────────────────────────
 
 TEST(InventoryTxTest, BulkSellAggregatesAndCreditsOnce) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     st.herbs.push_back(Herb{.id = "h1", .category = ""});
     st.herbs[0].name = "测试草药";
     st.herbs[0].rarity = 1;
@@ -194,24 +202,24 @@ TEST(InventoryTxTest, BulkSellAggregatesAndCreditsOnce) {
     st.herbs[0].isLocked = true;  // 锁定 → 失败项
 
     std::vector<inventory_tx::BulkSellRequest> ops = {
-        {.id = "e1", .name = "精铁剑", .itemType = "equipment", .quantity = 2},
+        {.id = "e1", .name = "裂天罡煞·战刃", .itemType = "equipment", .quantity = 1},
         {.id = "h1", .name = "测试草药", .itemType = "herb", .quantity = 1},
         {.id = "nope", .name = "幽灵", .itemType = "pill", .quantity = 1},
     };
     const auto r = inventory_tx::bulkSellTx(st, ops);
     ASSERT_TRUE(r.ok);
     EXPECT_EQ(r.soldCount, 1);
-    EXPECT_EQ(r.totalEarned, 6400);
+    EXPECT_EQ(r.totalEarned, 3200);
     ASSERT_EQ(r.soldItemNames.size(), 1u);
-    EXPECT_EQ(r.soldItemNames[0], "精铁剑 2");
+    EXPECT_EQ(r.soldItemNames[0], "裂天罡煞·战刃 1");
     ASSERT_EQ(r.failedItemNames.size(), 2u);
     EXPECT_EQ(r.failedItemNames[0], "测试草药");
     EXPECT_EQ(r.failedItemNames[1], "幽灵");
     // 一次入账（来源 Sell(bulk)），非逐条
-    EXPECT_EQ(st.gameData.spiritStones, 6400);
-    EXPECT_EQ(st.gameData.annualIncomeBySource["Sell(bulk)"], 6400);
-    EXPECT_TRUE(st.gameData.annualIncomeBySource.count("Sell(equipment)") == 0);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 3);
+    EXPECT_EQ(st.gameData.spiritStones, 3200);
+    EXPECT_EQ(st.gameData.annualIncomeBySource["Sell(bulk)"], 3200);
+    EXPECT_EQ(st.gameData.annualIncomeBySource.count("Sell(equipment)"), 0u);
+    EXPECT_TRUE(st.equipmentInstances.empty());
     EXPECT_EQ(st.herbs[0].quantity, 2);
 }
 
@@ -229,46 +237,52 @@ TEST(InventoryTxTest, BulkSellEmptyOperationsIsNoop) {
 
 TEST(InventoryTxTest, SellToMerchantDeductsByTemplateNameAndRarity) {
     GameState st = newState();
-    // 两摞同名同阶（未锁）+ 一摞锁定（不参与扣减，但计入仓库计数）
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 2));
-    st.equipmentStacks.push_back(equipmentStack("e2", "精铁剑", 1, 3));
-    st.equipmentStacks.push_back(equipmentStack("e3", "精铁剑", 1, 4));
-    st.equipmentStacks[2].isLocked = true;
-    st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+    // B3 实例轨：收购需求 itemId 是模板锚而非实例 id——扣减按名称+品阶匹配
+    // 未锁定实例逐件移除（与 warehouseCount 装备臂同谓词；锁定件保留）。
+    // 旧「按 itemId 扣减」是复制 bug（同 id 至多 1 条，付 N 件款只扣 1 件）。
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e2", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e3", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances[2].meta.isLocked = true;
+    MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+    st.gameData.merchantAcquisitionItems.push_back(acq);
 
     const auto r = inventory_tx::sellToMerchantTx(st, "a1", 3);
     ASSERT_TRUE(r.ok);
-    EXPECT_EQ(r.soldQuantity, 3);
-    EXPECT_EQ(r.totalPrice, 1500);
-    EXPECT_EQ(st.gameData.spiritStones, 1500);
-    EXPECT_EQ(st.gameData.annualIncomeBySource["MerchantTrade"], 1500);
-    // 逐序扣减：e1 清零移除，e2 剩 2
-    ASSERT_EQ(st.equipmentStacks.size(), 2u);
-    EXPECT_EQ(st.equipmentStacks[0].id, "e2");
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 2);
-    EXPECT_EQ(st.equipmentStacks[1].id, "e3");
+    // 可售计数排除锁定件 → 请求 3 钳到 2
+    EXPECT_EQ(r.soldQuantity, 2);
+    EXPECT_EQ(r.totalPrice, 1000);
+    EXPECT_EQ(st.gameData.spiritStones, 1000);
+    EXPECT_EQ(st.gameData.annualIncomeBySource["MerchantTrade"], 1000);
+    // 扣减按名称+品阶：e1/e2 移除，锁定件 e3 保留
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
+    EXPECT_EQ(st.equipmentInstances[0].id, "e3");
     // 收购项数量回写
-    EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 7);
+    EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 8);
 }
 
 TEST(InventoryTxTest, SellToMerchantClampsToWarehouseQuantity) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 2));
-    st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+    acq.itemId = "e1";
+    st.gameData.merchantAcquisitionItems.push_back(acq);
     const auto r = inventory_tx::sellToMerchantTx(st, "a1", 5);
     ASSERT_TRUE(r.ok);
     // Kotlin actualQuantity = min(请求, 仓库, 收购上限)
-    EXPECT_EQ(r.soldQuantity, 2);
-    EXPECT_EQ(r.totalPrice, 1000);
-    EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 8);
+    EXPECT_EQ(r.soldQuantity, 1);
+    EXPECT_EQ(r.totalPrice, 500);
+    EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 9);
 }
 
 TEST(InventoryTxTest, SellToMerchantZeroWarehouseIsSuccessNoop) {
     GameState st = newState();
     st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+        acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10));
     const auto r = inventory_tx::sellToMerchantTx(st, "a1", 2);
     ASSERT_TRUE(r.ok);
     EXPECT_EQ(r.soldQuantity, 0);
@@ -279,11 +293,12 @@ TEST(InventoryTxTest, SellToMerchantZeroWarehouseIsSuccessNoop) {
 
 TEST(InventoryTxTest, SellToMerchantRejectsInvalidRequests) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+        acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10));
     st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a2", "精铁剑", "equipment", 0, 10));  // 篡改档 0 价
+        acquisitionItem("a2", "裂天罡煞·战刃", "equipment", 0, 10));  // 篡改档 0 价
     // 不存在
     EXPECT_FALSE(inventory_tx::sellToMerchantTx(st, "nope", 1).ok);
     // 数量 0
@@ -293,7 +308,7 @@ TEST(InventoryTxTest, SellToMerchantRejectsInvalidRequests) {
     // 价格非正（D-21 存档完整性防御）
     EXPECT_FALSE(inventory_tx::sellToMerchantTx(st, "a2", 1).ok);
     EXPECT_EQ(st.gameData.spiritStones, 0);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 5);
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
     EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 10);
 }
 
@@ -328,32 +343,36 @@ TEST(InventoryTxTest, SellToMerchantPillRequiresGradeMatch) {
     EXPECT_EQ(st.pills[0].quantity, 2);
 }
 
-TEST(InventoryTxTest, SellToMerchantCountsLockedStacksInWarehouse) {
+TEST(InventoryTxTest, SellToMerchantSkipsLockedInWarehouse) {
+    // B3：锁定件不可售——计数与扣减同谓词排除锁定（防「锁定价凭空收款」）；
+    // 全锁定 → actualQuantity=0 → SUCCESS + soldQuantity=0（零写入）。
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 2));
-    st.equipmentStacks[0].isLocked = true;
-    st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances[0].meta.isLocked = true;
+    MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+    st.gameData.merchantAcquisitionItems.push_back(acq);
     const auto r = inventory_tx::sellToMerchantTx(st, "a1", 2);
     ASSERT_TRUE(r.ok);
-    // 计数含锁定（Kotlin countWarehouseStacks 不筛锁定），但扣减只作用于未锁定 →
-    // 扣减量为 0（无未锁定堆叠可扣），实际成交量仍记 2
-    EXPECT_EQ(r.soldQuantity, 2);
-    ASSERT_EQ(st.equipmentStacks.size(), 1u);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 2);
+    EXPECT_EQ(r.soldQuantity, 0);
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
+    EXPECT_EQ(st.equipmentInstances[0].id, "e1");
+    // 零成交不回写收购项
+    EXPECT_EQ(st.gameData.merchantAcquisitionItems[0].quantity, 10);
 }
 
 // ── 上架 / 撤下 ─────────────────────────────────────────────────
 
 TEST(InventoryTxTest, ListItemsToMerchantRegistersEquipmentManualPill) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     st.manualStacks.push_back(manualStack("m1", 3, 4));
     st.pills.push_back(pill("p1", 1, "HIGH", 2));
     st.pills[0].name = "测试丹药";
 
     std::vector<inventory_tx::ListItemRequest> items = {
-        {.itemId = "e1", .quantity = 2},
+        {.itemId = "e1", .quantity = 1},
         {.itemId = "m1", .quantity = 1},
         {.itemId = "p1", .quantity = 2},
         {.itemId = "nope", .quantity = 1},
@@ -362,10 +381,11 @@ TEST(InventoryTxTest, ListItemsToMerchantRegistersEquipmentManualPill) {
     ASSERT_TRUE(r.ok);
     EXPECT_EQ(r.listedCount, 3);
     ASSERT_EQ(st.gameData.playerListedItems.size(), 3u);
-    // 装备：模板价 4000 × 0.8 = 3200（roundToInt）
+    // 装备：模板价 4000 × 0.8 = 3200（roundToInt）；quantity 恒 1（整件上架）
     EXPECT_EQ(st.gameData.playerListedItems[0].type, "equipment");
     EXPECT_EQ(st.gameData.playerListedItems[0].price, 3200);
-    EXPECT_EQ(st.gameData.playerListedItems[0].quantity, 2);
+    EXPECT_EQ(st.gameData.playerListedItems[0].quantity, 1);
+    EXPECT_EQ(st.gameData.playerListedItems[0].itemId, "e1");
     // 功法：品阶 3 基准价 80000 × 0.8 = 64000
     EXPECT_EQ(st.gameData.playerListedItems[1].type, "manual");
     EXPECT_EQ(st.gameData.playerListedItems[1].price, 64000);
@@ -377,48 +397,48 @@ TEST(InventoryTxTest, ListItemsToMerchantRegistersEquipmentManualPill) {
     // 占位 id 批内唯一
     EXPECT_NE(st.gameData.playerListedItems[0].id,
               st.gameData.playerListedItems[1].id);
-    // 上架不扣仓库
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 5);
+    // 上架不扣仓库（实例保留）
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
     EXPECT_EQ(st.manualStacks[0].quantity, 4);
     EXPECT_EQ(st.pills[0].quantity, 2);
 }
 
 TEST(InventoryTxTest, ListItemsToMerchantSkipsOverListedQuantity) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 3));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     st.gameData.playerListedItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 3200, 2));
+        acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 3200, 1));
     st.gameData.playerListedItems[0].itemId = "e1";
     std::vector<inventory_tx::ListItemRequest> items = {
-        {.itemId = "e1", .quantity = 2},
+        {.itemId = "e1", .quantity = 1},
     };
     const auto r = inventory_tx::listItemsToMerchantTx(st, items);
     ASSERT_TRUE(r.ok);
-    // 已上架 2 + 2 > 3 → 静默跳过（不新增，也不抛错）
+    // 实例已上架（alreadyListed>=1）→ 静默跳过（不新增，也不抛错）
     EXPECT_EQ(r.listedCount, 0);
     EXPECT_EQ(st.gameData.playerListedItems.size(), 1u);
 }
 
 TEST(InventoryTxTest, ListItemsToMerchantSkipsLockedAndInvalidQuantity) {
     GameState st = newState();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
-    st.equipmentStacks[0].isLocked = true;
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    st.equipmentInstances[0].meta.isLocked = true;
     std::vector<inventory_tx::ListItemRequest> items = {
         {.itemId = "e1", .quantity = 1},
     };
+    // 锁定装备段返回 false → 功法/丹药段亦未命中 → 不上架
     EXPECT_EQ(inventory_tx::listItemsToMerchantTx(st, items).listedCount, 0);
-    st.equipmentStacks[0].isLocked = false;
-    std::vector<inventory_tx::ListItemRequest> tooMany = {
-        {.itemId = "e1", .quantity = 6},
-    };
-    EXPECT_EQ(inventory_tx::listItemsToMerchantTx(st, tooMany).listedCount, 0);
-    EXPECT_TRUE(st.gameData.playerListedItems.empty());
+    st.equipmentInstances[0].meta.isLocked = false;
+    EXPECT_EQ(inventory_tx::listItemsToMerchantTx(st, items).listedCount, 1);
+    EXPECT_TRUE(st.equipmentInstances[0].meta.isLocked == false);
 }
 
 TEST(InventoryTxTest, RemovePlayerListedItemFiltersById) {
     GameState st = newState();
     st.gameData.playerListedItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 3200, 2));
+        acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 3200, 1));
     st.gameData.playerListedItems.push_back(
         acquisitionItem("a2", "测试功法", "manual", 64000, 1));
     inventory_tx::removePlayerListedItemTx(st, "a1");
@@ -517,15 +537,16 @@ protected:
 TEST_F(InventoryTxFixture, DispatchSellItemSuccessEnvelope) {
     auto& st = core_->state();
     st.gameData.spiritStones = 0;
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 4));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     const auto r = exec(gamecore::action::INV_SELL_ITEM,
                         {{"itemType", "equipment"}, {"itemId", "e1"},
-                         {"quantity", 2}});
+                         {"quantity", 1}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("sold"), true);
-    EXPECT_EQ(r.at("data").at("earned").get<int64_t>(), 6400);
-    EXPECT_EQ(st.gameData.spiritStones, 6400);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 2);
+    EXPECT_EQ(r.at("data").at("earned").get<int64_t>(), 3200);
+    EXPECT_EQ(st.gameData.spiritStones, 3200);
+    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 TEST_F(InventoryTxFixture, DispatchSellItemUnsoldIsSuccessZeroWrite) {
@@ -560,21 +581,30 @@ TEST_F(InventoryTxFixture, DispatchBulkSellEnvelope) {
 
 TEST_F(InventoryTxFixture, DispatchMerchantSellAndListAndRemove) {
     auto& st = core_->state();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
-    st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+    acq.itemId = "e1";
+    st.gameData.merchantAcquisitionItems.push_back(acq);
 
     const auto sell = exec(gamecore::action::MERCHANT_SELL_ACQUISITION,
-                           {{"acquisitionItemId", "a1"}, {"quantity", 2}});
+                           {{"acquisitionItemId", "a1"}, {"quantity", 1}});
     ASSERT_EQ(sell.at("status"), "success");
-    EXPECT_EQ(sell.at("data").at("soldQuantity").get<int32_t>(), 2);
-    EXPECT_EQ(sell.at("data").at("totalPrice").get<int64_t>(), 1000);
+    EXPECT_EQ(sell.at("data").at("soldQuantity").get<int32_t>(), 1);
+    EXPECT_EQ(sell.at("data").at("totalPrice").get<int64_t>(), 500);
 
     const auto list = exec(gamecore::action::MERCHANT_LIST_ITEMS,
                            {{"items", nlohmann::json::array(
                                           {{{"itemId", "e1"}, {"quantity", 1}}})}});
+    // e1 已被收购移除 → 上架静默跳过（listedCount 0）；补一件再上架
     ASSERT_EQ(list.at("status"), "success");
-    EXPECT_EQ(list.at("data").at("listedCount").get<int32_t>(), 1);
+    st.equipmentInstances.push_back(
+        equipmentInstance("e2", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
+    const auto list2 = exec(gamecore::action::MERCHANT_LIST_ITEMS,
+                            {{"items", nlohmann::json::array(
+                                           {{{"itemId", "e2"}, {"quantity", 1}}})}});
+    ASSERT_EQ(list2.at("status"), "success");
+    EXPECT_EQ(list2.at("data").at("listedCount").get<int32_t>(), 1);
     ASSERT_EQ(st.gameData.playerListedItems.size(), 1u);
 
     const std::string listedId = st.gameData.playerListedItems[0].id;
@@ -587,12 +617,13 @@ TEST_F(InventoryTxFixture, DispatchMerchantSellAndListAndRemove) {
 TEST_F(InventoryTxFixture, DispatchFailureEnvelopeZeroWrite) {
     auto& st = core_->state();
     st.gameData.spiritStones = 0;
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     const auto r = exec(gamecore::action::MERCHANT_SELL_ACQUISITION,
                         {{"acquisitionItemId", "a1"}, {"quantity", 1}});
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "NotFound");
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 5);
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
     EXPECT_EQ(st.gameData.spiritStones, 0);
 }
 
@@ -600,10 +631,12 @@ TEST_F(InventoryTxFixture, DispatchInventoryTxConsumesZeroRng) {
     // 全分区 RNG 快照差分：事务前后逐分区状态不变（抽取集为空集）
     const auto before = core_->rng().exportStates();
     auto& st = core_->state();
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+    st.equipmentInstances.push_back(
+        equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
     st.manualStacks.push_back(manualStack("m1", 3, 2));
-    st.gameData.merchantAcquisitionItems.push_back(
-        acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+    MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+    acq.itemId = "e1";
+    st.gameData.merchantAcquisitionItems.push_back(acq);
 
     ASSERT_EQ(exec(gamecore::action::INV_SELL_ITEM,
                    {{"itemType", "equipment"}, {"itemId", "e1"}, {"quantity", 1}})
@@ -620,9 +653,10 @@ TEST_F(InventoryTxFixture, DispatchInventoryTxConsumesZeroRng) {
                    {{"acquisitionItemId", "a1"}, {"quantity", 1}})
                   .at("status"),
               "success");
+    // 上架目标：m1（功法段；装备 e1 已被收购移除）
     ASSERT_EQ(exec(gamecore::action::MERCHANT_LIST_ITEMS,
                    {{"items", nlohmann::json::array(
-                                  {{{"itemId", "e1"}, {"quantity", 1}}})}})
+                                  {{{"itemId", "m1"}, {"quantity", 1}}})}})
                   .at("status"),
               "success");
     EXPECT_EQ(core_->rng().exportStates(), before);
@@ -653,14 +687,16 @@ TEST_F(InventoryTxFixture, TwiceRunsProduceIdenticalExportedState) {
 
     auto runOnce = [](gamecore::GameCore& core) {
         auto& st = core.state();
-        st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 5));
+        st.equipmentInstances.push_back(
+            equipmentInstance("e1", "裂天罡煞·战刃", 1, "WEAPON", "lietian"));
         st.pills.push_back(pill("p1", 1, "HIGH", 2));
-        st.gameData.merchantAcquisitionItems.push_back(
-            acquisitionItem("a1", "精铁剑", "equipment", 500, 10));
+        MerchantItem acq = acquisitionItem("a1", "裂天罡煞·战刃", "equipment", 500, 10);
+        acq.itemId = "e1";
+        st.gameData.merchantAcquisitionItems.push_back(acq);
         core.execute(gamecore::action::INV_SELL_ITEM,
-                     R"({"itemType":"equipment","itemId":"e1","quantity":2})", 0);
+                     R"({"itemType":"equipment","itemId":"e1","quantity":1})", 0);
         core.execute(gamecore::action::MERCHANT_SELL_ACQUISITION,
-                     R"({"acquisitionItemId":"a1","quantity":3})", 0);
+                     R"({"acquisitionItemId":"a1","quantity":1})", 0);
         core.execute(gamecore::action::MERCHANT_LIST_ITEMS,
                      R"({"items":[{"itemId":"p1","quantity":2}]})", 0);
         core.execute(gamecore::action::MERCHANT_REMOVE_LISTED,
@@ -699,12 +735,12 @@ gamecore::state::StorageBagItem stackedBagItem(const std::string& itemId,
     return e;
 }
 
-/// 商人商品（装备类——真实模板：精铁剑）
+/// 商人商品（装备类——B3 部件表真名：裂天罡煞·战刃）
 MerchantItem merchantEquipment(const std::string& id, int64_t price,
                                int32_t quantity, int32_t rarity = 1) {
     MerchantItem item;
     item.id = id;
-    item.name = "精铁剑";
+    item.name = "裂天罡煞·战刃";
     item.type = "equipment";
     item.rarity = rarity;
     item.price = price;
@@ -712,29 +748,55 @@ MerchantItem merchantEquipment(const std::string& id, int64_t price,
     return item;
 }
 
-TEST_F(InventoryTxFixture, BuyMerchantItemHappyPathExactChargeAndStock) {
+TEST_F(InventoryTxFixture, BuyMerchantEquipmentProducesNInstances) {
+    // B3：购买商人装备 = quantity 条实例（kEquipment 分区 roll 词条）
+    auto& st = core_->state();
+    st.gameData.spiritStones = 5000;
+    st.gameData.travelingMerchantItems.push_back(
+        merchantEquipment("bi1", 1000, 5));
+    const int64_t equipRngBefore =
+        core_->rng().getRng(gamecore::rng::RngPartition::kEquipment).snapshot();
+    const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
+                        {{"itemId", "bi1"}, {"quantity", 2}});
+    ASSERT_EQ(r.at("status"), "success");
+    EXPECT_EQ(r.at("data").at("bought"), true);
+    EXPECT_EQ(r.at("data").at("itemName"), "裂天罡煞·战刃");
+    EXPECT_EQ(r.at("data").at("itemType"), "equipment");
+    EXPECT_EQ(r.at("data").at("rarity"), 1);
+    // 灵石精确扣减：5000 - 1000×2 = 3000
+    EXPECT_EQ(st.gameData.spiritStones, 3000);
+    // 先加物品（2 条实例），后扣费
+    ASSERT_EQ(st.equipmentInstances.size(), 2u);
+    for (const auto& inst : st.equipmentInstances) {
+        EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+        EXPECT_EQ(inst.setId, "lietian");
+        EXPECT_EQ(inst.part, "WEAPON");
+        EXPECT_EQ(inst.meta.rarity, 1);
+        EXPECT_FALSE(inst.id.empty());   // 实例 id 确定性占位非空
+        EXPECT_EQ(inst.growth.affix.subStats.size(), 3u);   // 3 副词条
+    }
+    // 商家库存回写：5 - 2 = 3
+    EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 3);
+    // kEquipment 分区消费（词条 roll）
+    EXPECT_NE(core_->rng().getRng(gamecore::rng::RngPartition::kEquipment).snapshot(),
+              equipRngBefore);
+    // 年度报告：实例轨 addEquipmentInstance 无年度追踪
+    EXPECT_TRUE(st.gameData.annualEquipmentBySource.empty());
+    EXPECT_EQ(st.gameData.annualExpenditureByReason["Purchase"], 2000);
+}
+
+TEST_F(InventoryTxFixture, BuyMerchantEquipmentStockExhaustedRemovesEntry) {
+    // quantity >= stock → 商家条目整条移除（Kotlin reduceMerchantStock 同语义）
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;
     st.gameData.travelingMerchantItems.push_back(
         merchantEquipment("bi1", 1000, 5));
     const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
-                        {{"itemId", "bi1"}, {"quantity", 2}});
+                        {{"itemId", "bi1"}, {"quantity", 5}});
     ASSERT_EQ(r.at("status"), "success");
-    EXPECT_EQ(r.at("data").at("bought"), true);
-    EXPECT_EQ(r.at("data").at("itemName"), "精铁剑");
-    EXPECT_EQ(r.at("data").at("itemType"), "equipment");
-    EXPECT_EQ(r.at("data").at("rarity"), 1);
-    // 灵石精确扣减：5000 - 1000×2 = 3000
-    EXPECT_EQ(st.gameData.spiritStones, 3000);
-    // 先加物品（新堆叠 quantity=2），后扣费
-    ASSERT_EQ(st.equipmentStacks.size(), 1u);
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 2);
-    EXPECT_EQ(st.equipmentStacks[0].name, "精铁剑");
-    // 商家库存回写：5 - 2 = 3
-    EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 3);
-    // 年度报告：addXxx 按 "merchant:<rarity>" 记来源；扣费按 Purchase 记支出
-    EXPECT_EQ(st.gameData.annualEquipmentBySource["merchant:1"], 2);
-    EXPECT_EQ(st.gameData.annualExpenditureByReason["Purchase"], 2000);
+    EXPECT_EQ(st.equipmentInstances.size(), 5u);
+    EXPECT_EQ(st.gameData.spiritStones, 0);   // 5000 - 5000
+    EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemNotFoundZeroWrite) {
@@ -745,7 +807,7 @@ TEST_F(InventoryTxFixture, BuyMerchantItemNotFoundZeroWrite) {
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "NotFound");
     EXPECT_EQ(st.gameData.spiritStones, 1000);
-    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemTamperedPriceZeroWrite) {
@@ -772,7 +834,7 @@ TEST_F(InventoryTxFixture, BuyMerchantItemInsufficientZeroWrite) {
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "Insufficient");
     EXPECT_EQ(st.gameData.spiritStones, 999);
-    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.equipmentInstances.empty());
     // 库存不足臂：quantity > merchantItem.quantity（同臂拒绝）
     const auto r2 = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
                          {{"itemId", "bi1"}, {"quantity", 6}});
@@ -782,90 +844,54 @@ TEST_F(InventoryTxFixture, BuyMerchantItemInsufficientZeroWrite) {
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemTemplateMissFallsBack) {
-    // 模板缺失（篡改档）：Kotlin 回退臂走 JVM Random.Default 不可复刻 →
-    // C++ TemplateMiss failure 信封回退，零写入
+    // 模板缺失（篡改档）：B3 部件表按名反查——旧模板名"精铁剑"不在 12 部件表
+    // → TemplateMiss failure 信封回退，零写入
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;
     MerchantItem tampered = merchantEquipment("bi1", 1000, 5);
-    tampered.name = "不存在模板";
+    tampered.name = "精铁剑";
     st.gameData.travelingMerchantItems.push_back(tampered);
     const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
                         {{"itemId", "bi1"}, {"quantity", 1}});
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "TemplateMiss");
     EXPECT_EQ(st.gameData.spiritStones, 5000);
-    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.equipmentInstances.empty());
     EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 5);
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemCapacityFullZeroWrite) {
-    // 按型槽位预算：同键堆叠无余量 + 总槽位满 → 容量拒绝（Kotlin
-    // canAddEquipment = totalFree>0 || canAddItem 的双重条件）
+    // B3 实例轨容量谓词 = 纯槽位检查（canAddEquipment == canAddItem）
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;
     st.gameData.travelingMerchantItems.push_back(
         merchantEquipment("bi1", 1000, 5));
-    // 49 个非装备堆叠（丹药，槽位各 1）+ 1 个满装匹配堆叠 = 50 槽满
-    for (int i = 0; i < 49; ++i) {
+    // 50 个非装备堆叠（丹药，槽位各 1）= 50 槽满
+    for (int i = 0; i < 50; ++i) {
         st.pills.push_back(pill("p" + std::to_string(i), 1, "HIGH", 1));
         st.pills.back().name = "占位丹" + std::to_string(i);
     }
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 999));
-    st.equipmentStacks[0].slot = "WEAPON";  // 合并键与模板一致（name|rarity|slot）
     const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
                         {{"itemId", "bi1"}, {"quantity", 1}});
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "CapacityFull");
     EXPECT_EQ(st.gameData.spiritStones, 5000);
     EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 5);
-    EXPECT_EQ(st.equipmentStacks.size(), 1u);
+    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
-TEST_F(InventoryTxFixture, BuyMerchantItemAddFailedValidationRarityZeroWrite) {
-    // AddFailed 臂（确定性构造）：模板命中但篡改 rarity=0 → addXxx 校验链
-    // InvalidRarity 失败，零写入（容量预测对 rarity=0 放行，写入段兜底）
+TEST_F(InventoryTxFixture, BuyMerchantEquipmentClampsRarityFloorToOne) {
+    // B3 clampRarity 收敛面：篡改档 rarity=0 → 品阶下限 1 产出（非 AddFailed）
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;
     st.gameData.travelingMerchantItems.push_back(
         merchantEquipment("bi1", 1000, 5, /*rarity=*/0));
     const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
                         {{"itemId", "bi1"}, {"quantity", 1}});
-    ASSERT_EQ(r.at("status"), "failure");
-    EXPECT_EQ(r.at("code"), "AddFailed");
-    EXPECT_EQ(st.gameData.spiritStones, 5000);
-    EXPECT_TRUE(st.equipmentStacks.empty());
-    EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 5);
-}
-
-TEST_F(InventoryTxFixture, BuyMerchantItemPartialOverflowToDrafts) {
-    // 溢出转草稿：合并装满同键堆叠后无空槽 → Partial（溢出 3 转邮件草稿）
-    // 语义升级：Partial 视为成功——照常扣费 + 商家库存扣减
-    auto& st = core_->state();
-    st.gameData.spiritStones = 5000;
-    st.gameData.travelingMerchantItems.push_back(
-        merchantEquipment("bi1", 1000, 5));
-    for (int i = 0; i < 49; ++i) {
-        st.pills.push_back(pill("p" + std::to_string(i), 1, "HIGH", 1));
-        st.pills.back().name = "占位丹" + std::to_string(i);
-    }
-    st.equipmentStacks.push_back(equipmentStack("e1", "精铁剑", 1, 997));
-    st.equipmentStacks[0].slot = "WEAPON";  // 同键合并（name|rarity|slot）
-    const auto r = exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
-                        {{"itemId", "bi1"}, {"quantity", 5}});
     ASSERT_EQ(r.at("status"), "success");
-    EXPECT_EQ(r.at("data").at("bought"), true);
-    // 合并 2 入既有堆叠，溢出 3 → 草稿
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 999);
-    EXPECT_EQ(st.gameData.spiritStones, 0);  // 5000 - 5000
-    // quantity(5) >= stock(5) → 条目整条移除（Kotlin reduceMerchantStock 同语义）
-    EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
-    // 年报只记实际入仓部分
-    EXPECT_EQ(st.gameData.annualEquipmentBySource["merchant:1"], 2);
-    const auto& drafts = r.at("data").at("overflowDrafts");
-    ASSERT_EQ(drafts.size(), 1u);
-    EXPECT_EQ(drafts[0].at("itemType"), "equipment");
-    EXPECT_EQ(drafts[0].at("quantity"), 3);
-    EXPECT_EQ(drafts[0].at("source"), "merchant");
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
+    EXPECT_EQ(st.equipmentInstances[0].meta.rarity, 1);
+    EXPECT_EQ(st.gameData.travelingMerchantItems[0].quantity, 4);
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemSpiritStoneGrantMidGrade) {
@@ -890,17 +916,24 @@ TEST_F(InventoryTxFixture, BuyMerchantItemSpiritStoneGrantMidGrade) {
 }
 
 TEST_F(InventoryTxFixture, DispatchBuyAndConfiscateConsumeZeroRng) {
-    // 零 RNG 全分区快照差分：购买 + 充公（实例/堆叠两轨）事务前后
-    // 逐分区状态不变（抽取集为空集）
+    // 零 RNG 全分区快照差分：购买（灵石商品——无词条 roll 面）+ 充公事务
+    // 前后逐分区状态不变。装备购买走 kEquipment roll（见
+    // BuyMerchantEquipmentProducesNInstances），不入本审计。
     const auto before = core_->rng().exportStates();
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;
-    st.gameData.travelingMerchantItems.push_back(
-        merchantEquipment("bi1", 1000, 5));
+    MerchantItem mid;
+    mid.id = "bi2";
+    mid.name = "中品灵石";
+    mid.type = "spiritstone";
+    mid.rarity = 3;
+    mid.price = 500;
+    mid.quantity = 2;
+    st.gameData.travelingMerchantItems.push_back(mid);
     st.disciples.appendDisciple(seedDisciple("1"));
     st.disciples.storageBagItems[0].push_back(stackedBagItem("bk1", 3));
     ASSERT_EQ(exec(gamecore::action::INV_BUY_MERCHANT_ITEM,
-                   {{"itemId", "bi1"}, {"quantity", 2}})
+                   {{"itemId", "bi2"}, {"quantity", 2}})
                   .at("status"),
               "success");
     ASSERT_EQ(exec(gamecore::action::INV_CONFISCATE_BAG_ITEM,
@@ -930,37 +963,35 @@ TEST_F(InventoryTxFixture, ConfiscateStackedItemHappyDecrementsBag) {
 }
 
 TEST_F(InventoryTxFixture, ConfiscateEquipmentInstanceBareReturnNoAnnual) {
-    // 实例条目：裸 store.add 回仓（Kotlin returnEquipmentToStack 语义——
-    // 不记年报）+ 袋条目整条移除 + 实例表不动
+    // 实例条目：裸实例入库（addEquipmentInstance 校验面——不记年报）+
+    // 袋条目整条移除 + 实例表入表
     auto& st = core_->state();
     st.disciples.appendDisciple(seedDisciple("1"));
     gamecore::state::StorageBagItem entry;
     entry.itemId = "bi1";
     entry.itemType = "equipment_instance";
-    entry.name = "精铁剑";
+    entry.name = "裂天罡煞·战刃";
     entry.rarity = 2;
     entry.quantity = 1;
     gamecore::state::EquipmentInstance inst;
     inst.id = "inst-1";
-    inst.name = "精铁剑";
-    inst.rarity = 2;
-    inst.slot = "WEAPON";
-    inst.physicalAttack = 33;
+    inst.name = "裂天罡煞·战刃";
+    inst.part = "WEAPON";
+    inst.setId = "lietian";
+    inst.meta.rarity = 2;
     entry.equipmentInstance = inst;
     st.disciples.storageBagItems[0].push_back(entry);
     const auto r = exec(gamecore::action::INV_CONFISCATE_BAG_ITEM,
                         {{"discipleId", "1"}, {"itemId", "bi1"}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("confiscated"), true);
-    ASSERT_EQ(st.equipmentStacks.size(), 1u);
-    EXPECT_EQ(st.equipmentStacks[0].name, "精铁剑");
-    EXPECT_EQ(st.equipmentStacks[0].quantity, 1);
-    EXPECT_EQ(st.equipmentStacks[0].physicalAttack, 33);
-    // 裸回仓：无年报写入（Kotlin 充公实例路径无 annual 段）
+    ASSERT_EQ(st.equipmentInstances.size(), 1u);
+    EXPECT_EQ(st.equipmentInstances[0].id, "inst-1");
+    EXPECT_EQ(st.equipmentInstances[0].name, "裂天罡煞·战刃");
+    // 裸入库：无年报写入（Kotlin 充公实例路径无 annual 段）
     EXPECT_TRUE(st.gameData.annualEquipmentBySource.empty());
-    // 袋条目整条移除；仓库实例表不动（袋实例不入实例表）
+    // 袋条目整条移除
     EXPECT_TRUE(st.disciples.storageBagItems[0].empty());
-    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 TEST_F(InventoryTxFixture, ConfiscateIdempotentStaleSnapshotNoDuplication) {
@@ -1044,7 +1075,7 @@ TEST_F(InventoryTxFixture, ConfiscateWarehouseFullKeepsBagEntryForRetry) {
 
 TEST_F(InventoryTxFixture, TwiceRunsConfiscateAndBuyProduceIdenticalState) {
     // 双运行逐位一致（确定性证据）：同一初始状态跑同一购买+充公序列，
-    // 两次导出的全状态 JSON 逐字节相同（含确定性占位 id）
+    // 两次导出的全状态 JSON 逐字节相同（含确定性占位 id + kEquipment roll 序）
     gamecore::FixedClock clock2;
     gamecore::ConsoleLogger logger2;
     gamecore::GameCore other(&clock2, &logger2);

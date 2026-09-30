@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import android.util.Log
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.StorageBagItem
 
 /**
@@ -165,23 +164,19 @@ class DiscipleTables {
     val activePillCategories = ComponentTable<String>()
     val activePillTypes = ComponentTable<Set<String>>()
 
-    // === 装备 ===
+    // === 装备（B3 六部位：头/身/手/脚/武/腿 按显示序；孕养与旧四槽列随迁移删除） ===
+    val headIds = ComponentTable<String>()
+    val bodyIds = ComponentTable<String>()
+    val handsIds = ComponentTable<String>()
+    val feetIds = ComponentTable<String>()
     val weaponIds = ComponentTable<String>()
-    val armorIds = ComponentTable<String>()
-    val bootsIds = ComponentTable<String>()
-    val accessoryIds = ComponentTable<String>()
-    val weaponNurtures = ComponentTable<EquipmentNurtureData>()
-    val armorNurtures = ComponentTable<EquipmentNurtureData>()
-    val bootsNurtures = ComponentTable<EquipmentNurtureData>()
-    val accessoryNurtures = ComponentTable<EquipmentNurtureData>()
+    val legsIds = ComponentTable<String>()
     val storageBagItems = ComponentTable<List<StorageBagItem>>()
     val storageBagSpiritStones = ComponentTable<Long>()
     val discipleSpiritStones = IntComponentTable()
     val cultivationCompletionMonths = IntComponentTable()
     val manualCompletionMonths = IntComponentTable()
     val manualCompletionPhases = IntComponentTable()
-    val equipmentNurturingCompletionMonths = IntComponentTable()
-    val equipmentNurturingCompletionPhases = IntComponentTable()
 
     // === 技能属性 ===
     val intelligences = IntComponentTable()

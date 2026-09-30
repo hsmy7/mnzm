@@ -33,6 +33,9 @@ class RoomMigrationV62To63Test {
         /** v63 的 disciples 列数（= v62 的 84 − R11 删 pillNurtureSpeedBonus）。 */
         private const val V63_DISCIPLES_COLUMN_COUNT = 83
 
+        /** 全链升到当前 DATABASE_VERSION（B3 v64：v63 83 列 −9 旧列 +5 部位列） */
+        private const val FINAL_DISCIPLES_COLUMN_COUNT = 79
+
         private val INDICES = listOf(
             "index_disciples_name",
             "index_disciples_realm_realmLayer",
@@ -63,8 +66,8 @@ class RoomMigrationV62To63Test {
                 RoomMigrationSupport.columnExists(migrated, "game_data", "nurture_pills_retired")
             )
             assertEquals(
-                "真实 Room 升级后 disciples 列数应是 $V63_DISCIPLES_COLUMN_COUNT",
-                V63_DISCIPLES_COLUMN_COUNT,
+                "真实 Room 全链升到终版（v64）后 disciples 列数应是 $FINAL_DISCIPLES_COLUMN_COUNT",
+                FINAL_DISCIPLES_COLUMN_COUNT,
                 RoomMigrationSupport.tableColumns(migrated, "disciples").size
             )
             db.close()

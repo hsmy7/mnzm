@@ -126,7 +126,10 @@ internal fun InventoryFacadeImpl.warehouseCount(
 
     item: MerchantItem): Int = when (item.type.lowercase(java.util.Locale.getDefault())
 ) {
-    "equipment" -> countWarehouseStacks(equipmentStacks.value, item)
+    // B3：锁定件不可售不入计数（与扣减谓词一致，防「锁定价凭空收款」；C++ 同口径）
+    "equipment" -> equipmentInstances.value.count {
+        !it.isLocked && it.name == item.name && it.rarity == item.rarity
+    }
     "manual" -> countWarehouseStacks(manualStacks.value, item)
     "pill" -> countWarehousePills(pills.value, item)
     "material" -> countWarehouseStacks(materials.value, item)

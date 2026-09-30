@@ -27,7 +27,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ResignGateResult
 import com.xianxia.sect.core.model.evaluateResignGate
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -35,13 +35,9 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SectPolicies
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.JadePurchaseFlow
@@ -134,7 +130,6 @@ fun DiscipleDetailDialog(
     allEquipment: List<EquipmentInstance> = emptyList(),
     allManuals: List<ManualInstance> = emptyList(),
     manualStacks: List<ManualStack> = emptyList(),
-    equipmentStacks: List<EquipmentStack> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit,
@@ -172,7 +167,7 @@ fun DiscipleDetailDialog(
     DiscipleDetailSecondaryDialogs(
         disciple = disciple, viewModel = viewModel,
         allEquipment = allEquipment, allManuals = allManuals,
-        manualStacks = manualStacks, equipmentStacks = equipmentStacks,
+        manualStacks = manualStacks,
         manualProficiencies = manualProficiencies, state = state
     )
 }
@@ -346,18 +341,17 @@ private fun DiscipleDetailTabContent(
     vmPlacedBuildings: List<GridBuildingData>,
     state: DiscipleDetailDialogState
 ) {
-    val weapon = remember(disciple.weaponId, allEquipment) {
-        disciple.weaponId?.let { id -> allEquipment.find { it.id == id } }
+    // 六部位已穿装备（B3 实例轨：显示序单一真源 = EquipmentSlot.displayOrder）
+    val equippedByPart: Map<EquipmentSlot, EquipmentInstance?> = remember(
+        disciple.headId, disciple.bodyId, disciple.handsId,
+        disciple.feetId, disciple.weaponId, disciple.legsId, allEquipment
+    ) {
+        EquipmentSlot.displayOrder.associateWith { part ->
+            val id = disciple.equipment?.slotId(part).orEmpty()
+            allEquipment.find { it.id == id }
+        }
     }
-    val armor = remember(disciple.armorId, allEquipment) {
-        disciple.armorId?.let { id -> allEquipment.find { it.id == id } }
-    }
-    val boots = remember(disciple.bootsId, allEquipment) {
-        disciple.bootsId?.let { id -> allEquipment.find { it.id == id } }
-    }
-    val accessory = remember(disciple.accessoryId, allEquipment) {
-        disciple.accessoryId?.let { id -> allEquipment.find { it.id == id } }
-    }
+    val equipped = remember(equippedByPart) { equippedByPart.values.filterNotNull() }
     val learnedManuals = remember(disciple.manualIds, allManuals) { allManuals.filter { it.id in disciple.manualIds } }
     val maxManualSlots = remember(disciple.id) { DiscipleStatCalculator.getMaxManualSlots(disciple) }
 
@@ -375,13 +369,13 @@ private fun DiscipleDetailTabContent(
             HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
             Spacer(modifier = Modifier.height(12.dp))
             CombatStatsSection(
-                disciple = disciple, weapon = weapon, armor = armor, boots = boots,
-                accessory = accessory, learnedManuals = learnedManuals,
+                disciple = disciple, equipped = equipped,
+                learnedManuals = learnedManuals,
                 manualProficiencies = manualProficiencies
             )
         }
         2 -> EquipmentSection(
-            weapon = weapon, armor = armor, boots = boots, accessory = accessory,
+            equippedByPart = equippedByPart,
             onSlotClick = { slotType -> state.showEquipmentSelection = slotType },
             onEquipmentClick = { equipment -> state.showEquipmentDetailDialog = equipment }
         )
@@ -462,7 +456,6 @@ private fun DiscipleDetailSecondaryDialogs(
     allEquipment: List<EquipmentInstance>,
     allManuals: List<ManualInstance>,
     manualStacks: List<ManualStack>,
-    equipmentStacks: List<EquipmentStack>,
     manualProficiencies: Map<String, List<ManualProficiencyData>>,
     state: DiscipleDetailDialogState
 ) {
@@ -490,7 +483,7 @@ private fun DiscipleDetailSecondaryDialogs(
     )
     DiscipleDetailSelectionDialogs(
         disciple = disciple, viewModel = viewModel, allEquipment = allEquipment,
-        equipmentStacks = equipmentStacks, manualStacks = manualStacks,
+        manualStacks = manualStacks,
         allManuals = allManuals, state = state
     )
     DiscipleDetailTailDialogs(
@@ -537,7 +530,6 @@ private fun DiscipleDetailSelectionDialogs(
     disciple: DiscipleAggregate,
     viewModel: GameViewModel?,
     allEquipment: List<EquipmentInstance>,
-    equipmentStacks: List<EquipmentStack>,
     manualStacks: List<ManualStack>,
     allManuals: List<ManualInstance>,
     state: DiscipleDetailDialogState
@@ -551,14 +543,10 @@ private fun DiscipleDetailSelectionDialogs(
             params = EquipmentSelectionParams(
                 slotType = slotType,
                 allEquipment = allEquipment,
-                equipmentStacks = equipmentStacks,
-                currentEquipmentId = when (slotType) {
-                    "weapon" -> disciple.weaponId
-                    "armor" -> disciple.armorId
-                    "boots" -> disciple.bootsId
-                    "accessory" -> disciple.accessoryId
-                    else -> null
-                },
+                currentEquipmentId = EquipmentSlot.entries
+                    .find { it.name.equals(slotType, ignoreCase = true) }
+                    ?.let { part -> disciple.equipment?.slotId(part) }
+                    ?.takeIf { it.isNotEmpty() },
                 currentDiscipleId = disciple.id,
                 discipleRealm = disciple.realm,
                 selectedEquipmentId = selectedEquipmentId,
@@ -628,7 +616,7 @@ private fun DiscipleDetailTailDialogs(
                     text = "更换",
                     onClick = {
                         state.showEquipmentDetailDialog = null
-                        state.showEquipmentSelection = equipment.slot.name.lowercase(java.util.Locale.getDefault())
+                        state.showEquipmentSelection = equipment.part.name
                     }
                 )
             }
@@ -760,7 +748,6 @@ fun DiscipleDetailDialog(
     val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
 
     DiscipleDetailDialog(
         disciple = disciple,
@@ -768,7 +755,6 @@ fun DiscipleDetailDialog(
         allEquipment = equipment,
         allManuals = manuals,
         manualStacks = manualStacks,
-        equipmentStacks = equipmentStacks,
         manualProficiencies = manualProficiencies,
         viewModel = viewModel,
         onDismiss = onDismiss,

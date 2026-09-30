@@ -55,6 +55,8 @@ constexpr double kRealmGapDamageBonusPerMajorRealm = 1.0;  // 每高 1 大境界
 
 /// 战斗单位状态（Combatant 精简版；Buff 由外部系统管理）
 struct CombatantStats {
+    // 暴击伤害加成（B3 D3；Kotlin Combatant 默认 0.0——接口默认实现面）
+    double critDamageBonus = 0.0;
     int32_t attack = 0;
     int32_t defense = 0;
     DamageType innateDamageType = DamageType::kPhysical;
@@ -175,11 +177,13 @@ inline bool checkInstantKill(int32_t attackerRealm, int32_t defenderRealm,
 
 // ── 乘区法最终伤害 ─────────────────────────────────────────────
 
-/// 乘区法最终伤害（Kotlin calculateFinalDamage）
+/// 乘区法最终伤害（Kotlin calculateFinalDamage；critDamageBonus = B3 D3 接线
+/// ——暴击时 critMult = 1 + 基础暴伤 + 暴伤加成，默认 0.0 与旧式逐位一致）
 inline int32_t calculateFinalDamage(int32_t rawAttack, int32_t defense,
                                     double skillMultiplier,
                                     const DamageZones& zones,
-                                    bool isCrit, double variance) {
+                                    bool isCrit, double variance,
+                                    double critDamageBonus = 0.0) {
     // 单列口径（B1 §15.2）：类型增伤/减伤进增/减伤加算区；默认 0.0 时与
     // 无类型通道的基准公式逐位一致（S19）
     const double effectiveAttack = static_cast<double>(rawAttack);
@@ -187,7 +191,8 @@ inline int32_t calculateFinalDamage(int32_t rawAttack, int32_t defense,
         defense / (defense + kDefenseConstant);
     const double preCritDamage =
         effectiveAttack * skillMultiplier * (1.0 - reduction);
-    const double critMult = isCrit ? (1.0 + kCritBaseMultiplier) : 1.0;
+    const double critMult =
+        isCrit ? (1.0 + kCritBaseMultiplier + critDamageBonus) : 1.0;
     const double result =
         preCritDamage * critMult
         * (1.0 + zones.damageAmplification + zones.typeDamageBonus)

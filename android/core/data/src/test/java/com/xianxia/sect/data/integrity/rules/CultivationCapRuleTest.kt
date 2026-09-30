@@ -6,10 +6,6 @@ import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
@@ -130,7 +126,7 @@ class CultivationCapRuleTest {
     ) = Disciple(
         id = id, name = name, realm = realm, realmLayer = realmLayer,
         cultivation = cultivation, isAlive = isAlive,
-        equipment = EquipmentSet(weaponId = "", armorId = "", bootsId = "", accessoryId = "")
+        equipment = EquipmentSet()
     )
 
     private fun saveData(disciples: List<Disciple>) = SaveData(

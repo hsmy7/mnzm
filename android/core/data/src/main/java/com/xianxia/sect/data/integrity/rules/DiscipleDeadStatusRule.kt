@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.integrity.rules
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.data.model.SaveData
 
 /**
@@ -33,25 +34,16 @@ object DiscipleDeadStatusRule : SaveValidationRule {
      */
     private fun cleanDeadDiscipleEquipment(d: Disciple, repairs: MutableList<String>): Disciple {
         val equip = d.equipment
-        val equippedSlotIds = listOfNotNull(
-            if (equip.weaponId.isNotEmpty()) "weaponId=${equip.weaponId}" else null,
-            if (equip.armorId.isNotEmpty()) "armorId=${equip.armorId}" else null,
-            if (equip.bootsId.isNotEmpty()) "bootsId=${equip.bootsId}" else null,
-            if (equip.accessoryId.isNotEmpty()) "accessoryId=${equip.accessoryId}" else null
-        )
+        val equippedSlotIds = EquipmentSlot.displayOrder.mapNotNull { part ->
+            val id = equip.slotId(part)
+            if (id.isNotEmpty()) "${part.name}=$id" else null
+        }
         if (equippedSlotIds.isEmpty()) return d
 
         repairs.add(
             "死亡弟子[${d.name.ifBlank { "ID=${d.id}" }}] " +
                 "${equippedSlotIds.joinToString(", ")}，已清除装备引用"
         )
-        return d.copy(
-            equipment = equip.copy(
-                weaponId = "",
-                armorId = "",
-                bootsId = "",
-                accessoryId = ""
-            )
-        )
+        return d.copy(equipment = equip.clearedSlots())
     }
 }

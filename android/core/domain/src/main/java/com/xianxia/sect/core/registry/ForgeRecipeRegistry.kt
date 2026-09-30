@@ -1,44 +1,28 @@
 package com.xianxia.sect.core.registry
 
 /**
- * 锻造配方注册表
- *
- * 管理所有装备的锻造配方信息。
- *
- * @param equipmentRegistry 装备模板注册表（用于关联配方与装备）
+ * 锻造配方注册表（装备重构 B3：12 条套装部件配方，按品阶产出）
  */
-class ForgeRecipeRegistry(
-    private val equipmentRegistry: EquipmentRegistry
-) : BaseTemplateRegistry<ForgeRecipeDatabase.ForgeRecipe>() {
+class ForgeRecipeRegistry : BaseTemplateRegistry<ForgeRecipeDatabase.ForgeRecipe>() {
 
     // ==================== BaseTemplateRegistry 实现 ====================
 
     override fun loadTemplates(): Map<String, ForgeRecipeDatabase.ForgeRecipe> {
-        // 从原数据库获取所有配方，转换为 Map 以优化查找性能
         return ForgeRecipeDatabase.getAllRecipes().associateBy { it.id }
     }
 
-    override fun extractRarity(template: ForgeRecipeDatabase.ForgeRecipe): Int = template.rarity
+    override fun extractRarity(template: ForgeRecipeDatabase.ForgeRecipe): Int = 1
+    // 配方不分品阶（按品阶产出，方案 §3.8）：随机抽取面恒 1，品阶由锻造槽位 tier 决定
 
     // ==================== 扩展查询方法 ====================
 
-    /**
-     * 根据装备槽位获取配方列表
-     *
-     * @param slot 装备槽位类型
-     * @return 对应槽位的所有锻造配方
-     */
-    fun getByType(slot: com.xianxia.sect.core.model.EquipmentSlot): List<ForgeRecipeDatabase.ForgeRecipe> =
-        allTemplates.values.filter { it.type == slot }
+    /** 根据装备部位获取配方列表 */
+    fun getByType(part: com.xianxia.sect.core.model.EquipmentSlot): List<ForgeRecipeDatabase.ForgeRecipe> =
+        allTemplates.values.filter { it.part == part }
 
-    /**
-     * 根据层级获取配方列表
-     *
-     * @param tier 层级（1-6）
-     * @return 对应层级的所有配方
-     */
-    fun getByTier(tier: Int): List<ForgeRecipeDatabase.ForgeRecipe> =
-        ForgeRecipeDatabase.getRecipesByTier(tier)
+    /** 根据套装获取配方列表 */
+    fun getBySet(setId: String): List<ForgeRecipeDatabase.ForgeRecipe> =
+        allTemplates.values.filter { it.setId == setId }
 
     /**
      * 根据材料 ID 查找使用该材料的配方列表
@@ -52,7 +36,7 @@ class ForgeRecipeRegistry(
     /**
      * 根据名称查找配方
      *
-     * @param name 配方/装备名称
+     * @param name 配方/部件名称
      * @return 匹配的配方，不存在则返回 null
      */
     fun getByName(name: String): ForgeRecipeDatabase.ForgeRecipe? =
@@ -70,24 +54,24 @@ class ForgeRecipeRegistry(
     // ==================== 联合查询方法 ====================
 
     /**
-     * 获取配方对应的装备模板
+     * 获取配方对应的套装部件模板
      *
-     * @param recipeId 配方 ID（通常与装备 ID 相同）
-     * @return 装备模板，不存在则返回 null
+     * @param recipeId 配方 ID（`forge_{pieceId}`）
+     * @return 套装部件模板，不存在则返回 null
      */
-    fun getEquipmentTemplate(recipeId: String): EquipmentDatabase.EquipmentTemplate? =
-        equipmentRegistry.getById(recipeId)
+    fun getPieceTemplate(recipeId: String): EquipmentDatabase.SetPieceTemplate? =
+        getById(recipeId)?.let { EquipmentDatabase.getPieceById(it.pieceId) }
 
     /**
-     * 获取完整的锻造信息（配方 + 装备模板）
+     * 获取完整的锻造信息（配方 + 套装部件模板）
      *
      * @param recipeId 配方 ID
-     * @return 包含配方和装备模板的信息对，任一缺失则返回 null
+     * @return 包含配方和部件模板的信息对，任一缺失则返回 null
      */
     fun getFullForgeInfo(recipeId: String): Pair<ForgeRecipeDatabase.ForgeRecipe,
-        EquipmentDatabase.EquipmentTemplate>? {
+        EquipmentDatabase.SetPieceTemplate>? {
         val recipe = getById(recipeId) ?: return null
-        val template = equipmentRegistry.getById(recipeId) ?: return null
+        val template = EquipmentDatabase.getPieceById(recipe.pieceId) ?: return null
         return Pair(recipe, template)
     }
 }

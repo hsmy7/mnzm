@@ -28,7 +28,6 @@ class InventoryConfig @Inject constructor() {
         typeSpecificStackLimits["seed"] = 9999
         typeSpecificStackLimits["manual_stack"] = 999
         typeSpecificStackLimits["manual_instance"] = 1
-        typeSpecificStackLimits["equipment_stack"] = 999
         typeSpecificStackLimits["equipment_instance"] = 1
     }
     
@@ -131,7 +130,6 @@ class InventoryConfig @Inject constructor() {
         typeSpecificStackLimits["seed"] = 9999
         typeSpecificStackLimits["manual_stack"] = 999
         typeSpecificStackLimits["manual_instance"] = 1
-        typeSpecificStackLimits["equipment_stack"] = 999
         typeSpecificStackLimits["equipment_instance"] = 1
     }
     

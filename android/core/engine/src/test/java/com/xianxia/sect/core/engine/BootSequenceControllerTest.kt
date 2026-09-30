@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -197,7 +196,7 @@ class BootSequenceControllerTest {
     private suspend fun injectTestGameData(gameData: GameData) {
         stateStore.loadFromSnapshot(
             gameData,
-            disciples = emptyList(), equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            disciples = emptyList(), equipmentInstances = emptyList(),
             manualStacks = emptyList(), manualInstances = emptyList(), pills = emptyList(),
             materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
             storageBags = emptyList(), battleLogs = emptyList(),
@@ -572,7 +571,6 @@ private class FakeGameStateStore : GameStateStore {
     override val gameData: StateFlow<GameData> get() = _gameData
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val discipleTables = DiscipleTables()
-    override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
     override val equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     override val manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
     override val manualInstances = MutableStateFlow<List<ManualInstance>>(emptyList())
@@ -602,7 +600,6 @@ private class FakeGameStateStore : GameStateStore {
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = discipleAggregates.value
     override val gameDataSnapshot: GameData get() = _gameData.value
     override val disciplesSnapshot: List<Disciple> get() = disciples.value
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = equipmentStacks.value
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = equipmentInstances.value
     override val manualStacksSnapshot: List<ManualStack> get() = manualStacks.value
     override val manualInstancesSnapshot: List<ManualInstance> get() = manualInstances.value
@@ -646,7 +643,7 @@ private class FakeGameStateStore : GameStateStore {
     // ── 事务 API ──
     override suspend fun loadFromSnapshot(
         gameData: GameData, disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
+        equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
         pills: List<Pill>, materials: List<Material>, herbs: List<Herb>, seeds: List<Seed>,
         storageBags: List<StorageBag>,
@@ -697,7 +694,6 @@ private class FakeGameStateStore : GameStateStore {
     private fun newMutable() = MutableGameState(
         gameData = _gameData.value,
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(),
         equipmentInstances = EntityStore(),
         manualStacks = EntityStore(),
         manualInstances = EntityStore(),

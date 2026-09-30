@@ -17,15 +17,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.currentHp
 import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.hpVariance
 import com.xianxia.sect.core.model.speedVariance
 import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.engine.generateRandomEquipment
@@ -83,12 +79,10 @@ object CaveExplorationSystem {
         playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>
     ): List<Combatant> = playerDisciples.map { disciple ->
-        val discipleEquipment = buildMap {
-            disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-        }
+        // 装备重构 B3 六部位口径：收集弟子全部已穿戴实例（id 为空串 = 未穿戴）
+        val discipleEquipment = disciple.equipment.equippedItemIds
+            .mapNotNull { id -> playerEquipmentMap[id]?.let { id to it } }
+            .toMap()
         val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
         val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
         val stats = disciple.getFinalStats(
@@ -277,19 +271,18 @@ object CaveExplorationSystem {
     private fun generateRandomEquipment(rarity: Int): CaveRewardItem? {
         var currentRarity = rarity
         while (currentRarity >= 1) {
-            val allEquipment = EquipmentDatabase.weapons.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.armors.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.boots.values.filter { it.rarity == currentRarity } +
-                               EquipmentDatabase.accessories.values.filter { it.rarity == currentRarity }
-            
-            if (allEquipment.isNotEmpty()) {
-                val template = allEquipment[rng.nextInt(allEquipment.size)]
+            // 装备重构 B3：72 条部件×品阶展开条目单源表按品阶过滤，
+            // itemId = 展开条目 id（"{pieceId}_r{rarity}"），由上层按 id 解析
+            val candidates = EquipmentDatabase.getByRarity(currentRarity)
+
+            if (candidates.isNotEmpty()) {
+                val entry = candidates[rng.nextInt(candidates.size)]
                 return CaveRewardItem(
                     type = "equipment",
-                    name = template.name,
+                    name = entry.name,
                     quantity = 1,
                     rarity = currentRarity,
-                    itemId = template.id
+                    itemId = entry.id
                 )
             }
             currentRarity--

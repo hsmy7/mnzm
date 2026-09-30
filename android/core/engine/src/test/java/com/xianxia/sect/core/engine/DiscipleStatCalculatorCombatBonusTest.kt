@@ -127,9 +127,9 @@ class DiscipleStatCalculatorCombatBonusTest {
         morality: Int = 50,
         manualIds: List<String> = emptyList(),
         weaponId: String = "",
-        armorId: String = "",
-        bootsId: String = "",
-        accessoryId: String = "",
+        bodyId: String = "",
+        feetId: String = "",
+        handsId: String = "",
         pillEffectDuration: Int = 0,
         pillHpBonus: Int = 0,
         pillMpBonus: Int = 0,
@@ -171,9 +171,9 @@ class DiscipleStatCalculatorCombatBonusTest {
             ),
             equipment = EquipmentSet(
                 weaponId = weaponId,
-                armorId = armorId,
-                bootsId = bootsId,
-                accessoryId = accessoryId
+                bodyId = bodyId,
+                feetId = feetId,
+                handsId = handsId
             ),
             discipleType = discipleType
         )

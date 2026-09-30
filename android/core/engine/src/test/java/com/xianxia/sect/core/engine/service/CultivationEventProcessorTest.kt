@@ -53,7 +53,6 @@ class CultivationEventProcessorTest {
         val state = MutableGameState(
             gameData = com.xianxia.sect.core.model.GameData(gameYear = 30),
             discipleTables = tables,
-            equipmentStacks = com.xianxia.sect.core.state.EntityStore(),
             equipmentInstances = com.xianxia.sect.core.state.EntityStore(),
             manualStacks = com.xianxia.sect.core.state.EntityStore(),
             manualInstances = com.xianxia.sect.core.state.EntityStore(),

@@ -17,6 +17,7 @@
 #include "gamecore/system/disciple_lifecycle_tx.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/economy.h"
+#include "gamecore/system/equipment_tx.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/exploration_tx.h"
 #include "gamecore/system/government.h"
@@ -176,14 +177,10 @@ nlohmann::json handleInventory(GameCore* core, int32_t actionId,
 
     switch (actionId) {
         case action::INV_ADD_EQUIPMENT_STACK: {
-            gamecore::state::EquipmentStack item;
-            item.id = params.value("id", "");
-            item.name = params.at("name").get<std::string>();
-            item.rarity = params.value("rarity", 1);
-            item.slot = params.value("slot", "WEAPON");
-            item.quantity = params.at("quantity").get<int32_t>();
-            const auto r = gamecore::system::addEquipmentStack(
-                state, item, mail, source, suppressed);
+            // B3 单轨实例：1010 号语义适配为「添加装备实例」（号保留，JSON 形状=实例）
+            gamecore::state::EquipmentInstance item =
+                params.get<gamecore::state::EquipmentInstance>();
+            const auto r = gamecore::system::addEquipmentInstance(state, item);
             data = invResult(r);
             break;
         }
@@ -1673,6 +1670,7 @@ nlohmann::json handleRoadTx(GameCore* core, int32_t actionId,
 nlohmann::json handleDiscipleTx(GameCore* core, int32_t actionId,
                                 const nlohmann::json& params) {
     namespace disciple_tx = gamecore::system::disciple_tx;
+    namespace equipment_tx = gamecore::system::equipment_tx;
     auto& state = core->state();
     switch (actionId) {
         case action::DISCIPLE_TX_EQUIP: {
@@ -1726,6 +1724,22 @@ nlohmann::json handleDiscipleTx(GameCore* core, int32_t actionId,
                 params.at("slotIndex").get<int32_t>());
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"unassigned", true}, {"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::EQUIP_UPGRADE: {
+            // B3 装备升级（方案 §3.6）：扣灵石/兽材 + 经验推进 + 强化节点，
+            // 强化抽取走 kEquipment 分区；失败信封 → Kotlin 回退臂
+            const auto r = equipment_tx::upgradeEquipmentTx(
+                state, core->rng().getRng(gamecore::rng::RngPartition::kEquipment),
+                params.at("equipmentId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"upgraded", true}, {"newLevel", r.newLevel}});
+        }
+        case action::EQUIP_DISMANTLE: {
+            // B3 装备分解（方案 §3.9）：返还 50% 累计消耗 + 袋条目清除防复活
+            const auto r = equipment_tx::dismantleEquipmentTx(
+                state, params.at("equipmentId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"dismantled", true}});
         }
         default:
             return fail("UNKNOWN_ACTION", "disciple tx action " + std::to_string(actionId));
@@ -2034,7 +2048,8 @@ nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
         case action::INV_BUY_MERCHANT_ITEM: {
             const auto r = inventory_tx::buyMerchantItemTx(
                 state, params.at("itemId").get<std::string>(),
-                params.at("quantity").get<int32_t>());
+                params.at("quantity").get<int32_t>(),
+                core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
             if (!r.ok) return fail(r.errorType, r.message);
             nlohmann::json drafts = nlohmann::json::array();
             for (const auto& d : r.overflowDrafts) {
@@ -2458,7 +2473,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
                    actionId == action::ROAD_REMOVE) {
             result = handleRoadTx(this, actionId, params);
         } else if (actionId >= action::DISCIPLE_TX_EQUIP &&
-                   actionId <= action::DISCIPLE_TX_UNASSIGN_SLOT) {
+                   actionId <= action::EQUIP_DISMANTLE) {
             result = handleDiscipleTx(this, actionId, params);
         } else if (actionId >= action::DIPLOMACY_TX &&
                    actionId <= action::VASSAL_TX) {

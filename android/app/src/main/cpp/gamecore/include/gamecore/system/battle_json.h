@@ -63,6 +63,7 @@ inline nlohmann::json combatantToJson(const Combatant& c) {
         {"physicalDamageReduction", c.physicalDamageReduction},
         {"magicDamageReduction", c.magicDamageReduction},
         {"speed", c.speed}, {"critRate", c.critRate},
+        {"critDamageBonus", c.critDamageBonus},
         {"realm", c.realm}, {"realmLayer", c.realmLayer}, {"element", c.element},
         {"isBeast", c.isBeast},
     };
@@ -143,6 +144,7 @@ inline Combatant combatantFromJson(const nlohmann::json& j) {    Combatant c;
     c.magicDamageReduction = j.value("magicDamageReduction", 0.0);
     c.speed = j.value("speed", 0);
     c.critRate = j.value("critRate", 0.05);
+    c.critDamageBonus = j.value("critDamageBonus", 0.0);
     if (j.contains("skills") && j["skills"].is_array()) {
         for (const auto& s : j.at("skills")) c.skills.push_back(skillFromJson(s));
     }

@@ -82,14 +82,12 @@ data class DiscipleAggregate(
     val currentHp: Int get() = combatStats?.currentHp ?: -1
     val currentMp: Int get() = combatStats?.currentMp ?: -1
     
+    val headId: String get() = equipment?.headId ?: ""
+    val bodyId: String get() = equipment?.bodyId ?: ""
+    val handsId: String get() = equipment?.handsId ?: ""
+    val feetId: String get() = equipment?.feetId ?: ""
     val weaponId: String get() = equipment?.weaponId ?: ""
-    val armorId: String get() = equipment?.armorId ?: ""
-    val bootsId: String get() = equipment?.bootsId ?: ""
-    val accessoryId: String get() = equipment?.accessoryId ?: ""
-    val weaponNurture: EquipmentNurtureData get() = equipment?.weaponNurture ?: EquipmentNurtureData("", 0)
-    val armorNurture: EquipmentNurtureData get() = equipment?.armorNurture ?: EquipmentNurtureData("", 0)
-    val bootsNurture: EquipmentNurtureData get() = equipment?.bootsNurture ?: EquipmentNurtureData("", 0)
-    val accessoryNurture: EquipmentNurtureData get() = equipment?.accessoryNurture ?: EquipmentNurtureData("", 0)
+    val legsId: String get() = equipment?.legsId ?: ""
     val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
@@ -267,16 +265,14 @@ data class DiscipleAggregate(
         hasClearAllEffect = hasClearAllEffect
     )
 
-    /** 装备构建 */
+    /** 装备构建（B3 六部位） */
     private fun toEquipmentSet(): EquipmentSet = EquipmentSet(
+        headId = headId,
+        bodyId = bodyId,
+        handsId = handsId,
+        feetId = feetId,
         weaponId = weaponId,
-        armorId = armorId,
-        bootsId = bootsId,
-        accessoryId = accessoryId,
-        weaponNurture = weaponNurture,
-        armorNurture = armorNurture,
-        bootsNurture = bootsNurture,
-        accessoryNurture = accessoryNurture,
+        legsId = legsId,
         storageBagItems = storageBagItems,
         storageBagSpiritStones = storageBagSpiritStones,
         spiritStones = spiritStones

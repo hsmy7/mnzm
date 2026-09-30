@@ -63,16 +63,21 @@ data class Combatant(
     val magicDamageReduction: Double = 0.0,
     val speed: Int,
     val critRate: Double,
+    /** 暴击伤害加成（B3 接线 D3：暴击时 `critMult = 1 + kCritBaseMultiplier + critDamageBonus`） */
+    val critDamageBonus: Double = 0.0,
     val skills: List<CombatSkill>,
     val buffs: List<CombatBuff> = emptyList(),
     val realm: Int = 9,
     val realmName: String = "",
     val realmLayer: Int = 0,
     val element: String = "",
+    // 六部位装备展示名（0.2-12：四具名字段六部位化；C++ 侧不入战斗状态，仅展示）
+    val headName: String? = null,
+    val bodyName: String? = null,
+    val handsName: String? = null,
+    val feetName: String? = null,
     val weaponName: String? = null,
-    val armorName: String? = null,
-    val bootsName: String? = null,
-    val accessoryName: String? = null,
+    val legsName: String? = null,
     val portraitRes: String = "",
     val isBeast: Boolean = false
 ) {

@@ -1,5 +1,10 @@
 package com.xianxia.sect.data.serialization.unified
 
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
@@ -15,12 +20,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * SaveDataReconciler 堆叠协调测试。
+ * SaveDataReconciler 堆叠协调测试（B3：堆叠重建仅剩功法，装备一行一实例）。
  *
  * 覆盖：
  * - 新格式（stacksSerialized = true）原样返回
- * - 旧格式从实例重建堆叠并置标记
- * - 序列化往返：堆叠字段真实写入 Protobuf
+ * - 旧格式从功法实例重建堆叠并置标记（装备堆叠重建已随 B3 删除）
+ * - 序列化往返：功法堆叠字段真实写入 Protobuf
  * - 旧格式反序列化（缺字段读默认）语义
  */
 class SaveDataReconcilerTest {
@@ -34,6 +39,20 @@ class SaveDataReconcilerTest {
         seeds = emptyList(),
             )
 
+    /** 新模型装备实例（占位空词条——reconciler 不消费词条） */
+    private fun instance(
+        name: String, part: EquipmentSlot, setId: String = "lietian",
+        ownerId: String? = null, isEquipped: Boolean = false
+    ) = EquipmentInstance(
+        name = name,
+        setId = setId,
+        part = part,
+        growth = EquipGrowth(affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))),
+        meta = EquipInstanceMeta(),
+        ownerId = ownerId,
+        isEquipped = isEquipped
+    )
+
     @Test
     fun `reconcileStacks - 新格式原样返回`() {
         val data = baseSaveData().copy(stacksSerialized = true)
@@ -43,14 +62,14 @@ class SaveDataReconcilerTest {
     }
 
     @Test
-    fun `reconcileStacks - 旧格式从游离实例重建并置标记`() {
+    fun `reconcileStacks - 旧格式无装备堆叠重建仅剩功法`() {
+        // B3：装备游离实例不再重建堆叠（一行一实例语义），只有功法重建
         val data = baseSaveData().copy(
             stacksSerialized = false,
             equipmentInstances = listOf(
-                EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON),
-                EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON),
-                EquipmentInstance(name = "玄铁甲", rarity = 2, slot = EquipmentSlot.ARMOR, ownerId = "d1",
-                    isEquipped = true)
+                instance("青锋剑", EquipmentSlot.WEAPON),
+                instance("青锋剑", EquipmentSlot.WEAPON),
+                instance("玄铁甲", EquipmentSlot.BODY, ownerId = "d1", isEquipped = true)
             ),
             manualInstances = listOf(
                 ManualInstance(name = "御剑诀", rarity = 3, type = ManualType.ATTACK)
@@ -58,18 +77,16 @@ class SaveDataReconcilerTest {
         )
         val result = SaveDataReconciler.reconcileStacks(data)
         assertTrue(result.stacksSerialized)
-        assertEquals(1, result.equipmentStacks.size)
-        assertEquals(2, result.equipmentStacks[0].quantity)  // 两个游离青锋剑聚合
+        assertTrue(result.equipmentStacks.isEmpty())
         assertEquals(1, result.manualStacks.size)
     }
 
     @Test
-    fun `reconcileStacks - 旧格式无游离实例返回空堆叠`() {
+    fun `reconcileStacks - 旧格式无游离功法实例返回空堆叠`() {
         val data = baseSaveData().copy(
             stacksSerialized = false,
             equipmentInstances = listOf(
-                EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, ownerId = "d1",
-                    isEquipped = true)
+                instance("青锋剑", EquipmentSlot.WEAPON, ownerId = "d1", isEquipped = true)
             )
         )
         val result = SaveDataReconciler.reconcileStacks(data)
@@ -78,15 +95,13 @@ class SaveDataReconcilerTest {
     }
 
     @Test
-    fun `序列化往返 - 堆叠字段真实写入 Protobuf 不再丢失`() {
-        // 守卫：equipmentStacks/manualStacks 必须真实序列化进 Protobuf——
-        // 此测试失败即说明字段又被排除出序列化
+    fun `序列化往返 - 功法堆叠字段真实写入 Protobuf 不再丢失`() {
+        // 守卫：manualStacks 必须真实序列化进 Protobuf——
+        // 此测试失败即说明字段又被排除出序列化。
+        // equipmentStacks（53 号）已随 B3 退役：deprecated 载体仅补偿面，
+        // 新档恒空——此处只验证功法堆叠往返。
         val original = baseSaveData().copy(
             stacksSerialized = true,
-            equipmentStacks = listOf(
-                com.xianxia.sect.core.model.EquipmentStack(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON,
-                    quantity = 5)
-            ),
             manualStacks = listOf(
                 com.xianxia.sect.core.model.ManualStack(name = "御剑诀", rarity = 3, type = ManualType.ATTACK,
                     quantity = 2)
@@ -96,9 +111,6 @@ class SaveDataReconcilerTest {
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
 
-        assertEquals(1, restored.equipmentStacks.size)
-        assertEquals("青锋剑", restored.equipmentStacks[0].name)
-        assertEquals(5, restored.equipmentStacks[0].quantity)
         assertEquals(1, restored.manualStacks.size)
         assertEquals(2, restored.manualStacks[0].quantity)
         // 显式编码 true 的往返——验证堆叠字段真实序列化

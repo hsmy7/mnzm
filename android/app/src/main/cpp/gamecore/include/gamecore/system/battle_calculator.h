@@ -241,6 +241,9 @@ struct Combatant {
     double magicDamageReduction = 0.0;
     int32_t speed = 0;
     double critRate = 0.05;
+    // 暴击伤害加成（B3 接线 D3：暴击时 critMult = 1 + 基础暴伤 + 本字段；
+    // 来源 = EquipStatResolver.critDamage（套装 4 件档等），默认 0.0 逐位一致）
+    double critDamageBonus = 0.0;
     std::vector<CombatSkill> skills;
     std::vector<CombatBuff> buffs;
     int32_t realm = 9;
@@ -435,7 +438,8 @@ inline DamageResult computeDamagePipeline(const Combatant& attacker,
     // 多段伤害：单段 × 段数（Long 防溢出；hits 篡改钳制 1）
     const int32_t safeHits = std::max(1, skill ? skill->hits : 1);
     const int64_t total = static_cast<int64_t>(calculateFinalDamage(
-        attack, defense, skillMultiplier, baseZones, isCrit, variance)) * safeHits;
+        attack, defense, skillMultiplier, baseZones, isCrit, variance,
+        attacker.critDamageBonus)) * safeHits;
     const int64_t clamped =
         std::clamp(total, static_cast<int64_t>(kMinDamage), static_cast<int64_t>(INT32_MAX));
 
@@ -513,7 +517,8 @@ inline DamageResult calculateDamage(rng::DeterministicRng& rng,
 
     const double variance = calculateDamageVariance(rng);
     const int32_t finalDamage = calculateFinalDamage(
-        attack, defense, skillDamageMultiplier, zonesWithRealmGap, isCrit, variance);
+        attack, defense, skillDamageMultiplier, zonesWithRealmGap, isCrit, variance,
+        attacker.critDamageBonus);
 
     DamageResult r;
     r.damage = finalDamage;
@@ -546,8 +551,9 @@ inline int32_t estimateDamage(const Combatant& attacker, const Combatant& defend
         (isPhysical ? baseZones.physicalDefenseBuffs : baseZones.magicDefenseBuffs);
     baseZones.damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0);
 
-    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤)
-    const double buffCritMult = 1.0 + kCritBaseMultiplier;
+    // 期望暴击：avgCritMult = (1-p) + p × (1+基础暴伤+暴伤加成)（B3 D3 同式）
+    const double buffCritMult =
+        1.0 + kCritBaseMultiplier + attacker.critDamageBonus;
     const double critRate = clamp(attacker.effectiveCritRate(), 0.0, 1.0);
     const double avgCritMult =
         (1.0 - critRate) * 1.0 + critRate * buffCritMult;

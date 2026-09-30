@@ -1,15 +1,11 @@
 package com.xianxia.sect.core.engine.system
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_HERB
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MATERIAL
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_SEED
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -18,15 +14,13 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import java.util.Locale
 
-/** 袋条目模板重建结果（6 类型分派） */
+/** 袋条目模板重建结果（分派；装备条目随 B3 不再重建——实例条目由物化器原样保留） */
 sealed interface ReconstructedBagStack {
-    data class Equipment(val stack: EquipmentStack) : ReconstructedBagStack
     data class Manual(val stack: ManualStack) : ReconstructedBagStack
     // 注意：data class 名与模型类同名，属性类型必须用全限定名（否则自引用解析为本类）
     data class Pill(val stack: com.xianxia.sect.core.model.Pill) : ReconstructedBagStack
@@ -38,9 +32,12 @@ sealed interface ReconstructedBagStack {
 /**
  * 袋条目 → 仓库堆叠重建（纯函数）。
  *
- * 堆叠类袋条目（equipment_stack/manual_stack/pill/material/
- * herb/seed）持有 name/rarity/quantity + [com.xianxia.sect.core.model.BagStackedData]
- * 元数据，但缺完整堆叠数据（stats/category 等）——重建时按 name 查数据库模板补齐。
+ * 堆叠类袋条目（manual_stack/pill/material/herb/seed）持有 name/rarity/quantity +
+ * [com.xianxia.sect.core.model.BagStackedData] 元数据，但缺完整堆叠数据
+ * （stats/category 等）——重建时按 name 查数据库模板补齐。
+ *
+ * 装备条目（equipment/equipment_stack）随 B3 退役堆叠语义，不再重建（返回 null）；
+ * 完整实例条目（equipment_instance）由物化器按 payload 原样保留，不走本重建器。
  *
  * 重建规则（模板优先）：
  * 1. minRealm 用条目 stackedData 保真（保留赏赐时的实际门槛）
@@ -52,33 +49,14 @@ object BagItemReconstructor {
 
     fun reconstruct(item: StorageBagItem): ReconstructedBagStack? {
         return when (item.itemType.lowercase(Locale.ROOT)) {
-            ITEM_TYPE_EQUIPMENT, ITEM_TYPE_EQUIPMENT_STACK -> reconstructEquipment(item)
             ITEM_TYPE_MANUAL, ITEM_TYPE_MANUAL_STACK -> reconstructManual(item)
             ITEM_TYPE_PILL -> reconstructPill(item)
             ITEM_TYPE_HERB -> reconstructHerb(item)
             ITEM_TYPE_SEED -> reconstructSeed(item)
             ITEM_TYPE_MATERIAL -> reconstructMaterial(item)
+            // 装备条目不重建（含 equipment/equipment_stack）：B3 起无堆叠语义
             else -> null
         }
-    }
-
-    private fun reconstructEquipment(item: StorageBagItem): ReconstructedBagStack? {
-        val template = EquipmentDatabase.getTemplateByName(item.name) ?: return null
-        val quantity = item.quantity.coerceAtLeast(1)
-        val stack = EquipmentStack(
-            name = template.name, slot = template.slot, rarity = template.rarity,
-            physicalAttack = template.physicalAttack, magicAttack = template.magicAttack,
-            physicalDefense = template.physicalDefense, magicDefense = template.magicDefense,
-            speed = template.speed, hp = template.hp, mp = template.mp,
-            description = template.description,
-            // minRealm 用条目 stackedData 保真；0（空 BagStackedData() 默认值）视为
-            // "未记录"回退 rarity 推导——写入方未记录 stackedData 时
-            // 0 非 null 不触发回退，重建后成为"最高境界门槛"装备
-            minRealm = item.stackedData?.minRealm?.takeIf { it > 0 }
-                ?: GameConfig.Realm.getMinRealmForRarity(template.rarity),
-            quantity = quantity
-        )
-        return ReconstructedBagStack.Equipment(stack)
     }
 
     private fun reconstructManual(item: StorageBagItem): ReconstructedBagStack? {

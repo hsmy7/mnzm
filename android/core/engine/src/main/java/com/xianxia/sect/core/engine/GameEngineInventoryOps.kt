@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -19,16 +18,6 @@ import kotlinx.serialization.json.put
 // AUTHORITATIVE 模式经 C++ handleInventory 执行（InventorySystem 全语义对拍），
 // 溢出邮件由 InventoryNativeForward 走 Kotlin 同一解析/投递通道补齐；
 // flag 关闭 / native 不可用 / 顶层失败 → 回退 Kotlin 原实现（双实现并行契约）。
-
-suspend fun GameEngine.addEquipmentStack(stack: EquipmentStack) {
-    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_EQUIPMENT_STACK) {
-        put("id", stack.id)
-        put("name", stack.name)
-        put("rarity", stack.rarity)
-        put("slot", stack.slot.name)
-        put("quantity", stack.quantity)
-    } ?: return inventoryFacade.addEquipmentStack(stack)
-}
 
 suspend fun GameEngine.removeEquipment(equipmentId: String): Boolean {
     val data = InventoryNativeForward.tryForward(this, ActionIds.INV_REMOVE_EQUIPMENT) {

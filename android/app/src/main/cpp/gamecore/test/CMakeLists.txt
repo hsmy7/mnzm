@@ -87,6 +87,13 @@ add_executable(game-core-tests
     disciple_store_bench_test.cpp
     disciple_tx_test.cpp
     equipment_db_test.cpp
+    # EQ-B3 装备体系四测试（升级/分解事务逐位 / 副词条池前缀和不放回 /
+    # 主词条部位池 / 套装 0..6 件档位；语义权威 = Kotlin EquipmentUpgradeService
+    # + EquipAffixPool + EquipMainStatPool + EquipStatResolver 逐位对齐）
+    equipment_tx_test.cpp
+    equip_affix_test.cpp
+    equip_main_stat_test.cpp
+    equip_set_bonus_test.cpp
     herb_db_test.cpp
     recipe_db_test.cpp
     beast_material_db_test.cpp

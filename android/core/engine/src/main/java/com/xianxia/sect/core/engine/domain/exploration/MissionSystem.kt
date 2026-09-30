@@ -47,7 +47,7 @@ object MissionSystem {
         val spiritStones: Int = 0,
         val materials: List<Material> = emptyList(),
         val pills: List<Pill> = emptyList(),
-        val equipmentStacks: List<com.xianxia.sect.core.model.EquipmentStack> = emptyList(),
+        val equipmentInstances: List<com.xianxia.sect.core.model.EquipmentInstance> = emptyList(),
         val manualStacks: List<com.xianxia.sect.core.model.ManualStack> = emptyList(),
         val battleResult: BattleSystemResult? = null,
         val combatTriggered: Boolean = false,
@@ -234,14 +234,14 @@ object MissionSystem {
         val spiritStones = rollSpiritStones(rewards, rng)
         val materials = generateMaterials(rewards, rng)
         val pills = generatePills(rewards, rng)
-        val equipmentStacks = generateEquipment(rewards, rng)
+        val equipmentInstances = generateEquipment(rewards, rng)
         val manualStacks = generateManuals(rewards, rng)
 
         return MissionResult(
             spiritStones = spiritStones,
             materials = materials,
             pills = pills,
-            equipmentStacks = equipmentStacks,
+            equipmentInstances = equipmentInstances,
             manualStacks = manualStacks,
             battleResult = battleResult,
             combatTriggered = true,
@@ -291,14 +291,14 @@ object MissionSystem {
         val spiritStones = rollSpiritStones(rewards, rng)
         val materials = generateMaterials(rewards, rng)
         val pills = generatePills(rewards, rng)
-        val equipmentStacks = generateEquipment(rewards, rng)
+        val equipmentInstances = generateEquipment(rewards, rng)
         val manualStacks = generateManuals(rewards, rng)
 
         return MissionResult(
             spiritStones = spiritStones,
             materials = materials,
             pills = pills,
-            equipmentStacks = equipmentStacks,
+            equipmentInstances = equipmentInstances,
             manualStacks = manualStacks,
             battleResult = battleResult,
             combatTriggered = true,

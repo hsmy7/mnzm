@@ -49,11 +49,12 @@ class SectWarehouseManager @Inject constructor(
     ): List<WarehouseItem> {
         val items = mutableListOf<WarehouseItem>()
 
-        rewards.equipmentStacks.forEach { stack ->
+        // 0.2-2 拍板：装备仓 itemId 改实例 id（B3 一行一实例，数量恒 1）
+        rewards.equipmentInstances.forEach { instance ->
             items.add(WarehouseItem(
-                itemId = "equipment_${stack.name}_${stack.rarity}",
-                itemName = stack.name, itemType = "equipment_stack",
-                rarity = stack.rarity, quantity = stack.quantity
+                itemId = instance.id,
+                itemName = instance.name, itemType = "equipment_instance",
+                rarity = instance.rarity, quantity = 1
             ))
         }
 

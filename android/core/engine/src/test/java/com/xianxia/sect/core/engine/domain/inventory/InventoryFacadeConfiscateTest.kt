@@ -1,14 +1,17 @@
 package com.xianxia.sect.core.engine.domain.inventory
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BagStackedData
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualType
@@ -30,11 +33,12 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 取回（没收）路径端到端测试（InventoryFacadeImpl.confiscateStorageBagItem）。
  *
- * 核心守卫：
- * - 实例条目（卸装/忘功法入袋，payload 持完整实例）取回时**保真物化回仓库堆叠**，
- *   不再经模板重建——修复"equipment_instance 不在重建分支 → 取回即丢物品"bug
- * - 仅 Success 才扣袋条目（C1 防复制）；仓库满（Failure）保留袋内物品待重试
- * - 堆叠类条目经模板重建，minRealm 用条目 stackedData 保真
+ * 核心守卫（B3 实例轨语义）：
+ * - 装备实例条目（卸装入袋，payload 持完整实例）取回时**保真物化回实例轨**
+ *   （equipmentInstances），等级/词条随实例保真
+ * - 仅 Success 才扣袋条目（C1 防复制）；Failure（如 id 重复）保留袋内物品待重试
+ * - 装备堆叠条目（equipment_stack）随 B3 堆叠轨退役**不再重建**——袋条目保留
+ * - 堆叠类非装备条目（manual 等）照旧经模板/堆叠合并
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -90,18 +94,21 @@ class InventoryFacadeConfiscateTest {
     }
 
     private fun eqInstance(id: String, name: String) = EquipmentInstance(
-        id = id, name = name, rarity = 1, slot = EquipmentSlot.WEAPON
+        id = id, name = name,
+        part = EquipmentSlot.WEAPON,
+        growth = EquipGrowth(
+            affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
+        ),
+        meta = EquipInstanceMeta(rarity = 1)
     )
 
     // ═══════════════════════════════════════════════════════════════
-    // 实例条目取回：保真物化回仓库堆叠
+    // 实例条目取回：保真物化回实例轨
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `instance item confiscated merges into stack and removes bag entry`() = runTest {
-        store.equipmentStacks.value = listOf(
-            EquipmentStack(id = "s1", name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 3)
-        )
+    fun `instance item confiscated materializes into instance track and removes bag entry`() = runTest {
+        store.equipmentInstances.value = listOf(eqInstance("s1", "裂天罡煞·战刃"))
         insertDiscipleWithBag(1, listOf(
             StorageBagItem(
                 itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
@@ -112,7 +119,7 @@ class InventoryFacadeConfiscateTest {
         facade.confiscateStorageBagItem("1",
             store.persistentDiscipleTables.storageBagItems[1].first())
 
-        assertEquals("堆叠合并 3→4", 4, store.equipmentStacks.value.first().quantity)
+        assertEquals("实例轨应有两件（原有 + 取回）", 2, store.equipmentInstances.value.size)
         assertEquals("袋条目移除", 0, store.persistentDiscipleTables.storageBagItems[1].size)
     }
 
@@ -138,20 +145,14 @@ class InventoryFacadeConfiscateTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // C1 防复制：仓库满保留袋内物品
+    // C1 防复制：Failure 保留袋内物品
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `instance item kept in bag when warehouse full - C1 no copy`() = runTest {
-        // 仓库填满（达到上限后无空槽）
-        val baseCapacity = GameConfig.Warehouse.BASE_CAPACITY
-        repeat(baseCapacity) { i ->
-            store.equipmentStacks.value = store.equipmentStacks.value +
-                EquipmentStack(
-                    id = "f$i", name = "独门武器$i", rarity = 1,
-                    slot = EquipmentSlot.WEAPON, quantity = 1
-                )
-        }
+    fun `instance item kept in bag when warehouse add fails - C1 no copy`() = runTest {
+        // 实例轨已有同 id 实例 → addEquipmentInstance Failure（DuplicateId）→
+        // 袋条目保留（仅 Success 才扣袋），且不得复制出第二件
+        store.equipmentInstances.value = listOf(eqInstance("i1", "精铁剑"))
         insertDiscipleWithBag(1, listOf(
             StorageBagItem(
                 itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
@@ -163,15 +164,15 @@ class InventoryFacadeConfiscateTest {
             store.persistentDiscipleTables.storageBagItems[1].first())
 
         assertEquals("袋条目保留（待重试）", 1, store.persistentDiscipleTables.storageBagItems[1].size)
-        assertEquals("无新堆叠（不复制）", baseCapacity, store.equipmentStacks.value.size)
+        assertEquals("实例轨不复制", 1, store.equipmentInstances.value.size)
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 堆叠条目取回：模板重建 + minRealm 保真
+    // 装备堆叠条目（B3 堆叠轨退役）：不再重建
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `stack item confiscated rebuilds via template and removes bag entry`() = runTest {
+    fun `equipment stack item no longer rebuilt and kept in bag`() = runTest {
         insertDiscipleWithBag(1, listOf(
             StorageBagItem(
                 itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 1,
@@ -182,25 +183,8 @@ class InventoryFacadeConfiscateTest {
         facade.confiscateStorageBagItem("1",
             store.persistentDiscipleTables.storageBagItems[1].first())
 
-        assertEquals("模板重建入仓", 1, store.equipmentStacks.value.size)
-        assertEquals("minRealm 保真", 7, store.equipmentStacks.value.first().minRealm)
-        assertEquals("袋条目移除", 0, store.persistentDiscipleTables.storageBagItems[1].size)
-    }
-
-    @Test
-    fun `stack item kept in bag when template missing`() = runTest {
-        insertDiscipleWithBag(1, listOf(
-            StorageBagItem(
-                itemId = "bag1", itemType = "equipment_stack", name = "不存在的装备", rarity = 1, quantity = 1,
-                stackedData = BagStackedData()
-            )
-        ))
-
-        facade.confiscateStorageBagItem("1",
-            store.persistentDiscipleTables.storageBagItems[1].first())
-
+        assertEquals("装备堆叠条目不再重建（B3 堆叠轨退役）", 0, store.equipmentInstances.value.size)
         assertEquals("袋条目保留", 1, store.persistentDiscipleTables.storageBagItems[1].size)
-        assertEquals("仓库无新增", 0, store.equipmentStacks.value.size)
     }
 
     @Test
@@ -213,7 +197,7 @@ class InventoryFacadeConfiscateTest {
         facade.confiscateStorageBagItem("999", item)
 
         assertEquals("其他弟子不受影响", 1, store.persistentDiscipleTables.storageBagItems[1].size)
-        assertTrue("仓库无变化", store.equipmentStacks.value.isEmpty())
+        assertTrue("实例轨无变化", store.equipmentInstances.value.isEmpty())
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -222,9 +206,6 @@ class InventoryFacadeConfiscateTest {
 
     @Test
     fun `double confiscate with stale snapshot does not duplicate`() = runTest {
-        store.equipmentStacks.value = listOf(
-            EquipmentStack(id = "s1", name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 3)
-        )
         insertDiscipleWithBag(1, listOf(
             StorageBagItem(
                 itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
@@ -237,7 +218,7 @@ class InventoryFacadeConfiscateTest {
         facade.confiscateStorageBagItem("1", staleItem)
         facade.confiscateStorageBagItem("1", staleItem)
 
-        assertEquals("只合并一次 3→4", 4, store.equipmentStacks.value.first().quantity)
+        assertEquals("只物化一次", 1, store.equipmentInstances.value.size)
         assertEquals("袋条目已清空", 0, store.persistentDiscipleTables.storageBagItems[1].size)
     }
 
@@ -256,7 +237,7 @@ class InventoryFacadeConfiscateTest {
         facade.confiscateStorageBagItem("1", item)
         facade.confiscateStorageBagItem("1", item)
 
-        assertEquals("实例仅物化一次（随机堆叠 id）", 1, store.equipmentStacks.value.size)
+        assertEquals("实例仅物化一次", 1, store.equipmentInstances.value.size)
         assertEquals("袋条目整条删除", 0, store.persistentDiscipleTables.storageBagItems[1].size)
     }
 
@@ -272,7 +253,7 @@ class InventoryFacadeConfiscateTest {
 
         facade.confiscateStorageBagItem("1", item)
 
-        assertEquals("0 数量不物化（不白得物品）", 0, store.equipmentStacks.value.size)
+        assertEquals("0 数量不物化（不白得物品）", 0, store.equipmentInstances.value.size)
         assertEquals("袋条目保留（待玩家处理）", 1, store.persistentDiscipleTables.storageBagItems[1].size)
     }
 }

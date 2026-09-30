@@ -4,7 +4,13 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.AutoBuyEntry
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillGrade
@@ -15,6 +21,7 @@ import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.serialization.json.Json
@@ -247,9 +254,11 @@ class DiffMonthSettlementTest {
     /**
      * 场景⑪：弟子智能购买——(1,1,上旬) 起 3 旬跨 1→2 月界，
      * 月结时子事件 12 触发。上架已知模板（精铁剑/聚气丹，模板路径确定性
-     * 回退散列选池）、仓库有货、弟子有灵石 → 决策 + 扣仓库 + 入袋 +
-     * 灵石（先袋后身）+ 宗门入账。SYSTEM 分区 shuffled（单元素洗牌零
-     * 消费——决策集各 1 名候选，规避 RNG 序列跨语言对拍风险）。
+     * 回退散列选池）、仓库有货（B3 实例轨：装备仓库 = 一行一实例）、
+     * 弟子有灵石 → 决策 + 扣仓库 + 入袋 + 灵石（先袋后身）+ 宗门入账。
+     * 装备购买全程零词条 roll（仓库实例整条迁入弟子储物袋，与 Kotlin
+     * appendEquipmentInstanceBagItem 同构）。SYSTEM 分区 shuffled（单元素
+     * 洗牌零消费——决策集各 1 名候选，规避 RNG 序列跨语言对拍风险）。
      */
     private fun buildPurchaseSnapshot(): NativeGameState {
         val gameData = GameData(
@@ -283,24 +292,29 @@ class DiffMonthSettlementTest {
             )
         }
         // 仓库库存 + 弟子（购买候选有灵石）
-        val equipmentStacks = purchaseEquipmentStacks()
-        val pills = purchasePills()
         val disciples = purchaseDisciples()
         return NativeGameState(
             gameData = gameData,
             aiSectDisciples = gameData.aiSectDisciples,
             disciples = disciples,
-            equipmentStacks = equipmentStacks,
-            pills = pills
+            equipmentInstances = purchaseEquipmentInstances(),
+            pills = purchasePills()
         )
     }
 
-    /** 购买场景仓库装备堆叠（精铁剑 ×1 未锁定） */
-    private fun purchaseEquipmentStacks(): List<EquipmentStack> = listOf(
-        EquipmentStack(
-            id = "wh-e1", name = "精铁剑", rarity = 1, quantity = 1,
-            slot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
-            minRealm = 9
+    /**
+     * 购买场景仓库装备实例（B3 实例轨：仓库装备 = 一行一实例，堆叠轨已退役）。
+     * 「精铁剑」非套装部件名 → 决策面 equipmentPartOf 回退 WEAPON，与实例
+     * part 语义一致；仓库存取门控只按 name+rarity+未锁定匹配。
+     */
+    private fun purchaseEquipmentInstances(): List<EquipmentInstance> = listOf(
+        EquipmentInstance(
+            id = "wh-e1", name = "精铁剑",
+            setId = "lietian", part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 18.0))
+            ),
+            meta = EquipInstanceMeta(rarity = 1, minRealm = 9)
         )
     )
 
@@ -429,10 +443,12 @@ class DiffMonthSettlementTest {
             DiffRngBridge.nativeCoreExportState().decodeToString()
         )
 
-        // 场景⑪ 显式断言：购买发生（仓库扣减 + 入袋 + 弟子灵石扣减 +
-        // 宗门灵石入账）——精铁剑 100 + 聚气丹 50 = 150 入宗门
+        // 场景⑪ 显式断言（B3 实例轨语义）：购买发生——仓库装备实例整条迁入
+        // 弟子储物袋 + 丹药扣减 + 弟子灵石扣减 + 宗门灵石入账
+        //（精铁剑 100 + 聚气丹 50 = 150 入宗门）
         assertEquals("购买后宗门灵石应为 150", 150L, actual.gameData.spiritStones)
-        assertEquals("精铁剑堆叠应被扣减", 0, actual.equipmentStacks.size)
+        assertEquals("精铁剑实例应迁入弟子储物袋（仓库清空）",
+            0, actual.equipmentInstances.size)
         assertEquals("聚气丹堆叠应被扣减", 0, actual.pills.size)
         val buyer = actual.disciples.first { d ->
             d.equipment.storageBagItems.isNotEmpty() ||
@@ -440,6 +456,15 @@ class DiffMonthSettlementTest {
                 d.equipment.storageBagSpiritStones < 600
         }
         assertTrue("至少一名弟子应购买入袋", buyer.equipment.storageBagItems.isNotEmpty())
+        assertTrue(
+            "装备购买应整条实例入袋（equipment_instance 载体保真）",
+            actual.disciples.any { d ->
+                d.equipment.storageBagItems.any { bagItem ->
+                    bagItem.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE &&
+                        bagItem.equipmentInstance?.id == "wh-e1"
+                }
+            }
+        )
 
         diffAssertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))

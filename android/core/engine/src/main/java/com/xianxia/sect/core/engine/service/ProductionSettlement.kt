@@ -60,9 +60,11 @@ internal fun GameStateStore.settleProductionCompletion(
         // 配方无效（数据损坏）时 recipeTier=0：低阶不充数规则下无法匹配任何最高阶，
         // 弟子仅回 IDLE 不结算晋升（`?: 1` 会把无效配方按凡品计数，
         // 无职业弟子白得晋升）
+        // B3：锻造配方不再分 tier（12 条部件配方按品阶产出）——锻造晋升判据改
+        // 「有产出即计」（低阶不充数规则下按凡品计，与旧 tier=1 同档）
         val recipeTier = slot.recipeId?.let { rid ->
             if (isAlchemy) PillRecipeDatabase.getRecipeById(rid)?.tier
-            else ForgeRecipeDatabase.getRecipeById(rid)?.tier
+            else ForgeRecipeDatabase.getRecipeById(rid)?.let { 1 }
         } ?: 0
         val currentList = discipleTables.assembleAll()
         if (currentList.isEmpty()) {

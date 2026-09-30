@@ -185,9 +185,9 @@ object AISectDiscipleManager {
      * AI 弟子战前准备结果。
      * 包含修改后的弟子副本（带装备/功法 ID）和对应的实例映射。
      *
-     * [equipmentMapByDisciple] 按弟子 id 索引各自装备实例（模板 id → 实例）——
-     * 两名弟子装备同模板不同孕养时不得共享全局 map
-     * （全局 map 以模板 id 为 key 会令后写者被跳过，孕养差异丢失）。
+     * [equipmentMapByDisciple] 按弟子 id 索引各自装备实例（槽位条目 id → 实例）——
+     * 两名弟子装备同条目时不得共享全局 map
+     * （全局 map 以条目 id 为 key 会令后写者被跳过，实例差异丢失）。
      */
     data class AIPreparedBattle(
         val disciples: List<Disciple>,
@@ -272,8 +272,9 @@ object AISectDiscipleManager {
     /**
      * 为 AI 弟子列表准备战斗数据（读取持久化的装备/功法字段）。
      *
-     * AI 弟子装备/功法已在生成与突破刷新时持久化（模板 id + 熟练度），
-     * 本函数仅按模板构建临时实例映射供战斗使用，不修改原弟子。
+     * AI 弟子装备/功法已在生成与突破刷新时持久化（装备存槽位条目 id、
+     * 功法存模板 id + 熟练度），
+     * 本函数仅按持久化字段构建临时实例映射供战斗使用，不修改原弟子。
      * 丹药不计入。
      *
      * @param disciples AI 弟子列表
@@ -315,7 +316,6 @@ object AISectDiscipleManager {
             repeat(batchMonths) {
                 working = settleMonthlyCultivation(working, sectLevel)
                 working = applyMonthlyProficiencyGain(working)
-                working = applyMonthlyNurtureGain(working)
             }
             working
         }

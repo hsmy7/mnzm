@@ -4,8 +4,6 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
@@ -74,16 +72,27 @@ class InventoryNativeTxGateTest {
         NativeEngineFlag.mode = NativeEngineFlag.Mode.AUTHORITATIVE
     }
 
-    /** 种子：玩家 1000 灵石 + 仓库 3 把精铁剑（可上架 2） */
+    /** 种子：玩家 1000 灵石 + 仓库 2 把精铁剑实例（r1 基价 4000，卖价 3200/件） */
     private fun seedWarehouse() {
-        store.equipmentStacks.value = listOf(
-            EquipmentStack(
-                id = "s1", name = "精铁剑", rarity = 1,
-                slot = EquipmentSlot.WEAPON, quantity = 3
-            )
+        store.equipmentInstances.value = listOf(
+            swordInstance("s1"), swordInstance("s2")
         )
         store.update { gameData = gameData.copy(spiritStones = 1000L) }
     }
+
+    /** B3 实例轨种子装备（散件：basePrice 走 GameConfig.Rarity 基价） */
+    private fun swordInstance(id: String, locked: Boolean = false) =
+        com.xianxia.sect.core.model.EquipmentInstance(
+            id = id, name = "精铁剑",
+            growth = com.xianxia.sect.core.model.EquipGrowth(
+                affix = com.xianxia.sect.core.model.EquipAffixSet(
+                    mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                        com.xianxia.sect.core.model.EquipStat.ATTACK, 5.0
+                    )
+                )
+            ),
+            meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 1, isLocked = locked)
+        )
 
     private fun seedAcquisition(price: Long = 500L) {
         store.update {
@@ -127,10 +136,10 @@ class InventoryNativeTxGateTest {
     fun `sellEquipment - AUTHORITATIVE 桥未加载走回退臂成功`() = runTest {
         seedWarehouse()
         assertTrue(facade.sellEquipment("s1", 2))
-        // 模板价 4000 × 2 × 0.8 = 6400；1000 + 6400
-        assertEquals(7400L, store.gameData.value.spiritStones)
-        assertEquals(1, store.equipmentStacks.value.size)
-        assertEquals(1, store.equipmentStacks.value[0].quantity)
+        // 模板价 4000 × 0.8 = 3200（B3 实例轨整件出售，quantity 仅协议占位）；1000 + 3200
+        assertEquals(4200L, store.gameData.value.spiritStones)
+        assertEquals("被售实例应移除", 1, store.equipmentInstances.value.size)
+        assertEquals("s2", store.equipmentInstances.value[0].id)
     }
 
     @Test
@@ -145,23 +154,24 @@ class InventoryNativeTxGateTest {
     @Test
     fun `sellEquipment - 守卫失败保持零写入`() = runTest {
         seedWarehouse()
-        assertFalse("数量超过持有", facade.sellEquipment("s1", 5))
+        store.equipmentInstances.value = listOf(swordInstance("s1"), swordInstance("lock", locked = true))
         assertFalse("不存在", facade.sellEquipment("missing", 1))
+        assertFalse("锁定实例拒售", facade.sellEquipment("lock", 1))
         assertEquals(1000L, store.gameData.value.spiritStones)
-        assertEquals(3, store.equipmentStacks.value[0].quantity)
+        assertEquals("仓库不变", 2, store.equipmentInstances.value.size)
     }
 
     @Test
     fun `bulkSellItems - 降级臂聚合入账一次`() = runTest {
         seedWarehouse()
         val result = facade.bulkSellItems(
-            listOf(InventoryFacade.BulkSellOperation("s1", "精铁剑", 2, "equipment"))
+            listOf(InventoryFacade.BulkSellOperation("s1", "精铁剑", 1, "equipment"))
         )
         assertEquals(1, result.soldCount)
-        assertEquals(6400L, result.totalEarned)
-        assertEquals(listOf("精铁剑 2"), result.soldItemNames)
+        assertEquals(3200L, result.totalEarned)
+        assertEquals(listOf("精铁剑 1"), result.soldItemNames)
         assertTrue(result.failedItemNames.isEmpty())
-        assertEquals(7400L, store.gameData.value.spiritStones)
+        assertEquals(4200L, store.gameData.value.spiritStones)
     }
 
     @Test
@@ -170,8 +180,7 @@ class InventoryNativeTxGateTest {
         seedAcquisition(price = 500L)
         facade.sellToMerchant("a1", 2)
         assertEquals(2000L, store.gameData.value.spiritStones)
-        assertEquals(1, store.equipmentStacks.value.size)
-        assertEquals(1, store.equipmentStacks.value[0].quantity)
+        assertEquals("两件实例均被收购移除", 0, store.equipmentInstances.value.size)
         assertEquals(3, store.gameData.value.merchantAcquisitionItems[0].quantity)
     }
 
@@ -181,7 +190,7 @@ class InventoryNativeTxGateTest {
         seedAcquisition(price = 0L)
         facade.sellToMerchant("a1", 1)
         assertEquals("灵石不变", 1000L, store.gameData.value.spiritStones)
-        assertEquals("仓库不变", 3, store.equipmentStacks.value[0].quantity)
+        assertEquals("仓库不变", 2, store.equipmentInstances.value.size)
     }
 
     @Test
@@ -189,8 +198,9 @@ class InventoryNativeTxGateTest {
         seedWarehouse()
         facade.listItemsToMerchant(listOf("s1" to 2))
         assertEquals(1, store.gameData.value.playerListedItems.size)
-        assertEquals(2, store.gameData.value.playerListedItems[0].quantity)
-        assertEquals("上架不扣仓库", 3, store.equipmentStacks.value[0].quantity)
+        // B3 实例轨：1 件 = 1 条目，quantity 仅协议占位（整件上架恒 1）
+        assertEquals(1, store.gameData.value.playerListedItems[0].quantity)
+        assertEquals("上架不扣仓库", 2, store.equipmentInstances.value.size)
     }
 
     @Test

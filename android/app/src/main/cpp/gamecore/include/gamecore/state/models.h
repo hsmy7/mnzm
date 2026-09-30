@@ -19,8 +19,8 @@
 //     productionSlots/elderSlots 等，协议外字段除外）
 //   - Disciple：标量 + 集合 + 嵌套段字段（combat/pillEffects/equipment/
 //     skills/usage 五个 Kotlin @Embedded 段在 C++ 侧平铺）
-//   - 物品类：EquipmentStack/Instance、ManualStack/Instance、Pill、
-//     Material、Herb、Seed、StorageBag 核心字段（字段扁平，与 Kotlin
+//   - 物品类：EquipmentInstance（B3 一行一实例）、ManualStack/Instance、
+//     Pill、Material、Herb、Seed、StorageBag 核心字段（字段扁平，与 Kotlin
 //     data class 顶层字段一致，不使用嵌套 base 结构）
 //
 // 枚举约定：Kotlin 枚举经 kotlinx JSON 序列化为 name 字符串（如
@@ -32,23 +32,34 @@ namespace gamecore::state {
 // ── 物品（字段扁平，对应 Kotlin data class 顶层字段；可空 String? 用
 // std::optional 保留 null 语义；嵌套如 Pill.effects(PillEffect) 留待后续子步） ─
 
-struct EquipmentStack {
-    std::string id;
-    int32_t slotId = 0;
-    std::string name;
+// ── 装备（B3 六部位：一行一实例、无堆叠、等级/词条随实例单点；旧
+// EquipmentStack 与 7 项面板属性模型整体退役） ─────────────
+
+/// 单条装备加成值（词条/套装共用；stat = EquipStat.name）
+struct EquipStatValue {
+    std::string stat;
+    double value = 0.0;
+};
+
+/// 词条面：1 主 + 3 副（互不重复）+ 各副词条强化次数
+struct EquipAffixSet {
+    EquipStatValue mainStat;
+    std::vector<EquipStatValue> subStats;
+    std::vector<int32_t> subRolls;
+};
+
+/// 成长面：等级 + 经验 + 词条（等级随实例单点，清偿 D2）
+struct EquipGrowth {
+    int32_t level = 1;
+    int32_t exp = 0;
+    EquipAffixSet affix;
+};
+
+/// 横切面：品阶/门槛/描述/锁
+struct EquipInstanceMeta {
     int32_t rarity = 1;
-    std::string description;
-    std::string slot = "WEAPON";          // EquipmentSlot.name
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
-    int32_t speed = 0;
-    int32_t hp = 0;
-    int32_t mp = 0;
-    double critChance = 0.0;
     int32_t minRealm = 9;
-    int32_t quantity = 1;
+    std::string description;
     bool isLocked = false;
 };
 
@@ -56,22 +67,16 @@ struct EquipmentInstance {
     std::string id;
     int32_t slotId = 0;
     std::string name;
-    int32_t rarity = 1;
-    std::string description;
-    std::string slot = "WEAPON";
-    int32_t physicalAttack = 0;
-    int32_t magicAttack = 0;
-    int32_t physicalDefense = 0;
-    int32_t magicDefense = 0;
-    int32_t speed = 0;
-    int32_t hp = 0;
-    int32_t mp = 0;
-    double critChance = 0.0;
-    int32_t nurtureLevel = 0;
-    double nurtureProgress = 0.0;
-    int32_t minRealm = 9;
+    std::string setId;                    // 套装 id（空 = 散件）
+    std::string part = "HEAD";            // 六部位 EquipmentSlot.name
+    EquipGrowth growth;
+    EquipInstanceMeta meta;
     std::optional<std::string> ownerId;   // String? → nullopt = null
     bool isEquipped = false;
+
+    int32_t level() const { return growth.level; }
+    int32_t rarity() const { return meta.rarity; }
+    int32_t minRealm() const { return meta.minRealm; }
 };
 
 // 功法公共字段（ManualStack 与 ManualInstance 共享；Kotlin 字段名一致）
@@ -118,14 +123,6 @@ struct ManualInstance : ManualBase {
 };
 
 // ── 储物袋条目体系（每旬结算需要） ────────────────
-
-/// EquipmentNurtureData（Kotlin EquipmentNurtureData，字段名一致）
-struct EquipmentNurtureData {
-    std::string equipmentId;
-    int32_t rarity = 0;
-    int32_t nurtureLevel = 0;
-    double nurtureProgress = 0.0;
-};
 
 /// BagStackedData（储物袋堆叠类物品的取回/物化重建补充数据）
 struct BagStackedData {
@@ -373,15 +370,13 @@ struct Disciple {
     std::vector<std::string> activePillTypes;   // 生效中丹药 pillType 集合
     std::string activePillCategory;             // 旧字段，仅旧存档兼容
 
-    // ── EquipmentSet（@Embedded 平铺） ──
-    std::string weaponId;
-    std::string armorId;
-    std::string bootsId;
-    std::string accessoryId;
-    EquipmentNurtureData weaponNurture;
-    EquipmentNurtureData armorNurture;
-    EquipmentNurtureData bootsNurture;
-    EquipmentNurtureData accessoryNurture;
+    // ── EquipmentSet（@Embedded 平铺；B3 六部位按显示序 头/身/手/脚/武/腿） ──
+    std::string headId;
+    std::string bodyId;
+    std::string handsId;
+    std::string feetId;
+    std::string weaponId;                 // 复用 Kotlin weaponId(17) 列
+    std::string legsId;
     std::vector<StorageBagItem> storageBagItems;
     int64_t storageBagSpiritStones = 0;
     int32_t spiritStones = 0;             // 弟子随身灵石
@@ -1041,10 +1036,11 @@ struct SecretRealmEventRecord {
     int32_t absoluteMonth = 0;
 };
 
-/// SecretRealmBackpack（探索背包——暂存探索所得，结束统一入宗门仓库）
+/// SecretRealmBackpack（探索背包——暂存探索所得，结束统一入宗门仓库；
+/// B3 装备为实例轨：探索所得装备即完整 EquipmentInstance）
 struct SecretRealmBackpack {
     int64_t spiritStones = 0;
-    std::vector<EquipmentStack> equipment;
+    std::vector<EquipmentInstance> equipment;
     std::vector<ManualStack> manuals;
     std::vector<Pill> pills;
     std::vector<Material> materials;
@@ -1407,7 +1403,6 @@ struct GameState {
     std::map<std::string, std::vector<std::string>> aiSectBeastDirectTargets;
     std::map<std::string, int32_t> aiSectBeastSkipCooldowns;
     std::vector<std::string> lockedBeastIds;
-    std::vector<EquipmentStack> equipmentStacks;
     std::vector<EquipmentInstance> equipmentInstances;
     std::vector<ManualStack> manualStacks;
     std::vector<ManualInstance> manualInstances;

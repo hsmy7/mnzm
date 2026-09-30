@@ -103,10 +103,8 @@ data class Disciple(
     var manualCompletionMonth: Int = 0,
     @ColumnInfo(defaultValue = "1")
     var manualCompletionPhase: Int = 1,
-    @ColumnInfo(defaultValue = "0")
-    var equipmentNurturingCompletionMonth: Int = 0,
-    @ColumnInfo(defaultValue = "1")
-    var equipmentNurturingCompletionPhase: Int = 1,
+    // reserved 98,99;（equipmentNurturingCompletionMonth/Phase 装备孕养完成月/旬，
+    // B3 装备体系替换批退役——孕养 checkpoint 随孕养体系整体删除（D4），禁复用）
 
     // ========== @Embedded 组件 ==========
     // 委托扩展属性见 DiscipleDelegates.kt + 本文件（monthlyUsedPillIds）
@@ -478,6 +476,7 @@ data class RewardSelectedItem(
 )
 
 @Keep
+@Deprecated("装备孕养已随 B3 升级体系退役（等级随 EquipmentInstance.growth 单点）；保留声明仅供旧档 DiscipleSurrogate 反序列化，禁参与任何新逻辑")
 @Serializable
 data class EquipmentNurtureData(
     @ProtoNumber(1) val equipmentId: String,

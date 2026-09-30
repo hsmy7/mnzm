@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.SkillStats
@@ -29,7 +28,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -480,6 +478,13 @@ class ProductionProcessorHarvestTest : ProductionProcessorTestBase() {
     // （RNG 用真实 GameRngManager + 固定种子：
     //  successRate=1.0 必然成功（nextDouble∈[0,1) ≤ 1.0），0.0 必然失败）
     // ═══════════════════════════════════════════════════════════════
+    /** B3 实例轨：锻造产出用真实 InventorySystem（EquipmentFactory + addEquipmentInstance） */
+    private fun realInventory(store: FakeAtomicStateStore): InventorySystem = InventorySystem(
+        stateStore = store,
+        inventoryConfig = com.xianxia.sect.core.config.InventoryConfig(),
+        overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+    )
+
     private fun newCompletionProcessor(
         store: FakeAtomicStateStore,
         repo: ProductionSlotRepository,
@@ -545,17 +550,11 @@ class ProductionProcessorHarvestTest : ProductionProcessorTestBase() {
     @Test
     fun `completeForgeSlot - 满成功率成功产出装备并晋升一级`() = runTest {
         val store = newStoreWithDisciple()
-        val inv = mock<InventorySystem>()
-        val equipment = EquipmentStack(name = "精铁剑", rarity = 1)
-        whenever(inv.createEquipmentFromRecipe(any())).thenReturn(equipment)
-        whenever(inv.addEquipmentStack(any())).thenReturn(DomainResult.Success(equipment))
-        // mock 的 withTrackingSource 默认不执行块内 lambda 且返回 null → 需 stub 透传执行
-        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
-            @Suppress("UNCHECKED_CAST")
-            (invocation.getArgument(1) as () -> Any)()
-        }
+        // B3 实例轨：产出经 EquipmentFactory + addEquipmentInstance——用真实 InventorySystem
+        val inv = realInventory(store)
+        val recipe = com.xianxia.sect.core.registry.ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        repo.loadSlots(listOf(forgeCompletedSlot()))
+        repo.loadSlots(listOf(forgeCompletedSlot(recipeId = recipe.id)))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -564,15 +563,16 @@ class ProductionProcessorHarvestTest : ProductionProcessorTestBase() {
         assertEquals("成功锻造一次应晋升一级", 1, disciple.skills.forgeLevel)
         assertEquals("晋升后计数清零", 0, disciple.skills.forgePromotionCount)
         assertEquals("弟子应回到空闲", DiscipleStatus.IDLE, disciple.status)
-        verify(inv).addEquipmentStack(any())
+        assertEquals("装备实例应入库", 1, store.equipmentInstances.value.size)
         assertEquals("计数器照常+1", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
     }
     @Test
     fun `completeForgeSlot - 零成功率失败不产出不晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple()
-        val inv = mock<InventorySystem>()
+        val inv = realInventory(store)
+        val recipe = com.xianxia.sect.core.registry.ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        repo.loadSlots(listOf(forgeCompletedSlot(successRate = 0.0)))
+        repo.loadSlots(listOf(forgeCompletedSlot(recipeId = recipe.id, successRate = 0.0)))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -581,23 +581,16 @@ class ProductionProcessorHarvestTest : ProductionProcessorTestBase() {
         assertEquals("失败不应晋升", 0, disciple.skills.forgeLevel)
         assertEquals("失败不累计晋升次数", 0, disciple.skills.forgePromotionCount)
         assertEquals("弟子仍回空闲", DiscipleStatus.IDLE, disciple.status)
-        verify(inv, never()).addEquipmentStack(any())
+        assertEquals("失败不产出实例", 0, store.equipmentInstances.value.size)
         assertEquals("失败也计入完成次数", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
     }
     @Test
     fun `completeForgeSlot - 炼制中死亡弟子不结算晋升`() = runTest {
         val store = newStoreWithDisciple(isAlive = 0)
-        val inv = mock<InventorySystem>()
-        whenever(inv.createEquipmentFromRecipe(any()))
-            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
-        whenever(inv.addEquipmentStack(any()))
-            .thenReturn(DomainResult.Success(EquipmentStack(name = "精铁剑", rarity = 1)))
-        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
-            @Suppress("UNCHECKED_CAST")
-            (invocation.getArgument(1) as () -> Any)()
-        }
+        val inv = realInventory(store)
+        val recipe = com.xianxia.sect.core.registry.ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
-        repo.loadSlots(listOf(forgeCompletedSlot()))
+        repo.loadSlots(listOf(forgeCompletedSlot(recipeId = recipe.id)))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)

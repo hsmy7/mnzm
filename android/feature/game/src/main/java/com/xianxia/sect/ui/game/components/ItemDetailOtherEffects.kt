@@ -9,13 +9,13 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.getRarityName
 
 
 
@@ -31,10 +31,7 @@ internal fun getMaterialEffects(item: Material): List<String> = buildList {
     val templateId = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.id ?: item.id
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {
@@ -145,21 +142,15 @@ private fun MutableList<String>.addMerchantItemHeader(item: MerchantItem) {
     add("")
 }
 
-/** 商人物品装备信息 */
+/** 商人物品装备信息（B3 实例轨：模板面板已退役，展示条目部位/品阶/描述） */
 private fun MutableList<String>.addMerchantEquipmentInfo(item: MerchantItem) {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        add("部位: ${template.slot.displayName}")
-        add("属性:")
-        if (template.physicalAttack > 0) add("  物理攻击 +${template.physicalAttack}")
-        if (template.magicAttack > 0) add("  法术攻击 +${template.magicAttack}")
-        if (template.physicalDefense > 0) add("  物理防御 +${template.physicalDefense}")
-        if (template.magicDefense > 0) add("  法术防御 +${template.magicDefense}")
-        if (template.hp > 0) add("  生命 +${template.hp}")
-        if (template.mp > 0) add("  灵力 +${template.mp}")
-        if (template.speed > 0) add("  速度 +${template.speed}")
-        if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
-        addForgeMaterialsInfo(item.name)
+    val entry = findEquipmentEntry(id = item.itemId, name = item.name)
+    if (entry != null) {
+        add("部位: ${entry.part.displayName}")
+        add("品阶: ${getRarityName(entry.rarity)}")
+        if (entry.description.isNotBlank()) {
+            add("  ${entry.description}")
+        }
     }
 }
 
@@ -298,10 +289,7 @@ private fun MutableList<String>.addMerchantMaterialInfo(item: MerchantItem) {
     val templateId = materialData?.id ?: item.itemId
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {
@@ -430,22 +418,20 @@ private fun MutableList<String>.addStorageBagItemHeader(item: StorageBagItem) {
     add("")
 }
 
-/** 储物袋物品装备信息 */
-@Suppress("CyclomaticComplexMethod")
+/** 储物袋物品装备信息（已物化条目直接展示实例词条；未物化旧条目回退条目面） */
 private fun MutableList<String>.addStorageBagEquipmentInfo(item: StorageBagItem) {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        add("部位: ${template.slot.displayName}")
-        add("属性:")
-        if (template.physicalAttack > 0) add("  物理攻击 +${template.physicalAttack}")
-        if (template.magicAttack > 0) add("  法术攻击 +${template.magicAttack}")
-        if (template.physicalDefense > 0) add("  物理防御 +${template.physicalDefense}")
-        if (template.magicDefense > 0) add("  法术防御 +${template.magicDefense}")
-        if (template.hp > 0) add("  生命 +${template.hp}")
-        if (template.mp > 0) add("  灵力 +${template.mp}")
-        if (template.speed > 0) add("  速度 +${template.speed}")
-        if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
-        addForgeMaterialsInfo(item.name)
+    val instance = item.equipmentInstance
+    if (instance != null) {
+        addAll(getEquipmentEffects(instance))
+        return
+    }
+    val entry = findEquipmentEntry(id = item.itemId, name = item.name)
+    if (entry != null) {
+        add("部位: ${entry.part.displayName}")
+        add("品阶: ${getRarityName(entry.rarity)}")
+        if (entry.description.isNotBlank()) {
+            add("  ${entry.description}")
+        }
     } else {
         item.effect?.let { effect ->
             add("属性:")
@@ -610,10 +596,7 @@ private fun MutableList<String>.addStorageBagMaterialInfo(item: StorageBagItem) 
     val templateId = materialData?.id ?: item.itemId
     val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(templateId)
     if (forgeRecipes.isNotEmpty()) {
-        val recipesText = forgeRecipes.take(5).map { recipe ->
-            val count = recipe.materials[templateId] ?: 1
-            "${recipe.name}×$count"
-        }.joinToString("、")
+        val recipesText = forgeRecipes.take(5).joinToString("、") { it.name }
         add("")
         add("可用于锻造：$recipesText")
         if (forgeRecipes.size > 5) {

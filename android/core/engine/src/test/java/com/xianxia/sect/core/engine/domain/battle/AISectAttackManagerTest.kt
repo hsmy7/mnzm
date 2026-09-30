@@ -7,6 +7,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -401,6 +406,7 @@ class AISectAttackManagerTest {
         )
     }
 
+    @Suppress("LongMethod") // 装备/功法实例装配→参战→战局断言逐段平铺，拆分遮蔽实例语义链路完整性
     @Test
     fun `executeSectBattleWithCombatantAttackers - 玩家Combatant实例装备功法真实生效并战胜低境界AI`() {
         // 玩家高境界弟子（realm=3 元婴）：装备/功法字段为实例 id（玩家侧存储语义）
@@ -409,17 +415,30 @@ class AISectAttackManagerTest {
             manualIds = listOf("inst-manual-uuid-1"),
             equipment = EquipmentSet(
                 weaponId = "inst-weapon-uuid-1",
-                armorId = "inst-armor-uuid-1"
+                bodyId = "inst-armor-uuid-1"
             )
         )
         // 玩家实例表：装备/功法（scoutSect / PlayerDefenseProcessor 同款实例语义）
         val weapon = EquipmentInstance(
-            id = "inst-weapon-uuid-1", name = "斩龙剑", slot = EquipmentSlot.WEAPON,
-            physicalAttack = 5000, minRealm = 3
+            id = "inst-weapon-uuid-1", name = "斩龙剑",
+            part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(
+                    mainStat = EquipStatValue(EquipStat.ATTACK, 5000.0)
+                )
+            ),
+            meta = EquipInstanceMeta(rarity = 1, minRealm = 3)
         )
         val armor = EquipmentInstance(
-            id = "inst-armor-uuid-1", name = "玄龟甲", slot = EquipmentSlot.ARMOR,
-            physicalDefense = 4000, hp = 20000, minRealm = 3
+            id = "inst-armor-uuid-1", name = "玄龟甲",
+            part = EquipmentSlot.BODY,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(
+                    mainStat = EquipStatValue(EquipStat.DEFENSE, 4000.0),
+                    subStats = listOf(EquipStatValue(EquipStat.HP, 20000.0))
+                )
+            ),
+            meta = EquipInstanceMeta(rarity = 1, minRealm = 3)
         )
         val manual = ManualInstance(
             id = "inst-manual-uuid-1", name = "破军剑诀", rarity = 4, type = ManualType.ATTACK,

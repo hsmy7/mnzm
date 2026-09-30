@@ -106,7 +106,7 @@ enum class RowKind : uint8_t {
     kStringList,
     kStringIntMap,
     kStringStringMap,
-    kNurture,     ///< EquipmentNurtureDataView 子消息
+    kNurture,     ///< （B3 退役：四 nurture 视图列已删；枚举位保留防序漂移，无消费者）
     kTypedRows,   ///< TypedRow 行列表（storageBagItems：B18-P1-A2 typed 化）
 };
 
@@ -142,8 +142,6 @@ constexpr RowField kDiscipleRowFields[] = {
     {"cultivationCompletionMonth", 27, RowKind::kInt32},
     {"manualCompletionMonth", 29, RowKind::kInt32},
     {"manualCompletionPhase", 30, RowKind::kInt32},
-    {"equipmentNurturingCompletionMonth", 31, RowKind::kInt32},
-    {"equipmentNurturingCompletionPhase", 32, RowKind::kInt32},
     {"baseHp", 33, RowKind::kInt32},
     {"baseMp", 34, RowKind::kInt32},
     // 单列口径（B1）：35-38/42-45 退役（proto reserved），新单列 113-117
@@ -175,14 +173,14 @@ constexpr RowField kDiscipleRowFields[] = {
     {"pillEffectDuration", 64, RowKind::kInt32},
     {"activePillTypes", 65, RowKind::kStringList},
     {"activePillCategory", 66, RowKind::kString},
-    {"weaponId", 67, RowKind::kString},
-    {"armorId", 68, RowKind::kString},
-    {"bootsId", 69, RowKind::kString},
-    {"accessoryId", 70, RowKind::kString},
-    {"weaponNurture", 71, RowKind::kNurture},
-    {"armorNurture", 72, RowKind::kNurture},
-    {"bootsNurture", 73, RowKind::kNurture},
-    {"accessoryNurture", 74, RowKind::kNurture},
+    // B3 六部位（67-70 头/身/手/脚；weaponId 新 122、legsId 123）；
+    // 71..74（旧 armorId/bootsId/accessoryId + 四 nurture 视图）退役禁复用
+    {"headId", 67, RowKind::kString},
+    {"bodyId", 68, RowKind::kString},
+    {"handsId", 69, RowKind::kString},
+    {"feetId", 70, RowKind::kString},
+    {"weaponId", 122, RowKind::kString},
+    {"legsId", 123, RowKind::kString},
     {"storageBagItems", 110, RowKind::kTypedRows},
     {"storageBagSpiritStones", 76, RowKind::kInt64},
     {"spiritStones", 77, RowKind::kInt32},

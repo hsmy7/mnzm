@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -22,7 +21,6 @@ import com.xianxia.sect.core.model.StorageBag
 data class UnifiedGameState(
     val gameData: GameData = GameData(),
     val disciples: List<Disciple> = emptyList(),
-    val equipmentStacks: List<EquipmentStack> = emptyList(),
     val equipmentInstances: List<EquipmentInstance> = emptyList(),
     val manualStacks: List<ManualStack> = emptyList(),
     val manualInstances: List<ManualInstance> = emptyList(),

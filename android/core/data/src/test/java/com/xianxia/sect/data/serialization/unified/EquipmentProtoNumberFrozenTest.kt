@@ -118,8 +118,12 @@ class EquipmentProtoNumberFrozenTest {
     @Test
     fun `existing reserved proto numbers stay unclaimed`() {
         val claimed = protoNumbers(surrogate).values.toSet()
-        // 47 = pillNurtureSpeedBonus（EQ-B2 孕养丹退役批退役）
-        val reserved = listOf(7, 8, 11, 12, 13, 14, 15, 16, 22, 29, 47, 50, 76, 88, 93, 95, 102, 104, 105, 110)
+        // 47 = pillNurtureSpeedBonus（EQ-B2 孕养丹退役批退役）；
+        // 98/99 = equipmentNurturingCompletionMonth/Phase（B3 孕养 checkpoint 退役，属性已删）
+        val reserved = listOf(
+            7, 8, 11, 12, 13, 14, 15, 16, 22, 29, 47, 50, 76, 88, 93, 95, 102, 104, 105, 110,
+            98, 99
+        )
         val reused = reserved.filter { it in claimed }
         assertTrue(
             "存量退役号 $reused 被 @ProtoNumber 重新占用（reserved 禁复用——旧档字节会按新语义解码）。\n" +
@@ -130,6 +134,9 @@ class EquipmentProtoNumberFrozenTest {
 
     @Test
     fun `planned retirement numbers stay pointed at legacy properties`() {
+        // B3 已落地：18/19/20/24..27（旧四槽 + 四 nurture）随 B3 退役但保留
+        // @Deprecated 声明供旧档反序列化（HANDOVER-B3 §二 写面 B），仍在册指向；
+        // 98/99（孕养 checkpoint 两列）已随 B3 **整属性删除** → 移入 reserved 禁复用面。
         val numbers = protoNumbers(surrogate)
         val legacy = mapOf(
             "armorId" to 18,
@@ -138,9 +145,7 @@ class EquipmentProtoNumberFrozenTest {
             "weaponNurture" to 24,
             "armorNurture" to 25,
             "bootsNurture" to 26,
-            "accessoryNurture" to 27,
-            "equipmentNurturingCompletionMonth" to 98,
-            "equipmentNurturingCompletionPhase" to 99
+            "accessoryNurture" to 27
         )
         val drifted = legacy.mapNotNull { (name, number) ->
             if (numbers[name] != number) "$name 期望 $number 实际 ${numbers[name]}" else null
@@ -168,11 +173,11 @@ class EquipmentProtoNumberFrozenTest {
     }
 
     @Test
-    fun `b3 section stays unwired in write path`() {
-        // B0 的字节流级断言在 B1 后失效：118/119（baseAttack/baseDefense 缺省 24/18 非
-        // 零）由 kotlinx protobuf 合法写出，全流 varint 分帧不再「只有 4 个顶层字段」。
-        // B1 起改守**写入面源码**：buildSurrogate（唯一写入口）不得引用 112..116
-        // 占号字段（接线属 B3）；117、118..123 为合法接线引用。
+    fun `b3 section is wired in write path`() {
+        // B3 装备体系替换批（EQ-B3）接线后语义翻转：112..116 六部位列**必须**在
+        // buildSurrogate（唯一写入口）写入路径被引用；退役段 18/19/20/24..27
+        // （armorId/bootsId/accessoryId/四 nurture）**禁**再出现在写入路径；
+        // 117（innateDamageType）维持 B1 接线断言。
         val serializerFile = generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
             .map { File(it, "core/domain/src/main/java/com/xianxia/sect/core/model/" +
                 "DiscipleSerializer.kt") }
@@ -182,14 +187,23 @@ class EquipmentProtoNumberFrozenTest {
         val writeSegment = source.substringAfter("private fun buildSurrogate")
             .substringBefore("override fun deserialize")
         val b3Fields = listOf("headId", "bodyId", "handsId", "feetId", "legsId")
-        val wired = b3Fields.filter { field ->
-            Regex("^[^\n]*[=(,]\\s*$field\\b", RegexOption.MULTILINE)
-                .containsMatchIn(writeSegment)
+        val missing = b3Fields.filter { field ->
+            !Regex("^[^\\n]*[=(,]\\s*$field\\b", RegexOption.MULTILINE).containsMatchIn(writeSegment)
         }
         assertTrue(
-            "B3 六部位占号字段 $wired 在 buildSurrogate 写入路径被引用（接线属 B3，本批禁写）。\n" +
-                "排查：withEquipmentUsageFields/withCombatPillFields 是否误搬运 112..116。",
-            wired.isEmpty()
+            "B3 六部位列 $missing 未在 buildSurrogate 写入路径接线（EQ-B3 必写）。\n" +
+                "排查：withEquipmentUsageFields 是否漏搬运 112..116。",
+            missing.isEmpty()
+        )
+        val retired = listOf("armorId", "bootsId", "accessoryId",
+            "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture")
+        val stillWritten = retired.filter { field ->
+            Regex("value\\.$field\\b").containsMatchIn(writeSegment)
+        }
+        assertTrue(
+            "退役装备字段 $stillWritten 仍在 buildSurrogate 写入路径（B3 已退役，禁写）。\n" +
+                "排查：withEquipmentUsageFields 是否残留旧四槽/nurture 搬运。",
+            stillWritten.isEmpty()
         )
         // 117（innateDamageType）必须已接线（B1 契约，写面反向断言）
         assertTrue(

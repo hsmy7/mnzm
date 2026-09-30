@@ -3,7 +3,6 @@ package com.xianxia.sect.core.gameview
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
@@ -11,7 +10,6 @@ import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.proto.gameview.DiscipleRow
-import com.xianxia.sect.proto.gameview.EquipmentNurtureDataView
 import com.xianxia.sect.proto.gameview.StringIntEntry
 import com.xianxia.sect.proto.gameview.StringStringEntry
 import com.xianxia.sect.proto.gameview.TypedField
@@ -90,8 +88,6 @@ internal object GameViewDiscipleRows {
         "cultivationCompletionMonth" to DiscipleRow::hasCultivationCompletionMonth,
         "manualCompletionMonth" to DiscipleRow::hasManualCompletionMonth,
         "manualCompletionPhase" to DiscipleRow::hasManualCompletionPhase,
-        "equipmentNurturingCompletionMonth" to DiscipleRow::hasEquipmentNurturingCompletionMonth,
-        "equipmentNurturingCompletionPhase" to DiscipleRow::hasEquipmentNurturingCompletionPhase,
         "baseHp" to DiscipleRow::hasBaseHp,
         "baseMp" to DiscipleRow::hasBaseMp,
         "baseAttack" to DiscipleRow::hasBaseAttack,
@@ -119,10 +115,12 @@ internal object GameViewDiscipleRows {
         "pillSkillExpSpeedBonus" to DiscipleRow::hasPillSkillExpSpeedBonus,
         "pillEffectDuration" to DiscipleRow::hasPillEffectDuration,
         "activePillCategory" to DiscipleRow::hasActivePillCategory,
+        "headId" to DiscipleRow::hasHeadId,
+        "bodyId" to DiscipleRow::hasBodyId,
+        "handsId" to DiscipleRow::hasHandsId,
+        "feetId" to DiscipleRow::hasFeetId,
         "weaponId" to DiscipleRow::hasWeaponId,
-        "armorId" to DiscipleRow::hasArmorId,
-        "bootsId" to DiscipleRow::hasBootsId,
-        "accessoryId" to DiscipleRow::hasAccessoryId,
+        "legsId" to DiscipleRow::hasLegsId,
         "storageBagSpiritStones" to DiscipleRow::hasStorageBagSpiritStones,
         "spiritStones" to DiscipleRow::hasSpiritStones,
         "intelligence" to DiscipleRow::hasIntelligence,
@@ -186,8 +184,6 @@ internal object GameViewDiscipleRows {
             cultivationCompletionMonth = row.cultivationCompletionMonth,
             manualCompletionMonth = row.manualCompletionMonth,
             manualCompletionPhase = row.manualCompletionPhase,
-            equipmentNurturingCompletionMonth = row.equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = row.equipmentNurturingCompletionPhase
         )
         return withEmbeddedSegments(disciple, row, json)
     }
@@ -237,14 +233,12 @@ internal object GameViewDiscipleRows {
         )
 
     private fun equipmentOf(row: DiscipleRow, json: Json) = EquipmentSet(
+                headId = row.headId,
+                bodyId = row.bodyId,
+                handsId = row.handsId,
+                feetId = row.feetId,
                 weaponId = row.weaponId,
-                armorId = row.armorId,
-                bootsId = row.bootsId,
-                accessoryId = row.accessoryId,
-                weaponNurture = row.weaponNurture.toNurture(),
-                armorNurture = row.armorNurture.toNurture(),
-                bootsNurture = row.bootsNurture.toNurture(),
-                accessoryNurture = row.accessoryNurture.toNurture(),
+                legsId = row.legsId,
                 storageBagItems = row.storageBagItems(bagItemSerializer, json),
                 storageBagSpiritStones = row.storageBagSpiritStones,
                 spiritStones = row.spiritStones
@@ -280,13 +274,6 @@ internal object GameViewDiscipleRows {
     private fun safeStatus(name: String): DiscipleStatus =
         runCatching { DiscipleStatus.valueOf(name.trim()) }.getOrDefault(DiscipleStatus.IDLE)
 
-    /** 孕养段：嵌套消息 absent = 空孕养（与 JSON 臂"键缺失取域默认"同语义） */
-    private fun EquipmentNurtureDataView.toNurture(): EquipmentNurtureData = EquipmentNurtureData(
-        equipmentId = if (hasEquipmentId()) equipmentId else "",
-        rarity = if (hasRarity()) rarity else 0,
-        nurtureLevel = if (hasNurtureLevel()) nurtureLevel else 0,
-        nurtureProgress = if (hasNurtureProgress()) nurtureProgress else 0.0
-    )
 
     /**
      * 储物袋条目（B18-P1-A2）：`storageBagItemsTyped` 优先（typed 行重建
@@ -373,12 +360,6 @@ internal object GameViewDiscipleRows {
         RepeatedClearer("manualMasteries", { it.manualMasteriesCount > 0 }) { it.clearManualMasteries() },
         RepeatedClearer("statusData", { it.statusDataCount > 0 }) { it.clearStatusData() },
         RepeatedClearer("activePillTypes", { it.activePillTypesCount > 0 }) { it.clearActivePillTypes() },
-        RepeatedClearer("weaponNurture", { it.hasWeaponNurture() }) { it.clearWeaponNurture() },
-        RepeatedClearer("armorNurture", { it.hasArmorNurture() }) { it.clearArmorNurture() },
-        RepeatedClearer("bootsNurture", { it.hasBootsNurture() }) { it.clearBootsNurture() },
-        RepeatedClearer("accessoryNurture", { it.hasAccessoryNurture() }) {
-            it.clearAccessoryNurture()
-        },
         RepeatedClearer("usedPermanentPillKeys", { it.usedPermanentPillKeysCount > 0 }) {
             it.clearUsedPermanentPillKeys()
         },
@@ -484,12 +465,6 @@ internal object GameViewDiscipleRows {
         }
         if (row.hasManualCompletionMonth()) manualCompletionMonths[id] = row.manualCompletionMonth
         if (row.hasManualCompletionPhase()) manualCompletionPhases[id] = row.manualCompletionPhase
-        if (row.hasEquipmentNurturingCompletionMonth()) {
-            equipmentNurturingCompletionMonths[id] = row.equipmentNurturingCompletionMonth
-        }
-        if (row.hasEquipmentNurturingCompletionPhase()) {
-            equipmentNurturingCompletionPhases[id] = row.equipmentNurturingCompletionPhase
-        }
     }
 
     /** 战斗段 presence 列直写（映射表 = [combatOf] ↔ `writeAllFields` 战斗面）。 */
@@ -547,16 +522,12 @@ internal object GameViewDiscipleRows {
         row: DiscipleRow,
         json: Json,
     ) {
+        if (row.hasHeadId()) headIds[id] = row.headId
+        if (row.hasBodyId()) bodyIds[id] = row.bodyId
+        if (row.hasHandsId()) handsIds[id] = row.handsId
+        if (row.hasFeetId()) feetIds[id] = row.feetId
         if (row.hasWeaponId()) weaponIds[id] = row.weaponId
-        if (row.hasArmorId()) armorIds[id] = row.armorId
-        if (row.hasBootsId()) bootsIds[id] = row.bootsId
-        if (row.hasAccessoryId()) accessoryIds[id] = row.accessoryId
-        // 孕养嵌套消息：全行臂对消息列同 repeated 家族——clearer 先清、mergeFrom
-        // 整值写入（列级协议携带整列新值），absent 子字段按域默认（toNurture 同源）
-        if (row.hasWeaponNurture()) weaponNurtures[id] = row.weaponNurture.toNurture()
-        if (row.hasArmorNurture()) armorNurtures[id] = row.armorNurture.toNurture()
-        if (row.hasBootsNurture()) bootsNurtures[id] = row.bootsNurture.toNurture()
-        if (row.hasAccessoryNurture()) accessoryNurtures[id] = row.accessoryNurture.toNurture()
+        if (row.hasLegsId()) legsIds[id] = row.legsId
         // 储物袋：净效果 = 全行臂 merged 行的解码分派（typed 优先，基线 typed
         // 经 toRow 进入 merged 行）——故补丁携带位（typed/present）在位 ⇒ 整列
         // 替换（typed → 75 → 空）；**75-only 且基线袋为空** ⇒ 75 解码（merged
@@ -671,8 +642,6 @@ internal object GameViewDiscipleRows {
         b.cultivationCompletionMonth = d.cultivationCompletionMonth
         b.manualCompletionMonth = d.manualCompletionMonth
         b.manualCompletionPhase = d.manualCompletionPhase
-        b.equipmentNurturingCompletionMonth = d.equipmentNurturingCompletionMonth
-        b.equipmentNurturingCompletionPhase = d.equipmentNurturingCompletionPhase
     }
 
     private fun fillCombatPillRowFields(b: DiscipleRow.Builder, d: Disciple) {
@@ -711,14 +680,12 @@ internal object GameViewDiscipleRows {
         d: Disciple,
         json: Json,
     ) {
+        b.headId = d.equipment.headId
+        b.bodyId = d.equipment.bodyId
+        b.handsId = d.equipment.handsId
+        b.feetId = d.equipment.feetId
         b.weaponId = d.equipment.weaponId
-        b.armorId = d.equipment.armorId
-        b.bootsId = d.equipment.bootsId
-        b.accessoryId = d.equipment.accessoryId
-        b.weaponNurture = d.equipment.weaponNurture.toRowView()
-        b.armorNurture = d.equipment.armorNurture.toRowView()
-        b.bootsNurture = d.equipment.bootsNurture.toRowView()
-        b.accessoryNurture = d.equipment.accessoryNurture.toRowView()
+        b.legsId = d.equipment.legsId
         // storageBagItems（B18-P1-A2）：typed 行承载（旧 75 号 JSON 原文停写保留）；
         // 列携带位恒置 true（全量行 = emit-always；列级补丁侧由 C++ 按"该列脏"置位）
         // ——repeated 零条目无法区分"列缺省"与"列脏且清空"，清空语义全靠本位置
@@ -754,15 +721,12 @@ internal object GameViewDiscipleRows {
         b.hasReviveEffect = d.usage.hasReviveEffect
         b.hasClearAllEffect = d.usage.hasClearAllEffect
     }
-
-    private fun EquipmentNurtureData.toRowView(): EquipmentNurtureDataView =
-        EquipmentNurtureDataView.newBuilder()
-            .setEquipmentId(equipmentId)
-            .setRarity(rarity)
-            .setNurtureLevel(nurtureLevel)
-            .setNurtureProgress(nurtureProgress)
-            .build()
 }
+
+/** JSON 对象 → proto typed 行（键序 = JsonObject 插入序 = C++ nlohmann 键字典序）。 */
+internal fun JsonObject.toTypedRow(): TypedRow = TypedRow.newBuilder().apply {
+    forEach { (k, v) -> addFields(TypedField.newBuilder().setKey(k).setValue(v.toTypedValue())) }
+}.build()
 
 // ============================================================
 // B18-P1：通用 typed 值承载（proto `TypedValue`/`TypedRow`）→ JSON 元素树
@@ -830,8 +794,3 @@ internal fun JsonElement.toTypedValue(): TypedValue {
     }
     return b.build()
 }
-
-/** JSON 对象 → proto typed 行（键序 = JsonObject 插入序 = C++ nlohmann 键字典序）。 */
-internal fun JsonObject.toTypedRow(): TypedRow = TypedRow.newBuilder().apply {
-    forEach { (k, v) -> addFields(TypedField.newBuilder().setKey(k).setValue(v.toTypedValue())) }
-}.build()

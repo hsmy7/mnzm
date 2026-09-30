@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -63,7 +62,7 @@ class StateRevertRegressionTest {
                 store.loadFromSnapshot(
                     gameData = GameData(sectName = "新宗门", gameYear = 99),
                     disciples = newDisciples,
-                    equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+                    equipmentInstances = emptyList(),
                     manualStacks = emptyList(), manualInstances = emptyList(),
                     pills = emptyList(), materials = emptyList(),
                     herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
@@ -114,7 +113,7 @@ class StateRevertRegressionTest {
                 )
             ),
             disciples = emptyList(),
-            equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            equipmentInstances = emptyList(),
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
@@ -151,7 +150,7 @@ class StateRevertRegressionTest {
                 gameEventRecords = records
             ),
             disciples = emptyList(),
-            equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            equipmentInstances = emptyList(),
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
@@ -177,7 +176,7 @@ class StateRevertRegressionTest {
         store.loadFromSnapshot(
             gameData = GameData(sectName = "新宗门"),
             disciples = (1..4).map { disciple(it) },
-            equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            equipmentInstances = emptyList(),
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
@@ -202,7 +201,6 @@ class StateRevertRegressionTest {
         store.loadFromSnapshot(
             gameData = GameData(sectName = "旧宗门", gameYear = 10),
             disciples = (1..3).map { disciple(it) },
-            equipmentStacks = listOf(EquipmentStack(name = "旧飞剑")),
             equipmentInstances = listOf(EquipmentInstance(name = "旧飞剑·器")),
             manualStacks = listOf(ManualStack(name = "旧功法")),
             manualInstances = listOf(ManualInstance(name = "旧功法·篇")),
@@ -216,7 +214,7 @@ class StateRevertRegressionTest {
         )
         val flowNames = listOf(
             "gameData", "disciples",
-            "equipmentStacks", "equipmentInstances", "manualStacks", "manualInstances",
+            "equipmentInstances", "manualStacks", "manualInstances",
             "pills", "materials", "herbs", "seeds", "storageBags", "battleLogs",
             "isPaused", "isLoading", "isSaving"
         )
@@ -228,7 +226,6 @@ class StateRevertRegressionTest {
             store.loadFromSnapshot(
                 gameData = GameData(sectName = "新宗门", gameYear = 99),
                 disciples = (4..8).map { disciple(it) },
-                equipmentStacks = listOf(EquipmentStack(name = "新飞剑")),
                 equipmentInstances = listOf(EquipmentInstance(name = "新飞剑·器")),
                 manualStacks = listOf(ManualStack(name = "新功法")),
                 manualInstances = listOf(ManualInstance(name = "新功法·篇")),
@@ -251,14 +248,13 @@ class StateRevertRegressionTest {
         before.zip(after).forEachIndexed { index, (was, now) ->
             assertEquals("回滚后 ${flowNames[index]} 与读档前逐位一致", was, now)
         }
-        assertEquals("旧实体非空守卫（equipmentStacks）", 1, store.equipmentStacks.value.size)
+        assertEquals("旧实体非空守卫（equipmentInstances）", 1, store.equipmentInstances.value.size)
         assertEquals("旧实体非空守卫（pills）", 1, store.pills.value.size)
     }
 
     private fun snapshotAllFlows(store: GameStateStoreImpl): List<Any?> = listOf(
         store.gameData.value,
         store.disciples.value,
-        store.equipmentStacks.value,
         store.equipmentInstances.value,
         store.manualStacks.value,
         store.manualInstances.value,

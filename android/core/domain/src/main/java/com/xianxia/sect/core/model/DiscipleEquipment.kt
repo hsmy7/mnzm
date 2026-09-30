@@ -9,34 +9,42 @@ data class DiscipleEquipment(
 
     var slotId: Int = 0,
 
+    var headId: String = "",
+    var bodyId: String = "",
+    var handsId: String = "",
+    var feetId: String = "",
     var weaponId: String = "",
-    var armorId: String = "",
-    var bootsId: String = "",
-    var accessoryId: String = "",
-    var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var legsId: String = "",
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0
 ) {
-    val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
+    val hasEquippedItems: Boolean
+        get() = EquipmentSlot.displayOrder.any { slotId(it).isNotEmpty() }
 
-    val equippedItemIds: List<String> get() = listOf(weaponId, armorId, bootsId, accessoryId).filter { it.isNotEmpty() }
+    /** 按部位取装备 id */
+    fun slotId(part: EquipmentSlot): String = when (part) {
+        EquipmentSlot.HEAD -> headId
+        EquipmentSlot.BODY -> bodyId
+        EquipmentSlot.HANDS -> handsId
+        EquipmentSlot.FEET -> feetId
+        EquipmentSlot.WEAPON -> weaponId
+        EquipmentSlot.LEGS -> legsId
+    }
+
+    val equippedItemIds: List<String> get() = EquipmentSlot.displayOrder
+        .mapNotNull { slotId(it).takeIf(String::isNotEmpty) }
     
     companion object {
         fun fromDisciple(disciple: Disciple): DiscipleEquipment {
             return DiscipleEquipment(
                 discipleId = disciple.id,
+                headId = disciple.equipment.headId,
+                bodyId = disciple.equipment.bodyId,
+                handsId = disciple.equipment.handsId,
+                feetId = disciple.equipment.feetId,
                 weaponId = disciple.equipment.weaponId,
-                armorId = disciple.equipment.armorId,
-                bootsId = disciple.equipment.bootsId,
-                accessoryId = disciple.equipment.accessoryId,
-                weaponNurture = disciple.equipment.weaponNurture,
-                armorNurture = disciple.equipment.armorNurture,
-                bootsNurture = disciple.equipment.bootsNurture,
-                accessoryNurture = disciple.equipment.accessoryNurture,
+                legsId = disciple.equipment.legsId,
                 storageBagItems = disciple.equipment.storageBagItems,
                 storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
                 spiritStones = disciple.equipment.spiritStones

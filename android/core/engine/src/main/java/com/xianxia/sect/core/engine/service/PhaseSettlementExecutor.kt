@@ -75,7 +75,6 @@ internal class PhaseSettlementExecutor(
     fun executeCultivationBatch(state: MutableGameState) {
         val views = buildSharedViews(state)
         val pendingProficiencies = mutableMapOf<String, List<ManualProficiencyData>?>()
-        val pendingEquipmentUpdates = mutableMapOf<String, EquipmentInstance>()
 
         for (id in state.discipleTables.ids) {
             // 存活 + 非秘境成员才参与恢复/修炼（合并跳转条件，保持循环单跳转）
@@ -102,16 +101,10 @@ internal class PhaseSettlementExecutor(
                 state, id, views.manualMap, pendingProficiencies,
                 views.libraryDiscipleIds
             )
-            // 4) 装备孕养增长（批量模式：只累积不重建 List）
-            cultivationService.processEquipmentNurtureSingle(
-                state, id, views.equipmentMap, pendingEquipmentUpdates
-            )
         }
 
         // 单次提交熟练度（O(D²) → O(D)）
         cultivationService.commitManualProficiencies(state, pendingProficiencies)
-        // 单次重建装备实例列表（O(D×E) → O(E)）
-        cultivationService.applyEquipmentUpdates(state, pendingEquipmentUpdates)
     }
 
     /** 构建每旬共享映射（所有弟子复用，避免每弟子 O(N) 重建）。 */

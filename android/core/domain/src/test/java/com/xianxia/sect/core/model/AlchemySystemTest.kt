@@ -281,7 +281,7 @@ class AlchemySystemTest {
         val materials = mapOf("ore1" to 2)
         val recipe = ForgeRecipe(
             id = "fr1", name = "n", equipmentId = "e1", equipmentName = "en",
-            equipmentRarity = 1, tier = 1, equipmentSlot = EquipmentSlot.ARMOR,
+            equipmentRarity = 1, tier = 1, equipmentSlot = EquipmentSlot.BODY,
             description = "", materials = materials, duration = 1, successRate = 1.0
         )
         assertEquals(materials, recipe.requiredMaterials)
@@ -323,14 +323,16 @@ class AlchemySystemTest {
 
     @Test
     fun equipmentSlot_displayName() {
+        assertEquals("头部", EquipmentSlot.HEAD.displayName)
+        assertEquals("身体", EquipmentSlot.BODY.displayName)
+        assertEquals("手部", EquipmentSlot.HANDS.displayName)
+        assertEquals("脚部", EquipmentSlot.FEET.displayName)
         assertEquals("武器", EquipmentSlot.WEAPON.displayName)
-        assertEquals("护甲", EquipmentSlot.ARMOR.displayName)
-        assertEquals("靴子", EquipmentSlot.BOOTS.displayName)
-        assertEquals("饰品", EquipmentSlot.ACCESSORY.displayName)
+        assertEquals("腿部", EquipmentSlot.LEGS.displayName)
     }
 
     @Test
     fun equipmentSlot_values() {
-        assertEquals(4, EquipmentSlot.values().size)
+        assertEquals(6, EquipmentSlot.values().size)
     }
 }

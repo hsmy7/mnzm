@@ -29,12 +29,15 @@ class MerchantItemConverterTest {
         }
     }
 
-    // 1. toEquipment with known item name returns EquipmentStack with correct name and rarity
+    /** B3 实例轨：toEquipment 显式消费装备 RNG（确定性） */
+    private fun testRng() = kotlin.random.Random(20260930L)
+
+    // 1. toEquipment with known item name returns instance with correct name and rarity
     @Test
-    fun toEquipment_withKnownName_returnsEquipmentStackWithCorrectNameAndRarity() {
+    fun toEquipment_withKnownName_returnsEquipmentInstanceWithCorrectNameAndRarity() {
         val knownTemplate = EquipmentDatabase.allTemplates.values.first()
         val item = MerchantItem(name = knownTemplate.name, type = "equipment", rarity = 2)
-        val result = MerchantItemConverter.toEquipment(item)
+        val result = MerchantItemConverter.toEquipment(item, testRng())
         assertEquals(knownTemplate.name, result.name)
         assertEquals(2, result.rarity)
     }
@@ -43,19 +46,9 @@ class MerchantItemConverterTest {
     @Test
     fun toEquipment_withUnknownName_generatesRandomEquipmentWithCorrectRarity() {
         val item = MerchantItem(name = "不存在的装备xyz", type = "equipment", rarity = 3)
-        val result = MerchantItemConverter.toEquipment(item)
+        val result = MerchantItemConverter.toEquipment(item, testRng())
         assertEquals(3, result.rarity)
         assertTrue(result.name.isNotBlank())
-    }
-
-    // 3. toEquipmentBatch returns EquipmentStack with correct quantity
-    @Test
-    fun toEquipmentBatch_returnsEquipmentStackWithCorrectQuantity() {
-        val knownTemplate = EquipmentDatabase.allTemplates.values.first()
-        val item = MerchantItem(name = knownTemplate.name, type = "equipment", rarity = 1)
-        val result = MerchantItemConverter.toEquipmentBatch(item, 5)
-        assertEquals(5, result.quantity)
-        assertEquals(knownTemplate.name, result.name)
     }
 
     // 4. toManual with known name returns ManualStack with correct fields
@@ -249,7 +242,8 @@ class MerchantItemConverterTest {
         val unknownHerb = MerchantItem(name = "不存在的灵草", type = "herb", rarity = 1)
         val unknownSeed = MerchantItem(name = "不存在的种子", type = "seed", rarity = 1)
 
-        assertTrue("equipment id should not be blank", MerchantItemConverter.toEquipment(unknownEquip).id.isNotBlank())
+        assertTrue("equipment id should not be blank",
+            MerchantItemConverter.toEquipment(unknownEquip, testRng()).id.isNotBlank())
         assertTrue("manual id should not be blank", MerchantItemConverter.toManual(unknownManual).id.isNotBlank())
         assertTrue("pill id should not be blank", MerchantItemConverter.toPill(unknownPill).id.isNotBlank())
         assertTrue("material id should not be blank", MerchantItemConverter.toMaterial(unknownMaterial).id.isNotBlank())
@@ -260,7 +254,7 @@ class MerchantItemConverterTest {
         val knownEquip = MerchantItem(name = EquipmentDatabase.allTemplates.values.first().name, type = "equipment",
             rarity = 1)
         assertTrue("known equipment id should not be blank",
-            MerchantItemConverter.toEquipment(knownEquip).id.isNotBlank())
+            MerchantItemConverter.toEquipment(knownEquip, testRng()).id.isNotBlank())
 
         val knownManual = MerchantItem(name = "测试功法", type = "manual", rarity = 1)
         assertTrue("known manual id should not be blank", MerchantItemConverter.toManual(knownManual).id.isNotBlank())

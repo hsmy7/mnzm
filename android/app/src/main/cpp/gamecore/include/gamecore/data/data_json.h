@@ -3,6 +3,9 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/data/beast_material_db.h"
+#include "gamecore/data/equip_affix_db.h"
+#include "gamecore/data/equip_main_stat_db.h"
+#include "gamecore/data/equip_set_db.h"
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
@@ -34,38 +37,87 @@ inline void jread(const nlohmann::json& j, const char* key, T& out) {
     }
 }
 
-// ── EquipmentTemplate ────────────────────────────────────────
-inline void from_json(const nlohmann::json& j, EquipmentTemplate& v) {
+// ── 装备四表（B3 复合结构：setPieces/sets/mainStatPools/subAffixes；
+//    mainStatBase 是 stat 键映射，在 data_inject.h 专门展开） ────────
+inline void from_json(const nlohmann::json& j, EquipStatValueDef& v) {
+    jread(j, "stat", v.stat);
+    jread(j, "value", v.value);
+}
+inline void to_json(nlohmann::json& j, const EquipStatValueDef& v) {
+    j = nlohmann::json{{"stat", v.stat}, {"value", v.value}};
+}
+
+namespace detail {
+/// 定长 C 数组字段 ← JSON 数组（宽松：缺段/短段保持默认值）
+template <typename T, std::size_t N>
+inline void jreadArray(const nlohmann::json& j, const char* key, T (&out)[N]) {
+    if (j.contains(key) && j.at(key).is_array()) {
+        const auto& arr = j.at(key);
+        for (std::size_t i = 0; i < N && i < arr.size(); ++i) {
+            out[i] = arr[i].get<T>();
+        }
+    }
+}
+template <typename T, std::size_t N>
+inline void jwriteArray(nlohmann::json& j, const char* key, const T (&in)[N]) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (std::size_t i = 0; i < N; ++i) arr.push_back(in[i]);
+    j[key] = std::move(arr);
+}
+}  // namespace detail
+
+inline void from_json(const nlohmann::json& j, SetPieceTemplate& v) {
+    jread(j, "id", v.id);
+    jread(j, "setId", v.setId);
+    jread(j, "part", v.part);
+    jread(j, "name", v.name);
+    jread(j, "description", v.description);
+    detail::jreadArray(j, "priceByRarity", v.priceByRarity);
+    detail::jreadArray(j, "minRealmByRarity", v.minRealmByRarity);
+}
+inline void to_json(nlohmann::json& j, const SetPieceTemplate& v) {
+    j = nlohmann::json{{"id", v.id},
+                       {"setId", v.setId},
+                       {"part", v.part},
+                       {"name", v.name},
+                       {"description", v.description}};
+    detail::jwriteArray(j, "priceByRarity", v.priceByRarity);
+    detail::jwriteArray(j, "minRealmByRarity", v.minRealmByRarity);
+}
+
+inline void from_json(const nlohmann::json& j, EquipmentSetDef& v) {
     jread(j, "id", v.id);
     jread(j, "name", v.name);
-    jread(j, "slot", v.slot);
-    jread(j, "rarity", v.rarity);
-    jread(j, "physicalAttack", v.physicalAttack);
-    jread(j, "magicAttack", v.magicAttack);
-    jread(j, "physicalDefense", v.physicalDefense);
-    jread(j, "magicDefense", v.magicDefense);
-    jread(j, "speed", v.speed);
-    jread(j, "hp", v.hp);
-    jread(j, "mp", v.mp);
-    jread(j, "critChance", v.critChance);
-    jread(j, "description", v.description);
-    jread(j, "price", v.price);
+    jread(j, "school", v.school);
+    jread(j, "bonus2", v.bonus2);
+    jread(j, "bonus4", v.bonus4);
+    jread(j, "bonus6", v.bonus6);
 }
-inline void to_json(nlohmann::json& j, const EquipmentTemplate& v) {
-    j = nlohmann::json{{"id", v.id},
-                       {"name", v.name},
-                       {"slot", v.slot},
-                       {"rarity", v.rarity},
-                       {"physicalAttack", v.physicalAttack},
-                       {"magicAttack", v.magicAttack},
-                       {"physicalDefense", v.physicalDefense},
-                       {"magicDefense", v.magicDefense},
-                       {"speed", v.speed},
-                       {"hp", v.hp},
-                       {"mp", v.mp},
-                       {"critChance", v.critChance},
-                       {"description", v.description},
-                       {"price", v.price}};
+inline void to_json(nlohmann::json& j, const EquipmentSetDef& v) {
+    j = nlohmann::json{{"id", v.id},    {"name", v.name},
+                       {"school", v.school}, {"bonus2", v.bonus2},
+                       {"bonus4", v.bonus4}, {"bonus6", v.bonus6}};
+}
+
+inline void from_json(const nlohmann::json& j, MainStatPoolDef& v) {
+    jread(j, "part", v.part);
+    jread(j, "stats", v.stats);
+    jread(j, "coefficient", v.coefficient);
+}
+inline void to_json(nlohmann::json& j, const MainStatPoolDef& v) {
+    j = nlohmann::json{{"part", v.part},
+                       {"stats", v.stats},
+                       {"coefficient", v.coefficient}};
+}
+
+inline void from_json(const nlohmann::json& j, EquipAffixDef& v) {
+    jread(j, "stat", v.stat);
+    jread(j, "weight", v.weight);
+    detail::jreadArray(j, "tierValues", v.tierValues);
+}
+inline void to_json(nlohmann::json& j, const EquipAffixDef& v) {
+    j = nlohmann::json{{"stat", v.stat}, {"weight", v.weight}};
+    detail::jwriteArray(j, "tierValues", v.tierValues);
 }
 
 // ── HerbTemplate / SeedTemplate ──────────────────────────────
@@ -367,6 +419,7 @@ inline void from_json(const nlohmann::json& j, CharacterTemplate& v) {
     jread(j, "avatarKey", v.avatarKey);
     jread(j, "portraitKey", v.portraitKey);
     jread(j, "spiritRoots", v.spiritRoots);
+    jread(j, "innateDamageType", v.innateDamageType);
 }
 inline void to_json(nlohmann::json& j, const CharacterTemplate& v) {
     j = nlohmann::json{{"id", v.id},
@@ -374,7 +427,8 @@ inline void to_json(nlohmann::json& j, const CharacterTemplate& v) {
                        {"gender", v.gender},
                        {"avatarKey", v.avatarKey},
                        {"portraitKey", v.portraitKey},
-                       {"spiritRoots", v.spiritRoots}};
+                       {"spiritRoots", v.spiritRoots},
+                       {"innateDamageType", v.innateDamageType}};
 }
 
 }  // namespace gamecore::data

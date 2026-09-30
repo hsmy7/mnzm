@@ -90,7 +90,6 @@ class CultivationServiceIntegrationTest {
         cultivationCore = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(mockSmart()),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
@@ -131,7 +130,6 @@ class CultivationServiceIntegrationTest {
         val state = MutableGameState(
             gameData = GameData(gameYear = 1, gameMonth = 6),
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),
@@ -165,7 +163,6 @@ class CultivationServiceIntegrationTest {
         val state = MutableGameState(
             gameData = GameData(gameYear = 1, gameMonth = 1),
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),
@@ -190,7 +187,6 @@ class CultivationServiceIntegrationTest {
         val state = MutableGameState(
             gameData = GameData(gameYear = 1, gameMonth = 1),
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

@@ -2,8 +2,8 @@
 // ai_sect_ops_test — AI 宗门月度运营与兽战余量守护
 //
 // 守护目标：ai_sect_ops.h 等价移植 Kotlin 子事件 6/9（AI 热控分批修炼/
-// 突破/熟练度/孕养/装备补全/宗门等级同步 + 兽战余量组装/执行/事件/死亡）
-// 语义逐位一致。
+// 突破/熟练度/装备补全/宗门等级同步 + 兽战余量组装/执行/事件/死亡）
+// 语义逐位一致。B3：孕养管线退役、装备六部位条目 id 直写 + 轻量实例查表。
 //
 // RNG 审计：AI 独立 RNG（systemSeed 播种）——突破 roll / 洗牌种子 / 模板
 // 抽取用独立 DeterministicRng 预演同序列断言快照；BATTLE 分区由战斗执行
@@ -16,9 +16,9 @@
 #include <memory>
 
 #include "gamecore/game_core.h"
+#include "gamecore/data/equipment_entries.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/system/ai_sect_ops.h"
-#include "gamecore/system/nurture_constants.h"
 
 namespace {
 
@@ -152,20 +152,8 @@ TEST(AiCultivationTest, ProficiencyGainMonthly) {
     EXPECT_EQ(out[0].manualMasteries.at(tpl->id), 36);
 }
 
-TEST(AiNurtureTest, MonthlyGainProgressWithoutLevelUp) {
-    auto core = makeCore(kSeed);
-    GameState& st = core->state();
-    Disciple d = aiDisciple("1");
-    // ironSword：rarity 1 → maxLevel 5；level 0 升级需 100.0×1×1.0 = 100
-    d.weaponId = "ironSword";
-    d.weaponNurture = {"ironSword", 1, 0, 0.0};
-    st.aiSectDisciples["ai-1"] = {d};
-
-    auto out = ops::aiProcessMonthlyCultivation(st.aiSectDisciples["ai-1"], 1, 0,
-                                                core->aiRng());
-    EXPECT_DOUBLE_EQ(out[0].weaponNurture.nurtureProgress, 30.0);   // 10×3
-    EXPECT_EQ(out[0].weaponNurture.nurtureLevel, 0);
-}
+// B3：AI 装备孕养管线全删（孕养用例随体系退役——升级/分解走 1486/1487 事务，
+// AI 不结算词条，见 AiPrepareBattleTest 轻量实例断言）
 
 // ── 宗门等级同步 + 装备补全 ─────────────────────────────────────────
 
@@ -186,15 +174,24 @@ TEST(AiSectLevelTest, LevelUpOnQualifyingRealmAndGearTopUp) {
     ASSERT_EQ(st.gameData.worldMapSects.size(), 1u);
     EXPECT_EQ(st.gameData.worldMapSects[0].level, 1);       // MEDIUM
     EXPECT_EQ(st.gameData.worldMapSects[0].levelName, "中型宗门");
-    // 升级补全：装备 2 件 + 功法 3 本（MEDIUM 档）
+    // 升级补全：装备 2 件 + 功法 3 本（MEDIUM 档）——B3 六部位列计数
     const auto& members = st.aiSectDisciples["ai-1"];
     ASSERT_EQ(members.size(), 1u);
-    int equipCount = (members[0].weaponId.empty() ? 0 : 1) +
-                     (members[0].armorId.empty() ? 0 : 1) +
-                     (members[0].bootsId.empty() ? 0 : 1) +
-                     (members[0].accessoryId.empty() ? 0 : 1);
+    int equipCount = (members[0].headId.empty() ? 0 : 1) +
+                     (members[0].bodyId.empty() ? 0 : 1) +
+                     (members[0].handsId.empty() ? 0 : 1) +
+                     (members[0].feetId.empty() ? 0 : 1) +
+                     (members[0].weaponId.empty() ? 0 : 1) +
+                     (members[0].legsId.empty() ? 0 : 1);
     EXPECT_EQ(equipCount, 2);
     EXPECT_EQ(members[0].manualIds.size(), 3u);
+    // 直写 id 命中 72 条展开表（六部位条目 id 直写）
+    for (const std::string* eqId :
+         {&members[0].headId, &members[0].bodyId, &members[0].handsId,
+          &members[0].feetId, &members[0].weaponId, &members[0].legsId}) {
+        if (eqId->empty()) continue;
+        EXPECT_NE(gamecore::data::equipmentEntryById(*eqId), nullptr) << *eqId;
+    }
 }
 
 TEST(AiSectWarehouseTest, NonPlayerSectWarehouseCleared) {
@@ -289,20 +286,31 @@ TEST(AiPrepareBattleTest, BuildsInstancesFromPersistedFields) {
     auto core = makeCore(kSeed);
     GameState& st = core->state();
     Disciple d = aiDisciple("1", 8, 1);
-    d.weaponId = "ironSword";
-    d.weaponNurture = {"ironSword", 1, 2, 10.0};   // 孕养覆盖
+    // B3 六部位：weaponId 直写 72 条展开表条目 id（AI 轻量实例查表）
+    d.weaponId = "lietian_WEAPON_r2";
     d.manualIds = {"ironSwordManualFake"};
     st.aiSectDisciples["ai-1"] = {d};
     st.gameData.worldLevels.push_back(beastLevel("b1"));
 
     const auto prepared = ops::aiPrepareDisciplesForBattle(st.aiSectDisciples["ai-1"]);
-    // 装备实例：模板 id 即实例 id + 孕养覆盖
+    // 装备轻量实例：id = 条目 id、主词条占位 (ATTACK, 0.0)、无副词条、等级恒 1
+    //（AI 不结算词条，与 Kotlin Gear.kt aiEquipmentInstance 一致）
     const auto& eqMap = prepared.equipmentMapByDisciple.at("1");
     ASSERT_EQ(eqMap.size(), 1u);
-    EXPECT_EQ(eqMap.at("ironSword").nurtureLevel, 2);
-    EXPECT_DOUBLE_EQ(eqMap.at("ironSword").nurtureProgress, 10.0);
-    EXPECT_EQ(eqMap.at("ironSword").physicalAttack,
-              ops::aiEquipmentTemplateById("ironSword")->physicalAttack);
+    const auto& inst = eqMap.at("lietian_WEAPON_r2");
+    EXPECT_EQ(inst.id, "lietian_WEAPON_r2");
+    EXPECT_EQ(inst.part, "WEAPON");
+    EXPECT_EQ(inst.setId, "lietian");
+    EXPECT_EQ(inst.growth.level, 1);
+    EXPECT_EQ(inst.growth.affix.mainStat.stat, "ATTACK");
+    EXPECT_DOUBLE_EQ(inst.growth.affix.mainStat.value, 0.0);
+    EXPECT_TRUE(inst.growth.affix.subStats.empty());
+    // 横切面来自 72 条表条目
+    const auto* entry = gamecore::data::equipmentEntryById("lietian_WEAPON_r2");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(inst.meta.rarity, entry->rarity);
+    EXPECT_EQ(inst.meta.minRealm, entry->minRealm);
+    EXPECT_EQ(inst.name, entry->name);
     // 未知功法模板跳过（manualMap 空）；熟练度映射仍建立
     EXPECT_TRUE(prepared.manualMap.empty());
     EXPECT_EQ(prepared.proficiencies.at("1").size(), 1u);

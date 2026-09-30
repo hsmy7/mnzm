@@ -161,10 +161,12 @@ class DiscipleModelsTest {
     @Test
     fun equipmentSet_defaultConstruction() {
         val set = EquipmentSet()
+        assertEquals("", set.headId)
+        assertEquals("", set.bodyId)
+        assertEquals("", set.handsId)
+        assertEquals("", set.feetId)
         assertEquals("", set.weaponId)
-        assertEquals("", set.armorId)
-        assertEquals("", set.bootsId)
-        assertEquals("", set.accessoryId)
+        assertEquals("", set.legsId)
         assertFalse(set.hasEquippedItems)
         assertEquals(emptyList<String>(), set.equippedItemIds)
         assertEquals(emptyList<StorageBagItem>(), set.storageBagItems)
@@ -180,17 +182,21 @@ class DiscipleModelsTest {
 
     @Test
     fun equipmentSet_equippedItemIds_filtersEmpty() {
-        val set = EquipmentSet(weaponId = "w1", armorId = "", bootsId = "b1", accessoryId = "")
-        assertEquals(listOf("w1", "b1"), set.equippedItemIds)
+        // equippedItemIds 顺序 = displayOrder（头/身/手/脚/武/腿）
+        val set = EquipmentSet(headId = "h1", bodyId = "", handsId = "", feetId = "f1", weaponId = "w1")
+        assertEquals(listOf("h1", "f1", "w1"), set.equippedItemIds)
     }
 
     @Test
-    fun equipmentSet_nurtureDefaults() {
+    fun equipmentSet_slotIdRoundTrip() {
+        // slotId(part)/setSlotId(part,id) 六部位读写往返
         val set = EquipmentSet()
-        assertEquals(EquipmentNurtureData("", 0), set.weaponNurture)
-        assertEquals(EquipmentNurtureData("", 0), set.armorNurture)
-        assertEquals(EquipmentNurtureData("", 0), set.bootsNurture)
-        assertEquals(EquipmentNurtureData("", 0), set.accessoryNurture)
+        for (part in EquipmentSlot.displayOrder) {
+            set.setSlotId(part, "eq-${part.name}")
+            assertEquals("eq-${part.name}", set.slotId(part))
+        }
+        assertTrue(set.hasEquippedItems)
+        assertEquals(6, set.equippedItemIds.size)
     }
 
     // ---- SkillStats ----
@@ -288,14 +294,12 @@ class DiscipleModelsTest {
         val equip = DiscipleEquipment()
         assertEquals("", equip.discipleId)
         assertEquals(0, equip.slotId)
+        assertEquals("", equip.headId)
+        assertEquals("", equip.bodyId)
+        assertEquals("", equip.handsId)
+        assertEquals("", equip.feetId)
         assertEquals("", equip.weaponId)
-        assertEquals("", equip.armorId)
-        assertEquals("", equip.bootsId)
-        assertEquals("", equip.accessoryId)
-        assertEquals(EquipmentNurtureData("", 0), equip.weaponNurture)
-        assertEquals(EquipmentNurtureData("", 0), equip.armorNurture)
-        assertEquals(EquipmentNurtureData("", 0), equip.bootsNurture)
-        assertEquals(EquipmentNurtureData("", 0), equip.accessoryNurture)
+        assertEquals("", equip.legsId)
         assertEquals(emptyList<StorageBagItem>(), equip.storageBagItems)
         assertEquals(0L, equip.storageBagSpiritStones)
         assertEquals(0, equip.spiritStones)
@@ -315,8 +319,9 @@ class DiscipleModelsTest {
 
     @Test
     fun discipleEquipment_equippedItemIds() {
-        val equip = DiscipleEquipment(weaponId = "w1", armorId = "a1", bootsId = "", accessoryId = "acc1")
-        assertEquals(listOf("w1", "a1", "acc1"), equip.equippedItemIds)
+        // 顺序 = displayOrder（头/身/手/脚/武/腿）
+        val equip = DiscipleEquipment(headId = "h1", feetId = "f1", weaponId = "w1")
+        assertEquals(listOf("h1", "f1", "w1"), equip.equippedItemIds)
     }
 
     @Test

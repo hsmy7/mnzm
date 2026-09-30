@@ -2,11 +2,8 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
@@ -74,13 +71,42 @@ suspend fun GameEngine.equipItem(discipleId: String, equipmentId: String): Domai
 
 suspend fun GameEngine.unequipItem(discipleId: String, slot: EquipmentSlot): DomainResult<Unit>? {
     val disciple = getDiscipleById(discipleId) ?: return null
-    val equipId = when (slot) { EquipmentSlot.WEAPON -> disciple.equipment.weaponId; EquipmentSlot.ARMOR -> disciple
-        .equipment.armorId; EquipmentSlot.BOOTS -> disciple.equipment.bootsId; EquipmentSlot.ACCESSORY -> disciple
-            .equipment.accessoryId }
+    val equipId = disciple.equipment.slotId(slot)
     if (equipId.isEmpty()) return null
     if (tryUnequipNative(discipleId, equipId)) return DomainResult.Success(Unit)
     val result = discipleService.unequipEquipment(discipleId, equipId)
     return result
+}
+
+// ── Cross-domain: Equipment upgrade / dismantle（B3：C++ 真相先行 + Kotlin 回退）──
+
+/**
+ * 升级装备 1 级（EQUIP_UPGRADE=1486）：C++ 事务扣材料/推进/强化节点先行，
+ * 失败信封/降级 null → [com.xianxia.sect.core.engine.service.EquipmentUpgradeService]
+ * Kotlin 回退臂。
+ */
+suspend fun GameEngine.upgradeEquipment(equipmentId: String): DomainResult<Unit> {
+    val data = tryDiscipleTxNative(ActionIds.EQUIP_UPGRADE) {
+        put("equipmentId", equipmentId)
+    }
+    if (data?.str("upgraded") == "true") return DomainResult.Success(Unit)
+    return when (val result = equipmentUpgradeService.upgradeEquipment(equipmentId)) {
+        is DomainResult.Success -> DomainResult.Success(Unit)
+        is DomainResult.Failure -> DomainResult.Failure(result.error)
+        else -> DomainResult.Failure(AppError.Domain.Disciple.SlotInvalid("升级失败"))
+    }
+}
+
+/**
+ * 分解装备（EQUIP_DISMANTLE=1487）：C++ 事务返还 50% 累计消耗先行，
+ * 失败信封/降级 null → Kotlin 回退臂。
+ */
+suspend fun GameEngine.dismantleEquipment(equipmentId: String): DomainResult<Unit> {
+    val data = tryDiscipleTxNative(ActionIds.EQUIP_DISMANTLE) {
+        put("equipmentId", equipmentId)
+    }
+    if (data?.str("dismantled") == "true") return DomainResult.Success(Unit)
+    return equipmentUpgradeService.dismantleEquipment(equipmentId)
 }
 
 suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String): DomainResult<Unit> {

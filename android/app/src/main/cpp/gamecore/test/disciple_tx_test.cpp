@@ -2,11 +2,11 @@
 // disciple_tx_test — 弟子管理 UI 操作事务守护（batch-08 第一子批）
 //
 // 守护目标：disciple_tx.h 六事务与 Kotlin 源语义逐位一致——
-//   - 装备穿脱（堆叠轨道铸实例 / 实例轨道置位 / 旧装备入袋）
+//   - 装备穿脱（B3 单轨实例：置位/卸下保留表内 isEquipped=false + 袋条目）
 //   - 功法学习卸下（资格守卫判定序 / 堆叠精确消耗 / HP/MP 增量门）
 //   - 任命卸任（clearAllSlots 11 类清理 / 亲传·藏经阁槽写 / occupant 捕获）
 //   - 失败臂零写入（校验链先行，任一臂失败不触碰状态）
-//   - 装备实例轨道完整性（无双持有：实例入袋即离表）
+//   - 装备实例单轨完整性（无双持有：穿/卸全部走实例表单点）
 //   - RNG 零消费审计（六事务全程 rngStates 不动——对拍命门）
 //
 // RNG 审计方法：事务族零抽取，直接断言 gameData.rngStates 快照前后
@@ -35,7 +35,6 @@ namespace disciple_tx = gamecore::system::disciple_tx;
 using gamecore::state::Disciple;
 using gamecore::state::DirectDiscipleSlot;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentStack;
 using gamecore::state::LibrarySlot;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualStack;
@@ -72,27 +71,15 @@ protected:
         return *core_->state().disciples.rowOf(id);
     }
 
-    void addWeaponStack(const std::string& id, int32_t minRealm = 9,
-                        int32_t quantity = 1) {
-        EquipmentStack s;
-        s.id = id;
-        s.name = "铁剑" + id;
-        s.rarity = 2;
-        s.slot = "WEAPON";
-        s.minRealm = minRealm;
-        s.quantity = quantity;
-        s.physicalAttack = 10;
-        core_->state().equipmentStacks.push_back(s);
-    }
-
-    void addUnequippedInstance(const std::string& id, int32_t minRealm = 9) {
+    /// 挂一件未穿戴装备实例（B3 单轨：part 定槽位、meta.rarity/minRealm 横切面）
+    void addUnequippedInstance(const std::string& id, int32_t minRealm = 9,
+                               const std::string& part = "WEAPON") {
         EquipmentInstance e;
         e.id = id;
         e.name = "宝剑" + id;
-        e.rarity = 3;
-        e.slot = "WEAPON";
-        e.minRealm = minRealm;
-        e.physicalAttack = 20;
+        e.part = part;
+        e.meta.rarity = 3;
+        e.meta.minRealm = minRealm;
         e.isEquipped = false;
         core_->state().equipmentInstances.push_back(e);
     }
@@ -120,37 +107,7 @@ protected:
     std::unique_ptr<GameCore> core_;
 };
 
-// ── 事务 1：装备穿戴 ─────────────────────────────────────────────
-
-TEST_F(DiscipleTxFixture, EquipFromStackMintsInstance) {
-    const std::size_t row = addDisciple("1");
-    addWeaponStack("w1", 9, 3);
-
-    const auto r = disciple_tx::equipTransaction(core_->state(), "1", "w1");
-    ASSERT_TRUE(r.base.ok) << r.base.message;
-
-    // 堆叠 -1、实例铸造（isEquipped/ownerId）、槽位列写
-    EXPECT_EQ(core_->state().equipmentStacks.size(), 1u);
-    EXPECT_EQ(core_->state().equipmentStacks[0].quantity, 2);
-    ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
-    const auto& inst = core_->state().equipmentInstances[0];
-    EXPECT_TRUE(inst.isEquipped);
-    EXPECT_EQ(inst.ownerId, "1");
-    EXPECT_EQ(inst.slot, "WEAPON");
-    EXPECT_EQ(core_->state().disciples.weaponIds[row], inst.id);
-    // 日志草稿（装备了X）
-    EXPECT_EQ(r.logLine, "装备了铁剑w1");
-}
-
-TEST_F(DiscipleTxFixture, EquipLastStackConsumesIt) {
-    addDisciple("1");
-    addWeaponStack("w1", 9, 1);
-
-    const auto r = disciple_tx::equipTransaction(core_->state(), "1", "w1");
-    ASSERT_TRUE(r.base.ok);
-    EXPECT_TRUE(core_->state().equipmentStacks.empty());
-    ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
-}
+// ── 事务 1：装备穿戴（B3 单轨实例）──────────────────────────────
 
 TEST_F(DiscipleTxFixture, EquipInstanceTrackMarksEquipped) {
     const std::size_t row = addDisciple("1");
@@ -158,11 +115,25 @@ TEST_F(DiscipleTxFixture, EquipInstanceTrackMarksEquipped) {
 
     const auto r = disciple_tx::equipTransaction(core_->state(), "1", "i1");
     ASSERT_TRUE(r.base.ok);
-    // 实例轨道：不新增条目、置位 + 槽位列写
+    // 单轨实例：置位 + 六部位槽位列写（part=WEAPON → weaponIds）
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     EXPECT_TRUE(core_->state().equipmentInstances[0].isEquipped);
+    EXPECT_EQ(core_->state().equipmentInstances[0].ownerId, "1");
     EXPECT_EQ(core_->state().disciples.weaponIds[row], "i1");
     EXPECT_EQ(r.logLine, "装备了宝剑i1");
+}
+
+TEST_F(DiscipleTxFixture, EquipWritesSixPartSlotColumn) {
+    // 六部位适配：part 决定槽位列（HEAD → headIds），不串写其他五列
+    const std::size_t row = addDisciple("1");
+    addUnequippedInstance("h1", /*minRealm=*/9, /*part=*/"HEAD");
+
+    const auto r = disciple_tx::equipTransaction(core_->state(), "1", "h1");
+    ASSERT_TRUE(r.base.ok);
+    EXPECT_EQ(core_->state().disciples.headIds[row], "h1");
+    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.bodyIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.legsIds[row].empty());
 }
 
 TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
@@ -174,46 +145,47 @@ TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
 
     const auto r = disciple_tx::equipTransaction(core_->state(), "1", "new");
     ASSERT_TRUE(r.base.ok);
-    // 旧装备：入袋（带实例 payload，防双持有离实例表）
+    // B3 卸装语义：旧装备入袋（payload 保真）+ 实例**保留表内**（isEquipped=false）
     const auto& bag = core_->state().disciples.storageBagItems[row];
     ASSERT_EQ(bag.size(), 1u);
     EXPECT_EQ(bag[0].itemId, "old");
     EXPECT_EQ(bag[0].itemType, "equipment_instance");
     ASSERT_TRUE(bag[0].equipmentInstance.has_value());
     EXPECT_EQ(bag[0].equipmentInstance->id, "old");
-    // 实例表只剩 new
-    ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
-    EXPECT_EQ(core_->state().equipmentInstances[0].id, "new");
+    // 实例表两条都在：old 卸下标记 + new 置位
+    ASSERT_EQ(core_->state().equipmentInstances.size(), 2u);
+    bool oldUnequipped = false;
+    for (const auto& inst : core_->state().equipmentInstances) {
+        if (inst.id == "old") {
+            EXPECT_FALSE(inst.isEquipped);
+            EXPECT_FALSE(inst.ownerId.has_value());
+            oldUnequipped = true;
+        }
+    }
+    EXPECT_TRUE(oldUnequipped);
     EXPECT_EQ(core_->state().disciples.weaponIds[row], "new");
-    // 日志为替换式（oldName 在卸下后查表 → Kotlin 活路径同款"旧装备"兜底）
-    EXPECT_EQ(r.logLine, "将旧装备替换为宝剑new");
+    // 日志为替换式（oldName 在卸下后查实例表 → B3 实例保留表内可查到真名）
+    EXPECT_EQ(r.logLine, "将宝剑old替换为宝剑new");
 }
 
 TEST_F(DiscipleTxFixture, EquipFailureArmsAreZeroWrite) {
     const std::size_t row = addDisciple("1");  // 境界 9；守卫臂装备 minRealm=5
-    addWeaponStack("w1", /*minRealm=*/5, /*quantity=*/5);
     addUnequippedInstance("i1", /*minRealm=*/5);
 
     // 弟子不存在
-    auto r = disciple_tx::equipTransaction(core_->state(), "999", "w1");
+    auto r = disciple_tx::equipTransaction(core_->state(), "999", "i1");
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ(r.base.errorType, "NotFound");
     // 装备不存在
     r = disciple_tx::equipTransaction(core_->state(), "1", "nope");
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ(r.base.errorType, "NotFound");
-    // 境界不足（实例轨道：9 > 5）
+    // 境界不足（9 > 5）
     r = disciple_tx::equipTransaction(core_->state(), "1", "i1");
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ(r.base.errorType, "RealmTooLow");
-    // 境界不足（堆叠轨道）
-    r = disciple_tx::equipTransaction(core_->state(), "1", "w1");
-    EXPECT_FALSE(r.base.ok);
-    EXPECT_EQ(r.base.errorType, "RealmTooLow");
 
-    // 零写入断言：堆叠/实例表/槽位列全不动
-    EXPECT_EQ(core_->state().equipmentStacks.size(), 1u);
-    EXPECT_EQ(core_->state().equipmentStacks[0].quantity, 5);
+    // 零写入断言：实例表/槽位列/袋全不动
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     EXPECT_FALSE(core_->state().equipmentInstances[0].isEquipped);
     EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
@@ -233,22 +205,25 @@ TEST_F(DiscipleTxFixture, EquipAlreadyEquippedFails) {
     EXPECT_EQ(core_->state().disciples.weaponIds[row], "i1");
 }
 
-// ── 事务 2：装备卸下 ─────────────────────────────────────────────
+// ── 事务 2：装备卸下（B3：实例保留表内 isEquipped=false + 袋条目）──
 
-TEST_F(DiscipleTxFixture, UnequipMovesInstanceToBag) {
+TEST_F(DiscipleTxFixture, UnequipKeepsInstanceInTableAndBagsCopy) {
     const std::size_t row = addDisciple("1");
     addUnequippedInstance("i1");
     ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "i1").base.ok);
 
     const auto r = disciple_tx::unequipTransaction(core_->state(), "1", "i1");
     ASSERT_TRUE(r.ok);
-    // 槽位清空 + 实例入袋（payload 保真）+ 离实例表
+    // 槽位清空 + 袋条目（payload 保真）+ 实例保留表内（等级/词条随实例单点）
     EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
     const auto& bag = core_->state().disciples.storageBagItems[row];
     ASSERT_EQ(bag.size(), 1u);
     ASSERT_TRUE(bag[0].equipmentInstance.has_value());
     EXPECT_EQ(bag[0].equipmentInstance->id, "i1");
-    EXPECT_TRUE(core_->state().equipmentInstances.empty());
+    // B3 关键差异：实例**不离表**——isEquipped=false、ownerId 清空
+    ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
+    EXPECT_FALSE(core_->state().equipmentInstances[0].isEquipped);
+    EXPECT_FALSE(core_->state().equipmentInstances[0].ownerId.has_value());
 }
 
 TEST_F(DiscipleTxFixture, UnequipNotWornFailsZeroWrite) {
@@ -501,12 +476,11 @@ TEST_F(DiscipleTxFixture, AssignAndUnassignLibrarySlot) {
 
 TEST_F(DiscipleTxFixture, AllSixTransactionsConsumeZeroRng) {
     const std::size_t row = addDisciple("1");
-    addWeaponStack("w1");
     addUnequippedInstance("i1");
     addManualStack("m1");
     const auto before = rngSnapshot();
 
-    ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "w1").base.ok);
+    ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "i1").base.ok);
     ASSERT_TRUE(disciple_tx::unequipTransaction(
         core_->state(), "1", core_->state().disciples.weaponIds[row]).ok);
     ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "i1").base.ok);
@@ -526,26 +500,26 @@ TEST_F(DiscipleTxFixture, AllSixTransactionsConsumeZeroRng) {
 
 TEST_F(DiscipleTxFixture, DispatchEquipEnvelope) {
     addDisciple("1");
-    addWeaponStack("w1");
+    addUnequippedInstance("i1");
 
     const auto r = exec(gamecore::action::DISCIPLE_TX_EQUIP,
-                        {{"discipleId", "1"}, {"equipmentId", "w1"}});
+                        {{"discipleId", "1"}, {"equipmentId", "i1"}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("equipped"), true);
-    EXPECT_EQ(r.at("data").at("logLine"), "装备了铁剑w1");
-    EXPECT_EQ(core_->state().equipmentStacks[0].quantity, 1);
+    EXPECT_EQ(r.at("data").at("logLine"), "装备了宝剑i1");
+    EXPECT_TRUE(core_->state().equipmentInstances[0].isEquipped);
 }
 
 TEST_F(DiscipleTxFixture, DispatchFailureEnvelopeFallsBackSignal) {
     const std::size_t row = addDisciple("1");
-    addWeaponStack("w1", /*minRealm=*/5);  // 境界 9 > 5 → RealmTooLow
+    addUnequippedInstance("i1", /*minRealm=*/5);  // 境界 9 > 5 → RealmTooLow
 
     const auto r = exec(gamecore::action::DISCIPLE_TX_EQUIP,
-                        {{"discipleId", "1"}, {"equipmentId", "w1"}});
+                        {{"discipleId", "1"}, {"equipmentId", "i1"}});
     ASSERT_EQ(r.at("status"), "failure");
     EXPECT_EQ(r.at("code"), "RealmTooLow");
     // 失败零写入
-    EXPECT_EQ(core_->state().equipmentStacks[0].quantity, 1);
+    EXPECT_FALSE(core_->state().equipmentInstances[0].isEquipped);
     EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
 }
 

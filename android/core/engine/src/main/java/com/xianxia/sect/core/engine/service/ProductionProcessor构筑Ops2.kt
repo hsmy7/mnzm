@@ -42,7 +42,7 @@ import com.xianxia.sect.core.engine.service.ProductionProcessor.HerbGardenMaturi
  */
 // ── ProductionProcessor 拆分域 2/5（行为零变更） ──
 internal fun ProductionProcessor.buildHarvestStores(state: MutableGameState): HarvestStoreContext {
-    val fixedOtherTypes = state.equipmentStacks.size + state.manualStacks.size +
+    val fixedOtherTypes = state.equipmentInstances.size + state.manualStacks.size +
         state.pills.size + state.materials.size
     val maxSlotsBase = state.computeMaxSlots() - fixedOtherTypes
     lateinit var seeds: StackableItemStore<Seed>
@@ -232,7 +232,7 @@ internal suspend fun ProductionProcessor.processAutoAlchemySlot(
     val effectiveSuccessRate = formulaService.buildSuccessRateZones(
         disciple = worker,
         buildingId = BuildingNames.ALCHEMY,
-        recipeTier = recipeToStart.tier,
+        recipeTier = maxTier,
         policyBonus = alchemyPolicyBonus
     ).calculate()
 
@@ -277,7 +277,7 @@ suspend fun ProductionProcessor.processAutoForge() {
         .map { it.slotIndex }
     if (idleSlotIndices.isEmpty()) return
 
-    val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+    val allRecipes = ForgeRecipeDatabase.getAllRecipes()
     val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
         GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
 
@@ -315,7 +315,8 @@ internal suspend fun ProductionProcessor.processAutoForgeSlot(
     val worker = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
     val maxTier = worker?.let { ProfessionRules.maxCraftableTier(it.skills.forgeLevel) }
         ?: 1
-    val craftableRecipes = allRecipes.filter { it.tier <= maxTier }
+    // B3 配方不分 tier：12 条全候选，产出品阶由 maxTier 定
+    val craftableRecipes = allRecipes
 
     val recipeToStart = findCraftableForgeRecipe(slot, craftableRecipes, materialIndex) ?: return true
 
@@ -323,7 +324,7 @@ internal suspend fun ProductionProcessor.processAutoForgeSlot(
     val effectiveSuccessRate = formulaService.buildSuccessRateZones(
         disciple = worker,
         buildingId = BuildingNames.FORGE,
-        recipeTier = recipeToStart.tier,
+        recipeTier = maxTier,
         policyBonus = forgePolicyBonus
     ).calculate()
 
@@ -363,8 +364,9 @@ internal fun ProductionProcessor.findCraftableForgeRecipe(
 
 internal fun ProductionProcessor.hasMaterials(
     recipe: ForgeRecipeDatabase.ForgeRecipe,
-    materialIndex: Map<Pair<String, Int>, Int>
-): Boolean = recipe.materials.all { (materialId, requiredQuantity) ->
+    materialIndex: Map<Pair<String, Int>, Int>,
+    maxTier: Int = 1
+): Boolean = recipe.materialsFor(maxTier).all { (materialId, requiredQuantity) ->
     val materialData = BeastMaterialDatabase.getMaterialById(materialId)
     materialData != null && (materialIndex[materialData.name to materialData.rarity] ?: 0) >= requiredQuantity
 }

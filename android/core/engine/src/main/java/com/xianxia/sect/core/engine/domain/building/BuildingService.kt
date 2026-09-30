@@ -31,6 +31,9 @@ import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -229,12 +232,12 @@ class BuildingService @Inject constructor(
         val workerLevel = forgeSlot?.assignedDiscipleId
             ?.let { id -> stateStore.disciples.value.find { it.id == id }?.skills?.forgeLevel }
             ?: 0
-        checkProfessionGate(workerLevel, recipe.tier, recipeId)?.let { return it }
+        checkProfessionGate(workerLevel, ProfessionRules.maxCraftableTier(workerLevel), recipeId)?.let { return it }
 
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
             GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
         val effectiveSuccessRate = buildForgingSuccessRate(
-            forgeSlot, recipe, forgePolicyBonus
+            forgeSlot, forgePolicyBonus
         )
 
         return executeForgingStart(slotIndex, recipe, recipeId, data, effectiveSuccessRate)
@@ -347,7 +350,10 @@ class BuildingService @Inject constructor(
         stateStore.update {
             materials.replaceAll(startData.materialUpdate.materials)
         }
-        val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
+        // B3：锻造时长按锻造槽位 workerLevel 品阶（配方不分 tier）——
+        // executeForgingStart 无槽位上下文，按凡品档基准（主链 startForging 已按
+        // workerLevel 传入 effectiveSuccessRate；时长基准与旧 tier=1 同值）
+        val baseDuration = ForgeRecipeDatabase.getDurationByTier(1)
         val actualDuration = calculateWorkDurationWithAllDisciples(
             baseDuration, BuildingNames.FORGE
         )
@@ -604,11 +610,14 @@ class BuildingService @Inject constructor(
         }
     }
 
-    /** 锻造产出入库（配方无效 → 产出失败）。 */
+    /** 锻造产出入库（B3 实例轨：产出品阶 = 锻造弟子职业等级，境界钳制在 Factory 内）。 */
     private suspend fun produceForgeEquipmentFromSlot(recipeId: String): Boolean {
         val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
-        val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
-        val r = inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentStack(equipment) }
+        val forgeTier = inventorySystem.stateStore.disciples.value
+            .filter { it.isAlive }.maxOfOrNull { it.skills.forgeLevel }?.coerceIn(1, 6) ?: 1
+        val rng = rngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+        val equipment = EquipmentFactory.create(recipe.setId, recipe.part, forgeTier, rng)
+        val r = inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentInstance(equipment) }
         return when (r) {
             is DomainResult.Success -> true
             is DomainResult.Partial -> {

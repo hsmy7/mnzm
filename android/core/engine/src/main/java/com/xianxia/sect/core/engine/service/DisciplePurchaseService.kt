@@ -7,13 +7,11 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.ItemEffect
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
@@ -22,7 +20,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
@@ -159,10 +156,12 @@ class DisciplePurchaseService @Inject constructor(
     private data class DisciplePurchaseContext(
         val id: Int,
         val realm: Int,
+        val headId: String,
+        val bodyId: String,
+        val handsId: String,
+        val feetId: String,
         val weaponId: String,
-        val armorId: String,
-        val bootsId: String,
-        val accessoryId: String,
+        val legsId: String,
         val manualIds: List<String>,
         val totalFunds: Long
     )
@@ -211,10 +210,12 @@ class DisciplePurchaseService @Inject constructor(
         DisciplePurchaseContext(
             id = id,
             realm = tables.realms.getOrDefault(id, 9),
+            headId = tables.headIds.getOrNull(id) ?: "",
+            bodyId = tables.bodyIds.getOrNull(id) ?: "",
+            handsId = tables.handsIds.getOrNull(id) ?: "",
+            feetId = tables.feetIds.getOrNull(id) ?: "",
             weaponId = tables.weaponIds.getOrNull(id) ?: "",
-            armorId = tables.armorIds.getOrNull(id) ?: "",
-            bootsId = tables.bootsIds.getOrNull(id) ?: "",
-            accessoryId = tables.accessoryIds.getOrNull(id) ?: "",
+            legsId = tables.legsIds.getOrNull(id) ?: "",
             manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
             totalFunds = totalFunds
         )
@@ -358,7 +359,10 @@ class DisciplePurchaseService @Inject constructor(
     ) {
         for (item in listedItems.filter { it.type == ITEM_TYPE_EQUIPMENT }) {
 
-            val eq = MerchantItemConverter.toEquipment(item)
+            // B3：货单装备 → 部位判定（按部件名反查；不 roll 词条——决策面只看部位/品阶）
+            val eqPart = com.xianxia.sect.core.engine.system.MerchantItemConverter.companionInstance
+                .equipmentPartOf(item)
+                ?: EquipmentSlot.WEAPON
 
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
@@ -369,7 +373,7 @@ class DisciplePurchaseService @Inject constructor(
                 val budget = calculateBudget(ctx.totalFunds, highestNeeded)
                 if (budget < item.price) return@filter false
 
-                val currentEquipId = getEquipIdBySlot(ctx, eq.slot)
+                val currentEquipId = getEquipIdBySlot(ctx, eqPart)
                 val currentRarity = if (currentEquipId.isNotEmpty()) {
                     equipmentInstances.find { it.id == currentEquipId }?.rarity
                         ?: 0
@@ -381,10 +385,10 @@ class DisciplePurchaseService @Inject constructor(
 
             // A组槽位为空优先，B组升级
             val groupA = interested
-                .filter { getEquipIdBySlot(it, eq.slot).isEmpty() }
+                .filter { getEquipIdBySlot(it, eqPart).isEmpty() }
                 .shuffled(purchaseRng)
             val groupB = interested
-                .filter { getEquipIdBySlot(it, eq.slot).isNotEmpty() }
+                .filter { getEquipIdBySlot(it, eqPart).isNotEmpty() }
                 .shuffled(purchaseRng)
 
             for (ctx in (groupA + groupB)) {
@@ -437,10 +441,12 @@ class DisciplePurchaseService @Inject constructor(
         ctx: DisciplePurchaseContext,
         slot: EquipmentSlot
     ): String = when (slot) {
+        EquipmentSlot.HEAD -> ctx.headId
+        EquipmentSlot.BODY -> ctx.bodyId
+        EquipmentSlot.HANDS -> ctx.handsId
+        EquipmentSlot.FEET -> ctx.feetId
         EquipmentSlot.WEAPON -> ctx.weaponId
-        EquipmentSlot.ARMOR -> ctx.armorId
-        EquipmentSlot.BOOTS -> ctx.bootsId
-        EquipmentSlot.ACCESSORY -> ctx.accessoryId
+        EquipmentSlot.LEGS -> ctx.legsId
     }
     // ── Pill → ItemEffect ────────────────────────────────────────
 
@@ -491,9 +497,7 @@ class DisciplePurchaseService @Inject constructor(
         month: Int
     ): Boolean {
         return when (item.type.lowercase(Locale.ROOT)) {
-            ITEM_TYPE_EQUIPMENT -> appendDeductedBagItem(
-                equipmentStacks, item, discipleId, year, month, ITEM_TYPE_EQUIPMENT_STACK
-            ) { stack -> BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name) }
+            ITEM_TYPE_EQUIPMENT -> appendEquipmentInstanceBagItem(item, discipleId, year, month)
             ITEM_TYPE_MANUAL -> appendDeductedBagItem(
                 manualStacks, item, discipleId, year, month, ITEM_TYPE_MANUAL_STACK
             ) { stack -> BagStackedData(minRealm = stack.minRealm, manualType = stack.type.name) }
@@ -508,6 +512,34 @@ class DisciplePurchaseService @Inject constructor(
      * @param stackedDataBuilder 由被扣减的仓库堆叠构建袋条目元数据（供取回重建）
      * @return 是否成功入袋（仓库无货 → false）
      */
+    /**
+     * 装备购买入袋（B3 实例轨）：按部件名+品阶匹配仓库实例，扣 1 条，
+     * 完整实例入袋（等级/词条随实例保真）。
+     */
+    private fun MutableGameState.appendEquipmentInstanceBagItem(
+        item: MerchantItem,
+        discipleId: Int,
+        year: Int,
+        month: Int
+    ): Boolean {
+        val instance = equipmentInstances.all().firstOrNull {
+            !it.isLocked && it.name == item.name && it.rarity == item.rarity
+        } ?: return false
+        equipmentInstances = equipmentInstances.filter { it.id != instance.id }
+        val bagItems = discipleTables.storageBagItems[discipleId]
+        discipleTables.storageBagItems[discipleId] = bagItems + StorageBagItem(
+            itemId = instance.id,
+            itemType = ITEM_TYPE_EQUIPMENT_INSTANCE,
+            name = item.name,
+            rarity = item.rarity,
+            quantity = 1,
+            obtainedYear = year,
+            obtainedMonth = month,
+            equipmentInstance = instance
+        )
+        return true
+    }
+
     private fun <T> MutableGameState.appendDeductedBagItem(
         store: EntityStore<T>,
         item: MerchantItem,
@@ -626,10 +658,10 @@ class DisciplePurchaseService @Inject constructor(
 
 // ── 文件级纯函数助手（类内函数数已超阈值，按纪律落位文件级） ──────────────────
 
-/** 装备仓库库存判定：存在未锁定、名称品阶匹配且数量 ≥1 的装备堆叠 */
+/** 装备仓库库存判定（B3 实例轨）：存在未锁定、名称品阶匹配的装备实例 */
 private fun MutableGameState.hasEquipmentWarehouseStock(item: MerchantItem): Boolean =
-    equipmentStacks.any {
-        !it.isLocked && it.name == item.name && it.rarity == item.rarity && it.quantity >= 1
+    equipmentInstances.any {
+        !it.isLocked && it.name == item.name && it.rarity == item.rarity
     }
 
 /** 功法仓库库存判定：存在未锁定、名称品阶匹配且数量 ≥1 的功法堆叠 */

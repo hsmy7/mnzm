@@ -4,7 +4,6 @@ import com.xianxia.sect.core.gameview.GameDataFieldPatch
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
@@ -85,8 +84,6 @@ internal object MirrorProtoFeedFixture {
         cultivationCompletionMonth = 3,
         manualCompletionMonth = 4,
         manualCompletionPhase = 1,
-        equipmentNurturingCompletionMonth = 5,
-        equipmentNurturingCompletionPhase = 3,
     ).apply {
         combat = richCombat()
         pillEffects = richPillEffects()
@@ -114,11 +111,8 @@ internal object MirrorProtoFeedFixture {
     )
 
     private fun richEquipment(): EquipmentSet = EquipmentSet(
-        weaponId = "w1", armorId = "a1", bootsId = "b1", accessoryId = "c1",
-        weaponNurture = EquipmentNurtureData("w1", 2, 4, 0.25),
-        armorNurture = EquipmentNurtureData("a1", 1, 1, 0.5),
-        bootsNurture = EquipmentNurtureData("b1", 3, 2, 0.75),
-        accessoryNurture = EquipmentNurtureData("c1", 4, 3, 1.0),
+        headId = "h1", bodyId = "a1", handsId = "g1",
+        feetId = "b1", weaponId = "w1", legsId = "l1",
         storageBagItems = listOf(
             StorageBagItem(
                 itemId = "s1", itemType = "material", name = "兽皮", rarity = 1,

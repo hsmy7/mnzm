@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,7 +30,6 @@ class CultivationCore @Inject constructor(
     // 仅保留被方法体引用的域服务依赖；熟练度核心逻辑在 ManualProficiencyService
     private val hpMpRecoveryService: HpMpRecoveryService,
     private val autoPillService: AutoPillService,
-    private val equipmentNurtureService: EquipmentNurtureService,
     private val manualProficiencyService: ManualProficiencyService,
     private val cultivationRateCalculator: CultivationRateCalculator
 ) {
@@ -93,35 +91,6 @@ class CultivationCore @Inject constructor(
         manualProficiencyService.processManualProficiencyPerPhase(state)
 
     /**
-     * 每旬装备孕养经验增长。
-     *
-     * 对所有存活且有装备的弟子，结算1旬的装备孕养经验增长。
-     * 无需 `assemble`，通过 `tables.weaponIds/armorIds/bootsIds/accessoryIds` 列级直读装备 ID。
-     *
-     * @param state 可变游戏状态
-     */
-    fun processEquipmentNurturePerPhase(state: MutableGameState) {
-        val tables = state.discipleTables
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
-
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            equipmentNurtureService.settleNurtureInPlace(
-                id = id, tables = tables, equipmentMap = equipmentMap,
-                nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
-                phasesToSettle = 1, equipmentUpdates = equipmentUpdates
-            )
-        }
-
-        if (equipmentUpdates.isNotEmpty()) {
-            state.equipmentInstances = state.equipmentInstances.map { eq ->
-                equipmentUpdates[eq.id] ?: eq
-            }
-        }
-    }
-
-    /**
      * 单弟子每旬功法熟练度增长（委托 [ManualProficiencyService]）。
      *
      * @param state 可变游戏状态
@@ -149,65 +118,5 @@ class CultivationCore @Inject constructor(
         state: MutableGameState,
         pending: MutableMap<String, List<ManualProficiencyData>?>
     ) = manualProficiencyService.commitManualProficiencies(state, pending)
-
-    /**
-     * 单弟子每旬装备孕养经验增长。
-     *
-     * 从 [processEquipmentNurturePerPhase] 的循环体中提取，
-     * 仅处理指定 ID 的存活弟子。无需 assemble，
-     * 通过 tables.weaponIds/armorIds/bootsIds/accessoryIds 列级直读装备 ID。
-     *
-     * 批量模式：当 [sharedUpdates] 非空时，本函数把装备更新累积到
-     * sharedUpdates 且**不写 state**；调用方循环结束后统一调用
-     * [applyEquipmentUpdates] 单次重建 List——将每旬 O(D×E) 全量列表重建
-     * （每弟子 map 全部装备）降为 O(E)。
-     *
-     * @param state 可变游戏状态
-     * @param id 弟子 ID
-     * @param equipmentMap 装备实例映射（每旬热点循环共享构建，null 时内部构建）
-     * @param sharedUpdates 批量累积目标（null 时保持旧的单弟子直写行为）
-     */
-    fun processEquipmentNurtureSingle(
-        state: MutableGameState, id: Int,
-        equipmentMap: Map<String, EquipmentInstance>? = null,
-        sharedUpdates: MutableMap<String, EquipmentInstance>? = null
-    ) {
-        val tables = state.discipleTables
-        if (tables.isAlive[id] != 1) return
-        val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
-        val updates = sharedUpdates ?: mutableMapOf<String, EquipmentInstance>()
-
-        equipmentNurtureService.settleNurtureInPlace(
-            id = id, tables = tables, equipmentMap = eqMap,
-            nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
-            phasesToSettle = 1, equipmentUpdates = updates
-        )
-
-        // 单弟子模式才立即写 state；批量模式由调用方统一提交
-        if (sharedUpdates == null && updates.isNotEmpty()) {
-            state.equipmentInstances = state.equipmentInstances.map { eq ->
-                updates[eq.id] ?: eq
-            }
-        }
-    }
-
-    /**
-     * 批量提交装备孕养累积结果（单次 List 重建）。
-     *
-     * 与单弟子模式逐弟子写等价：`map { updates[it.id] ?: it }` 保持原列表顺序，
-     * 最终列表逐元素相同。updates 为空时不做任何事（无变化则不重建）。
-     *
-     * @param state 可变游戏状态
-     * @param updates 由 [processEquipmentNurtureSingle] 批量模式累积的装备更新
-     */
-    fun applyEquipmentUpdates(
-        state: MutableGameState,
-        updates: Map<String, EquipmentInstance>
-    ) {
-        if (updates.isEmpty()) return
-        state.equipmentInstances = state.equipmentInstances.map { eq ->
-            updates[eq.id] ?: eq
-        }
-    }
 
 }

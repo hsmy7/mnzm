@@ -49,14 +49,14 @@
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/mission_completion.h"  // manualStackFromTemplate/JavaRandom
 #include "gamecore/system/settlement.h"         // kMsPerPhase（phase_settlement 依赖）
-#include "gamecore/system/nurture_constants.h"  // 孕养曲线/熟练度常量（S8 上移）
+#include "gamecore/data/equipment_entries.h"     // 72 条展开条目（AI 轻量实例查表）
+#include "gamecore/system/nurture_constants.h"  // 熟练度常量（kBaseProficiencyRate）
 #include "gamecore/system/settlement_detail.h"   // recordGameEvent
 
 namespace gamecore::system::ai_ops {
 
 using gamecore::state::Disciple;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentNurtureData;
 using gamecore::state::GameState;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualProficiencyData;
@@ -64,15 +64,13 @@ using gamecore::state::ManualStack;
 using gamecore::state::WorldLevel;
 using gamecore::state::WorldSect;
 
-// ai_sect_recruit.h / phase_settlement.h 的 detail 域助手（装备链/孕养曲线）
+// ai_sect_recruit.h 的 detail 域助手（装备链，B3 六部位条目版）
 using gamecore::system::detail::aiGenerateManuals;
 using gamecore::system::detail::aiPickEquipmentTemplate;
 using gamecore::system::detail::aiRealmMaxRarity;
 using gamecore::system::detail::applyGearToAiDisciple;
-using gamecore::system::detail::expRequiredForLevelUp;
 using gamecore::system::detail::kAiEquipmentCountByLevel;
 using gamecore::system::detail::kAiManualCountByLevel;
-using gamecore::system::detail::nurtureMaxLevel;
 
 constexpr int32_t kAiPhasesPerMonth = 3;             // PHASES_PER_MONTH
 constexpr int32_t kAiTeamSize = 10;                  // GameConfig.AI.TEAM_SIZE
@@ -80,16 +78,6 @@ constexpr int32_t kAiThermalEmergencyBatch = 12;     // THERMAL_EMERGENCY_BATCH
 constexpr int32_t kAiThermalReduceBatch = 6;         // THERMAL_REDUCE_BATCH
 constexpr int32_t kAiThermalNormalBatch = 3;         // L2 降频：季度批量（默认）
 constexpr int32_t kAiMaxProficiency = 30000;         // MAX_PROFICIENCY
-
-/// 装备模板按 id 查找（线性扫——equipment_db.h 无 byId 原语）
-inline const gamecore::data::EquipmentTemplate* aiEquipmentTemplateById(
-        const std::string& id) {
-    if (id.empty()) return nullptr;
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.id == id) return &t;
-    }
-    return nullptr;
-}
 
 /// 宗门等级 → 装备数量（EQUIPMENT_COUNT_BY_SECT_LEVEL；SectLevel 0..3）——
 /// ai_sect_recruit.h kAiEquipmentCountByLevel 同源（{1,2,4,4}）
@@ -111,25 +99,30 @@ inline const char* aiSectLevelName(int32_t level) {
     }
 }
 
-/// 槽位 id 读取（Kotlin EquipmentSet.idFor）
+/// 槽位 id 读取（B3 六部位；slot 0..5 = displayOrder 头/身/手/脚/武/腿）
 inline const std::string& aiSlotId(const Disciple& d, int slot) {
     static const std::string kEmpty;
     switch (slot) {
-        case 0: return d.weaponId;
-        case 1: return d.armorId;
-        case 2: return d.bootsId;
-        default: return d.accessoryId;
+        case 0: return d.headId;
+        case 1: return d.bodyId;
+        case 2: return d.handsId;
+        case 3: return d.feetId;
+        case 4: return d.weaponId;
+        case 5: return d.legsId;
+        default: return kEmpty;
     }
 }
 
-/// 槽位写入（Kotlin EquipmentSet.withEquipped——含孕养数据）
-inline void aiSetSlot(Disciple& d, int slot, const std::string& id,
-                      const EquipmentNurtureData& nurture) {
+/// 槽位写入（B3 六部位单 id；slot 0..5 = displayOrder）
+inline void aiSetSlot(Disciple& d, int slot, const std::string& id) {
     switch (slot) {
-        case 0: d.weaponId = id; d.weaponNurture = nurture; break;
-        case 1: d.armorId = id; d.armorNurture = nurture; break;
-        case 2: d.bootsId = id; d.bootsNurture = nurture; break;
-        default: d.accessoryId = id; d.accessoryNurture = nurture; break;
+        case 0: d.headId = id; break;
+        case 1: d.bodyId = id; break;
+        case 2: d.handsId = id; break;
+        case 3: d.feetId = id; break;
+        case 4: d.weaponId = id; break;
+        case 5: d.legsId = id; break;
+        default: break;
     }
 }
 
@@ -290,66 +283,6 @@ inline Disciple aiApplyMonthlyProficiencyGain(Disciple disciple) {
     return disciple;
 }
 
-/// 单槽孕养增长（applyMonthlyNurtureGain.growNurture：老档回填 + 防御钳制 +
-/// 升级曲线与玩家共用）
-inline EquipmentNurtureData aiGrowNurture(const std::string& slotEquipmentId,
-                                          const EquipmentNurtureData& nurture,
-                                          double monthlyGain) {
-    // 老档回填：槽位有装备但记录为空 → 0 级起步
-    EquipmentNurtureData normalized = nurture;
-    if (!slotEquipmentId.empty() && nurture.equipmentId.empty()) {
-        const gamecore::data::EquipmentTemplate* tpl = aiEquipmentTemplateById(slotEquipmentId);
-        normalized.equipmentId = slotEquipmentId;
-        normalized.rarity = tpl ? tpl->rarity : 0;
-        normalized.nurtureLevel = 0;
-        normalized.nurtureProgress = 0.0;
-    }
-    const int32_t safeLevel = std::max(normalized.nurtureLevel, 0);
-    const double safeProgress =
-        std::isfinite(normalized.nurtureProgress)
-            ? std::max(normalized.nurtureProgress, 0.0)
-            : 0.0;
-    normalized.nurtureLevel = safeLevel;
-    normalized.nurtureProgress = safeProgress;
-    const int32_t maxLevel = nurtureMaxLevel(normalized.rarity);
-    const bool canGrow = !normalized.equipmentId.empty() && safeLevel < maxLevel;
-    if (!canGrow) return normalized;
-    const double expRequired =
-        expRequiredForLevelUp(safeLevel, normalized.rarity);
-    const double newProgress = safeProgress + monthlyGain;
-    const int32_t newLevel = safeLevel + 1;
-    if (newProgress >= expRequired) {
-        normalized.nurtureLevel = newLevel;
-        normalized.nurtureProgress = newLevel >= maxLevel ? 0.0 : newProgress - expRequired;
-        return normalized;
-    }
-    normalized.nurtureProgress = newProgress;
-    return normalized;
-}
-
-/// 装备孕养月度增长（applyMonthlyNurtureGain：每旬 10.0 × 3 旬；四槽独立）
-inline Disciple aiApplyMonthlyNurtureGain(Disciple disciple) {
-    constexpr double kMonthlyGain = gamecore::system::kNurtureGainPerPhase * 3.0;
-    disciple.weaponNurture = aiGrowNurture(disciple.weaponId, disciple.weaponNurture, kMonthlyGain);
-    disciple.armorNurture = aiGrowNurture(disciple.armorId, disciple.armorNurture, kMonthlyGain);
-    disciple.bootsNurture = aiGrowNurture(disciple.bootsId, disciple.bootsNurture, kMonthlyGain);
-    disciple.accessoryNurture =
-        aiGrowNurture(disciple.accessoryId, disciple.accessoryNurture, kMonthlyGain);
-    return disciple;
-}
-
-/// 初始装备孕养数据（generateInitialNurture：0 级 0 进度；模板缺失空记录）
-inline EquipmentNurtureData aiGenerateInitialNurture(const std::string& equipmentId) {
-    EquipmentNurtureData n;
-    const gamecore::data::EquipmentTemplate* tpl = aiEquipmentTemplateById(equipmentId);
-    if (tpl == nullptr) return n;   // equipmentId 空串 + rarity 0（Kotlin EquipmentNurtureData("", 0)）
-    n.equipmentId = equipmentId;
-    n.rarity = tpl->rarity;
-    n.nurtureLevel = 0;
-    n.nurtureProgress = 0.0;
-    return n;
-}
-
 /// 只补缺不覆盖（ensureDiscipleGear：装备/功法不足则补至宗门等级数量——
 /// 装备空槽洗牌补齐、功法按含心法口径补全）
 inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
@@ -359,13 +292,14 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
     const int32_t expectedManuals = aiManualCountByLevel(sectLevel);
 
     // 装备：空槽洗牌（java.util.Random 种子 1×nextInt）补至等级数量
-    static constexpr int kAllSlots[4] = {0, 1, 2, 3};
+    //（B3 六部位 displayOrder 槽序）
+    static constexpr int kAllSlots[6] = {0, 1, 2, 3, 4, 5};
     const int32_t currentEquip = static_cast<int32_t>(std::count_if(
         std::begin(kAllSlots), std::end(kAllSlots),
         [&](int slot) { return !aiSlotId(d, slot).empty(); }));
     if (currentEquip < expectedEquip) {
         std::vector<int> emptySlots;
-        for (int slot = 0; slot < 4; ++slot) {
+        for (int slot = 0; slot < 6; ++slot) {
             if (aiSlotId(d, slot).empty()) emptySlots.push_back(slot);
         }
         // Kotlin: .shuffled(java.util.Random(rng.nextInt().toLong()))
@@ -373,15 +307,14 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
         emptySlots = JavaRandomCompat::shuffle(emptySlots, javaSeed);
         const int32_t toAdd = std::min(expectedEquip - currentEquip,
                                        static_cast<int32_t>(emptySlots.size()));
+        static const char* kSlotNames[6] = {"HEAD", "BODY", "HANDS",
+                                            "FEET", "WEAPON", "LEGS"};
         for (int32_t i = 0; i < toAdd; ++i) {
             const int slot = emptySlots[static_cast<std::size_t>(i)];
-            const auto tpl = aiPickEquipmentTemplate(
-                aiRng, slot == 0 ? "WEAPON" : slot == 1 ? "ARMOR" : slot == 2 ? "BOOTS"
-                                                                              : "ACCESSORY",
-                maxRarity);
-            if (!tpl.has_value() || *tpl == nullptr) continue;
-            const std::string& tid = (*tpl)->id;
-            aiSetSlot(d, slot, tid, aiGenerateInitialNurture(tid));
+            const auto picked = aiPickEquipmentTemplate(
+                aiRng, kSlotNames[slot], maxRarity);
+            if (!picked.has_value()) continue;
+            aiSetSlot(d, slot, picked->id);
         }
     }
 
@@ -430,7 +363,7 @@ inline std::vector<Disciple> aiProcessMonthlyCultivation(
         for (int32_t i = 0; i < batchMonths; ++i) {
             working = aiSettleMonthlyCultivation(working, sectLevel, aiRng);
             working = aiApplyMonthlyProficiencyGain(std::move(working));
-            working = aiApplyMonthlyNurtureGain(std::move(working));
+            // 装备孕养月度增长已随 B3 退役（等级/词条随实例，升级走玩家交互）
         }
         out.push_back(std::move(working));
     }
@@ -448,39 +381,37 @@ struct AiPreparedBattle {
     std::map<std::string, std::map<std::string, ManualProficiencyData>> proficiencies;
 };
 
-/// 单弟子装备实例映射（buildEquipmentMapForDisciple：模板 → 实例 + 孕养覆盖）
+/// 单弟子装备实例映射（buildEquipmentMapForDisciple，B3 轻量实例版：
+/// 槽位条目 id → 72 条表查条目 → 占位空词条实例——AI 弟子只持久化槽位
+/// 条目 id，等级恒 1、主词条占位 0 攻，AI 侧不结算词条，战斗装配按品阶
+/// 固定加成 C++ 侧 B4 对齐；实例 id = 条目 id，AI 侧不落玩家实例表）
 inline std::map<std::string, EquipmentInstance> aiBuildEquipmentMapForDisciple(
         const Disciple& d) {
     std::map<std::string, EquipmentInstance> out;
-    auto addEntry = [&](const std::string& eqId, const EquipmentNurtureData& nurture) {
+    auto addEntry = [&](const std::string& eqId) {
         if (eqId.empty() || out.count(eqId) > 0) return;
-        const gamecore::data::EquipmentTemplate* tpl = aiEquipmentTemplateById(eqId);
-        if (tpl == nullptr) return;
+        const gamecore::data::EquipPieceEntry* entry =
+            gamecore::data::equipmentEntryById(eqId);
+        if (entry == nullptr) return;
         EquipmentInstance inst;
-        inst.id = eqId;   // 模板 id 即实例 id（AI 侧不落玩家实例表）
-        inst.name = tpl->name;
-        inst.rarity = tpl->rarity;
-        inst.description = tpl->description;
-        inst.slot = tpl->slot;
-        inst.physicalAttack = tpl->physicalAttack;
-        inst.magicAttack = tpl->magicAttack;
-        inst.physicalDefense = tpl->physicalDefense;
-        inst.magicDefense = tpl->magicDefense;
-        inst.speed = tpl->speed;
-        inst.hp = tpl->hp;
-        inst.mp = tpl->mp;
-        inst.critChance = tpl->critChance;
-        inst.minRealm = mission_settle::detail::realmMinForRarity(tpl->rarity);
-        if (nurture.equipmentId == eqId) {
-            inst.nurtureLevel = nurture.nurtureLevel;
-            inst.nurtureProgress = nurture.nurtureProgress;
-        }
+        inst.id = eqId;
+        inst.name = entry->name;
+        inst.setId = entry->setId;
+        inst.part = entry->part;
+        // 占位空词条（主词条 ATTACK 0 攻；无副词条；等级恒 1）
+        inst.growth.affix.mainStat =
+            gamecore::state::EquipStatValue{"ATTACK", 0.0};
+        inst.meta.rarity = entry->rarity;
+        inst.meta.minRealm = entry->minRealm;
+        inst.meta.description = entry->description;
         out.emplace(eqId, std::move(inst));
     };
-    addEntry(d.weaponId, d.weaponNurture);
-    addEntry(d.armorId, d.armorNurture);
-    addEntry(d.bootsId, d.bootsNurture);
-    addEntry(d.accessoryId, d.accessoryNurture);
+    addEntry(d.headId);
+    addEntry(d.bodyId);
+    addEntry(d.handsId);
+    addEntry(d.feetId);
+    addEntry(d.weaponId);
+    addEntry(d.legsId);
     return out;
 }
 

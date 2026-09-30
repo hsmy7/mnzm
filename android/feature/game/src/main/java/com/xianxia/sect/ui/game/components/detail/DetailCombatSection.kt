@@ -66,20 +66,13 @@ fun AttributesSection(disciple: DiscipleAggregate) {
 @Composable
 fun CombatStatsSection(
     disciple: DiscipleAggregate,
-    weapon: EquipmentInstance?,
-    armor: EquipmentInstance?,
-    boots: EquipmentInstance?,
-    accessory: EquipmentInstance?,
+    equipped: List<EquipmentInstance>,
     learnedManuals: List<ManualInstance>,
     manualProficiencies: Map<String, List<ManualProficiencyData>>
 ) {
-    val equipmentMap = remember(weapon, armor, boots, accessory) {
-        mutableMapOf<String, EquipmentInstance>().apply {
-            weapon?.let { put(it.id, it) }
-            armor?.let { put(it.id, it) }
-            boots?.let { put(it.id, it) }
-            accessory?.let { put(it.id, it) }
-        }
+    // B3 实例轨：六部位已穿实例单列表（装配点由调用方按 displayOrder 解析）
+    val equipmentMap = remember(equipped) {
+        equipped.associateBy { it.id }
     }
 
     val manualMap = remember(learnedManuals) {

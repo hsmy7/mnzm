@@ -138,7 +138,6 @@ class CultivationCoreRealtimeAutoPillsTest {
         return MutableGameState(
             gameData = GameData(),
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

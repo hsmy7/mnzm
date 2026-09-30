@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.integrity.rules
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.data.model.SaveData
 
 
@@ -20,17 +19,17 @@ object EntityCountBoundsRule : SaveValidationRule {
     /** 弟子数量警告阈值 */
     private const val DISCIPLE_WARN_THRESHOLD = 10000
 
-    /** 装备堆叠数量警告阈值 */
-    private const val EQUIPMENT_STACK_WARN_THRESHOLD = 5000
+    /** 装备实例数量警告阈值（只告警不截断，方案 §0.2-2 拍板：不设硬上限） */
+    private const val EQUIPMENT_INSTANCE_WARN_THRESHOLD = 800
+
+    /** 装备实例页面提示阈值（仅记录供 UI 展示提示，不阻断） */
+    const val EQUIPMENT_INSTANCE_PAGE_HINT_THRESHOLD = 1200
 
     /** 战斗日志数量警告阈值 */
     private const val BATTLE_LOG_WARN_THRESHOLD = 2000
 
     /** 弟子数量硬上限（超限=不可安全修复，判损坏） */
     private const val DISCIPLE_HARD_CAP = 100000
-
-    /** 装备堆叠硬上限 */
-    private const val EQUIPMENT_STACK_HARD_CAP = 50000
 
     /** 功法堆叠硬上限 */
     private const val MANUAL_STACK_HARD_CAP = 50000
@@ -57,14 +56,10 @@ object EntityCountBoundsRule : SaveValidationRule {
             dataChanged = true
         }
 
-        // ── 装备/功法堆叠：超硬上限截断 + 清理弟子对已截断堆叠的悬空引用 ──
-        var equipmentStacks = data.equipmentStacks
+        // ── 功法堆叠：超硬上限截断 + 清理弟子对已截断堆叠的悬空引用 ──
+        //（装备实例不设硬上限、只告警不截断——0.2-2 拍板：1 件 1 槽后容量模型
+        //  改为无上限 + 仓库排序/筛选/批量分解兜底，不走溢出邮件，I10 监控）
         var manualStacks = data.manualStacks
-        if (equipmentStacks.size > EQUIPMENT_STACK_HARD_CAP) {
-            equipmentStacks = equipmentStacks.take(EQUIPMENT_STACK_HARD_CAP)
-            details.add("装备堆叠 ${data.equipmentStacks.size} 个超过硬上限 $EQUIPMENT_STACK_HARD_CAP，已截断")
-            dataChanged = true
-        }
         if (manualStacks.size > MANUAL_STACK_HARD_CAP) {
             manualStacks = manualStacks.take(MANUAL_STACK_HARD_CAP)
             details.add("功法堆叠 ${data.manualStacks.size} 个超过硬上限 $MANUAL_STACK_HARD_CAP，已截断")
@@ -76,9 +71,11 @@ object EntityCountBoundsRule : SaveValidationRule {
         if (discipleCount > DISCIPLE_WARN_THRESHOLD) {
             details.add("⚠️ 弟子数量 $discipleCount 超过警告阈值 $DISCIPLE_WARN_THRESHOLD")
         }
-        val equipmentStackCount = data.equipmentStacks.size
-        if (equipmentStackCount > EQUIPMENT_STACK_WARN_THRESHOLD) {
-            details.add("⚠️ 装备堆叠数量 $equipmentStackCount 超过警告阈值 $EQUIPMENT_STACK_WARN_THRESHOLD")
+        val equipmentInstanceCount = data.equipmentInstances.size
+        if (equipmentInstanceCount > EQUIPMENT_INSTANCE_WARN_THRESHOLD) {
+            details.add("⚠️ 装备实例数量 $equipmentInstanceCount 超过警告阈值 " +
+                "$EQUIPMENT_INSTANCE_WARN_THRESHOLD（只告警不截断；" +
+                "超过页面提示阈值 $EQUIPMENT_INSTANCE_PAGE_HINT_THRESHOLD 时 UI 应提示整理）")
         }
         val battleLogCount = data.battleLogs.size
         if (battleLogCount > BATTLE_LOG_WARN_THRESHOLD) {
@@ -89,19 +86,17 @@ object EntityCountBoundsRule : SaveValidationRule {
             return if (details.isNotEmpty()) RuleOutcome.Repaired(data, details) else RuleOutcome.Passed
         }
 
-        // ── 截断后清理弟子悬空引用（仅清理指向"被移除堆叠"的引用，equipmentInstances 不受影响）──
-        val removedEquipmentIds = data.equipmentStacks.map { it.id }.toHashSet() -
-            equipmentStacks.map { it.id }.toHashSet()
+        // ── 截断后清理弟子悬空引用（仅清理指向"被移除功法堆叠"的引用；
+        //    装备实例无截断，不受影响）──
         val removedManualIds = data.manualStacks.map { it.id }.toHashSet() -
             manualStacks.map { it.id }.toHashSet()
         val fixedDisciples = data.disciples.map { d ->
-            clearDanglingStackRefs(d, removedEquipmentIds, removedManualIds, details)
+            clearDanglingStackRefs(d, removedManualIds, details)
         }
 
         return RuleOutcome.Repaired(
             data.copy(
                 battleLogs = battleLogs,
-                equipmentStacks = equipmentStacks,
                 manualStacks = manualStacks,
                 disciples = fixedDisciples
             ),
@@ -109,37 +104,21 @@ object EntityCountBoundsRule : SaveValidationRule {
         )
     }
 
-    /** 清理弟子对已截断堆叠的悬空引用（装备四槽 + manualIds，C10） */
+    /** 清理弟子对已截断功法堆叠的悬空引用（manualIds，C10） */
     private fun clearDanglingStackRefs(
         d: Disciple,
-        removedEquipmentIds: Set<String>,
         removedManualIds: Set<String>,
         details: MutableList<String>
     ): Disciple {
-        val eq = d.equipment
-        val removedEquipped = eq.equippedItemIds.filter { it in removedEquipmentIds }
         val removedManuals = d.manualIds.filter { it in removedManualIds }
         // D-03 独立存储：储物袋条目持有自身数据（payload/stackedData），
         // 不再引用仓库堆叠——不受堆叠截断影响，不得清理（否则误删玩家袋内物品）
-        if (removedEquipped.isEmpty() && removedManuals.isEmpty()) return d
+        if (removedManuals.isEmpty()) return d
 
-        val newEq = EquipmentSet(
-            weaponId = eq.weaponId.takeUnless { it in removedEquipmentIds }.orEmpty(),
-            armorId = eq.armorId.takeUnless { it in removedEquipmentIds }.orEmpty(),
-            bootsId = eq.bootsId.takeUnless { it in removedEquipmentIds }.orEmpty(),
-            accessoryId = eq.accessoryId.takeUnless { it in removedEquipmentIds }.orEmpty(),
-            weaponNurture = eq.weaponNurture,
-            armorNurture = eq.armorNurture,
-            bootsNurture = eq.bootsNurture,
-            accessoryNurture = eq.accessoryNurture,
-            storageBagItems = eq.storageBagItems,
-            storageBagSpiritStones = eq.storageBagSpiritStones,
-            spiritStones = eq.spiritStones
-        )
         details.add(
             "弟子[${d.name.ifBlank { "ID=${d.id}" }}] 存在指向已截断堆叠的悬空引用" +
-                "（装备 ${removedEquipped.size} 件 / 功法 ${removedManuals.size} 本），已清除"
+                "（功法 ${removedManuals.size} 本），已清除"
         )
-        return d.copy(equipment = newEq, manualIds = d.manualIds - removedManualIds.toSet())
+        return d.copy(manualIds = d.manualIds - removedManualIds.toSet())
     }
 }

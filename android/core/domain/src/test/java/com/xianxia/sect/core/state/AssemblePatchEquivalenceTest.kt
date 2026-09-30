@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.StorageBagItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,7 +36,6 @@ class AssemblePatchEquivalenceTest {
             tables.comprehensions[i] = 60
             tables.currentHps[i] = 500
             tables.weaponIds[i] = "w$i"
-            tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 3)
             tables.usedPermanentPillKeys[i] = setOf("pk$i")
             tables.storageBagItems[i] = listOf(
                 StorageBagItem(itemId = "bag$i", itemType = "pill", name = "丹", rarity = 2)
@@ -87,7 +85,7 @@ class AssemblePatchEquivalenceTest {
         // 五个子对象组各写一列 + 本体列
         tables.intelligences[1] = 88
         tables.pillHpBonuses[2] = 100
-        tables.armorNurtures[3] = EquipmentNurtureData(equipmentId = "a3", rarity = 5)
+        tables.bodyIds[3] = "b3"
         tables.salaryMissedCounts[5] = 3
         tables.hasReviveEffects[6] = 1
         tables.lifeEvents[7] = listOf("事件")
@@ -95,7 +93,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "intelligences", "pillHpBonuses", "armorNurtures",
+            "intelligences", "pillHpBonuses", "bodyIds",
             "salaryMissedCounts", "hasReviveEffects", "lifeEvents", "names"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)
@@ -111,7 +109,7 @@ class AssemblePatchEquivalenceTest {
         for (i in 1..3) {
             tables.currentHps[i] = 1
             tables.pillHpBonuses[i] = 2
-            tables.weaponNurtures[i] = EquipmentNurtureData(equipmentId = "w$i", rarity = 4)
+            tables.legsIds[i] = "l$i"
             tables.moralities[i] = 60
             tables.recruitedMonths[i] = 3
             tables.lifeEvents[i] = listOf("e$i")
@@ -120,7 +118,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "currentHps", "pillHpBonuses", "weaponNurtures",
+            "currentHps", "pillHpBonuses", "legsIds",
             "moralities", "recruitedMonths", "lifeEvents", "cultivations"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)

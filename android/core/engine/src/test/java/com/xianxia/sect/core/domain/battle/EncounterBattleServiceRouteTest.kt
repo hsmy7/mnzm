@@ -36,7 +36,6 @@ class EncounterBattleServiceRouteTest {
     private fun buildState(): MutableGameState = MutableGameState(
         gameData = GameData(),
         discipleTables = DiscipleTables(),
-        equipmentStacks = EntityStore(),
         equipmentInstances = EntityStore(),
         manualStacks = EntityStore(),
         manualInstances = EntityStore(),

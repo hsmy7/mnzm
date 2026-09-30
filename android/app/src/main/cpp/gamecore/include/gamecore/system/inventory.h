@@ -152,10 +152,8 @@ inline StackKey makeStackKey(std::initializer_list<std::string> parts) {
     return out;
 }
 
-/// 各类型合并键（与 Kotlin StackKeys 一一对应）
-inline StackKey equipmentKey(const state::EquipmentStack& it) {
-    return makeStackKey({it.name, std::to_string(it.rarity), it.slot});
-}
+/// 各类型合并键（与 Kotlin StackKeys 一一对应；装备堆叠轨已退役——
+/// B3 装备为一行一实例，无合并键）
 inline StackKey manualKey(const state::ManualStack& it) {
     return makeStackKey({it.name, std::to_string(it.rarity), it.type});
 }
@@ -176,17 +174,8 @@ inline StackKey storageBagKey(const state::StorageBag& it) {
 }
 
 // ── 物品 setter（withQuantity / withNewId 等价；copy-on-write 返回新值）──
+// （装备堆叠轨 setter 已随 EquipmentStack 退役——实例不可合并，无数量语义）
 
-inline state::EquipmentStack withQuantity(const state::EquipmentStack& it, int32_t q) {
-    state::EquipmentStack out = it;
-    out.quantity = q;
-    return out;
-}
-inline state::EquipmentStack withNewId(const state::EquipmentStack& it, const std::string& id) {
-    state::EquipmentStack out = it;
-    out.id = id;
-    return out;
-}
 inline state::ManualStack withQuantity(const state::ManualStack& it, int32_t q) {
     state::ManualStack out = it;
     out.quantity = q;
@@ -539,10 +528,10 @@ inline int32_t computeMaxSlots(const state::GameState& state) {
            warehouseCount * cfg.warehouseCapacityPerBuilding;
 }
 
-/// 当前已用槽位数（equipmentStacks + manualStacks + pills + materials + herbs + seeds）
+/// 当前已用槽位数（equipmentInstances + manualStacks + pills + materials + herbs + seeds）
 inline int32_t computeSlotCount(const state::GameState& state) {
     return static_cast<int32_t>(
-        state.equipmentStacks.size() + state.manualStacks.size() + state.pills.size() +
+        state.equipmentInstances.size() + state.manualStacks.size() + state.pills.size() +
         state.materials.size() + state.herbs.size() + state.seeds.size());
 }
 
@@ -662,14 +651,14 @@ inline bool addToDiscipleBagList(std::vector<state::StorageBagItem>& bag,
 
 // ── InventorySystem 等价（addXxx/removeXxx/canAdd 纯逻辑）─────────
 
-/// 各类型最大堆叠（Kotlin InventoryConfig.typeSpecificStackLimits）
+/// 各类型最大堆叠（Kotlin InventoryConfig.typeSpecificStackLimits；
+/// equipment_stack 已退役——B3 装备单轨实例无堆叠）
 inline int32_t getMaxStackSize(const std::string& type) {
     if (type == "pill") return 999;
     if (type == "material") return 9999;
     if (type == "herb") return 9999;
     if (type == "seed") return 9999;
     if (type == "manual_stack") return 999;
-    if (type == "equipment_stack") return 999;
     return 9999;  // 默认 maxStackSize（storageBag 等）
 }
 
@@ -686,11 +675,19 @@ inline bool flipLockById(std::vector<T>& items, const std::string& id) {
     return false;
 }
 
-/// 锁定状态翻转（Kotlin InventoryFacadeImpl.toggleItemLock 堆叠轨道等价；
-/// 未知 itemType 无操作返回 false，与 Kotlin when 无 else 分支一致）
+/// 锁定状态翻转（Kotlin InventoryFacadeImpl.toggleItemLock 等价；
+/// 装备走实例轨（meta.isLocked），未知 itemType 无操作返回 false，
+/// 与 Kotlin when 无 else 分支一致）
 inline bool toggleItemLock(state::GameState& state, const std::string& itemId,
                            const std::string& itemType) {
-    if (itemType == "equipment") return flipLockById(state.equipmentStacks, itemId);
+    if (itemType == "equipment") {
+        for (auto& it : state.equipmentInstances) {
+            if (it.id != itemId) continue;
+            it.meta.isLocked = !it.meta.isLocked;
+            return true;
+        }
+        return false;
+    }
     if (itemType == "manual") return flipLockById(state.manualStacks, itemId);
     if (itemType == "pill") return flipLockById(state.pills, itemId);
     if (itemType == "material") return flipLockById(state.materials, itemId);
@@ -746,9 +743,9 @@ inline void sortStacks(std::vector<T>& items) {
     });
 }
 
-/// 全仓库合并（Kotlin consolidateAllStacks；7 类堆叠轨道逐一合并）
+/// 全仓库合并（Kotlin consolidateAllStacks；堆叠轨道逐一合并——装备
+/// 实例轨不可合并不参与）
 inline void consolidateAllStacks(state::GameState& state) {
-    consolidateItems(state.equipmentStacks, equipmentKey, getMaxStackSize("equipment_stack"));
     consolidateItems(state.manualStacks, manualKey, getMaxStackSize("manual_stack"));
     consolidateItems(state.pills, pillKey, getMaxStackSize("pill"));
     consolidateItems(state.materials, materialKey, getMaxStackSize("material"));
@@ -757,11 +754,21 @@ inline void consolidateAllStacks(state::GameState& state) {
     consolidateItems(state.storageBags, storageBagKey, getMaxStackSize("storageBag"));
 }
 
+/// 装备实例排序（B3：rarity 为成员函数——Kotlin compareByDescending
+/// rarity thenBy name 同式，stable_sort 保序一致）
+inline void sortEquipmentInstances(std::vector<state::EquipmentInstance>& items) {
+    std::stable_sort(items.begin(), items.end(),
+                     [](const state::EquipmentInstance& a,
+                        const state::EquipmentInstance& b) {
+                         if (a.rarity() != b.rarity()) return a.rarity() > b.rarity();
+                         return a.name < b.name;
+                     });
+}
+
 /// 仓库整理 = 先合并后排序（含装备/功法实例轨道，Kotlin sortWarehouse 同一事务语义）
 inline void sortWarehouse(state::GameState& state) {
     consolidateAllStacks(state);
-    sortStacks(state.equipmentStacks);
-    sortStacks(state.equipmentInstances);
+    sortEquipmentInstances(state.equipmentInstances);
     sortStacks(state.manualStacks);
     sortStacks(state.manualInstances);
     sortStacks(state.pills);
@@ -820,9 +827,6 @@ inline void fillOverflowExtras(OverflowDraft& d, const state::Herb& item) {
 inline void fillOverflowExtras(OverflowDraft& d, const state::Seed& item) {
     d.growTime = item.growTime; d.yield = item.yield;
 }
-inline void fillOverflowExtras(OverflowDraft& d, const state::EquipmentStack& item) {
-    d.slot = item.slot;
-}
 inline void fillOverflowExtras(OverflowDraft& d, const state::ManualStack& item) {
     d.type = item.type;
 }
@@ -855,33 +859,53 @@ inline void handleOverflow(const InventoryResult<T>& result, const std::string& 
     overflowMail.add(std::move(draft));
 }
 
-/// 添加装备堆叠（Kotlin addEquipmentStack 等价；含年度报告来源追踪）
-inline InventoryResult<state::EquipmentStack> addEquipmentStack(
-    state::GameState& state, const state::EquipmentStack& item,
-    OverflowMailCollector& overflowMail, const std::string& trackingSource,
-    bool overflowMailSuppressed) {
-    auto validation = validateStackableItem(item);
-    if (!validationPassed(validation)) return validation;
-
-    const int32_t otherTypes = static_cast<int32_t>(
-        state.manualStacks.size() + state.pills.size() + state.materials.size() +
-        state.herbs.size() + state.seeds.size());
-    StackableItemStore<state::EquipmentStack> store(
-        state.equipmentStacks, equipmentKey, getMaxStackSize("equipment_stack"),
-        [&]() { return computeMaxSlots(state) - otherTypes; });
-    auto result = store.add(item);
-    state.equipmentStacks = store.all();
-    if (result.status == InventoryStatus::kSuccess || result.status == InventoryStatus::kPartial) {
-        const int32_t actualAdded =
-            (result.status == InventoryStatus::kSuccess) ? item.quantity
-                                                         : item.quantity - result.overflow;
-        const std::string srcKey = trackingSource + ":" + std::to_string(item.rarity);
-        state.gameData.annualEquipmentBySource[srcKey] =
-            wrapAdd(state.gameData.annualEquipmentBySource[srcKey], actualAdded);
+/// 添加装备实例（Kotlin addEquipmentInstance 等价；B3 单轨实例：校验
+/// id/名称/品阶 + 重复 id 拒绝后追加——无槽位上限/无合并/无溢出邮件）。
+/// [trackingSource] 非空时记年度装备来源（Kotlin withTrackingSource 同口径：
+/// 键 `source:rarity`；merchant/quest/building/exploration 等面由调用方传）。
+inline InventoryResult<state::EquipmentInstance> addEquipmentInstance(
+    state::GameState& state, const state::EquipmentInstance& item,
+    const std::string& trackingSource = "") {
+    InventoryResult<state::EquipmentInstance> r;
+    if (item.id.empty()) {
+        r.status = InventoryStatus::kFailure;
+        r.error.type = InventoryErrorType::kInvalidName;
+        return r;
     }
-    handleOverflow(result, "equipment", item, overflowMail, trackingSource,
-                   overflowMailSuppressed);
-    return result;
+    const bool blank = std::all_of(item.name.begin(), item.name.end(),
+        [](unsigned char c) {
+            return c == ' ' || c == '\t' || c == '\n' ||
+                   c == '\r' || c == '\f' || c == '\v';
+        });
+    if (item.name.empty() || blank) {
+        r.status = InventoryStatus::kFailure;
+        r.error.type = InventoryErrorType::kInvalidName;
+        return r;
+    }
+    if (item.rarity() < 1 || item.rarity() > 6) {
+        r.status = InventoryStatus::kFailure;
+        r.error.type = InventoryErrorType::kInvalidRarity;
+        r.error.value = item.rarity();
+        return r;
+    }
+    for (const auto& it : state.equipmentInstances) {
+        if (it.id == item.id) {
+            r.status = InventoryStatus::kFailure;
+            r.error.type = InventoryErrorType::kDuplicateId;
+            r.error.value = 0;
+            r.data = item;
+            return r;
+        }
+    }
+    state.equipmentInstances.push_back(item);
+    if (!trackingSource.empty()) {
+        const std::string srcKey = trackingSource + ":" + std::to_string(item.rarity());
+        state.gameData.annualEquipmentBySource[srcKey] =
+            wrapAdd(state.gameData.annualEquipmentBySource[srcKey], 1);
+    }
+    r.status = InventoryStatus::kSuccess;
+    r.data = item;
+    return r;
 }
 
 /// 添加功法堆叠（Kotlin addManualStack 等价）
@@ -893,7 +917,7 @@ inline InventoryResult<state::ManualStack> addManualStack(
     if (!validationPassed(validation)) return validation;
 
     const int32_t otherTypes = static_cast<int32_t>(
-        state.equipmentStacks.size() + state.pills.size() + state.materials.size() +
+        state.equipmentInstances.size() + state.pills.size() + state.materials.size() +
         state.herbs.size() + state.seeds.size());
     StackableItemStore<state::ManualStack> store(
         state.manualStacks, manualKey, getMaxStackSize("manual_stack"),
@@ -914,7 +938,7 @@ inline InventoryResult<state::Pill> addPill(
     if (!validationPassed(validation)) return validation;
 
     const int32_t otherTypes = static_cast<int32_t>(
-        state.equipmentStacks.size() + state.manualStacks.size() + state.materials.size() +
+        state.equipmentInstances.size() + state.manualStacks.size() + state.materials.size() +
         state.herbs.size() + state.seeds.size());
     StackableItemStore<state::Pill> store(
         state.pills, pillKey, getMaxStackSize("pill"),
@@ -944,7 +968,7 @@ inline InventoryResult<state::Material> addMaterial(
     if (!validationPassed(validation)) return validation;
 
     const int32_t otherTypes = static_cast<int32_t>(
-        state.equipmentStacks.size() + state.manualStacks.size() + state.pills.size() +
+        state.equipmentInstances.size() + state.manualStacks.size() + state.pills.size() +
         state.herbs.size() + state.seeds.size());
     StackableItemStore<state::Material> store(
         state.materials, materialKey, getMaxStackSize("material"),
@@ -965,7 +989,7 @@ inline InventoryResult<state::Herb> addHerb(
     if (!validationPassed(validation)) return validation;
 
     const int32_t otherTypes = static_cast<int32_t>(
-        state.equipmentStacks.size() + state.manualStacks.size() + state.pills.size() +
+        state.equipmentInstances.size() + state.manualStacks.size() + state.pills.size() +
         state.materials.size() + state.seeds.size());
     StackableItemStore<state::Herb> store(
         state.herbs, herbKey, getMaxStackSize("herb"),
@@ -993,7 +1017,7 @@ inline InventoryResult<state::Seed> addSeed(
     if (!validationPassed(validation)) return validation;
 
     const int32_t otherTypes = static_cast<int32_t>(
-        state.equipmentStacks.size() + state.manualStacks.size() + state.pills.size() +
+        state.equipmentInstances.size() + state.manualStacks.size() + state.pills.size() +
         state.materials.size() + state.herbs.size());
     StackableItemStore<state::Seed> store(
         state.seeds, seedKey, getMaxStackSize("seed"),
@@ -1028,21 +1052,16 @@ inline InventoryResult<state::StorageBag> addStorageBag(
     return result;
 }
 
-/// 移除装备（Kotlin removeEquipment 等价）
+/// 移除装备（Kotlin removeEquipment 等价；B3 实例轨：无数量，1 件 = 1 条目，
+/// quantity 参数保留旧称兼容调用点；bypassLock=true 供死亡清算等系统路径）
 inline bool removeEquipment(state::GameState& state, const std::string& id,
                             int32_t quantity = 1, bool bypassLock = false) {
-    if (quantity <= 0) return false;
-    auto it = std::find_if(state.equipmentStacks.begin(), state.equipmentStacks.end(),
-                           [&](const state::EquipmentStack& x) { return x.id == id; });
-    if (it == state.equipmentStacks.end()) return false;
-    if (!bypassLock && it->isLocked) return false;
-    if (it->quantity < quantity) return false;
-    const int32_t newQty = it->quantity - quantity;
-    if (newQty == 0) {
-        state.equipmentStacks.erase(it);
-    } else {
-        *it = withQuantity(*it, newQty);
-    }
+    (void)quantity;  // 实例轨无数量语义（Kotlin @Suppress("UNUSED_PARAMETER") 同口径）
+    auto it = std::find_if(state.equipmentInstances.begin(), state.equipmentInstances.end(),
+                           [&](const state::EquipmentInstance& x) { return x.id == id; });
+    if (it == state.equipmentInstances.end()) return false;
+    if (!bypassLock && it->meta.isLocked) return false;
+    state.equipmentInstances.erase(it);
     return true;
 }
 

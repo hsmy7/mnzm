@@ -1,26 +1,29 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentSet
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.StorageBagItem
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 自动装备候选统一（仓库 + 储物袋）与更高品阶替换。
+ * 自动装备候选（储物袋实例单源）与更高品阶替换（装备重构 B3）。
  *
  * 覆盖：
- * - 袋内 equipment_instance 直接装配（attachedInstances 重建入表、袋条目移除、孕养保真）
- * - 已装备低品阶 + 袋内/仓库高品阶 → 自动替换（旧装备回袋、replacedInstances 供移除）
+ * - 袋内 equipment_instance 直接装配（attachedInstances 重建入表、袋条目移除、等级保真）
+ * - 已装备低品阶 + 袋内高品阶 → 自动替换（旧装备回袋、replacedInstances 供同步）
  * - 已装备高品阶 + 更低候选 → 不替换
- * - 统一比较键：品阶优先 → 类型匹配 → 孕养等级
+ * - 比较键：品阶 → 套装流派 → 等级（仓库堆叠候选与 equipment_stack 模板重建
+ *   已随 B3 堆叠轨退役，不再有用例）
  * - 境界不足袋内条目不装配
- * - 袋内 equipment_stack 模板重建装配
  */
 class DiscipleEquipmentManagerBagAutoEquipTest {
 
@@ -36,17 +39,22 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
         equipment = EquipmentSet(weaponId = weaponId, storageBagItems = bag)
     )
 
+    /** B3 实例轨袋条目：完整实例随条目携带（level/rarity 经 growth/meta 承载） */
     private fun bagInstance(
         itemId: String,
         name: String,
         rarity: Int,
-        physicalAttack: Int = 10,
-        nurtureLevel: Int = 0
+        level: Int = 1,
+        setId: String = ""
     ): StorageBagItem {
         val instance = EquipmentInstance(
-            id = itemId, name = name, rarity = rarity,
-            slot = EquipmentSlot.WEAPON, physicalAttack = physicalAttack,
-            minRealm = 9, nurtureLevel = nurtureLevel,
+            id = itemId, name = name,
+            setId = setId, part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                level = level,
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
+            ),
+            meta = EquipInstanceMeta(rarity = rarity, minRealm = 9),
             ownerId = "1", isEquipped = false
         )
         return StorageBagItem(
@@ -56,27 +64,21 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
         )
     }
 
-    private fun warehouseWeapon(id: String, rarity: Int, name: String = "仓库剑$id"): EquipmentStack =
-        EquipmentStack(
-            id = id, name = name, rarity = rarity, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 5, minRealm = 9, quantity = 2
-        )
-
     // ── 袋内实例直接装配 ──────────────────────────────────────────
 
     @Test
-    fun `袋内实例装配 - 空槽装配且袋条目移除孕养保真`() {
-        val d = disciple(bag = listOf(bagInstance("i1", "青云剑", 4, physicalAttack = 100, nurtureLevel = 2)))
+    fun `袋内实例装配 - 空槽装配且袋条目移除等级保真`() {
+        val d = disciple(bag = listOf(bagInstance("i1", "青云剑", 4, level = 2)))
 
         val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = emptyList(), equipmentInstances = emptyMap(),
+            disciple = d, equipmentInstances = emptyMap(),
             gameYear = 1, gameMonth = 1
         )
 
         assertEquals("应装配袋内实例", "i1", result.disciple.equipment.weaponId)
         assertTrue("袋条目应移除", result.disciple.equipment.storageBagItems.isEmpty())
         assertEquals("attachedInstances 应含装配实例", 1, result.attachedInstances.size)
-        assertEquals("孕养等级保真", 2, result.attachedInstances[0].nurtureLevel)
+        assertEquals("等级保真", 2, result.attachedInstances[0].level)
         assertTrue("attached 实例应置 isEquipped", result.attachedInstances[0].isEquipped)
         assertEquals("装配实例 ownerId 应为弟子", "1", result.attachedInstances[0].ownerId)
         assertTrue("newInstances 应空（实例已存在）", result.newInstances.isEmpty())
@@ -87,16 +89,21 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     @Test
     fun `更高品阶替换 - 低品阶换袋内高品阶且旧装备回袋`() {
         val old = EquipmentInstance(
-            id = "w1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 15, minRealm = 9, ownerId = "1", isEquipped = true
+            id = "w1", name = "铁剑",
+            part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 15.0))
+            ),
+            meta = EquipInstanceMeta(rarity = 1, minRealm = 9),
+            ownerId = "1", isEquipped = true
         )
         val d = disciple(
             weaponId = "w1",
-            bag = listOf(bagInstance("n1", "青云剑", 4, physicalAttack = 100))
+            bag = listOf(bagInstance("n1", "青云剑", 4))
         )
 
         val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = emptyList(),
+            disciple = d,
             equipmentInstances = mapOf("w1" to old),
             gameYear = 3, gameMonth = 5
         )
@@ -115,16 +122,21 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     @Test
     fun `更高品阶替换 - 已装备高品阶不降级`() {
         val current = EquipmentInstance(
-            id = "w1", name = "青云剑", rarity = 4, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 100, minRealm = 9, ownerId = "1", isEquipped = true
+            id = "w1", name = "青云剑",
+            part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 100.0))
+            ),
+            meta = EquipInstanceMeta(rarity = 4, minRealm = 9),
+            ownerId = "1", isEquipped = true
         )
         val d = disciple(
             weaponId = "w1",
-            bag = listOf(bagInstance("n1", "铁剑", 1, physicalAttack = 5))
+            bag = listOf(bagInstance("n1", "铁剑", 1))
         )
 
         val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = emptyList(),
+            disciple = d,
             equipmentInstances = mapOf("w1" to current),
             gameYear = 1, gameMonth = 1
         )
@@ -134,20 +146,21 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
         assertTrue("低品阶候选应保留袋内", result.disciple.equipment.storageBagItems.size == 1)
     }
 
-    // ── 统一比较键：品阶优先 ──────────────────────────────────────
+    // ── 比较键次级：同品阶按等级 ─────────────────────────────────
 
     @Test
-    fun `统一比较键 - 袋内高品阶优先于仓库低品阶`() {
-        val d = disciple(bag = listOf(bagInstance("i1", "青云剑", 4, physicalAttack = 100)))
-        val stacks = listOf(warehouseWeapon("e1", rarity = 1))
+    fun `同品阶 - 高等级袋内实例优先装配`() {
+        val d = disciple(bag = listOf(
+            bagInstance("low", "低级剑", 4, level = 1),
+            bagInstance("high", "高级剑", 4, level = 5)
+        ))
 
         val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = stacks, equipmentInstances = emptyMap(),
+            disciple = d, equipmentInstances = emptyMap(),
             gameYear = 1, gameMonth = 1
         )
 
-        assertEquals("应选袋内 r4 而非仓库 r1", "i1", result.disciple.equipment.weaponId)
-        assertTrue("仓库堆叠不应被扣减", result.stackUpdates.isEmpty())
+        assertEquals("同品阶应选高等级实例", "high", result.disciple.equipment.weaponId)
     }
 
     // ── 境界门槛 ──────────────────────────────────────────────────
@@ -155,8 +168,13 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     @Test
     fun `境界不足 - 袋内条目不装配`() {
         val instance = EquipmentInstance(
-            id = "i1", name = "高阶剑", rarity = 5, slot = EquipmentSlot.WEAPON,
-            physicalAttack = 500, minRealm = 2, ownerId = "1", isEquipped = false
+            id = "i1", name = "高阶剑",
+            part = EquipmentSlot.WEAPON,
+            growth = EquipGrowth(
+                affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 500.0))
+            ),
+            meta = EquipInstanceMeta(rarity = 5, minRealm = 2),
+            ownerId = "1", isEquipped = false
         )
         val d = disciple(bag = listOf(
             StorageBagItem(
@@ -166,36 +184,12 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
         ))
 
         val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = emptyList(), equipmentInstances = emptyMap(),
+            disciple = d, equipmentInstances = emptyMap(),
             gameYear = 1, gameMonth = 1
         )
 
         assertTrue("境界不足不应装配", result.disciple.equipment.weaponId.isEmpty())
         assertTrue(result.attachedInstances.isEmpty())
         assertEquals("袋内条目应保留", 1, result.disciple.equipment.storageBagItems.size)
-    }
-
-    // ── 袋内堆叠模板重建 ──────────────────────────────────────────
-
-    @Test
-    fun `袋内堆叠 - 模板重建装配并扣减数量`() {
-        val bagItem = StorageBagItem(
-            itemId = "ironSword", itemType = ITEM_TYPE_EQUIPMENT_STACK,
-            name = "精铁剑", rarity = 1, quantity = 2,
-            stackedData = com.xianxia.sect.core.model.BagStackedData(
-                minRealm = 9, slot = EquipmentSlot.WEAPON.name
-            )
-        )
-        val d = disciple(bag = listOf(bagItem))
-
-        val result = manager.processAutoEquipFromWarehouse(
-            disciple = d, warehouseStacks = emptyList(), equipmentInstances = emptyMap(),
-            gameYear = 1, gameMonth = 1
-        )
-
-        assertFalse("模板重建应装配", result.disciple.equipment.weaponId.isEmpty())
-        assertEquals("newInstances 应含模板重建实例", 1, result.newInstances.size)
-        assertEquals("精铁剑", result.newInstances[0].name)
-        assertEquals("袋内堆叠数量应 2→1", 1, result.disciple.equipment.storageBagItems.size)
     }
 }

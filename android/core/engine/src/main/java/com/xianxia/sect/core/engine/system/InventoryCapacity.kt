@@ -9,14 +9,14 @@ import com.xianxia.sect.core.state.MutableGameState
  * 获取当前已用槽位数。
  */
 internal fun getTotalSlotCount(
-    currentEquipmentStacks: List<*>,
+    currentEquipmentInstances: List<*>,
     currentManualStacks: List<*>,
     currentPills: List<*>,
     currentMaterials: List<*>,
     currentHerbs: List<*>,
     currentSeeds: List<*>
 ): Int {
-    return currentEquipmentStacks.size + currentManualStacks.size +
+    return currentEquipmentInstances.size + currentManualStacks.size +
         currentPills.size + currentMaterials.size +
         currentHerbs.size + currentSeeds.size
 }
@@ -25,7 +25,7 @@ internal fun getTotalSlotCount(
  * 在 MutableGameState 事务内计算已用槽位。
  */
 internal fun MutableGameState.computeSlotCount(): Int =
-    equipmentStacks.size + manualStacks.size + pills.size +
+    equipmentInstances.size + manualStacks.size + pills.size +
         materials.size + herbs.size + seeds.size
 
 /**
@@ -46,7 +46,7 @@ internal fun MutableGameState.computeMaxSlots(
  */
 internal fun inventoryCapacityInfo(stateStore: GameStateStore): CapacityInfo {
     val current = getTotalSlotCount(
-        stateStore.equipmentStacks.value,
+        stateStore.equipmentInstances.value,
         stateStore.manualStacks.value,
         stateStore.pills.value,
         stateStore.materials.value,
@@ -82,7 +82,7 @@ internal fun getMaxSlots(
  */
 internal fun inventoryCanAddItem(stateStore: GameStateStore): Boolean {
     val full = getTotalSlotCount(
-        stateStore.equipmentStacks.value,
+        stateStore.equipmentInstances.value,
         stateStore.manualStacks.value,
         stateStore.pills.value,
         stateStore.materials.value,
@@ -98,7 +98,7 @@ internal fun inventoryCanAddItem(stateStore: GameStateStore): Boolean {
  */
 internal fun inventoryCanAddItems(stateStore: GameStateStore, count: Int): Boolean {
     val full = getTotalSlotCount(
-        stateStore.equipmentStacks.value,
+        stateStore.equipmentInstances.value,
         stateStore.manualStacks.value,
         stateStore.pills.value,
         stateStore.materials.value,

@@ -6,7 +6,6 @@ import com.xianxia.sect.data.serialization.unified.CompressionType
 import com.xianxia.sect.data.serialization.unified.SerializationContext
 import com.xianxia.sect.data.serialization.unified.SerializationFormat
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -74,8 +73,10 @@ class OldSaveFormatDeserializer @Inject constructor(
             // 1. 旧类型 → JSON（字段名映射）
             val jsonRoot = json.encodeToJsonElement(SerializableSaveData.serializer(), old).jsonObject
 
-            // 2. 拆旧 equipment → 新 equipmentInstances（类型不同，name-driven JSON不够）
-            val equipmentInstancesJson = buildJsonArray(old.equipment) { it.toEquipmentInstanceJson() }
+            // 2. 拆旧 manuals → 新 manualInstances；旧 equipment 一律丢弃
+            //（B3 装备体系替换：旧模型实例与新 EquipmentInstance 结构完全不同
+            //  （四槽/面板属性/孕养字段全部退役），反序列化无意义——旧装备资产
+            //  由 LegacyEquipmentCompensationRule 按 §5.4 折算补偿，此处输出空表）
             val manualInstancesJson = buildJsonArray(old.manuals) { it.toManualInstanceJson() }
 
             // 3. 构建新的 JSON 对象（去掉旧 equipment/manuals，加上新 equipmentInstances/manualInstances/Stacks）
@@ -88,9 +89,8 @@ class OldSaveFormatDeserializer @Inject constructor(
                     }
                 }
                 // 添加新格式字段
-                put("equipmentInstances", equipmentInstancesJson)
+                put("equipmentInstances", kotlinx.serialization.json.JsonArray(emptyList()))
                 put("manualInstances", manualInstancesJson)
-                put("equipmentStacks", kotlinx.serialization.json.JsonArray(emptyList()))
                 put("manualStacks", kotlinx.serialization.json.JsonArray(emptyList()))
             })
 
@@ -112,33 +112,9 @@ class OldSaveFormatDeserializer @Inject constructor(
         return kotlinx.serialization.json.JsonArray(items.map { converter(it) })
     }
 
-    // ==================== Equipment JSON 转换 ====================
-
-    private fun SerializableEquipment.toEquipmentInstanceJson(): kotlinx.serialization.json.JsonObject {
-        val s = stats
-        return JsonObject(mutableMapOf(
-            "id" to id.json,
-            "name" to name.json,
-            "rarity" to rarity.json,
-            "description" to description.json,
-            "slot" to parseSlot(type).name.json,
-            "physicalAttack" to (s["physicalAttack"] ?: 0).json,
-            "magicAttack" to (s["magicAttack"] ?: 0).json,
-            "physicalDefense" to (s["physicalDefense"] ?: 0).json,
-            "magicDefense" to (s["magicDefense"] ?: 0).json,
-            "speed" to (s["speed"] ?: 0).json,
-            "hp" to (s["hp"] ?: 0).json,
-            "mp" to (s["mp"] ?: 0).json,
-            "critChance" to critChance.json,
-            "minRealm" to minRealm.json,
-            "ownerId" to (ownerId.ifEmpty { null }?.json ?: kotlinx.serialization.json.JsonNull),
-            "isEquipped" to isEquipped.json,
-            "nurtureLevel" to nurtureLevel.json,
-            "nurtureProgress" to nurtureProgress.json
-        ))
-    }
-
     // ==================== Manual JSON 转换 ====================
+    // （Equipment JSON 转换已随 B3 删除：旧 equipment 一律丢弃不转新模型，
+    //   资产折算补偿见 LegacyEquipmentCompensationRule）
 
     private fun SerializableManual.toManualInstanceJson(): kotlinx.serialization.json.JsonObject {
         return JsonObject(mutableMapOf(
@@ -171,14 +147,6 @@ class OldSaveFormatDeserializer @Inject constructor(
     }
 
     // ==================== 类型映射辅助 ====================
-
-    private fun parseSlot(type: String): EquipmentSlot = when (type.lowercase()) {
-        "weapon" -> EquipmentSlot.WEAPON
-        "armor" -> EquipmentSlot.ARMOR
-        "boots" -> EquipmentSlot.BOOTS
-        "accessory" -> EquipmentSlot.ACCESSORY
-        else -> EquipmentSlot.WEAPON
-    }
 
     private fun parseManualType(type: String): ManualType = when (type.lowercase()) {
         "attack" -> ManualType.ATTACK

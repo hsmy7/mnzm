@@ -3,7 +3,6 @@ import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.BattleRewardItem
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
@@ -187,9 +186,10 @@ class LootCalculator @Inject constructor(
         addItems(state.seeds.items, "seed",
             { (it as Seed).name }, { (it as Seed).id },
             { (it as Seed).rarity }, { (it as Seed).quantity })
-        addItems(state.equipmentStacks.items, "equipment",
-            { (it as EquipmentStack).name }, { (it as EquipmentStack).id },
-            { (it as EquipmentStack).rarity }, { (it as EquipmentStack).quantity })
+        // 装备实例轨（装备重构 B3：一行一实例、无数量语义）——每件固定 1 个掠夺条目；
+        // 已穿戴实例归属弟子随身面，不属仓库，不参与掠夺
+        addItems(state.equipmentInstances.items.filter { !it.isEquipped }, "equipment",
+            { it.name }, { it.id }, { it.rarity }, { 1 })
         addItems(state.manualStacks.items, "manual",
             { (it as ManualStack).name }, { (it as ManualStack).id },
             { (it as ManualStack).rarity }, { (it as ManualStack).quantity })
@@ -252,12 +252,20 @@ class LootCalculator @Inject constructor(
         // 扣除物品（仅置零 quantity，不删除）
         deductStolenItems(state, loot)
 
+        // 装备实例轨（B3 一行一实例、无数量语义）：被掠夺实例整行移除
+        //（已穿戴实例不入掠夺池，不会被误删）
+        val stolenEquipmentIds = loot.stolenItems
+            .filter { it.type == "equipment" }
+            .mapTo(mutableSetOf()) { it.id }
+        if (stolenEquipmentIds.isNotEmpty()) {
+            state.equipmentInstances.filterInPlace { it.id !in stolenEquipmentIds }
+        }
+
         // 过滤掉 quantity=0 的物品（统一在末尾一次完成）
         state.materials.filterInPlace { it.quantity > 0 }
         state.pills.filterInPlace { it.quantity > 0 }
         state.herbs.filterInPlace { it.quantity > 0 }
         state.seeds.filterInPlace { it.quantity > 0 }
-        state.equipmentStacks.filterInPlace { it.quantity > 0 }
         state.manualStacks.filterInPlace { it.quantity > 0 }
     }
 
@@ -286,9 +294,7 @@ class LootCalculator @Inject constructor(
                 "seed" -> state.seeds.update(item.id) {
                     it.copy(quantity = deductedQuantity(it.quantity, item.count))
                 }
-                "equipment" -> state.equipmentStacks.update(item.id) {
-                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
-                }
+                // 装备实例在 applyLoot 中整行移除（B3 无数量语义），此处不再按 id 置零
                 "manual" -> state.manualStacks.update(item.id) {
                     it.copy(quantity = deductedQuantity(it.quantity, item.count))
                 }

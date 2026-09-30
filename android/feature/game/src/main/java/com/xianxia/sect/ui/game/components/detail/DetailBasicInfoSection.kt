@@ -32,10 +32,6 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SectPolicies
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.SpriteImage
@@ -88,8 +84,8 @@ fun BasicInfoSection(
         Spacer(modifier = Modifier.height(8.dp))
 
         val equipmentMap = remember(
-            disciple.weaponId, disciple.armorId, disciple.bootsId,
-            disciple.accessoryId, allEquipment
+            disciple.headId, disciple.bodyId, disciple.handsId,
+            disciple.feetId, disciple.weaponId, disciple.legsId, allEquipment
         ) {
             discipleEquipmentMap(disciple, allEquipment)
         }
@@ -359,7 +355,11 @@ private fun discipleEquipmentMap(
     allEquipment: List<EquipmentInstance>
 ): Map<String, EquipmentInstance> {
     val map = mutableMapOf<String, EquipmentInstance>()
-    listOfNotNull(disciple.weaponId, disciple.armorId, disciple.bootsId, disciple.accessoryId)
+    // B3 六部位（头/身/手/脚/武/腿 = displayOrder）
+    listOfNotNull(
+        disciple.headId, disciple.bodyId, disciple.handsId,
+        disciple.feetId, disciple.weaponId, disciple.legsId
+    )
         .filter { it.isNotEmpty() }
         .forEach { id -> allEquipment.find { it.id == id }?.let { map[it.id] = it } }
     return map

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "gamecore/data/equip_set_db.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/instance_buckets.h"
@@ -108,41 +109,127 @@ inline double effectValue(const std::map<std::string, double>& effects,
     return (it != effects.end()) ? it->second : 0.0;
 }
 
-// ── 装备最终属性（EquipmentInstance.getFinalStats） ─────────────────
+// ── 装备加成汇合点（B3：EquipStatResolver 单点结算——Kotlin 逐位移植，
+//    DiffEquipmentStatTest/DiffEquipmentSetBonusTest 对拍基准） ─────────
 
-struct EquipmentStats {
-    // 单列口径（B1）：装备面板四列（EquipmentInstance 本体保留至 B3 退役）
-    // 在 equipmentFinalStats 出口合并为单列
-    int32_t attack = 0;
-    int32_t defense = 0;
-    int32_t speed = 0;
-    int32_t hp = 0;
-    int32_t mp = 0;
+/// 装备加成汇总（Kotlin EquipBonus 同构；全部 double 累加，出口一次截断）
+struct EquipBonus {
+    double flatAttack = 0.0;
+    double flatDefense = 0.0;
+    double flatHp = 0.0;
+    double pctAttack = 0.0;
+    double critRate = 0.0;
+    double critDamage = 0.0;
+    double physicalDamageBonus = 0.0;
+    double magicDamageBonus = 0.0;
 };
 
-/// 孕养乘区：level≤0 → 1.0；否则 (1 + L(L+1)/2 × 3/325).coerceAtMost(4.0)
-inline double nurtureMultiplier(int32_t nurtureLevel) {
-    if (nurtureLevel <= 0) return 1.0;
-    constexpr int32_t kMaxNurtureLevel = 25;
-    const double level = static_cast<double>(
-        std::min(nurtureLevel, kMaxNurtureLevel));
-    const double totalBonus = level * (level + 1.0) / 2.0 * (3.0 / 325.0);
-    const double mult = 1.0 + totalBonus;
-    return (mult > 4.0) ? 4.0 : mult;
+inline EquipBonus operator+(const EquipBonus& a, const EquipBonus& b) {
+    EquipBonus r;
+    r.flatAttack = a.flatAttack + b.flatAttack;
+    r.flatDefense = a.flatDefense + b.flatDefense;
+    r.flatHp = a.flatHp + b.flatHp;
+    r.pctAttack = a.pctAttack + b.pctAttack;
+    r.critRate = a.critRate + b.critRate;
+    r.critDamage = a.critDamage + b.critDamage;
+    r.physicalDamageBonus = a.physicalDamageBonus + b.physicalDamageBonus;
+    r.magicDamageBonus = a.magicDamageBonus + b.magicDamageBonus;
+    return r;
 }
 
-/// 装备最终属性（getFinalStats：各字段 × 孕养乘区后 toInt 截断）
-inline EquipmentStats equipmentFinalStats(const EquipmentInstance& eq) {
-    const double m = nurtureMultiplier(eq.nurtureLevel);
-    EquipmentStats s;
-    s.attack = static_cast<int32_t>(eq.physicalAttack * m) +
-               static_cast<int32_t>(eq.magicAttack * m);
-    s.defense = static_cast<int32_t>(eq.physicalDefense * m) +
-                static_cast<int32_t>(eq.magicDefense * m);
-    s.speed = static_cast<int32_t>(eq.speed * m);
-    s.hp = static_cast<int32_t>(eq.hp * m);
-    s.mp = static_cast<int32_t>(eq.mp * m);
-    return s;
+/// 单条词条并入（求和口径，与 Kotlin plusStat 逐位一致）
+inline void plusEquipStat(EquipBonus& current, const state::EquipStatValue& sv) {
+    if (sv.stat == "ATTACK") current.flatAttack += sv.value;
+    else if (sv.stat == "DEFENSE") current.flatDefense += sv.value;
+    else if (sv.stat == "HP") current.flatHp += sv.value;
+    else if (sv.stat == "CRIT_RATE") current.critRate += sv.value;
+    else if (sv.stat == "CRIT_DAMAGE") current.critDamage += sv.value;
+    else if (sv.stat == "ATTACK_PCT") current.pctAttack += sv.value;
+    else if (sv.stat == "PHYSICAL_DAMAGE_PCT") current.physicalDamageBonus += sv.value;
+    else if (sv.stat == "MAGIC_DAMAGE_PCT") current.magicDamageBonus += sv.value;
+}
+
+/// 单实例 totalBonus（Kotlin EquipmentInstance.totalBonus = growth.affix.totalBonus(level)：
+/// 主词条 × 等级成长 + 副词条 × 强化次数，加法序 主→副 一致）
+inline void appendInstanceTotalBonus(EquipBonus& bonus, const EquipmentInstance& inst) {
+    const state::EquipAffixSet& affix = inst.growth.affix;
+    // 主词条：mainStatFinal = value × (1 + 0.10 × (level-1))
+    const double mult = 1.0 + 0.10 * (static_cast<double>(inst.growth.level) - 1.0);
+    plusEquipStat(bonus,
+        state::EquipStatValue{affix.mainStat.stat, affix.mainStat.value * mult});
+    // 副词条：subStats[i].value × subRolls[i]（缺省 1）
+    for (std::size_t i = 0; i < affix.subStats.size(); ++i) {
+        const int32_t rolls = i < affix.subRolls.size() ? affix.subRolls[i] : 1;
+        plusEquipStat(bonus,
+            state::EquipStatValue{affix.subStats[i].stat,
+                                  affix.subStats[i].value * rolls});
+    }
+}
+
+/// 套装档位（按 setId 统计件数，2/4/6 达档即生效、可越级不叠加——
+/// 穿满 6 件三档同时生效；同类百分比相加 0.2-7。Kotlin resolveSetBonus 逐位移植，
+/// 迭代序 = C++ 侧按 equipmentSetDefs 声明序收集 setId（Kotlin groupingBy 保序
+/// 为首次出现序——两者对同一六件集合同序））
+inline EquipBonus resolveSetBonus(const std::vector<const EquipmentInstance*>& equipped) {
+    EquipBonus bonus;
+    // 按 setId 首次出现序统计件数（与 Kotlin groupingBy.eachCount 序一致）
+    std::vector<std::pair<std::string, int32_t>> countBySet;
+    for (const EquipmentInstance* inst : equipped) {
+        if (inst == nullptr || inst->setId.empty()) continue;
+        bool found = false;
+        for (auto& kv : countBySet) {
+            if (kv.first == inst->setId) { ++kv.second; found = true; break; }
+        }
+        if (!found) countBySet.push_back({inst->setId, 1});
+    }
+    for (const auto& kv : countBySet) {
+        const gamecore::data::EquipmentSetDef* def = nullptr;
+        for (const auto& s : gamecore::data::equipmentSetDefs()) {
+            if (s.id == kv.first) { def = &s; break; }
+        }
+        if (def == nullptr) continue;
+        // activeBonuses(count)：count>=2 加 bonus2、>=4 加 bonus4、>=6 加 bonus6（声明序）
+        const std::vector<gamecore::data::EquipStatValueDef>* const tiers[] = {
+            &def->bonus2, &def->bonus4, &def->bonus6};
+        const bool active[] = {kv.second >= 2, kv.second >= 4, kv.second >= 6};
+        for (int t = 0; t < 3; ++t) {
+            if (!active[t]) continue;
+            for (const auto& sv : *tiers[t]) {
+                plusEquipStat(bonus, state::EquipStatValue{sv.stat, sv.value});
+            }
+        }
+    }
+    return bonus;
+}
+
+/// 解析六件已装备实例 + 套装档位 → EquipBonus（Kotlin EquipStatResolver.resolve 逐位移植；
+/// equipped = 六槽位 id 顺序的实例指针，空槽传 nullptr）
+inline EquipBonus resolveEquipBonus(
+        const std::vector<const EquipmentInstance*>& equipped) {
+    EquipBonus bonus;
+    for (const EquipmentInstance* inst : equipped) {
+        if (inst == nullptr) continue;
+        appendInstanceTotalBonus(bonus, *inst);
+    }
+    bonus = bonus + resolveSetBonus(equipped);
+    return bonus;
+}
+
+/// Kotlin Double.toInt() 语义（向零截断；与 static_cast 一致，显式命名表意）
+inline int32_t kotlinToInt(double v) { return static_cast<int32_t>(v); }
+
+/// 累加器版装备加成应用（Kotlin applyEquipBonusToAccum 逐位移植：
+/// flat 四项一次截断直加 → 攻击乘区在装备块内一次乘 → critRate 单列累加）
+inline void applyEquipBonusToStats(::gamecore::disciple::DiscipleStats& total,
+                                   double& critRateAcc, const EquipBonus& bonus) {
+    total.attack += kotlinToInt(bonus.flatAttack);
+    total.defense += kotlinToInt(bonus.flatDefense);
+    total.maxHp += kotlinToInt(bonus.flatHp);
+    total.hp += kotlinToInt(bonus.flatHp);
+    const int32_t pctAttack =
+        kotlinToInt(static_cast<double>(total.attack) * bonus.pctAttack);
+    total.attack += pctAttack;
+    critRateAcc += bonus.critRate;
 }
 
 // ── 功法熟练度加成 ──────────────────────────────────────────────────
@@ -184,24 +271,27 @@ inline int32_t manualStatWithMastery(const std::map<std::string, int32_t>& stats
     return static_cast<int32_t>(value * bonus);
 }
 
-/// 装备段求和（桶查找版：owner 行索引桶逐槽 find——R1.3 第二步，
-/// 步骤入口映射不再物化 id 键全量深拷贝 map；加法序 = weapon → armor →
-/// boots → accessory 与 map 版逐位一致）
+/// 装备段求和（桶查找版：owner 行索引桶逐槽 find——R1.3 第二步；
+/// B3 六部位（头/身/手/脚/武/腿 = displayOrder）：EquipStatResolver 解析
+/// 全部已装备实例（含套装档位）后 flatHp **一次截断**——Kotlin
+/// getMaxHpMpColumn「hp += equipBonus.flatHp.toInt()」逐位一致，
+/// maxMp 不吃装备加成（Kotlin 列版无 mp 装备项，参数面保留对称））
 inline void accumulateEquipmentHpMp(
         const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
-        std::size_t ownerRow, const std::string& weaponId,
-        const std::string& armorId, const std::string& bootsId,
-        const std::string& accessoryId, int32_t& outMaxHp, int32_t& outMaxMp) {
+        std::size_t ownerRow, const std::string& headId,
+        const std::string& bodyId, const std::string& handsId,
+        const std::string& feetId, const std::string& weaponId,
+        const std::string& legsId, int32_t& outMaxHp, int32_t& outMaxMp) {
+    std::vector<const state::EquipmentInstance*> equipped;
+    equipped.reserve(6);
     for (const std::string* eqId :
-         {&weaponId, &armorId, &bootsId, &accessoryId}) {
+         {&headId, &bodyId, &handsId, &feetId, &weaponId, &legsId}) {
         if (eqId->empty()) continue;
-        const state::EquipmentInstance* eq =
-            equipmentBuckets.find(ownerRow, *eqId);
-        if (eq == nullptr) continue;
-        const auto fs = equipmentFinalStats(*eq);
-        outMaxHp += fs.hp;
-        outMaxMp += fs.mp;
+        equipped.push_back(equipmentBuckets.find(ownerRow, *eqId));
     }
+    if (equipped.empty()) return;
+    const EquipBonus bonus = resolveEquipBonus(equipped);
+    outMaxHp += kotlinToInt(bonus.flatHp);
 }
 
 /// 功法段求和（桶查找版；加法序 = manualIds 序与 map 版逐位一致）
@@ -242,8 +332,9 @@ inline void getMaxHpMp(
         int32_t& outMaxHp, int32_t& outMaxMp) {
     computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
                             outMaxHp, outMaxMp);
-    accumulateEquipmentHpMp(equipmentBuckets, ownerRow, d.weaponId, d.armorId,
-                            d.bootsId, d.accessoryId, outMaxHp, outMaxMp);
+    accumulateEquipmentHpMp(equipmentBuckets, ownerRow, d.headId, d.bodyId,
+                            d.handsId, d.feetId, d.weaponId, d.legsId,
+                            outMaxHp, outMaxMp);
     accumulateManualHpMp(manualBuckets, ownerRow, d.manualIds, proficiencies,
                          d.id, outMaxHp, outMaxMp);
     if (d.pillEffectDuration > 0) {
@@ -263,9 +354,10 @@ inline void getMaxHpMp(
     computeBaseHpMpResolved(ds.realms[row], ds.realmLayers[row],
                             ds.hpVariances[row], ds.mpVariances[row],
                             outMaxHp, outMaxMp);
-    accumulateEquipmentHpMp(equipmentBuckets, row, ds.weaponIds[row],
-                            ds.armorIds[row], ds.bootsIds[row],
-                            ds.accessoryIds[row], outMaxHp, outMaxMp);
+    accumulateEquipmentHpMp(equipmentBuckets, row, ds.headIds[row],
+                            ds.bodyIds[row], ds.handsIds[row], ds.feetIds[row],
+                            ds.weaponIds[row], ds.legsIds[row],
+                            outMaxHp, outMaxMp);
     accumulateManualHpMp(manualBuckets, row, ds.manualIds[row], proficiencies,
                          ds.ids[row], outMaxHp, outMaxMp);
     if (ds.pillEffectDurations[row] > 0) {
@@ -338,29 +430,32 @@ inline double masteryLevelBonus(int32_t masteryLevel) {
 
 /// 战斗装配最终属性（Kotlin computeFinalStats 等价——基础 + 装备 + 功法
 /// （熟练度乘区）+ 丹药加成；critRate 分累加，各项与 Kotlin 逐位一致）。
+/// @param outEquipBonus 非空时回传装备/套装加成（critDamage/类型通道供
+///        Combatant 装配消费——D3 接线 + 物法分桶，面板列不展示）
 inline ::gamecore::disciple::DiscipleStats finalStats(
         const Disciple& d,
         const std::map<std::string, EquipmentInstance>& equipmentMap,
         const std::map<std::string, ManualInstance>& manualMap,
-        const std::map<std::string, ManualProficiencyData>& discipleProficiencies) {
+        const std::map<std::string, ManualProficiencyData>& discipleProficiencies,
+        EquipBonus* outEquipBonus = nullptr) {
     ::gamecore::disciple::DiscipleStats total = baseStats(d);
     double totalCritRate = total.critRate;
 
-    // 装备（equipId 顺序 = Kotlin listOfNotNull(weapon,armor,boots,accessory)）
-    for (const std::string& eqId :
-         {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
-        if (eqId.empty()) continue;
-        const auto it = equipmentMap.find(eqId);
-        if (it == equipmentMap.end()) continue;
-        const EquipmentStats fs = equipmentFinalStats(it->second);
-        total.maxHp += fs.hp;
-        total.hp += fs.hp;
-        total.maxMp += fs.mp;
-        total.mp += fs.mp;
-        total.attack += fs.attack;
-        total.defense += fs.defense;
-        total.speed += fs.speed;
-        totalCritRate += it->second.critChance;
+    // 装备（B3：六槽位 id 顺序 头/身/手/脚/武/腿 = Kotlin equippedItemIds；
+    // EquipStatResolver 单点结算 + applyEquipBonusToAccum 乘区口径）
+    {
+        std::vector<const EquipmentInstance*> equipped;
+        equipped.reserve(6);
+        for (const std::string* eqId :
+             {&d.headId, &d.bodyId, &d.handsId, &d.feetId, &d.weaponId, &d.legsId}) {
+            if (eqId->empty()) continue;
+            const auto it = equipmentMap.find(*eqId);
+            if (it == equipmentMap.end()) continue;
+            equipped.push_back(&it->second);
+        }
+        const EquipBonus equipBonus = resolveEquipBonus(equipped);
+        applyEquipBonusToStats(total, totalCritRate, equipBonus);
+        if (outEquipBonus != nullptr) *outEquipBonus = equipBonus;
     }
 
     // 功法（Kotlin manualIds.forEach；stats["hp"] ?: stats["maxHp"] 兜底口径）

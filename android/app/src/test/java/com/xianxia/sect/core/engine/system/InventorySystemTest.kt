@@ -4,7 +4,6 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
@@ -67,66 +66,74 @@ class InventorySystemTest {
         scopeProvider.close()
     }
 
+    /** B3 实例轨夹具（rarity 经 meta 承载） */
+    private fun equipmentInstance(
+        id: String, name: String, rarity: Int,
+        isLocked: Boolean = false
+    ) = EquipmentInstance(
+        id = id, name = name,
+        part = EquipmentSlot.WEAPON,
+        growth = com.xianxia.sect.core.model.EquipGrowth(
+            affix = com.xianxia.sect.core.model.EquipAffixSet(
+                mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                    com.xianxia.sect.core.model.EquipStat.ATTACK, 10.0
+                )
+            )
+        ),
+        meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = rarity, isLocked = isLocked)
+    )
+
     @Test
-    fun `addEquipmentStack - normal add`() = runBlocking {
-        stateStore.update {
-            val item = EquipmentStack(id = "e1", name = "铁剑", rarity = 1)
-            assertTrue(system.addEquipmentStack(item).isSuccess)
-        }
-        assertNotNull(system.getEquipmentStackById("e1"))
+    fun `addEquipmentInstance - normal add`() = runBlocking {
+        assertTrue(system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1)).isSuccess)
+        assertNotNull(stateStore.equipmentInstances.value.find { it.id == "e1" })
     }
 
     @Test
-    fun `addEquipmentStack - empty name returns INVALID_NAME`() = runBlocking {
-        val item = EquipmentStack(id = "e1", name = "", rarity = 1)
-        assertTrue(system.addEquipmentStack(item) is DomainResult.Failure)
+    fun `addEquipmentInstance - empty name returns INVALID_NAME`() = runBlocking {
+        assertTrue(system.addEquipmentInstance(equipmentInstance("e1", "", 1)) is DomainResult.Failure)
     }
 
     @Test
-    fun `addEquipmentStack - invalid rarity returns INVALID_RARITY`() = runBlocking {
-        val item0 = EquipmentStack(id = "e1", name = "铁剑", rarity = 0)
-        assertTrue(system.addEquipmentStack(item0) is DomainResult.Failure)
-        val item7 = EquipmentStack(id = "e2", name = "铁剑", rarity = 7)
-        assertTrue(system.addEquipmentStack(item7) is DomainResult.Failure)
+    fun `addEquipmentInstance - invalid rarity returns INVALID_RARITY`() = runBlocking {
+        assertTrue(system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 0)) is DomainResult.Failure)
+        assertTrue(system.addEquipmentInstance(equipmentInstance("e2", "铁剑", 7)) is DomainResult.Failure)
+    }
+
+    @Test
+    fun `addEquipmentInstance - duplicate id returns Failure`() = runBlocking {
+        assertTrue(system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1)).isSuccess)
+        assertTrue("同 id 重复入库应拒绝（防双持有）",
+            system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1)) is DomainResult.Failure)
     }
 
     @Test
     fun `removeEquipment - locked equipment cannot be removed`() = runBlocking {
-        stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, isLocked = true))
-        }
-        stateStore.update {
-            assertFalse(system.removeEquipment("e1"))
-        }
-        assertNotNull(system.getEquipmentStackById("e1"))
+        system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1, isLocked = true))
+        assertFalse(system.removeEquipment("e1"))
+        assertNotNull(stateStore.equipmentInstances.value.find { it.id == "e1" })
     }
 
     @Test
-    fun `removeEquipment - invalid quantity returns false`() = runBlocking {
-        stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1))
-        }
-        assertFalse(system.removeEquipment("e1", 0))
-        assertFalse(system.removeEquipment("e1", -1))
+    fun `removeEquipment - normal removal removes instance`() = runBlocking {
+        system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1))
+        assertTrue(system.removeEquipment("e1"))
+        assertNull(stateStore.equipmentInstances.value.find { it.id == "e1" })
     }
 
     @Test
-    fun `updateEquipmentStack - normal update`() = runBlocking {
-        stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1))
+    fun `updateEquipmentInstance - normal update`() = runBlocking {
+        system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1))
+        val result = system.updateEquipmentInstance("e1") { inst ->
+            inst.copy(name = "铜剑")
         }
-        stateStore.update {
-            val result = system.updateEquipmentStack("e1") { it.copy(name = "铜剑") }
-            assertTrue(result)
-        }
-        assertEquals("铜剑", system.getEquipmentStackById("e1")?.name)
+        assertTrue(result)
+        assertEquals("铜剑", stateStore.equipmentInstances.value.find { it.id == "e1" }?.name)
     }
 
     @Test
-    fun `updateEquipmentStack - nonexistent returns false`() = runBlocking {
-        stateStore.update {
-            assertFalse(system.updateEquipmentStack("nonexistent") { it.copy(name = "铜剑") })
-        }
+    fun `updateEquipmentInstance - nonexistent returns false`() = runBlocking {
+        assertFalse(system.updateEquipmentInstance("nonexistent") { it.copy(name = "铜剑") })
     }
 
     @Test
@@ -358,13 +365,13 @@ class InventorySystemTest {
 
     @Test
     fun `clear - clears all items`() = runBlocking {
+        system.addEquipmentInstance(equipmentInstance("e1", "铁剑", 1))
         stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1))
             system.addPill(Pill(id = "p1", name = "丹药", rarity = 1, quantity = 5))
         }
         system.clear()
         assertEquals(0, system.getCapacityInfo().currentSlots)
-        assertNull(system.getEquipmentStackById("e1"))
+        assertNull(stateStore.equipmentInstances.value.find { it.id == "e1" })
         assertNull(system.getPillById("p1"))
     }
 
@@ -397,21 +404,6 @@ class InventorySystemTest {
         }
         assertTrue((result as DomainResult<*>).isSuccess)
         assertEquals(maxStack - 5, system.getPillQuantity("p1"))
-    }
-
-    @Test
-    fun `addEquipmentStack - overflow creates new stack`() = runBlocking {
-        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-        var result: Any? = null
-        stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, quantity = maxStack - 5))
-            result = system.addEquipmentStack(EquipmentStack(id = "e2", name = "铁剑", rarity = 1, quantity = 10))
-        }
-        assertTrue("应为 Success，溢出创建新堆叠: $result", result is DomainResult.Success<*>)
-        assertEquals(maxStack, system.getEquipmentStackById("e1")!!.quantity)
-        val newStack = system.getEquipmentStackById("e2")
-        assertNotNull("溢出应创建新堆叠", newStack)
-        assertEquals("溢出数量 5", 5, newStack!!.quantity)
     }
 
     @Test
@@ -465,31 +457,21 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `returnEquipmentToStack - merge into existing stack`() = runBlocking {
-        var result: Any? = null
-        stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON,
-                quantity = 5))
-            val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
-            result = system.returnEquipmentToStack(instance)
-        }
+    fun `returnEquipmentToStack - new instance enters instance track`() = runBlocking {
+        // B3 实例轨：归还 = addEquipmentInstance（实例表入库）
+        val instance = equipmentInstance("ei1", "铁剑", 1)
+        val result = system.returnEquipmentToStack(instance)
         assertTrue((result as DomainResult<*>).isSuccess)
-        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
-        assertNotNull(stack)
-        assertEquals(6, stack!!.quantity)
+        assertNotNull(stateStore.equipmentInstances.value.find { it.id == "ei1" })
     }
 
     @Test
-    fun `returnEquipmentToStack - create new stack when no match`() = runBlocking {
-        var result: Any? = null
-        stateStore.update {
-            val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
-            result = system.returnEquipmentToStack(instance)
-        }
-        assertTrue((result as DomainResult<*>).isSuccess)
-        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
-        assertNotNull(stack)
-        assertEquals(1, stack!!.quantity)
+    fun `returnEquipmentToStack - duplicate id rejected`() = runBlocking {
+        // 同 id 实例已在轨（卸装保真语义）：拒绝重复入库（防双持有）
+        system.addEquipmentInstance(equipmentInstance("ei1", "铁剑", 1))
+        val result = system.returnEquipmentToStack(equipmentInstance("ei1", "铁剑", 1))
+        assertTrue(result is DomainResult.Failure)
+        assertEquals(1, stateStore.equipmentInstances.value.size)
     }
 
     @Test
@@ -576,22 +558,22 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `canAddEquipment - returns false when stack is at maxStack and inventory is full`() = runBlocking {
-        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+    fun `canAddEquipment - returns false when warehouse is full`() = runBlocking {
+        // B3 实例轨：canAddEquipment 无参（装备无堆叠/数量语义，只看仓库槽位容量）
         stateStore.update {
-            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON,
-                quantity = maxStack))
-            for (i in 0 until GameConfig.Warehouse.BASE_CAPACITY - 1) {
-                system.addEquipmentStack(EquipmentStack(id = "fill$i", name = "填充装备$i", rarity = 1,
-                    slot = EquipmentSlot.WEAPON, quantity = 1))
+            for (i in 0 until GameConfig.Warehouse.BASE_CAPACITY) {
+                system.addEquipmentInstance(equipmentInstance("fill$i", "填充装备$i", 1))
             }
         }
-        assertFalse(system.canAddEquipment("铁剑", 1, EquipmentSlot.WEAPON))
+        assertFalse(system.canAddEquipment())
+        system.removeEquipment("fill0")
+        assertTrue(system.canAddEquipment())
     }
 
     @Test
     fun `InventoryConfig - default stack limits match game design`() {
-        assertEquals(999, inventoryConfig.getMaxStackSize("equipment_stack"))
+        // B3：equipment_stack 登记已删（未登记键走默认 9999）
+        assertEquals(9999, inventoryConfig.getMaxStackSize("equipment_stack"))
         assertEquals(999, inventoryConfig.getMaxStackSize("manual_stack"))
         assertEquals(999, inventoryConfig.getMaxStackSize("pill"))
         assertEquals(9999, inventoryConfig.getMaxStackSize("material"))

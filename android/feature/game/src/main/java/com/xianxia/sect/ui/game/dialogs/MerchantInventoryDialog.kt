@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
@@ -29,7 +29,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Composable
 fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
-    val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
@@ -92,7 +92,7 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun ItemsSelectPane(
     selectedFilter: ListingFilter,
-    equipment: List<EquipmentStack>,
+    equipment: List<EquipmentInstance>,
     manuals: List<ManualStack>,
     pills: List<Pill>,
     selectedItems: MutableMap<String, Int>,
@@ -113,7 +113,7 @@ private fun ItemsSelectPane(
 
 /** 上架网格条目键（InventorySelectGrid 用）：装备/功法/丹药按 id，未知类型退化为身份哈希 */
 private fun <T> selectGridItemKey(item: T): String = when (item) {
-    is EquipmentStack -> "eq_${item.id}"
+    is EquipmentInstance -> "eq_${item.id}"
     is ManualStack -> "mn_${item.id}"
     is Pill -> "pl_${item.id}"
     else -> "unk_${System.identityHashCode(item)}"
@@ -121,7 +121,7 @@ private fun <T> selectGridItemKey(item: T): String = when (item) {
 
 /** 全部道具网格条目键（AllItemsSelectGrid 用）：丹药键含数量以区分不同数量堆叠 */
 private fun <T> allItemsGridItemKey(item: T): String = when (item) {
-    is EquipmentStack -> "eq_${item.id}"
+    is EquipmentInstance -> "eq_${item.id}"
     is ManualStack -> "mn_${item.id}"
     is Pill -> "pl_${item.id}_${item.quantity}"
     else -> "unk_${System.identityHashCode(item)}"
@@ -129,7 +129,7 @@ private fun <T> allItemsGridItemKey(item: T): String = when (item) {
 
 /** 网格条目 id（两网格共用）：未知类型退化为空串 */
 private fun <T> inventoryItemId(item: T): String = when (item) {
-    is EquipmentStack -> item.id
+    is EquipmentInstance -> item.id
     is ManualStack -> item.id
     is Pill -> item.id
     else -> ""
@@ -137,7 +137,7 @@ private fun <T> inventoryItemId(item: T): String = when (item) {
 
 /** 网格条目名称（两网格共用）：未知类型退化为空串 */
 private fun <T> inventoryItemName(item: T): String = when (item) {
-    is EquipmentStack -> item.name
+    is EquipmentInstance -> item.name
     is ManualStack -> item.name
     is Pill -> item.name
     else -> ""
@@ -145,7 +145,7 @@ private fun <T> inventoryItemName(item: T): String = when (item) {
 
 /** 网格条目稀有度（两网格共用）：未知类型退化为 1 */
 private fun <T> inventoryItemRarity(item: T): Int = when (item) {
-    is EquipmentStack -> item.rarity
+    is EquipmentInstance -> item.rarity
     is ManualStack -> item.rarity
     is Pill -> item.rarity
     else -> 1
@@ -153,7 +153,8 @@ private fun <T> inventoryItemRarity(item: T): Int = when (item) {
 
 /** 网格条目数量（两网格共用）：未知类型退化为 1 */
 private fun <T> inventoryItemQuantity(item: T): Int = when (item) {
-    is EquipmentStack -> item.quantity
+    // B3 一行一实例：装备无数量语义
+    is EquipmentInstance -> 1
     is ManualStack -> item.quantity
     is Pill -> item.quantity
     else -> 1
@@ -204,7 +205,7 @@ private fun <T> InventorySelectGrid(
 
 @Composable
 private fun AllItemsSelectGrid(
-    equipment: List<EquipmentStack>, manuals: List<ManualStack>, pills: List<Pill>,
+    equipment: List<EquipmentInstance>, manuals: List<ManualStack>, pills: List<Pill>,
     selectedItems: MutableMap<String, Int>,
     watchedKeys: Set<String> = emptySet(),
     viewModel: GameViewModel? = null

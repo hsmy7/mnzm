@@ -1025,9 +1025,10 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 子事件 9 执行（置于 autoBuy 之前——Kotlin 子事件序 9 < 10）
     ai_ops::aiProcessRemainingTargets(state, rng.getRng(rng::RngPartition::kBattle));
     // 子事件 10：12 月自动购买（AutoBuyService.executeAutoBuy 等价移植；
-    //   仅 month==12；全链零 RNG，回退分支确定性化）
+    //   仅 month==12；B3 装备购买走 kEquipment 分区 roll）
     if (state.gameData.gameMonth == 12) {
-        merchant_settle::executeAutoBuy(state);
+        merchant_settle::executeAutoBuy(
+            state, rng.getRng(rng::RngPartition::kEquipment));
     }
     // 子事件 11：灵矿月度产出结算（零 RNG 差分入账）。B6 连续臂
     //（settleSpiritMineMonthly=false）由 accrueMonthlyContinuous 按毫秒差分

@@ -293,7 +293,6 @@ internal fun SaveLoadViewModel.buildRestartSaveData(
     return SaveData(
         gameData = snapshot.gameData,
         disciples = snapshot.disciples,
-        equipmentStacks = snapshot.equipmentStacks,
         equipmentInstances = snapshot.equipmentInstances,
         manualStacks = snapshot.manualStacks,
         manualInstances = snapshot.manualInstances,

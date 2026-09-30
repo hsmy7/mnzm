@@ -9,8 +9,6 @@ import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.building.ForgeSystem
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -23,7 +21,6 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,7 +78,7 @@ class BuildingServiceLoadPathTest {
     private fun newService(
         store: FakeAtomicStateStore,
         repo: ProductionSlotRepository = mock(),
-        inventorySystem: InventorySystem = mock()
+        inventorySystem: InventorySystem = realInventory(store)
     ): BuildingService {
         val rngManager = GameRngManager()
         rngManager.initSystemSeed(20260809L)
@@ -97,21 +94,12 @@ class BuildingServiceLoadPathTest {
         )
     }
 
-    /** withTrackingSource 透传 + 入库成功（mock 默认不执行 lambda 且返回 null） */
-    private fun stubInventory(): InventorySystem {
-        val inv = mock<InventorySystem>()
-        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
-            @Suppress("UNCHECKED_CAST")
-            (invocation.getArgument(1) as () -> Any)()
-        }
-        whenever(inv.addPill(any())).thenAnswer { invocation ->
-            DomainResult.Success(invocation.getArgument(0) as Pill)
-        }
-        whenever(inv.addEquipmentStack(any())).thenAnswer { invocation ->
-            DomainResult.Success(invocation.getArgument(0) as EquipmentStack)
-        }
-        return inv
-    }
+    /** 真实 InventorySystem（B3 锻造产出经 EquipmentFactory + addEquipmentInstance 实例轨入库） */
+    private fun realInventory(store: FakeAtomicStateStore): InventorySystem = InventorySystem(
+        stateStore = store,
+        inventoryConfig = com.xianxia.sect.core.config.InventoryConfig(),
+        overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+    )
 
     private fun alchemyCompletedSlot(
         recipeId: String,
@@ -141,7 +129,7 @@ class BuildingServiceLoadPathTest {
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
         repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id, successRate = 1.0)))
-        val service = newService(store, repo, inventorySystem = stubInventory())
+        val service = newService(store, repo, inventorySystem = realInventory(store))
 
         service.autoHarvestCompletedAlchemySlots()
 
@@ -159,7 +147,7 @@ class BuildingServiceLoadPathTest {
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
         repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id, successRate = 0.0)))
-        val service = newService(store, repo, inventorySystem = stubInventory())
+        val service = newService(store, repo, inventorySystem = realInventory(store))
 
         service.autoHarvestCompletedAlchemySlots()
 
@@ -175,7 +163,7 @@ class BuildingServiceLoadPathTest {
         val store = newStoreWithDisciple(alchemyLevel = 0)
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         repo.loadSlots(listOf(alchemyCompletedSlot("invalid_recipe_xyz", successRate = 1.0)))
-        val service = newService(store, repo, inventorySystem = stubInventory())
+        val service = newService(store, repo, inventorySystem = realInventory(store))
 
         service.autoHarvestCompletedAlchemySlots()
 
@@ -189,10 +177,9 @@ class BuildingServiceLoadPathTest {
     @Test
     fun `autoHarvestForgeSlot - 读档锻造成功产装备并晋升`() = runTest {
         val store = newStoreWithDisciple(forgeLevel = 0)
-        val inv = stubInventory()
-        whenever(inv.createEquipmentFromRecipe(any()))
-            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val inv = realInventory(store)
+        // B3：12 条套装部件配方（无 tier 字段），产出品阶 = 锻造弟子职业等级（此处 1）
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         repo.loadSlots(listOf(forgeCompletedSlot(tier1.id, successRate = 1.0)))
         val service = newService(store, repo, inventorySystem = inv)
@@ -202,17 +189,15 @@ class BuildingServiceLoadPathTest {
         val disciple = store.persistentDiscipleTables.assembleAll().first()
         assertEquals("读档锻造成功应晋升一级", 1, disciple.skills.forgeLevel)
         assertEquals("弟子应回到空闲", DiscipleStatus.IDLE, disciple.status)
-        verify(inv).addEquipmentStack(any())
+        assertEquals("装备实例入库", 1, store.equipmentInstances.value.size)
         assertEquals("引导计数 +1", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
     }
 
     @Test
     fun `autoHarvestForgeSlot - 读档锻造失败不产出不晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple(forgeLevel = 0)
-        val inv = stubInventory()
-        whenever(inv.createEquipmentFromRecipe(any()))
-            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
-        val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val inv = realInventory(store)
+        val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         repo.loadSlots(listOf(forgeCompletedSlot(tier1.id, successRate = 0.0)))
         val service = newService(store, repo, inventorySystem = inv)
@@ -223,7 +208,7 @@ class BuildingServiceLoadPathTest {
         assertEquals("失败不晋升", 0, disciple.skills.forgeLevel)
         assertEquals("失败不累计晋升次数", 0, disciple.skills.forgePromotionCount)
         assertEquals("弟子仍回空闲", DiscipleStatus.IDLE, disciple.status)
-        verify(inv, never()).addEquipmentStack(any())
+        assertEquals("失败不产出实例", 0, store.equipmentInstances.value.size)
         assertEquals("失败也计入完成次数", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
     }
 
@@ -238,7 +223,6 @@ class BuildingServiceLoadPathTest {
         val state = MutableGameState(
             gameData = com.xianxia.sect.core.model.GameData(gameYear = 3, gameMonth = 5),
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

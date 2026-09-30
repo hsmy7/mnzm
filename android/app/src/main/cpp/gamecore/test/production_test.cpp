@@ -311,27 +311,51 @@ TEST(ProductionCompletionTest, AlchemyFailureStillCountsAndResets) {
 }
 
 TEST(ProductionCompletionTest, ForgeSuccessProducesEquipment) {
+    // B3：12 条部件配方（id = forge_{pieceId}）→ EquipmentFactory 实例产出
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.disciples.appendDisciple(baseDisciple("1"));
+    st.gameData.productionSlots.push_back(
+        workingForgeSlot(0, "forge_lietian_WEAPON", /*successRate=*/1.0, "1"));
+    const size_t eqBefore = st.equipmentInstances.size();
+
+    st.gameData.gameMonth = 2;  // 拨到 (1,2)：start (1,1) duration 1 → 到期
+    production::processBuildingProductionStep(st, core->rng());
+
+    ASSERT_EQ(st.equipmentInstances.size(), eqBefore + 1);
+    const auto& inst = st.equipmentInstances.back();
+    EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+    EXPECT_EQ(inst.setId, "lietian");
+    EXPECT_EQ(inst.part, "WEAPON");
+    // 锻造品阶 = 全宗存活弟子最高 forgeLevel（无则 1）
+    EXPECT_EQ(inst.meta.rarity, 1);
+    ASSERT_EQ(inst.growth.affix.subStats.size(), 3u);
+    EXPECT_FALSE(inst.id.empty());
+    EXPECT_EQ(st.gameData.productionSlots[0].status, "IDLE");
+    EXPECT_EQ(st.gameData.guideCounters["forgeCompleted"], 1);
+    EXPECT_EQ(st.gameData.annualForgeCount, 1);
+    // 锻造恰 1 次 SYSTEM 抽取（无 grade roll）；词条 roll 走 kEquipment
+    auto probe = rng::DeterministicRng::fromSeed(42 + 3);
+    (void)probe.nextDouble();
+    EXPECT_EQ(probe.snapshot(),
+              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
+}
+
+TEST(ProductionCompletionTest, LegacyForgeRecipeIdMissFails) {
+    // B3 决策：旧 73 条部位变体配方 id 一律失配 → 产出失败
+    //（统计/槽位重置无条件，弟子不晋升）
     auto core = makeCore(42);
     auto& st = core->state();
     st.disciples.appendDisciple(baseDisciple("1"));
     st.gameData.productionSlots.push_back(
         workingForgeSlot(0, "ironSword", /*successRate=*/1.0, "1"));
-    const size_t eqBefore = st.equipmentStacks.size();
 
-    st.gameData.gameMonth = 2;  // 拨到 (1,2)：start (1,1) duration 1 → 到期
+    st.gameData.gameMonth = 2;
     production::processBuildingProductionStep(st, core->rng());
 
-    ASSERT_EQ(st.equipmentStacks.size(), eqBefore + 1);
-    EXPECT_EQ(st.equipmentStacks.back().name, "精铁剑");
-    EXPECT_EQ(st.equipmentStacks.back().rarity, 1);
+    EXPECT_TRUE(st.equipmentInstances.empty());
     EXPECT_EQ(st.gameData.productionSlots[0].status, "IDLE");
-    EXPECT_EQ(st.gameData.guideCounters["forgeCompleted"], 1);
-    EXPECT_EQ(st.gameData.annualForgeCount, 1);
-    // 锻造恰 1 次 SYSTEM 抽取（无 grade roll）
-    auto probe = rng::DeterministicRng::fromSeed(42 + 3);
-    (void)probe.nextDouble();
-    EXPECT_EQ(probe.snapshot(),
-              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
+    EXPECT_EQ(st.gameData.annualForgeCount, 1);   // 计数无条件
 }
 
 TEST(ProductionCompletionTest, DeadDiscipleClearsSlotAssignment) {

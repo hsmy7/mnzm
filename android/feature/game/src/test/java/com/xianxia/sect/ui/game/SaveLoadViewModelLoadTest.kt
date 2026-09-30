@@ -721,8 +721,7 @@ class SaveLoadViewModelLoadTest {
         val snapshot = GameStateSnapshot(
             gameData = GameData(sectName = "青云宗", saveVersion = 2, gameYear = 3, gameMonth = 5, spiritStones = 888L),
             disciples = emptyList(),
-            equipmentStacks = emptyList(),
-            equipmentInstances = emptyList(),
+                equipmentInstances = emptyList(),
             manualStacks = emptyList(),
             manualInstances = emptyList(),
             pills = emptyList(),
@@ -925,7 +924,6 @@ class SaveLoadViewModelLoadTest {
     private fun restartSnapshot(year: Int) = GameStateSnapshot(
         gameData = GameData(sectName = "青云宗", saveVersion = 2, gameYear = year),
         disciples = emptyList(),
-        equipmentStacks = emptyList(),
         equipmentInstances = emptyList(),
         manualStacks = emptyList(),
         manualInstances = emptyList(),

@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -65,7 +65,7 @@ private fun <T> rememberSellableItems(
 
 /** 六类可出售物品聚合 */
 private data class BulkSellSelection(
-    val sellableEquipment: List<EquipmentStack>,
+    val sellableEquipment: List<EquipmentInstance>,
     val sellableManuals: List<ManualStack>,
     val sellablePills: List<Pill>,
     val sellableMaterials: List<Material>,
@@ -79,7 +79,8 @@ private fun <T> sellValueOf(items: List<T>, basePrice: (T) -> Int, quantity: (T)
 
 /** 六类可出售物品总价值 */
 private fun sellableValue(selection: BulkSellSelection): Long =
-    sellValueOf(items = selection.sellableEquipment, basePrice = { it.basePrice }, quantity = { it.quantity }) +
+    // B3 一行一实例：装备出售数量恒 1
+    sellValueOf(items = selection.sellableEquipment, basePrice = { it.basePrice }, quantity = { 1 }) +
         sellValueOf(items = selection.sellableManuals, basePrice = { it.basePrice }, quantity = { it.quantity }) +
         sellValueOf(items = selection.sellablePills, basePrice = { it.basePrice }, quantity = { it.quantity }) +
         sellValueOf(items = selection.sellableMaterials, basePrice = { it.basePrice }, quantity = { it.quantity }) +
@@ -105,7 +106,7 @@ internal fun BulkSellDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
@@ -118,7 +119,7 @@ internal fun BulkSellDialog(
         resolveBulkSellTypes(selectedTypes = filterState.selectedTypes)
     }
     val selection = buildBulkSellSelection(
-        equipmentStacks = equipmentStacks, manualStacks = manualStacks, pills = pills,
+        equipmentInstances = equipmentInstances, manualStacks = manualStacks, pills = pills,
         materials = materials, herbs = herbs, seeds = seeds,
         selectedRarities = filterState.selectedRarities, finalTypes = finalTypes
     )
@@ -172,7 +173,7 @@ private fun resolveBulkSellTypes(selectedTypes: Set<String>): Set<String> =
 @Suppress("LongParameterList")
 @Composable
 private fun buildBulkSellSelection(
-    equipmentStacks: List<EquipmentStack>,
+    equipmentInstances: List<EquipmentInstance>,
     manualStacks: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
@@ -182,7 +183,7 @@ private fun buildBulkSellSelection(
     finalTypes: Set<String>
 ): BulkSellSelection = BulkSellSelection(
     sellableEquipment = rememberSellableItems(
-        items = equipmentStacks, selectedRarities = selectedRarities, finalTypes = finalTypes,
+        items = equipmentInstances, selectedRarities = selectedRarities, finalTypes = finalTypes,
         typeKey = "EQUIPMENT", raritySelector = { it.rarity }, lockedSelector = { it.isLocked }
     ),
     sellableManuals = rememberSellableItems(

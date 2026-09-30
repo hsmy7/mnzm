@@ -105,32 +105,61 @@ data class PillEffects(
 )
 
 /**
- * 装备套装组件
- * 包含装备ID、培养数据、储物袋资源等共14个字段
+ * 装备套装组件（装备重构 B3，方案 §3.1）：六部位（头/身/手/脚/武/腿，按显示序）
+ * + 储物袋资源。孕养四字段（weaponNurture..accessoryNurture）已随孕养体系退役——
+ * 等级/词条只存 [EquipmentInstance.growth] 单点（清偿 D2）。
  */
 @Serializable
 @Immutable
 data class EquipmentSet(
+    var headId: String = "",
+    var bodyId: String = "",
+    var handsId: String = "",
+    var feetId: String = "",
     var weaponId: String = "",
-    var armorId: String = "",
-    var bootsId: String = "",
-    var accessoryId: String = "",
-
-    // 武器孕育数据
-    var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    // 护甲孕育数据
-    var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    // 鞋子孕育数据
-    var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-    // 饰品孕育数据
-    var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var legsId: String = "",
 
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0
 ) {
-    val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
-    val equippedItemIds: List<String> get() = listOf(weaponId, armorId, bootsId, accessoryId).filter { it.isNotEmpty() }
+    val hasEquippedItems: Boolean
+        get() = EquipmentSlot.displayOrder.any { slotName(it).isNotEmpty() }
+
+    /** 已装备的部位 id（非空项，顺序与 [EquipmentSlot.displayOrder] 一致） */
+    val equippedItemIds: List<String>
+        get() = EquipmentSlot.displayOrder.mapNotNull { slotName(it).takeIf(String::isNotEmpty) }
+
+    /** 按部位取装备 id */
+    fun slotId(part: EquipmentSlot): String = slotName(part)
+
+    /** 按部位写装备 id */
+    fun setSlotId(part: EquipmentSlot, id: String) = setSlotName(part, id)
+
+    /** 清空全部六个部位（迁移/规则清理用） */
+    fun clearedSlots(): EquipmentSet = copy(
+        headId = "", bodyId = "", handsId = "", feetId = "", weaponId = "", legsId = ""
+    )
+
+    private fun slotName(part: EquipmentSlot): String = when (part) {
+        EquipmentSlot.HEAD -> headId
+        EquipmentSlot.BODY -> bodyId
+        EquipmentSlot.HANDS -> handsId
+        EquipmentSlot.FEET -> feetId
+        EquipmentSlot.WEAPON -> weaponId
+        EquipmentSlot.LEGS -> legsId
+    }
+
+    private fun setSlotName(part: EquipmentSlot, id: String) {
+        when (part) {
+            EquipmentSlot.HEAD -> headId = id
+            EquipmentSlot.BODY -> bodyId = id
+            EquipmentSlot.HANDS -> handsId = id
+            EquipmentSlot.FEET -> feetId = id
+            EquipmentSlot.WEAPON -> weaponId = id
+            EquipmentSlot.LEGS -> legsId = id
+        }
+    }
 }
 
 /**

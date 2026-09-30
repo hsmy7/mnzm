@@ -1,89 +1,168 @@
 #include <gtest/gtest.h>
 
+#include <set>
+#include <string>
+
+#include "gamecore/data/equip_affix_db.h"
+#include "gamecore/data/equip_main_stat_db.h"
+#include "gamecore/data/equip_set_db.h"
 #include "gamecore/data/equipment_db.h"
+#include "gamecore/data/equipment_entries.h"
 
 namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 装备静态表守卫测试
+// 装备静态表守卫测试（B3 重写：12 部件 / 2 套装 / 72 展开条目 /
+// 7 项字段面，逐项对齐 Kotlin EquipmentDatabase.kt / EquipmentSetDatabase.kt）
 //
-// 守护目标：C++ 装备表（equipment_db.h，由 scripts/gen-templates.mjs 生成）
-// 与提取快照（test/data/equipment_db_sample.json）一致——防手改漂移。
-// 抽样断言代表性条目；数量断言全覆盖。
+// 守护目标：C++ 装备四表（equipment_db.h / equip_set_db.h /
+// equip_main_stat_db.h / equip_affix_db.h，由 scripts/gen-templates.mjs 生成）
+// 与 Kotlin 注册表字面量一致——双端静态数据漂移拦截。
 // Kotlin 侧守卫见 TemplateRegistryGuardTest（快照 ↔ Kotlin Registry）。
 // ============================================================
 
-TEST(EquipmentDbTest, TemplateCount) {
-    // Kotlin EquipmentDatabase：weapons 24 + armors 24 + boots 12 + accessories 12 = 72
-    EXPECT_EQ(72u, equipmentTemplates().size());
+/// 品阶价格表（= GameConfig.Rarity.basePrice，Kotlin RARITY_PRICES 快照）
+constexpr int32_t kRarityPrices[6] = {4000, 16000, 80000, 480000, 3360000, 26880000};
+/// 品阶穿戴门槛表（= GameConfig.Realm.getMinRealmForRarity，Kotlin RARITY_MIN_REALMS）
+constexpr int32_t kRarityMinRealms[6] = {9, 7, 6, 5, 4, 2};
+
+TEST(EquipmentDbTest, PieceTemplateCount) {
+    // Kotlin EquipmentDatabase.setPieces：2 套 × 6 部位 = 12 条部件模板
+    EXPECT_EQ(12u, setPieceTemplates().size());
 }
 
-TEST(EquipmentDbTest, WeaponSample) {
-    const auto& tpls = equipmentTemplates();
-    const auto* ironSword = [&]() -> const EquipmentTemplate* {
-        for (const auto& t : tpls)
-            if (t.id == "ironSword") return &t;
-        return nullptr;
-    }();
-    ASSERT_NE(nullptr, ironSword);
-    EXPECT_EQ("精铁剑", ironSword->name);
-    EXPECT_EQ("WEAPON", ironSword->slot);
-    EXPECT_EQ(1, ironSword->rarity);
-    EXPECT_EQ(15, ironSword->physicalAttack);
-    EXPECT_EQ(0, ironSword->magicAttack);
-    EXPECT_DOUBLE_EQ(0.03, ironSword->critChance);
-    EXPECT_EQ(4000, ironSword->price);
+TEST(EquipmentDbTest, SetCountAndSchool) {
+    // Kotlin EquipmentSetDatabase.sets：lietian(物理) / zifu(法术)
+    const auto& sets = equipmentSetDefs();
+    ASSERT_EQ(2u, sets.size());
+    EXPECT_EQ("lietian", sets[0].id);
+    EXPECT_EQ("裂天罡煞", sets[0].name);
+    EXPECT_EQ("PHYSICAL", sets[0].school);
+    EXPECT_EQ("zifu", sets[1].id);
+    EXPECT_EQ("紫府玄冥", sets[1].name);
+    EXPECT_EQ("MAGIC", sets[1].school);
 }
 
-TEST(EquipmentDbTest, HighRaritySample) {
-    const auto& tpls = equipmentTemplates();
-    const auto* godSlayer = [&]() -> const EquipmentTemplate* {
-        for (const auto& t : tpls)
-            if (t.id == "godSlayer") return &t;
-        return nullptr;
-    }();
-    ASSERT_NE(nullptr, godSlayer);
-    EXPECT_EQ("青莲剑", godSlayer->name);
-    EXPECT_EQ(5, godSlayer->rarity);
-    EXPECT_EQ(1920, godSlayer->physicalAttack);
-    // Kotlin 字面量 0.22499999999999998（IEEE double 同一值）
-    EXPECT_DOUBLE_EQ(0.22499999999999998, godSlayer->critChance);
-    EXPECT_EQ(3360000, godSlayer->price);
-}
-
-TEST(EquipmentDbTest, ArmorBootsAccessorySample) {
-    const auto& tpls = equipmentTemplates();
-    int weapons = 0, armors = 0, boots = 0, accessories = 0;
-    for (const auto& t : tpls) {
-        if (t.slot == "WEAPON") ++weapons;
-        if (t.slot == "ARMOR") ++armors;
-        if (t.slot == "BOOTS") ++boots;
-        if (t.slot == "ACCESSORY") ++accessories;
+TEST(EquipmentDbTest, ExpandedEntryCount) {
+    // 12 部件 × 品阶 1..6 = 72 条展开条目
+    EXPECT_EQ(72u, equipmentEntries().size());
+    // 每套每部位 × 6 品阶：按部位过滤面各 12 条
+    for (const char* part : {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
+        EXPECT_EQ(12u, equipmentEntriesByPart(part).size()) << part;
     }
-    EXPECT_EQ(24, weapons);
-    EXPECT_EQ(24, armors);
-    EXPECT_EQ(12, boots);
-    EXPECT_EQ(12, accessories);
+}
 
-    const auto* immortalBoots = [&]() -> const EquipmentTemplate* {
-        for (const auto& t : tpls)
-            if (t.id == "immortalBoots") return &t;
-        return nullptr;
-    }();
-    ASSERT_NE(nullptr, immortalBoots);
-    EXPECT_EQ("BOOTS", immortalBoots->slot);
-    EXPECT_EQ(3072, immortalBoots->speed);
-    EXPECT_EQ(39300, immortalBoots->hp);
+TEST(EquipmentDbTest, PieceTemplateSevenFieldSurface) {
+    // 7 项字段面（对齐 Kotlin SetPieceTemplate：id/setId/part/name/description/
+    // priceByRarity/minRealmByRarity）：抽样断言首尾条目 + 全量价格/门槛表校验
+    const auto& pieces = setPieceTemplates();
+    const SetPieceTemplate* lietianHead = nullptr;
+    const SetPieceTemplate* zifuLegs = nullptr;
+    for (const auto& p : pieces) {
+        if (p.id == "lietian_HEAD") lietianHead = &p;
+        if (p.id == "zifu_LEGS") zifuLegs = &p;
+    }
+    ASSERT_NE(nullptr, lietianHead);
+    EXPECT_EQ("lietian", lietianHead->setId);
+    EXPECT_EQ("HEAD", lietianHead->part);
+    EXPECT_EQ("裂天罡煞·头冠", lietianHead->name);
+    EXPECT_EQ("裂天罡煞套装头冠，罡煞之气护持识海", lietianHead->description);
+    ASSERT_NE(nullptr, zifuLegs);
+    EXPECT_EQ("zifu", zifuLegs->setId);
+    EXPECT_EQ("LEGS", zifuLegs->part);
+    EXPECT_EQ("紫府玄冥·灵甲", zifuLegs->name);
+
+    // 全量 12 条：六部位各 2 条；价格/门槛两表逐品阶一致（表常量引用，无魔法数字）
+    std::set<std::string> parts;
+    for (const auto& p : pieces) {
+        parts.insert(p.part);
+        for (int r = 1; r <= 6; ++r) {
+            EXPECT_EQ(kRarityPrices[r - 1], p.priceByRarity[r - 1])
+                << p.id << " rarity=" << r;
+            EXPECT_EQ(kRarityMinRealms[r - 1], p.minRealmByRarity[r - 1])
+                << p.id << " rarity=" << r;
+        }
+    }
+    EXPECT_EQ(6u, parts.size());
+}
+
+TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
+    // 展开条目字段面（对齐 Kotlin EquipPieceEntry）：id 规则
+    // "{pieceId}_r{rarity}"、pieceId/setId/part 透传、name/description 继承、
+    // price/minRealm 按品阶取档
+    const EquipPieceEntry* first = nullptr;
+    const EquipPieceEntry* last = nullptr;
+    for (const auto& e : equipmentEntries()) {
+        if (e.id == "lietian_HEAD_r1") first = &e;
+        if (e.id == "zifu_LEGS_r6") last = &e;
+    }
+    ASSERT_NE(nullptr, first);
+    EXPECT_EQ("lietian_HEAD", first->pieceId);
+    EXPECT_EQ("lietian", first->setId);
+    EXPECT_EQ("HEAD", first->part);
+    EXPECT_EQ(1, first->rarity);
+    EXPECT_EQ("裂天罡煞·头冠", first->name);
+    EXPECT_EQ(kRarityPrices[0], first->price);
+    EXPECT_EQ(kRarityMinRealms[0], first->minRealm);
+    ASSERT_NE(nullptr, last);
+    EXPECT_EQ("zifu_LEGS", last->pieceId);
+    EXPECT_EQ(6, last->rarity);
+    EXPECT_EQ(kRarityPrices[5], last->price);
+    EXPECT_EQ(kRarityMinRealms[5], last->minRealm);
+}
+
+TEST(EquipmentDbTest, EntryLookupAndMiss) {
+    // equipmentEntryById 命中/未命中（Kotlin getById null 臂）
+    const EquipPieceEntry* hit = equipmentEntryById("zifu_WEAPON_r3");
+    ASSERT_NE(nullptr, hit);
+    EXPECT_EQ(3, hit->rarity);
+    EXPECT_EQ("WEAPON", hit->part);
+    EXPECT_EQ(nullptr, equipmentEntryById("godSlayer"));
+    EXPECT_EQ(nullptr, equipmentEntryById("lietian_HEAD_r7"));   // 品阶越界
+    EXPECT_EQ(nullptr, equipmentEntryById(""));
 }
 
 TEST(EquipmentDbTest, IdsUnique) {
-    // 去重守卫：id 唯一（Kotlin Map 键语义）
-    const auto& tpls = equipmentTemplates();
-    std::set<std::string> ids;
-    for (const auto& t : tpls) {
-        EXPECT_TRUE(ids.insert(t.id).second) << "重复 id: " << t.id;
+    // 去重守卫：部件 id 与展开条目 id 均唯一（Kotlin Map 键语义）
+    std::set<std::string> pieceIds;
+    for (const auto& p : setPieceTemplates()) {
+        EXPECT_TRUE(pieceIds.insert(p.id).second) << "重复部件 id: " << p.id;
     }
+    std::set<std::string> entryIds;
+    for (const auto& e : equipmentEntries()) {
+        EXPECT_TRUE(entryIds.insert(e.id).second) << "重复条目 id: " << e.id;
+    }
+}
+
+TEST(EquipmentDbTest, MainStatPoolSurface) {
+    // 六部位池齐全（equip_main_stat_db.h）；部位系数来自表常量
+    ASSERT_EQ(6u, mainStatPools().size());
+    std::set<std::string> parts;
+    for (const auto& pool : mainStatPools()) {
+        EXPECT_FALSE(pool.stats.empty()) << pool.part;
+        parts.insert(pool.part);
+    }
+    EXPECT_EQ(6u, parts.size());
+    // 品阶基数表 4 行（ATTACK/DEFENSE/HP/CRIT_RATE），各 6 档
+    ASSERT_EQ(4u, mainStatBase().size());
+    for (const auto& row : mainStatBase()) {
+        for (int r = 0; r < 6; ++r) {
+            EXPECT_GT(row.values[r], 0.0) << row.stat << " rarity=" << (r + 1);
+        }
+    }
+}
+
+TEST(EquipmentDbTest, SubAffixPoolSurface) {
+    // 7 项副词条池、权重合计 100（equip_affix_db.h equipAffixTotalWeight）
+    EXPECT_EQ(7u, equipAffixes().size());
+    EXPECT_EQ(100, equipAffixTotalWeight());
+    std::set<std::string> stats;
+    for (const auto& a : equipAffixes()) {
+        EXPECT_GT(a.weight, 0) << a.stat;
+        stats.insert(a.stat);
+    }
+    EXPECT_EQ(7u, stats.size());
 }
 
 }  // namespace

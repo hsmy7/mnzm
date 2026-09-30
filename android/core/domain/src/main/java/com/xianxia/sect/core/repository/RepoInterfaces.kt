@@ -5,7 +5,6 @@ import com.xianxia.sect.core.model.BuildingSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ExploredSectInfo
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
@@ -70,8 +69,6 @@ interface InventoryRepository {
 }
 
 interface EquipmentRepository {
-    fun getEquipmentStacks(slotId: Int = 0): Flow<List<EquipmentStack>>
-    suspend fun getEquipmentStackById(id: String, slotId: Int = 0): EquipmentStack?
     fun getEquipmentInstances(slotId: Int = 0): Flow<List<EquipmentInstance>>
     suspend fun getEquipmentInstanceById(id: String, slotId: Int = 0): EquipmentInstance?
     suspend fun getEquipmentInstancesByOwner(discipleId: String, slotId: Int = 0): List<EquipmentInstance>

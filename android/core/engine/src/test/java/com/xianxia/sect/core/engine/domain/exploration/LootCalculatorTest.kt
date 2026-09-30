@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -36,7 +35,6 @@ class LootCalculatorTest {
         return MutableGameState(
             gameData = gd,
             discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore<EquipmentStack>(),
             equipmentInstances = EntityStore<EquipmentInstance>(),
             manualStacks = EntityStore<ManualStack>(),
             manualInstances = EntityStore<ManualInstance>(),
@@ -227,14 +225,28 @@ class LootCalculatorTest {
     @Test
     fun `applyLoot handles equipment deduction and filters zero`() = runBlocking {
         val state = newState()
-        state.equipmentStacks.add(EquipmentStack(id = "e1", name = "剑", rarity = 1, quantity = 1))
+        // B3 实例轨：被掠夺装备整行移除（无数量语义）
+        state.equipmentInstances.add(
+            com.xianxia.sect.core.model.EquipmentInstance(
+                id = "e1", name = "剑",
+                part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+                growth = com.xianxia.sect.core.model.EquipGrowth(
+                    affix = com.xianxia.sect.core.model.EquipAffixSet(
+                        mainStat = com.xianxia.sect.core.model.EquipStatValue(
+                            com.xianxia.sect.core.model.EquipStat.ATTACK, 10.0
+                        )
+                    )
+                ),
+                meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 1)
+            )
+        )
 
         val plan = LootCalculator.BeastLootData(stolenItems = listOf(
             LootCalculator.LootedItem("e1", "剑", "equipment", 1, 1)
         ))
         calculator.applyLoot(state, plan)
 
-        assertTrue(state.equipmentStacks.items.isEmpty())
+        assertTrue(state.equipmentInstances.items.isEmpty())
     }
 
     @Test

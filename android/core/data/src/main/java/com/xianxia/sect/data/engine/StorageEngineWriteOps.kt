@@ -129,7 +129,6 @@ internal suspend fun StorageEngine.clearOldSlotEntities(slot: Int, data: SaveDat
     // 堆叠未进入 SaveData，此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，
     // 重建结果以 upsert 合并。
     if (data.stacksSerialized) {
-        core.database.equipmentStackDao().deleteAll(slot)
         core.database.manualStackDao().deleteAll(slot)
     }
     core.database.equipmentInstanceDao().deleteAll(slot)
@@ -176,8 +175,8 @@ internal suspend fun StorageEngine.writeDisciples(slot: Int, data: SaveData) {
 
 /** 堆叠/实例/日志族分批写入 */
 internal suspend fun StorageEngine.writeStackedItems(slot: Int, data: SaveData) {
-    data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it
-        .map { e -> e.copy(slotId = slot) }) }
+    // 装备堆叠不写回（B3：equipment_stacks 表已 DROP；deprecated 载体仅作旧档
+    // 补偿读取面，补偿置位后恒空——运行时装备一律 equipment_instances 一行一件）
     data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it
         .map { e -> e.copy(slotId = slot) }) }
     data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it.map { m -> m

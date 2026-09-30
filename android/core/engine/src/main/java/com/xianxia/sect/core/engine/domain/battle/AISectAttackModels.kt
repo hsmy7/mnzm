@@ -3,7 +3,7 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -40,7 +40,7 @@ data class PlayerLootLossResult(
 /** 战争奖励 */
 data class WarRewards(
     val spiritStones: Long,
-    val equipmentStacks: List<EquipmentStack>,
+    val equipmentInstances: List<EquipmentInstance>,
     val manualStacks: List<ManualStack>,
     val pills: List<Pill>,
     val materials: List<Material>,

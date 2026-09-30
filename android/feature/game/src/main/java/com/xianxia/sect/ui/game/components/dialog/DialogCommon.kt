@@ -123,7 +123,7 @@ internal fun FullScreenOverlayWarehouse(
     warehouseCapacityPerBuilding: Int = GameConfig.Warehouse.CAPACITY_PER_BUILDING
 ) {
     val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
@@ -133,7 +133,8 @@ internal fun FullScreenOverlayWarehouse(
     var showBulkSell by remember { mutableStateOf(false) }
     val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
     val maxCap = warehouseBaseCapacity + warehouseCount * warehouseCapacityPerBuilding
-    val totalItems = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+    // 装备一行一实例（B3）：实例数即占用数
+    val totalItems = equipmentInstances.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
     val isFull = totalItems >= maxCap
     val titleText = buildString {
         append("仓库 ($totalItems/$maxCap)")
@@ -166,14 +167,12 @@ internal fun DisciplesTabContent(viewModel: GameViewModel) {
     val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     DisciplesTab(
         gameData = gameData,
         disciples = aliveDisciples,
         equipment = equipment,
         manuals = manuals,
         manualStacks = manualStacks,
-        equipmentStacks = equipmentStacks,
         viewModel = viewModel
     )
 }

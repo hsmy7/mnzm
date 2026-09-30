@@ -841,8 +841,8 @@ TEST(SecretRealmSettlement, ExpiryCheckClosesRealmStateSegment) {
     member.name = "甲";
     st.gameData.secretRealmSession.members.push_back(member);
     st.gameData.secretRealmSession.backpack.spiritStones = 500;
-    state::EquipmentStack eq;
-    eq.name = "木剑"; eq.rarity = 1; eq.quantity = 2;
+    state::EquipmentInstance eq;   // B3：背包装备实例轨
+    eq.id = "eq1"; eq.name = "木剑"; eq.meta.rarity = 1;
     st.gameData.secretRealmSession.backpack.equipment.push_back(eq);
     st.gameData.secretRealmAITeams.push_back(
         gamecore::state::SecretRealmAITeam{"t1", "ai-1", "万剑宗", {}, 1});
@@ -889,37 +889,44 @@ TEST(SecretRealmSettlement, ExpiryCheckNotDueKeepsRealm) {
 
 using gamecore::system::merchant_settle::executeAutoBuy;
 
+/// B3：executeAutoBuy 装备臂统一入口（kEquipment 分区流）
+
 TEST(AutoBuySettlement, DecemberAutoBuyMatchesKnownTemplate) {
     auto core = makeCore(20260901);
     auto& st = core->state();
     st.gameData.gameYear = 1;
     st.gameData.gameMonth = 12;
     st.gameData.spiritStones = 10000;
-    st.gameData.autoBuyList.push_back({"精铁剑", "equipment", 1});
+    st.gameData.autoBuyList.push_back({"裂天罡煞·战刃", "equipment", 1});
     st.gameData.autoBuyList.push_back({"聚气丹", "pill", 1});
     state::MerchantItem sword;
-    sword.id = "m1"; sword.name = "精铁剑"; sword.type = "equipment";
+    sword.id = "m1"; sword.name = "裂天罡煞·战刃"; sword.type = "equipment";
     sword.rarity = 1; sword.price = 100; sword.quantity = 3;
     state::MerchantItem pill;
     pill.id = "m2"; pill.name = "聚气丹"; pill.type = "pill";
     pill.rarity = 1; pill.price = 50; pill.quantity = 2; pill.grade = "中品";
     st.gameData.travelingMerchantItems = {sword, pill};
 
-    executeAutoBuy(st);
+    executeAutoBuy(st, core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
 
-    // 灵石扣除：精铁剑 3×100 + 聚气丹 2×50 = 400 → 10000-400
+    // 灵石扣除：裂天罡煞·战刃 3×100 + 聚气丹 2×50 = 400 → 10000-400
     EXPECT_EQ(9600LL, st.gameData.spiritStones);
     // 商人库存清空（数量耗尽 → 移除）
     EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
-    // 仓库入库：精铁剑堆叠 ×3 + 聚气丹堆叠 ×2
-    ASSERT_EQ(1u, st.equipmentStacks.size());
-    EXPECT_EQ("精铁剑", st.equipmentStacks[0].name);
-    EXPECT_EQ(3, st.equipmentStacks[0].quantity);
+    // 仓库入库（B3 实例轨）：战刃实例 ×3 + 聚气丹堆叠 ×2
+    ASSERT_EQ(3u, st.equipmentInstances.size());
+    for (const auto& inst : st.equipmentInstances) {
+        EXPECT_EQ("裂天罡煞·战刃", inst.name);
+        EXPECT_EQ("lietian", inst.setId);
+        EXPECT_EQ("WEAPON", inst.part);
+        EXPECT_EQ(1, inst.meta.rarity);
+        EXPECT_EQ(3u, inst.growth.affix.subStats.size());
+    }
     ASSERT_EQ(1u, st.pills.size());
     EXPECT_EQ("聚气丹", st.pills[0].name);
     EXPECT_EQ(2, st.pills[0].quantity);
     EXPECT_EQ("MEDIUM", st.pills[0].grade);
-    // 年度来源追踪（merchant:稀有度）
+    // 年度来源追踪（B3 实例轨与 Kotlin withTrackingSource 同口径：merchant:rarity）
     EXPECT_EQ(3, st.gameData.annualEquipmentBySource.at("merchant:1"));
     EXPECT_EQ(2, st.gameData.annualPillBySource.at("merchant:MEDIUM"));
     // 年度支出追踪（Purchase 原因）
@@ -936,20 +943,20 @@ TEST(AutoBuySettlement, DecemberAutoBuySkipsOnInsufficientFunds) {
     st.gameData.gameYear = 1;
     st.gameData.gameMonth = 12;
     st.gameData.spiritStones = 150;
-    st.gameData.autoBuyList.push_back({"精铁剑", "equipment", 1});
+    st.gameData.autoBuyList.push_back({"裂天罡煞·战刃", "equipment", 1});
     state::MerchantItem sword;
-    sword.id = "m1"; sword.name = "精铁剑"; sword.type = "equipment";
+    sword.id = "m1"; sword.name = "裂天罡煞·战刃"; sword.type = "equipment";
     sword.rarity = 1; sword.price = 100; sword.quantity = 3;
     st.gameData.travelingMerchantItems = {sword};
 
-    executeAutoBuy(st);
+    executeAutoBuy(st, core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
 
-    // 可买 1 把（150/100=1）→ 扣除 100；商人剩余 2
+    // 可买 1 件（150/100=1）→ 扣除 100；商人剩余 2；实例 1 条
     EXPECT_EQ(50LL, st.gameData.spiritStones);
     ASSERT_EQ(1u, st.gameData.travelingMerchantItems.size());
     EXPECT_EQ(2, st.gameData.travelingMerchantItems[0].quantity);
-    ASSERT_EQ(1u, st.equipmentStacks.size());
-    EXPECT_EQ(1, st.equipmentStacks[0].quantity);
+    ASSERT_EQ(1u, st.equipmentInstances.size());
+    EXPECT_EQ("裂天罡煞·战刃", st.equipmentInstances[0].name);
 }
 
 TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
@@ -965,13 +972,13 @@ TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
     stone.rarity = 1; stone.price = 100; stone.quantity = 5;
     st.gameData.travelingMerchantItems = {stone};
 
-    executeAutoBuy(st);
+    executeAutoBuy(st, core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
 
     // 中品灵石入袋 ×5；不存在物品条目跳过
     EXPECT_EQ(9500LL, st.gameData.spiritStones);   // 10000 - 5×100
     EXPECT_EQ(5, st.gameData.midGradeSpiritStones);
     EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
-    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.equipmentInstances.empty());
 }
 
 // ── 子事件 12：弟子智能购买 ─────────────────────────────
@@ -1012,10 +1019,11 @@ TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
     whManual.id = "wh-m1"; whManual.name = "青云心法"; whManual.rarity = 1;
     whManual.quantity = 1;
     st.manualStacks.push_back(whManual);
-    state::EquipmentStack whEquip;
-    whEquip.id = "wh-e1"; whEquip.name = "精铁剑"; whEquip.rarity = 1;
-    whEquip.quantity = 1; whEquip.slot = "WEAPON";
-    st.equipmentStacks.push_back(whEquip);
+    // B3 实例轨：仓库装备 = 实例（name+rarity 匹配首条未锁定）
+    state::EquipmentInstance whEquip;
+    whEquip.id = "wh-e1"; whEquip.name = "精铁剑"; whEquip.meta.rarity = 1;
+    whEquip.part = "WEAPON";
+    st.equipmentInstances.push_back(whEquip);
     state::Pill whPill;
     whPill.id = "wh-p1"; whPill.name = "聚气丹"; whPill.rarity = 1;
     whPill.quantity = 1; whPill.grade = "MEDIUM";
@@ -1029,19 +1037,21 @@ TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
     EXPECT_EQ(650, st.disciples.spiritStones[row]);
     // 宗门灵石入账：100 + 200 + 50 = 350
     EXPECT_EQ(350LL, st.gameData.spiritStones);
-    // 储物袋三件条目（顺序：功法 → 装备 → 丹药）
+    // 储物袋三件条目（顺序：功法 → 装备 → 丹药）；B3 装备 = 实例条目
     const auto& bag = st.disciples.storageBagItems[row];
     ASSERT_EQ(3u, bag.size());
-    EXPECT_EQ("equipment_stack", bag[1].itemType);
+    EXPECT_EQ("equipment_instance", bag[1].itemType);
     EXPECT_EQ("manual_stack", bag[0].itemType);
     EXPECT_EQ("pill", bag[2].itemType);
-    EXPECT_EQ("WEAPON", bag[1].stackedData->slot);
+    ASSERT_TRUE(bag[1].equipmentInstance.has_value());
+    EXPECT_EQ("wh-e1", bag[1].equipmentInstance->id);
+    EXPECT_EQ("WEAPON", bag[1].equipmentInstance->part);
     EXPECT_EQ("MIND", bag[0].stackedData->manualType);
     EXPECT_EQ("中品", *bag[2].grade);
     EXPECT_TRUE(bag[2].effect.has_value());
-    // 仓库库存清空（各扣 1）
+    // 仓库库存清空（装备实例整条迁入袋）
     EXPECT_TRUE(st.manualStacks.empty());
-    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.equipmentInstances.empty());
     EXPECT_TRUE(st.pills.empty());
     // RNG：makeCore 的 rng 为 initSystemSeed(20260901) 未额外抽取（对比 Diag
     // 测试显式 restoreStates 场景）——购买 3 次 nextInt()（功法/装备/丹药

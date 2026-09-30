@@ -1244,8 +1244,7 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreBattleOp(
 //   {"op":"walletAdd","grade":"LOW","amount":100,"source":"Battle"}
 //   {"op":"walletDeduct","grade":"LOW","amount":50,"reason":"Purchase","source":"Internal","autoConvert":true}
 //   {"op":"walletBatch","autoConvert":false,"ops":[{...delta/grade/reason/source}]}
-//   {"op":"invAddEquipment","id":"eq-1","name":"木剑","rarity":1,"slot":"WEAPON","quantity":5,
-//     "source":"battle","suppressed":false}
+//   {"op":"invAddEquipment", <EquipmentInstance JSON 形状——B3 单轨实例>}
 //   {"op":"invAddPill",...,"category":"CULTIVATION","grade":"MEDIUM"}
 //   {"op":"invAddMaterial",...,"category":"BEAST_HIDE"}
 //   {"op":"invAddHerb",...,"category":"灵草"}
@@ -1259,7 +1258,7 @@ namespace {
 
 using gamecore::system::SpiritStoneGrade;
 using gamecore::system::spiritStoneGradeFromName;
-using gamecore::state::EquipmentStack;
+using gamecore::state::EquipmentInstance;
 using gamecore::state::ManualStack;
 using gamecore::state::Material;
 using gamecore::state::Pill;
@@ -1272,16 +1271,9 @@ SpiritStoneGrade gradeFromJson(const nlohmann::json& j) {
     return SpiritStoneGrade::LOW;
 }
 
-/// 构造装备堆叠（invAddEquipment / invRemove 共用字段）
-EquipmentStack equipmentFromJson(const nlohmann::json& op) {
-    EquipmentStack e;
-    e.id = op.value("id", "");
-    e.name = op.value("name", "");
-    e.rarity = op.value("rarity", 1);
-    e.slot = op.value("slot", "WEAPON");
-    e.quantity = op.value("quantity", 1);
-    e.isLocked = op.value("isLocked", false);
-    return e;
+/// 构造装备实例（invAddEquipment；B3 单轨实例——JSON 形状走 json_codec 适配器）
+EquipmentInstance equipmentFromJson(const nlohmann::json& op) {
+    return op.get<EquipmentInstance>();
 }
 
 ManualStack manualFromJson(const nlohmann::json& op) {
@@ -1420,12 +1412,10 @@ nlohmann::json execOp(gamecore::GameCore* core, nlohmann::json& result,
         rj["results"] = results;
         result["lastBatch"] = rj;
     } else if (opName == "invAddEquipment") {
-        gamecore::system::OverflowMailCollector mail;
-        const auto r = gamecore::system::addEquipmentStack(
-            state, equipmentFromJson(op), mail, op.value("source", "unknown"),
-            op.value("suppressed", false));
+        // B3 单轨实例：校验（id/name/rarity/重复 id）直加入实例表（无溢出面）
+        const auto r = gamecore::system::addEquipmentInstance(
+            state, equipmentFromJson(op));
         result["lastInventory"] = inventoryResultToJson(r);
-        result["overflowMails"] = mail.all().size();
     } else if (opName == "invAddManual") {
         gamecore::system::OverflowMailCollector mail;
         const auto r = gamecore::system::addManualStack(

@@ -314,6 +314,12 @@ object ActionIds {
     /** 卸任事务（亲传/藏经阁单槽重置） */
     const val DISCIPLE_TX_UNASSIGN_SLOT: Int = 1485
 
+    /** 装备升级事务（等级/材料校验+扣材料+经验推进+强化节点 roll） */
+    const val EQUIP_UPGRADE: Int = 1486
+
+    /** 装备分解事务（锁/穿戴校验+返还50%累计消耗+实例表移除） */
+    const val EQUIP_DISMANTLE: Int = 1487
+
     /** 外交事务（结盟请求/解除结盟——仅结盟消费 SYSTEM 1×nextDouble） */
     const val DIPLOMACY_TX: Int = 1500
 

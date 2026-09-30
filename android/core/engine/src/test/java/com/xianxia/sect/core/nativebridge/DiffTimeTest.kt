@@ -39,7 +39,6 @@ class DiffTimeTest {
                 gameYear = start.first; gameMonth = start.second; gamePhase = start.third
             },
             discipleTables = DiscipleTables().also { it.writeAllowed = true },
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),

@@ -62,7 +62,7 @@ class DiscipleMergeCoverageTest {
         "manualMasteries",
         "cultivationCompletionMonth",   // cultivationCompletionPhase 已退役（#10，v61 删列）
         "manualCompletionMonth", "manualCompletionPhase",
-        "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
+        // equipmentNurturingCompletion{Month,Phase} 已随 B3 孕养体系退役（v64 删列）
         "usage"
     )
 

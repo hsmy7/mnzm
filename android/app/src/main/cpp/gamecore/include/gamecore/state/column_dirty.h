@@ -102,8 +102,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::CultivationCompletionMonth: return "cultivationCompletionMonth";
         case DiscipleColumn::ManualCompletionMonth: return "manualCompletionMonth";
         case DiscipleColumn::ManualCompletionPhase: return "manualCompletionPhase";
-        case DiscipleColumn::EquipmentNurturingCompletionMonth: return "equipmentNurturingCompletionMonth";
-        case DiscipleColumn::EquipmentNurturingCompletionPhase: return "equipmentNurturingCompletionPhase";
         case DiscipleColumn::BaseHp: return "baseHp";
         case DiscipleColumn::BaseMp: return "baseMp";
         case DiscipleColumn::BaseAttack: return "baseAttack";
@@ -132,14 +130,12 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::PillEffectDuration: return "pillEffectDuration";
         case DiscipleColumn::ActivePillTypes: return "activePillTypes";
         case DiscipleColumn::ActivePillCategory: return "activePillCategory";
+        case DiscipleColumn::HeadId: return "headId";
+        case DiscipleColumn::BodyId: return "bodyId";
+        case DiscipleColumn::HandsId: return "handsId";
+        case DiscipleColumn::FeetId: return "feetId";
         case DiscipleColumn::WeaponId: return "weaponId";
-        case DiscipleColumn::ArmorId: return "armorId";
-        case DiscipleColumn::BootsId: return "bootsId";
-        case DiscipleColumn::AccessoryId: return "accessoryId";
-        case DiscipleColumn::WeaponNurture: return "weaponNurture";
-        case DiscipleColumn::ArmorNurture: return "armorNurture";
-        case DiscipleColumn::BootsNurture: return "bootsNurture";
-        case DiscipleColumn::AccessoryNurture: return "accessoryNurture";
+        case DiscipleColumn::LegsId: return "legsId";
         case DiscipleColumn::StorageBagItems: return "storageBagItems";
         case DiscipleColumn::StorageBagSpiritStones: return "storageBagSpiritStones";
         case DiscipleColumn::SpiritStones: return "spiritStones";
@@ -214,12 +210,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::ManualCompletionPhase:
             row["manualCompletionPhase"] = ds.manualCompletionPhases[r];
             break;
-        case DiscipleColumn::EquipmentNurturingCompletionMonth:
-            row["equipmentNurturingCompletionMonth"] = ds.equipmentNurturingCompletionMonths[r];
-            break;
-        case DiscipleColumn::EquipmentNurturingCompletionPhase:
-            row["equipmentNurturingCompletionPhase"] = ds.equipmentNurturingCompletionPhases[r];
-            break;
         case DiscipleColumn::BaseHp: row["baseHp"] = ds.baseHps[r]; break;
         case DiscipleColumn::BaseMp: row["baseMp"] = ds.baseMps[r]; break;
         case DiscipleColumn::BaseAttack: row["baseAttack"] = ds.baseAttacks[r]; break;
@@ -276,16 +266,12 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::ActivePillCategory:
             row["activePillCategory"] = ds.activePillCategories[r];
             break;
+        case DiscipleColumn::HeadId: row["headId"] = ds.headIds[r]; break;
+        case DiscipleColumn::BodyId: row["bodyId"] = ds.bodyIds[r]; break;
+        case DiscipleColumn::HandsId: row["handsId"] = ds.handsIds[r]; break;
+        case DiscipleColumn::FeetId: row["feetId"] = ds.feetIds[r]; break;
         case DiscipleColumn::WeaponId: row["weaponId"] = ds.weaponIds[r]; break;
-        case DiscipleColumn::ArmorId: row["armorId"] = ds.armorIds[r]; break;
-        case DiscipleColumn::BootsId: row["bootsId"] = ds.bootsIds[r]; break;
-        case DiscipleColumn::AccessoryId: row["accessoryId"] = ds.accessoryIds[r]; break;
-        case DiscipleColumn::WeaponNurture: row["weaponNurture"] = ds.weaponNurtures[r]; break;
-        case DiscipleColumn::ArmorNurture: row["armorNurture"] = ds.armorNurtures[r]; break;
-        case DiscipleColumn::BootsNurture: row["bootsNurture"] = ds.bootsNurtures[r]; break;
-        case DiscipleColumn::AccessoryNurture:
-            row["accessoryNurture"] = ds.accessoryNurtures[r];
-            break;
+        case DiscipleColumn::LegsId: row["legsId"] = ds.legsIds[r]; break;
         case DiscipleColumn::StorageBagItems: row["storageBagItems"] = ds.storageBagItems[r]; break;
         case DiscipleColumn::StorageBagSpiritStones:
             row["storageBagSpiritStones"] = ds.storageBagSpiritStones[r];

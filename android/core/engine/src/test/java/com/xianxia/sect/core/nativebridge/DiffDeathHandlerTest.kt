@@ -77,7 +77,6 @@ class DiffDeathHandlerTest {
         MutableGameState(
             gameData = GameData().apply { annualDeceasedDisciples = annualDeceased },
             discipleTables = tables,
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),

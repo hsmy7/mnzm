@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -47,7 +47,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
 internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
-    is EquipmentStack -> item.isLocked
+    is EquipmentInstance -> item.isLocked
     is ManualStack -> item.isLocked
     is Pill -> item.isLocked
     is Material -> item.isLocked
@@ -77,7 +77,7 @@ private data class WarehouseItemData(
 
 /** 仓库数据流订阅打包（WarehouseTab 拆分，参数 >6 规避 LongParameterList） */
 private data class WarehouseFlows(
-    val equipmentStacks: List<EquipmentStack>,
+    val equipmentInstances: List<EquipmentInstance>,
     val manualStacks: List<ManualStack>,
     val pills: List<Pill>,
     val materials: List<Material>,
@@ -92,7 +92,7 @@ private data class WarehouseFlows(
 /** 仓库派生状态 */
 private data class WarehouseState(
     val spiritStoneCards: List<Pair<String, SpiritStoneInfo>>,
-    val equipment: List<EquipmentStack>,
+    val equipment: List<EquipmentInstance>,
     val manuals: List<ManualStack>,
     val sortedPills: List<Pill>,
     val sortedMaterials: List<Material>,
@@ -113,7 +113,7 @@ private data class WarehouseActions(
 
 /** 仓库排序物品打包（WarehouseTab 拆分，参数 >6 规避 LongParameterList） */
 private data class WarehouseSortedItems(
-    val equipment: List<EquipmentStack>,
+    val equipment: List<EquipmentInstance>,
     val manuals: List<ManualStack>,
     val sortedPills: List<Pill>,
     val sortedMaterials: List<Material>,
@@ -200,7 +200,7 @@ internal fun WarehouseTab(
 /** 仓库数据流订阅 */
 @Composable
 private fun collectWarehouseFlows(viewModel: GameViewModel): WarehouseFlows {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
@@ -211,7 +211,7 @@ private fun collectWarehouseFlows(viewModel: GameViewModel): WarehouseFlows {
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
     val bagRewardCards by viewModel.bagRewardCards.collectAsStateWithLifecycle()
     return WarehouseFlows(
-        equipmentStacks = equipmentStacks,
+        equipmentInstances = equipmentInstances,
         manualStacks = manualStacks,
         pills = pills,
         materials = materials,
@@ -228,8 +228,8 @@ private fun collectWarehouseFlows(viewModel: GameViewModel): WarehouseFlows {
 @Composable
 private fun rememberWarehouseState(flows: WarehouseFlows): WarehouseState {
     val spiritStoneCards = rememberSpiritStoneCards(spiritStoneTotals = flows.spiritStoneTotals)
-    val equipment = remember(flows.equipmentStacks, flows.watchedKeys) {
-        flows.equipmentStacks.sortedByWatchedThenRarity(flows.watchedKeys)
+    val equipment = remember(flows.equipmentInstances, flows.watchedKeys) {
+        flows.equipmentInstances.sortedByWatchedThenRarity(flows.watchedKeys)
     }
     val manuals = remember(flows.manualStacks, flows.watchedKeys) {
         flows.manualStacks.sortedByWatchedThenRarity(flows.watchedKeys)
@@ -535,7 +535,8 @@ private fun WarehouseGridCard(
             name = warehouseItem.name,
             rarity = warehouseItem.rarity,
             quantity = when (val item = warehouseItem.item) {
-                is EquipmentStack -> item.quantity
+                // B3 一行一实例：装备无数量语义
+                is EquipmentInstance -> 1
                 is ManualStack -> item.quantity
                 is Pill -> item.quantity
                 is Material -> item.quantity
@@ -644,23 +645,38 @@ private fun warehouseDetailItem(
     state: WarehouseState
 ): WarehouseDetailItem {
     val ref = warehouseItemRef(item)
-    val currentItem = when (ref.type) {
-        "equipment" -> state.equipment.find { it.id == ref.id }
-        "manual" -> state.manuals.find { it.id == ref.id }
-        "pill" -> state.sortedPills.find { it.id == ref.id }
-        "material" -> state.sortedMaterials.find { it.id == ref.id }
-        "herb" -> state.sortedHerbs.find { it.id == ref.id }
-        "seed" -> state.sortedSeeds.find { it.id == ref.id }
-        else -> null
-    }
+    val currentItem = findWarehouseItemByRef(state, ref)
     return WarehouseDetailItem(
         itemId = ref.id,
         itemType = ref.type,
-        itemQuantity = currentItem?.quantity ?: 0,
-        isLocked = currentItem?.isLocked ?: false,
+        // B3 实例轨：装备无数量语义（一条一件）；数量/锁定按具体类型各自解析
+        itemQuantity = warehouseItemQuantity(currentItem),
+        isLocked = currentItem?.let { getWarehouseItemIsLocked(it) } ?: false,
         itemRarity = ref.rarity,
         itemName = ref.name
     )
+}
+
+/** 仓库物品按类型查找（warehouseDetailItem 拆分） */
+private fun findWarehouseItemByRef(state: WarehouseState, ref: WarehouseItemRef): Any? = when (ref.type) {
+    "equipment" -> state.equipment.find { it.id == ref.id }
+    "manual" -> state.manuals.find { it.id == ref.id }
+    "pill" -> state.sortedPills.find { it.id == ref.id }
+    "material" -> state.sortedMaterials.find { it.id == ref.id }
+    "herb" -> state.sortedHerbs.find { it.id == ref.id }
+    "seed" -> state.sortedSeeds.find { it.id == ref.id }
+    else -> null
+}
+
+/** 仓库物品数量解析（warehouseDetailItem 拆分；装备实例恒 1） */
+private fun warehouseItemQuantity(currentItem: Any?): Int = when (currentItem) {
+    is EquipmentInstance -> 1
+    is ManualStack -> currentItem.quantity
+    is Pill -> currentItem.quantity
+    is Material -> currentItem.quantity
+    is Herb -> currentItem.quantity
+    is Seed -> currentItem.quantity
+    else -> 0
 }
 
 /** 仓库物品基础元数据：id/类型/稀有度/名称单次 when 解析 */
@@ -673,7 +689,7 @@ private data class WarehouseItemRef(
 
 /** 仓库物品基础元数据解析 */
 private fun warehouseItemRef(item: Any): WarehouseItemRef = when (item) {
-    is EquipmentStack -> WarehouseItemRef(item.id, "equipment", item.rarity, item.name)
+    is EquipmentInstance -> WarehouseItemRef(item.id, "equipment", item.rarity, item.name)
     is ManualStack -> WarehouseItemRef(item.id, "manual", item.rarity, item.name)
     is Pill -> WarehouseItemRef(item.id, "pill", item.rarity, item.name)
     is Material -> WarehouseItemRef(item.id, "material", item.rarity, item.name)

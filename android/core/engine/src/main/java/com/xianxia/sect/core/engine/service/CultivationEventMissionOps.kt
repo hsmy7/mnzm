@@ -2,7 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.model.ActiveMission
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -41,7 +41,7 @@ internal fun CultivationEventProcessor.processCompletedMissionsLazy(year: Int, m
         val discipleIds: List<String>,
         val materials: List<Material>,
         val pills: List<Pill>,
-        val equipmentStacks: List<EquipmentStack>,
+        val equipmentInstances: List<EquipmentInstance>,
         val manualStacks: List<ManualStack>
     )
 
@@ -92,7 +92,7 @@ internal fun CultivationEventProcessor.collectCompletedMissionRewards(
                     discipleIds = activeMission.discipleIds,
                     materials = result.materials,
                     pills = result.pills,
-                    equipmentStacks = result.equipmentStacks,
+                    equipmentInstances = result.equipmentInstances,
                     manualStacks = result.manualStacks
                 )
             }

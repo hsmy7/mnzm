@@ -7,7 +7,6 @@ import com.xianxia.sect.data.local.BattleLogDao
 import com.xianxia.sect.data.local.BuildingSlotDao
 import com.xianxia.sect.data.local.DiscipleDao
 import com.xianxia.sect.data.local.EquipmentInstanceDao
-import com.xianxia.sect.data.local.EquipmentStackDao
 import com.xianxia.sect.data.local.GameDataDao
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.HerbDao
@@ -78,9 +77,6 @@ object AppModule {
     
     @Provides
     fun provideDiscipleDao(database: GameDatabase): DiscipleDao = database.discipleDao()
-    
-    @Provides
-    fun provideEquipmentStackDao(database: GameDatabase): EquipmentStackDao = database.equipmentStackDao()
 
     @Provides
     fun provideEquipmentInstanceDao(database: GameDatabase): EquipmentInstanceDao = database.equipmentInstanceDao()
@@ -111,7 +107,6 @@ object AppModule {
 
     @Provides
     fun provideItemDaos(database: GameDatabase): ItemDaos = ItemDaos(
-        equipmentStackDao = database.equipmentStackDao(),
         equipmentInstanceDao = database.equipmentInstanceDao(),
         manualStackDao = database.manualStackDao(),
         manualInstanceDao = database.manualInstanceDao(),

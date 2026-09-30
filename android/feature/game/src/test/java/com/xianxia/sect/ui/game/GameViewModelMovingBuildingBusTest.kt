@@ -19,7 +19,7 @@ import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -108,7 +108,7 @@ class GameViewModelMovingBuildingBusTest {
         )
         every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
-        every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
+        every { gameEngine.equipmentInstances } returns MutableStateFlow(emptyList<EquipmentInstance>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())
         every { gameEngine.gameDataSnapshot } returns GameData(
             worldMapSects = listOf(com.xianxia.sect.core.model.WorldSect(

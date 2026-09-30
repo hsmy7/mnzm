@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.SkillStats
@@ -81,8 +80,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
         cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
         manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
         manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
-        equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
-        equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
         combat = combat,
         pillEffects = pillEffects,
         equipment = equipment,
@@ -128,14 +125,12 @@ internal fun DiscipleTables.assemblePillEffects(id: Int) = PillEffects(
 )
 
 internal fun DiscipleTables.assembleEquipment(id: Int) = EquipmentSet(
+    headId = headIds.getOrNull(id) ?: "",
+    bodyId = bodyIds.getOrNull(id) ?: "",
+    handsId = handsIds.getOrNull(id) ?: "",
+    feetId = feetIds.getOrNull(id) ?: "",
     weaponId = weaponIds.getOrNull(id) ?: "",
-    armorId = armorIds.getOrNull(id) ?: "",
-    bootsId = bootsIds.getOrNull(id) ?: "",
-    accessoryId = accessoryIds.getOrNull(id) ?: "",
-    weaponNurture = weaponNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-    accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
+    legsId = legsIds.getOrNull(id) ?: "",
     storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
     storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
     spiritStones = discipleSpiritStones.getOrDefault(id, 0)

@@ -866,6 +866,12 @@ data class GameData(
     @ProtoNumber(168)
     @ColumnInfo(name = "nurture_pills_retired", defaultValue = "0")
     var nurturePillsRetired: Boolean = false,
+
+    // 旧装备（R2）折算补偿已发放幂等标记——与补偿发放同事务落盘
+    //（LegacyEquipmentCompensationRule），true 后规则恒 Passed 不再补偿
+    @ProtoNumber(169)
+    @ColumnInfo(name = "legacy_equipment_compensated", defaultValue = "0")
+    var legacyEquipmentCompensated: Boolean = false,
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

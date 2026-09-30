@@ -50,8 +50,6 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.cultivationCompletionMonth = cultivationCompletionMonths[row];
     d.manualCompletionMonth = manualCompletionMonths[row];
     d.manualCompletionPhase = manualCompletionPhases[row];
-    d.equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths[row];
-    d.equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases[row];
 
     // CombatAttributes
     d.baseHp = baseHps[row];
@@ -85,15 +83,13 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.activePillTypes = activePillTypes[row];
     d.activePillCategory = activePillCategories[row];
 
-    // EquipmentSet
+    // EquipmentSet（B3 六部位）
+    d.headId = headIds[row];
+    d.bodyId = bodyIds[row];
+    d.handsId = handsIds[row];
+    d.feetId = feetIds[row];
     d.weaponId = weaponIds[row];
-    d.armorId = armorIds[row];
-    d.bootsId = bootsIds[row];
-    d.accessoryId = accessoryIds[row];
-    d.weaponNurture = weaponNurtures[row];
-    d.armorNurture = armorNurtures[row];
-    d.bootsNurture = bootsNurtures[row];
-    d.accessoryNurture = accessoryNurtures[row];
+    d.legsId = legsIds[row];
     d.storageBagItems = storageBagItems[row];
     d.storageBagSpiritStones = storageBagSpiritStones[row];
     d.spiritStones = spiritStones[row];
@@ -163,8 +159,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     cultivationCompletionMonths.push_back(d.cultivationCompletionMonth);
     manualCompletionMonths.push_back(d.manualCompletionMonth);
     manualCompletionPhases.push_back(d.manualCompletionPhase);
-    equipmentNurturingCompletionMonths.push_back(d.equipmentNurturingCompletionMonth);
-    equipmentNurturingCompletionPhases.push_back(d.equipmentNurturingCompletionPhase);
 
     baseHps.push_back(d.baseHp);
     baseMps.push_back(d.baseMp);
@@ -196,14 +190,12 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     activePillTypes.push_back(d.activePillTypes);
     activePillCategories.push_back(d.activePillCategory);
 
+    headIds.push_back(d.headId);
+    bodyIds.push_back(d.bodyId);
+    handsIds.push_back(d.handsId);
+    feetIds.push_back(d.feetId);
     weaponIds.push_back(d.weaponId);
-    armorIds.push_back(d.armorId);
-    bootsIds.push_back(d.bootsId);
-    accessoryIds.push_back(d.accessoryId);
-    weaponNurtures.push_back(d.weaponNurture);
-    armorNurtures.push_back(d.armorNurture);
-    bootsNurtures.push_back(d.bootsNurture);
-    accessoryNurtures.push_back(d.accessoryNurture);
+    legsIds.push_back(d.legsId);
     storageBagItems.push_back(d.storageBagItems);
     storageBagSpiritStones.push_back(d.storageBagSpiritStones);
     spiritStones.push_back(d.spiritStones);
@@ -268,8 +260,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     cultivationCompletionMonths.reserve(n);
     manualCompletionMonths.reserve(n);
     manualCompletionPhases.reserve(n);
-    equipmentNurturingCompletionMonths.reserve(n);
-    equipmentNurturingCompletionPhases.reserve(n);
     baseHps.reserve(n);
     baseMps.reserve(n);
     baseAttacks.reserve(n);
@@ -298,14 +288,12 @@ void DiscipleStore::reserveRows(std::size_t n) {
     pillEffectDurations.reserve(n);
     activePillTypes.reserve(n);
     activePillCategories.reserve(n);
+    headIds.reserve(n);
+    bodyIds.reserve(n);
+    handsIds.reserve(n);
+    feetIds.reserve(n);
     weaponIds.reserve(n);
-    armorIds.reserve(n);
-    bootsIds.reserve(n);
-    accessoryIds.reserve(n);
-    weaponNurtures.reserve(n);
-    armorNurtures.reserve(n);
-    bootsNurtures.reserve(n);
-    accessoryNurtures.reserve(n);
+    legsIds.reserve(n);
     storageBagItems.reserve(n);
     storageBagSpiritStones.reserve(n);
     spiritStones.reserve(n);
@@ -406,8 +394,6 @@ void DiscipleStore::clear() {
     cultivationCompletionMonths.clear();
     manualCompletionMonths.clear();
     manualCompletionPhases.clear();
-    equipmentNurturingCompletionMonths.clear();
-    equipmentNurturingCompletionPhases.clear();
     baseHps.clear();
     baseMps.clear();
     baseAttacks.clear();
@@ -436,14 +422,12 @@ void DiscipleStore::clear() {
     pillEffectDurations.clear();
     activePillTypes.clear();
     activePillCategories.clear();
+    headIds.clear();
+    bodyIds.clear();
+    handsIds.clear();
+    feetIds.clear();
     weaponIds.clear();
-    armorIds.clear();
-    bootsIds.clear();
-    accessoryIds.clear();
-    weaponNurtures.clear();
-    armorNurtures.clear();
-    bootsNurtures.clear();
-    accessoryNurtures.clear();
+    legsIds.clear();
     storageBagItems.clear();
     storageBagSpiritStones.clear();
     spiritStones.clear();
@@ -499,8 +483,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     cultivationCompletionMonths.erase(cultivationCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
     manualCompletionMonths.erase(manualCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
     manualCompletionPhases.erase(manualCompletionPhases.begin() + static_cast<std::ptrdiff_t>(row));
-    equipmentNurturingCompletionMonths.erase(equipmentNurturingCompletionMonths.begin() + static_cast<std::ptrdiff_t>(row));
-    equipmentNurturingCompletionPhases.erase(equipmentNurturingCompletionPhases.begin() + static_cast<std::ptrdiff_t>(row));
     baseHps.erase(baseHps.begin() + static_cast<std::ptrdiff_t>(row));
     baseMps.erase(baseMps.begin() + static_cast<std::ptrdiff_t>(row));
     baseAttacks.erase(baseAttacks.begin() + static_cast<std::ptrdiff_t>(row));
@@ -529,14 +511,12 @@ void DiscipleStore::eraseAt(std::size_t row) {
     pillEffectDurations.erase(pillEffectDurations.begin() + static_cast<std::ptrdiff_t>(row));
     activePillTypes.erase(activePillTypes.begin() + static_cast<std::ptrdiff_t>(row));
     activePillCategories.erase(activePillCategories.begin() + static_cast<std::ptrdiff_t>(row));
+    headIds.erase(headIds.begin() + static_cast<std::ptrdiff_t>(row));
+    bodyIds.erase(bodyIds.begin() + static_cast<std::ptrdiff_t>(row));
+    handsIds.erase(handsIds.begin() + static_cast<std::ptrdiff_t>(row));
+    feetIds.erase(feetIds.begin() + static_cast<std::ptrdiff_t>(row));
     weaponIds.erase(weaponIds.begin() + static_cast<std::ptrdiff_t>(row));
-    armorIds.erase(armorIds.begin() + static_cast<std::ptrdiff_t>(row));
-    bootsIds.erase(bootsIds.begin() + static_cast<std::ptrdiff_t>(row));
-    accessoryIds.erase(accessoryIds.begin() + static_cast<std::ptrdiff_t>(row));
-    weaponNurtures.erase(weaponNurtures.begin() + static_cast<std::ptrdiff_t>(row));
-    armorNurtures.erase(armorNurtures.begin() + static_cast<std::ptrdiff_t>(row));
-    bootsNurtures.erase(bootsNurtures.begin() + static_cast<std::ptrdiff_t>(row));
-    accessoryNurtures.erase(accessoryNurtures.begin() + static_cast<std::ptrdiff_t>(row));
+    legsIds.erase(legsIds.begin() + static_cast<std::ptrdiff_t>(row));
     storageBagItems.erase(storageBagItems.begin() + static_cast<std::ptrdiff_t>(row));
     storageBagSpiritStones.erase(storageBagSpiritStones.begin() + static_cast<std::ptrdiff_t>(row));
     spiritStones.erase(spiritStones.begin() + static_cast<std::ptrdiff_t>(row));
@@ -610,8 +590,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(cultivationCompletionMonths[a], cultivationCompletionMonths[b]);
     swap(manualCompletionMonths[a], manualCompletionMonths[b]);
     swap(manualCompletionPhases[a], manualCompletionPhases[b]);
-    swap(equipmentNurturingCompletionMonths[a], equipmentNurturingCompletionMonths[b]);
-    swap(equipmentNurturingCompletionPhases[a], equipmentNurturingCompletionPhases[b]);
     swap(baseHps[a], baseHps[b]);
     swap(baseMps[a], baseMps[b]);
     swap(baseAttacks[a], baseAttacks[b]);
@@ -640,14 +618,12 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(pillEffectDurations[a], pillEffectDurations[b]);
     swap(activePillTypes[a], activePillTypes[b]);
     swap(activePillCategories[a], activePillCategories[b]);
+    swap(headIds[a], headIds[b]);
+    swap(bodyIds[a], bodyIds[b]);
+    swap(handsIds[a], handsIds[b]);
+    swap(feetIds[a], feetIds[b]);
     swap(weaponIds[a], weaponIds[b]);
-    swap(armorIds[a], armorIds[b]);
-    swap(bootsIds[a], bootsIds[b]);
-    swap(accessoryIds[a], accessoryIds[b]);
-    swap(weaponNurtures[a], weaponNurtures[b]);
-    swap(armorNurtures[a], armorNurtures[b]);
-    swap(bootsNurtures[a], bootsNurtures[b]);
-    swap(accessoryNurtures[a], accessoryNurtures[b]);
+    swap(legsIds[a], legsIds[b]);
     swap(storageBagItems[a], storageBagItems[b]);
     swap(storageBagSpiritStones[a], storageBagSpiritStones[b]);
     swap(spiritStones[a], spiritStones[b]);

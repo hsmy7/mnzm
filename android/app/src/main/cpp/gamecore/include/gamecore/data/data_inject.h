@@ -8,6 +8,9 @@
 #include "gamecore/data/beast_material_db.h"
 #include "gamecore/data/data_json.h"
 #include "gamecore/data/data_store.h"
+#include "gamecore/data/equip_affix_db.h"
+#include "gamecore/data/equip_main_stat_db.h"
+#include "gamecore/data/equip_set_db.h"
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/gacha_pool_db.h"
 #include "gamecore/data/herb_db.h"
@@ -52,13 +55,62 @@ inline bool applyGameData(const nlohmann::json& doc) {
     if (!doc.contains("db") || !doc["db"].is_object()) return false;
     const auto& db = doc["db"];
 
-    // ── 装备 ────────────────────────────────────────────────
-    // 段缺失 = 该表不注入（保持内联默认）——允许**部分段**数据文件，
-    // 因为 beast_config 等结构性表本就不进数据文件。
+    // ── 装备（B3 复合结构）────────────────────────────────────
+    // db.equipment = { setPieces, sets, mainStatPools, mainStatBase, subAffixes }。
+    // 段缺失 = 该子表不注入（保持内联默认）；段在而非法（非数组/空）= 整体失败。
+    // mainStatPools 是 part 键映射（part → {stats[], coefficient}），展开为
+    // MainStatPoolDef（槽内 stats 数组序 = 抽取序，原样保留；跨槽遍历序 =
+    // JSON 键序，仅影响查表扫描不影响 roll 序——rollMainStat 按部位查池）。
+    // mainStatBase 是 stat 键映射（stat → 品阶 1..6 基数数组），展开为 MainStatBaseRow。
     if (db.contains("equipment")) {
-        if (!db["equipment"].is_array() || db["equipment"].empty()) return false;
-        auto rows = db["equipment"].get<std::vector<EquipmentTemplate>>();
-        equipmentTemplatesMutable() = std::move(rows);
+        const auto& eq = db["equipment"];
+        if (!eq.is_object()) return false;
+
+        if (eq.contains("setPieces")) {
+            if (!eq["setPieces"].is_array() || eq["setPieces"].empty()) return false;
+            auto rows = eq["setPieces"].get<std::vector<SetPieceTemplate>>();
+            setPieceTemplatesMutable() = std::move(rows);
+        }
+        if (eq.contains("sets")) {
+            if (!eq["sets"].is_array() || eq["sets"].empty()) return false;
+            auto rows = eq["sets"].get<std::vector<EquipmentSetDef>>();
+            equipmentSetDefsMutable() = std::move(rows);
+        }
+        if (eq.contains("mainStatPools")) {
+            const auto& pools = eq["mainStatPools"];
+            if (!pools.is_object() || pools.empty()) return false;
+            std::vector<MainStatPoolDef> rows;
+            rows.reserve(pools.size());
+            for (auto it = pools.begin(); it != pools.end(); ++it) {
+                if (!it.value().is_object()) return false;
+                MainStatPoolDef row;
+                row.part = it.key();
+                jread(it.value(), "stats", row.stats);
+                jread(it.value(), "coefficient", row.coefficient);
+                if (row.stats.empty()) return false;
+                rows.push_back(std::move(row));
+            }
+            mainStatPoolsMutable() = std::move(rows);
+        }
+        if (eq.contains("mainStatBase")) {
+            const auto& base = eq["mainStatBase"];
+            if (!base.is_object() || base.empty()) return false;
+            std::vector<MainStatBaseRow> rows;
+            rows.reserve(base.size());
+            for (auto it = base.begin(); it != base.end(); ++it) {
+                if (!it.value().is_array() || it.value().size() != 6) return false;
+                MainStatBaseRow row;
+                row.stat = it.key();
+                for (std::size_t i = 0; i < 6; ++i) row.values[i] = it.value()[i].get<double>();
+                rows.push_back(std::move(row));
+            }
+            mainStatBaseMutable() = std::move(rows);
+        }
+        if (eq.contains("subAffixes")) {
+            if (!eq["subAffixes"].is_array() || eq["subAffixes"].empty()) return false;
+            auto rows = eq["subAffixes"].get<std::vector<EquipAffixDef>>();
+            equipAffixesMutable() = std::move(rows);
+        }
     }
 
     // ── 灵草 / 种子 ─────────────────────────────────────────
@@ -138,7 +190,7 @@ inline bool applyGameData(const nlohmann::json& doc) {
 inline AppliedCounts applyAndCount(const nlohmann::json& doc) {
     AppliedCounts c{};
     if (!applyGameData(doc)) return c;
-    c.equipment = static_cast<int32_t>(equipmentTemplates().size());
+    c.equipment = static_cast<int32_t>(setPieceTemplates().size());
     c.herbs = static_cast<int32_t>(herbTemplates().size());
     c.seeds = static_cast<int32_t>(seedTemplates().size());
     c.manuals = static_cast<int32_t>(manualTemplates().size());

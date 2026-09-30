@@ -3,12 +3,10 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -20,7 +18,6 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
-import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
 import com.xianxia.sect.core.overflow.OverflowMailHandler
@@ -69,7 +66,6 @@ class InventorySystem @Inject constructor(
     /** 溢出转邮件抑制标志——MailService 等"事务回滚"语义路径使用 */
     internal var overflowMailSuppressed = false
 
-    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = stateStore.equipmentInstances
     val manualStacks: StateFlow<List<ManualStack>> get() = stateStore.manualStacks
     val manualInstances: StateFlow<List<ManualInstance>> get() = stateStore.manualInstances
@@ -96,7 +92,6 @@ class InventorySystem @Inject constructor(
 
     override fun clear() {
         stateStore.update {
-            equipmentStacks = EntityStore(emptyList())
             equipmentInstances = EntityStore(emptyList())
             manualStacks = EntityStore(emptyList())
             manualInstances = EntityStore(emptyList())
@@ -111,49 +106,6 @@ class InventorySystem @Inject constructor(
         clear()
     }
 
-    /**
-     * 添加装备堆叠（合并 + 溢出转邮件 + 年度来源追踪）。
-     *
-     * @param item 待添加的装备堆叠
-     */
-    override fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
-        val validation = validateStackableItem(item.name, item.rarity, item.quantity)
-        if (validation is DomainResult.Failure) return validation
-
-        return stateStore.updateAndReturn {
-            val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-            val store = StackableItemStore(
-                initialItems = equipmentStacks.all(),
-                stackKeyOf = StackKeys::equipment,
-                maxStack = getMaxStackForType("equipment_stack"),
-                maxSlots = { computeMaxSlots() - otherTypes },
-                notFound = { AppError.Domain.Inventory.NotFound(it) }
-            )
-            val result = store.add(item)
-            equipmentStacks.replaceAll(store.all())
-            when (result) {
-                is DomainResult.Success -> {
-                    val srcKey = "$trackingSource:${item.rarity}"
-                    gameData = gameData.copy(
-                        annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData
-                            .annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
-                    )
-                }
-                is DomainResult.Partial -> {
-                    val actualAdded = item.quantity - result.overflow
-                    val srcKey = "$trackingSource:${item.rarity}"
-                    gameData = gameData.copy(
-                        annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData
-                            .annualEquipmentBySource[srcKey] ?: 0) + actualAdded)
-                    )
-                }
-                is DomainResult.Failure -> { }
-            }
-            handleOverflowResult(result, "equipment", item)
-            result
-        }
-    }
-
     override fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance> {
         if (item.id.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.NotFound(item.id))
         if (item.name.isBlank()) return DomainResult.Failure(AppError.Domain.Inventory.InvalidName())
@@ -165,6 +117,13 @@ class InventorySystem @Inject constructor(
                 return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.DuplicateId(item.id))
             }
             equipmentInstances = equipmentInstances + item
+            // 年度装备来源追踪（B3 缺口补记：堆叠轨 addEquipmentStack 退役时丢失；
+            // 键口径与 addPill 的 "$trackingSource:$grade" 同款，装备无堆叠恒 +1）
+            val srcKey = "$trackingSource:${item.rarity}"
+            gameData = gameData.copy(
+                annualEquipmentBySource = gameData.annualEquipmentBySource +
+                    (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + 1)
+            )
             DomainResult.Success(item)
         }
     }
@@ -183,7 +142,7 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val otherTypes = equipmentInstances.size + pills.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = manualStacks.all(),
                 stackKeyOf = StackKeys::manual,
@@ -293,10 +252,6 @@ class InventorySystem @Inject constructor(
     }
 
 
-    fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack =
-        InventoryFactories.createEquipmentFromRecipe(recipe)
-
-
     /**
      * 添加储物袋。
      *
@@ -357,11 +312,6 @@ internal fun resolveSeedTemplateId(item: StackableItem): String =
         HerbDatabase.getAllSeeds().firstOrNull { s ->
             s.name == it.name && s.rarity == it.rarity && s.growTime == it.growTime
         }?.id ?: ""
-    } ?: ""
-
-internal fun resolveEquipmentTemplateId(item: StackableItem): String =
-    (item as? EquipmentStack)?.let {
-        EquipmentDatabase.getTemplateByName(it.name)?.id ?: ""
     } ?: ""
 
 internal fun resolveManualTemplateId(item: StackableItem): String =

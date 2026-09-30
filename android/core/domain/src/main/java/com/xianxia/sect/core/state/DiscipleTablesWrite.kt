@@ -1,19 +1,13 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.accessoryNurture
 import com.xianxia.sect.core.model.activePillCategory
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.armorNurture
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.baseAttack
 import com.xianxia.sect.core.model.baseDefense
 import com.xianxia.sect.core.model.baseHp
 import com.xianxia.sect.core.model.baseMp
 import com.xianxia.sect.core.model.baseSpeed
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.bootsNurture
 import com.xianxia.sect.core.model.breakthroughCount
 import com.xianxia.sect.core.model.breakthroughFailCount
 import com.xianxia.sect.core.model.charm
@@ -51,7 +45,6 @@ import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.model.totalCultivation
 import com.xianxia.sect.core.model.weaponId
-import com.xianxia.sect.core.model.weaponNurture
 
 internal fun DiscipleTables.writeAllFields(disciple: Disciple) {
     val id = disciple.id.toInt()
@@ -123,17 +116,14 @@ internal fun DiscipleTables.writePillFields(id: Int, disciple: Disciple) {
 internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
     // 装备
     val e = disciple.equipment
-    weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
-    bootsIds[id] = e.bootsId; accessoryIds[id] = e.accessoryId
-    weaponNurtures[id] = e.weaponNurture; armorNurtures[id] = e.armorNurture
-    bootsNurtures[id] = e.bootsNurture; accessoryNurtures[id] = e.accessoryNurture
+    headIds[id] = e.headId; bodyIds[id] = e.bodyId
+    handsIds[id] = e.handsId; feetIds[id] = e.feetId
+    weaponIds[id] = e.weaponId; legsIds[id] = e.legsId
     storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
     discipleSpiritStones[id] = e.spiritStones
     cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth
     manualCompletionMonths[id] = disciple.manualCompletionMonth
     manualCompletionPhases[id] = disciple.manualCompletionPhase
-    equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
-    equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
 }
 
 internal fun DiscipleTables.writeSkillFields(id: Int, disciple: Disciple) {

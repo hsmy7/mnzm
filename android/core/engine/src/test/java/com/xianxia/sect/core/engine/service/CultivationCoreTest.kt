@@ -132,7 +132,6 @@ class CultivationCoreTest {
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
             autoPillService = AutoPillService(mockPillManager),
-            equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
@@ -172,7 +171,6 @@ class CultivationCoreTest {
         return MutableGameState(
             gameData = gameData,
             discipleTables = tables,
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),

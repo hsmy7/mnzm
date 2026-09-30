@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameItem
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
@@ -331,14 +331,14 @@ private fun RewardDetailHost(
 /** 赏赐面板六类物品列表收集：统一订阅 ViewModel StateFlow */
 @Composable
 private fun rememberRewardInventory(viewModel: GameViewModel): RewardItemLists {
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
     return RewardItemLists(
-        equipment = equipmentStacks,
+        equipment = equipmentInstances,
         manuals = manualStacks,
         pills = pills,
         materials = materials,
@@ -349,7 +349,7 @@ private fun rememberRewardInventory(viewModel: GameViewModel): RewardItemLists {
 
 /** 赏赐面板六类物品列表打包（RewardItemsDialog 拆分，参数 >6 规避 LongParameterList） */
 private data class RewardItemLists(
-    val equipment: List<EquipmentStack>,
+    val equipment: List<EquipmentInstance>,
     val manuals: List<ManualStack>,
     val pills: List<Pill>,
     val materials: List<Material>,
@@ -590,7 +590,7 @@ private fun RewardAllItemsGrid(
 
 /** 物品网格稳定 key */
 private fun rewardItemKey(item: Any): String = when (item) {
-    is EquipmentStack -> "equipment_${item.id}"
+    is EquipmentInstance -> "equipment_${item.id}"
     is ManualStack -> "manual_${item.id}"
     is Pill -> "pill_${item.id}_${item.quantity}"
     is Material -> "material_${item.id}_${item.quantity}"
@@ -610,7 +610,7 @@ private fun RewardGridItemCard(
 ) {
     val currentSelectedItem = remember(item) {
         when (item) {
-            is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
+            is EquipmentInstance -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
             is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
             is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity,
                 item.grade.displayName)

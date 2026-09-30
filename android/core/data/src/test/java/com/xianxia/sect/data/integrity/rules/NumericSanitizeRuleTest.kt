@@ -233,7 +233,7 @@ class NumericSanitizeRuleTest {
         cultivation = cultivation, cultivationCheckpoint = checkpoint,
         cultivationSpeedBonus = speedBonus, pillEffects = pill,
         isAlive = true,
-        equipment = EquipmentSet(weaponId = "", armorId = "", bootsId = "", accessoryId = "")
+        equipment = EquipmentSet()
     )
 
     private fun saveData(

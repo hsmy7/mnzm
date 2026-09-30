@@ -22,6 +22,8 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.CancellationException
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.Rarity
@@ -324,17 +326,19 @@ private fun GameEngine.grantSingleCaveReward(
             }
         }
         1 -> {
-            val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-            val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
+            // B3 实例轨：EquipmentFactory 产实例直入实例轨（装备不走溢出邮件）
+            val kr = gameRngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+            val setId = if (kr.nextBoolean()) "lietian" else "zifu"
+            val equip = com.xianxia.sect.core.engine.domain.EquipmentFactory.create(
+                setId, com.xianxia.sect.core.engine.domain.EquipmentFactory.pickPart(setId, kr), rarity, kr)
+            val result = inventorySystem.withTrackingSource("cave_world") {
+                inventorySystem.addEquipmentInstance(equip)
+            }
             when (result) {
                 is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name,
                     quantity = 1, rarity = equip.rarity, type = "equipment"))
-                is DomainResult.Partial -> {
-                    DomainLog.w("GameEngine", "${equip.name} 溢出 ${result.overflow} 个")
-                    rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1,
-                        rarity = equip.rarity, type = "equipment"))
-                }
                 is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${equip.name} 失败: ${result.error}")
+                else -> {}
             }
         }
         else -> {

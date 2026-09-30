@@ -15,7 +15,6 @@ import com.xianxia.sect.core.model.BuildingSlot
 import com.xianxia.sect.core.model.DiplomacyState
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
 import com.xianxia.sect.core.model.Herb
@@ -78,7 +77,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
     MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57,
     MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61,
-    MIGRATION_61_62, MIGRATION_62_63
+    MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -93,7 +92,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 63
+    const val DATABASE_VERSION = 64
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -138,7 +137,6 @@ object GameDatabaseConfig {
     entities = [
         GameData::class,
         Disciple::class,
-        EquipmentStack::class,
         EquipmentInstance::class,
         ManualStack::class,
         ManualInstance::class,
@@ -229,6 +227,10 @@ object GameDatabaseConfig {
     // bloodRefinements/activeBloodRefinements/bloodRefinementBonusTotals/
     // bloodRefinementPctTotals 与 pending_trait_adds（洗炼/资质/三表/血炼玩法下线，
     // 读写面同批清零）。详见该迁移 KDoc
+    // v64: MIGRATION_63_64 装备体系原子替换（装备重构 B3，方案 §5.1/§6.5 A1）——
+    // DROP equipment_stacks、DROP+CREATE equipment_instances（词条/等级随实例单点）、
+    // disciples 增 5 部位列 + 清空六部位列（幽灵件兜底）+ 删 9 旧列、
+    // game_data 增 legacy_equipment_compensated 补偿幂等标记列；详见该迁移 KDoc
     // v57: MIGRATION_56_57 字段链删列（G03）——disciples 删除 social_partnerId/
     // social_partnerSectId/social_parentId1/social_parentId2/social_lastChildYear/
     // social_childBirthMonth/social_griefEndYear 七列（social_masterId 本批未删）；
@@ -244,7 +246,6 @@ abstract class GameDatabase : RoomDatabase() {
 
     abstract fun gameDataDao(): GameDataDao
     abstract fun discipleDao(): DiscipleDao
-    abstract fun equipmentStackDao(): EquipmentStackDao
     abstract fun equipmentInstanceDao(): EquipmentInstanceDao
     abstract fun manualStackDao(): ManualStackDao
     abstract fun manualInstanceDao(): ManualInstanceDao

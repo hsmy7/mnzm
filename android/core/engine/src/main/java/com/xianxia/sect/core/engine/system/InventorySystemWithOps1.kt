@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.system
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.util.StackableItem
 import com.xianxia.sect.core.model.ManualInstance
@@ -77,8 +76,8 @@ internal fun InventorySystem.resolveOverflowItemId(itemType: String, item: Stack
     "material" -> resolveMaterialTemplateId(item)
     "herb" -> resolveHerbTemplateId(item)
     "seed" -> resolveSeedTemplateId(item)
-    "equipment" -> resolveEquipmentTemplateId(item)
     "manual" -> resolveManualTemplateId(item)
+    // 装备不走溢出邮件（B3 实例轨无合并/溢出）
     else -> ""
 }
 
@@ -116,8 +115,6 @@ internal fun <T : HasId> InventorySystem.getById(items: List<T>, id: String): T?
 
 internal fun <T> InventorySystem.getQuantity(items: List<T>, id: String): Int where T : StackableItem =
     (items.find { (it as HasId).id == id })?.quantity ?: 0
-
-internal fun InventorySystem.currentEquipmentStacks(): List<EquipmentStack> = stateStore.equipmentStacks.value
 
 internal fun InventorySystem.currentEquipmentInstances(): List<EquipmentInstance> = stateStore.equipmentInstances.value
 
@@ -193,14 +190,12 @@ internal fun InventorySystem.consolidateAllStacks(state: MutableGameState) {
             }
         }
     }
-    val maxEq = getMaxStackForType("equipment_stack")
     val maxMn = getMaxStackForType("manual_stack")
     val maxPill = getMaxStackForType("pill")
     val maxMat = getMaxStackForType("material")
     val maxHerb = getMaxStackForType("herb")
     val maxSeed = getMaxStackForType("seed")
     val maxBag = getMaxStackForType("storageBag")
-    consolidate(state.equipmentStacks, StackKeys::equipment, maxEq)
     consolidate(state.manualStacks, StackKeys::manual, maxMn)
     consolidate(state.pills, StackKeys::pill, maxPill)
     consolidate(state.materials, StackKeys::material, maxMat)

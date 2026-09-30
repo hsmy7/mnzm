@@ -68,6 +68,7 @@ enum class RngPartition : int32_t {
     kChat = 10,     // 弟子交谈（W4-A·A5：DiscipleChatDialog 决策类抽取——用户时序独立流，不与结算分区共用）
     kResidual = 11, // 残留执行器本地随机域（R4.4/B14：Kotlin 侧本地 PCG，零 per-roll JNI；C++ 仅登记 + 播种对齐）
     kGacha = 12,    // 寻访抽卡（G09：玩家点击驱动的独立流，次数无上限，不与任何结算分区共用；见头注释）
+    kEquipment = 13, // 装备系统（B3：生成期词条 roll 与升级强化节点 roll；离散事务驱动独立流，见 Kotlin RngPartition.EQUIPMENT）
 };
 
 class RngManager {
@@ -100,6 +101,9 @@ public:
         // 寻访抽卡（G09）：与 Kotlin `systemSeed + id` 逐位同式；本分区由 C++
         // 生产真实消费（`gacha_tx.h`），播种公式与其余快照分区完全一致。
         partitions_[RngPartition::kGacha] = DeterministicRng::fromSeed(seed + 12);
+        // 装备系统（B3）：与 Kotlin `systemSeed + id` 逐位同式；C++ 生产消费
+        //（equipment_tx.h 词条 roll/强化节点），委托模式与 kGacha 同构。
+        partitions_[RngPartition::kEquipment] = DeterministicRng::fromSeed(seed + 13);
         // 镜像分区按同一公式播种（= aiRng_ 的播种式 seed + 6×31337 的等价初值；
         // GameCore::initialize 播种 aiRng_ 后经 mirrorAiRng 覆盖为权威态）
         partitions_[RngPartition::kAiSectMirror] = DeterministicRng::fromSeed(seed + 9);

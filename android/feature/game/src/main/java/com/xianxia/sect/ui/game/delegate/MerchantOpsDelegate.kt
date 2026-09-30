@@ -3,7 +3,7 @@ package com.xianxia.sect.ui.game.delegate
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.MerchantRefreshResult
 import com.xianxia.sect.core.engine.bulkSellItems
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
@@ -63,8 +63,9 @@ class MerchantOpsDelegate(
         selectedTypes: Set<String>
     ): List<GameEngine.BulkSellOperation> {
         val operations = mutableListOf<GameEngine.BulkSellOperation>()
+        // B3 实例轨：装备批量出售按实例枚举（一条一件，quantity 恒 1）
         val typeConfigs = listOf(
-            "EQUIPMENT" to (gameEngine.equipmentStacks.value as List<Any>),
+            "EQUIPMENT" to (gameEngine.equipmentInstances.value as List<Any>),
             "MANUAL" to (gameEngine.manualStacks.value as List<Any>),
             "PILL" to (gameEngine.pills.value as List<Any>),
             "MATERIAL" to (gameEngine.materials.value as List<Any>),
@@ -90,7 +91,7 @@ class MerchantOpsDelegate(
 
 /** 批量出售条目稀有度：未知类型为 null（调用方跳过） */
 private fun bulkSellItemRarity(item: Any?): Int? = when (item) {
-    is EquipmentStack -> item.rarity
+    is EquipmentInstance -> item.rarity
     is ManualStack -> item.rarity
     is Pill -> item.rarity
     is Material -> item.rarity
@@ -101,7 +102,7 @@ private fun bulkSellItemRarity(item: Any?): Int? = when (item) {
 
 /** 批量出售条目键：id 字符串化，未知类型为空串 */
 private fun bulkSellItemKey(item: Any?): String = when (item) {
-    is EquipmentStack -> item.id.toString()
+    is EquipmentInstance -> item.id.toString()
     is ManualStack -> item.id.toString()
     is Pill -> item.id.toString()
     is Material -> item.id.toString()
@@ -112,11 +113,11 @@ private fun bulkSellItemKey(item: Any?): String = when (item) {
 
 /** 批量出售条目锁定判定：装备/功法堆叠可锁定 */
 private fun bulkSellItemLocked(item: Any?): Boolean =
-    item is EquipmentStack && item.isLocked || item is ManualStack && item.isLocked
+    item is EquipmentInstance && item.isLocked || item is ManualStack && item.isLocked
 
 /** 批量出售条目数量：未知类型按 1 */
 private fun bulkSellItemQuantity(item: Any?): Int = when (item) {
-    is EquipmentStack -> item.quantity
+    is EquipmentInstance -> 1   // B3 一行一实例，整件出售
     is ManualStack -> item.quantity
     is Pill -> item.quantity
     is Material -> item.quantity

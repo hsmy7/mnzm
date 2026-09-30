@@ -44,7 +44,7 @@
 namespace gamecore::system::disciple_purchase {
 
 using gamecore::state::BagStackedData;
-using gamecore::state::EquipmentStack;
+
 using gamecore::state::GameState;
 using gamecore::state::ItemEffect;
 using gamecore::state::ManualStack;
@@ -70,6 +70,8 @@ inline constexpr const char* kItemTypeEquipment = "equipment";
 inline constexpr const char* kItemTypePill = "pill";
 inline constexpr const char* kItemTypeEquipmentStack = "equipment_stack";
 inline constexpr const char* kItemTypeManualStack = "manual_stack";
+/// B3 实例轨袋条目类型（Kotlin ITEM_TYPE_EQUIPMENT_INSTANCE）
+inline constexpr const char* kItemTypeEquipmentInstance = "equipment_instance";
 
 /// 小写化（Kotlin String.lowercase(Locale.ROOT)；类型分发对齐）
 inline std::string toLowerAscii(const std::string& s) {
@@ -85,10 +87,13 @@ inline std::string toLowerAscii(const std::string& s) {
 struct DisciplePurchaseContext {
     std::size_t row = 0;
     int32_t realm = 9;
+    // B3 六部位（头/身/手/脚/武/腿 = displayOrder）
+    std::string headId;
+    std::string bodyId;
+    std::string handsId;
+    std::string feetId;
     std::string weaponId;
-    std::string armorId;
-    std::string bootsId;
-    std::string accessoryId;
+    std::string legsId;
     std::vector<std::string> manualIds;
     int64_t totalFunds = 0;
 };
@@ -182,10 +187,12 @@ inline std::vector<DisciplePurchaseContext> collectDisciples(
         DisciplePurchaseContext ctx;
         ctx.row = row;
         ctx.realm = ds.realms[row];
+        ctx.headId = ds.headIds[row];
+        ctx.bodyId = ds.bodyIds[row];
+        ctx.handsId = ds.handsIds[row];
+        ctx.feetId = ds.feetIds[row];
         ctx.weaponId = ds.weaponIds[row];
-        ctx.armorId = ds.armorIds[row];
-        ctx.bootsId = ds.bootsIds[row];
-        ctx.accessoryId = ds.accessoryIds[row];
+        ctx.legsId = ds.legsIds[row];
         ctx.manualIds = ds.manualIds[row];
         ctx.totalFunds = totalFunds;
         out.push_back(std::move(ctx));
@@ -308,10 +315,12 @@ inline void processManualPurchases(
 
 inline std::string equipIdBySlot(const DisciplePurchaseContext& ctx,
                                  const std::string& slot) {
+    if (slot == "HEAD") return ctx.headId;
+    if (slot == "BODY") return ctx.bodyId;
+    if (slot == "HANDS") return ctx.handsId;
+    if (slot == "FEET") return ctx.feetId;
     if (slot == "WEAPON") return ctx.weaponId;
-    if (slot == "ARMOR") return ctx.armorId;
-    if (slot == "BOOTS") return ctx.bootsId;
-    if (slot == "ACCESSORY") return ctx.accessoryId;
+    if (slot == "LEGS") return ctx.legsId;
     return std::string();
 }
 
@@ -323,8 +332,12 @@ inline void processEquipmentPurchases(
     gamecore::rng::DeterministicRng& rng) {
     for (const auto& item : listedItems) {
         if (item.type != kItemTypeEquipment) continue;
-        const gamecore::state::EquipmentStack eq =
-            merchant_settle::toEquipment(item);
+        // B3：货单装备 → 部位判定（按部件名反查 12 部件表；缺省 WEAPON——
+        // Kotlin equipmentPartOf ?: EquipmentSlot.WEAPON；决策面不 roll 词条）
+        std::string eqPart = "WEAPON";
+        for (const auto& piece : gamecore::data::setPieceTemplates()) {
+            if (piece.name == item.name) { eqPart = piece.part; break; }
+        }
 
         std::vector<const DisciplePurchaseContext*> interested;
         for (const auto& ctx : allDisciples) {
@@ -339,12 +352,12 @@ inline void processEquipmentPurchases(
             const int64_t budget = calculateBudget(ctx.totalFunds, highestNeeded);
             if (budget < item.price) continue;
 
-            const std::string currentEquipId = equipIdBySlot(ctx, eq.slot);
+            const std::string currentEquipId = equipIdBySlot(ctx, eqPart);
             int32_t currentRarity = 0;
             if (!currentEquipId.empty()) {
                 for (const auto& ei : equipmentInstances) {
                     if (ei.id == currentEquipId) {
-                        currentRarity = ei.rarity;
+                        currentRarity = ei.rarity();
                         break;
                     }
                 }
@@ -359,7 +372,7 @@ inline void processEquipmentPurchases(
         std::vector<const DisciplePurchaseContext*> groupA;
         std::vector<const DisciplePurchaseContext*> groupB;
         for (const auto* ctx : interested) {
-            if (equipIdBySlot(*ctx, eq.slot).empty()) {
+            if (equipIdBySlot(*ctx, eqPart).empty()) {
                 groupA.push_back(ctx);
             } else {
                 groupB.push_back(ctx);
@@ -463,9 +476,11 @@ inline bool hasWarehouseStock(const GameState& state, const MerchantItem& item) 
     // Kotlin hasWarehouseStock：item.type.lowercase(Locale.ROOT) 分发
     const std::string type = toLowerAscii(item.type);
     if (type == kItemTypeEquipment) {
-        for (const auto& s : state.equipmentStacks) {
-            if (!s.isLocked && s.name == item.name && s.rarity == item.rarity &&
-                s.quantity >= 1) {
+        // B3 实例轨：存在未锁定、名称品阶匹配的装备实例（Kotlin
+        // hasEquipmentWarehouseStock 逐位移植）
+        for (const auto& inst : state.equipmentInstances) {
+            if (!inst.meta.isLocked && inst.name == item.name &&
+                inst.rarity() == item.rarity) {
                 return true;
             }
         }
@@ -628,31 +643,30 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
     // Kotlin addToWarehouseAndBag：item.type.lowercase(Locale.ROOT) 分发
     const std::string type = toLowerAscii(item.type);
     if (type == kItemTypeEquipment) {
-        // 审计 P2-8：容量门前置（满袋且不可合并 → 不扣仓库，物品保留）
-        if (!bagCanAccept(state.disciples.storageBagItems[discipleRow],
-                          kItemTypeEquipmentStack, item.name, item.rarity)) {
-            return false;
+        // B3 实例轨（Kotlin appendEquipmentInstanceBagItem 逐位移植）：按
+        // 部件名+品阶匹配仓库首条未锁定实例，整条迁入弟子储物袋（实例保真
+        // ——等级/词条随实例；itemId = 实例 id）
+        auto& instances = state.equipmentInstances;
+        for (auto it = instances.begin(); it != instances.end(); ++it) {
+            if (it->meta.isLocked || it->name != item.name ||
+                it->rarity() != item.rarity) {
+                continue;
+            }
+            const gamecore::state::EquipmentInstance instance = *it;
+            instances.erase(it);
+            StorageBagItem bagItem;
+            bagItem.itemId = instance.id;
+            bagItem.itemType = kItemTypeEquipmentInstance;
+            bagItem.name = item.name;
+            bagItem.rarity = item.rarity;
+            bagItem.quantity = 1;
+            bagItem.obtainedYear = year;
+            bagItem.obtainedMonth = month;
+            bagItem.equipmentInstance = instance;
+            return addToDiscipleBagList(
+                state.disciples.storageBagItems[discipleRow], std::move(bagItem));
         }
-        // 装备：minRealm/slot 取仓库堆叠元数据
-        const auto stack = deductWarehouseStack(
-            state.equipmentStacks, item.itemId, item.name, item.rarity);
-        if (!stack.has_value()) return false;
-        BagStackedData sd;
-        sd.minRealm = stack->minRealm;
-        sd.slot = stack->slot;
-        StorageBagItem bagItem;
-        bagItem.itemId = stack->id;
-        bagItem.itemType = kItemTypeEquipmentStack;
-        bagItem.name = item.name;
-        bagItem.rarity = item.rarity;
-        bagItem.quantity = 1;
-        bagItem.obtainedYear = year;
-        bagItem.obtainedMonth = month;
-        bagItem.stackedData = sd;
-        // 审计 P2-8：统一入袋入口（kind 合并 + 容量门）——满袋返回 false，
-        // 调用方 continue 跳过该物品（不扣仓库，不销毁已有条目）
-        return addToDiscipleBagList(state.disciples.storageBagItems[discipleRow],
-                                    std::move(bagItem));
+        return false;
     }
     if (type == kItemTypeManual) {
         // 审计 P2-8：容量门前置（同上）

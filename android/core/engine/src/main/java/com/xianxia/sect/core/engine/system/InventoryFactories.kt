@@ -1,56 +1,34 @@
 package com.xianxia.sect.core.engine.system
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.EquipmentDatabase
-import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
+import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * 仓库物品工厂方法
  * 从 InventorySystem.kt 提取的无状态纯函数
+ *
+ * 装备条目已随 B3 迁移实例轨：产出唯一入口为
+ * [com.xianxia.sect.core.engine.domain.EquipmentFactory]，本类不再提供装备工厂。
  */
 @Singleton
 class InventoryFactories @Inject constructor(
     private val converter: MerchantItemConverter
 ) {
 
-    fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack {
-        val template = EquipmentDatabase.getTemplateByName(recipe.name)
-        if (template != null) {
-            return EquipmentStack(
-                id = java.util.UUID.randomUUID().toString(),
-                name = template.name,
-                slot = template.slot,
-                rarity = recipe.rarity,
-                physicalAttack = template.physicalAttack,
-                magicAttack = template.magicAttack,
-                physicalDefense = template.physicalDefense,
-                magicDefense = template.magicDefense,
-                speed = template.speed,
-                hp = template.hp,
-                mp = template.mp,
-                description = template.description,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
-            )
-        }
-        return EquipmentDatabase.generateRandom(recipe.rarity, recipe.rarity).copy(
-            id = java.util.UUID.randomUUID().toString(),
-            rarity = recipe.rarity
-        )
-    }
-
-    fun createEquipmentFromMerchantItem(item: MerchantItem): EquipmentStack {
-        val eq = converter.toEquipment(item)
-        return eq.copy(quantity = 1)
-    }
+    /**
+     * 商人货单装备条目 → 装备实例（B3 实例轨；委托 [MerchantItemConverter.toEquipment]，
+     * rng 显式传入保确定性——EQUIPMENT 分区流）。
+     */
+    fun createEquipmentFromMerchantItem(item: MerchantItem, rng: Random): EquipmentInstance =
+        converter.toEquipment(item, rng)
 
     fun createManualFromMerchantItem(item: MerchantItem): ManualStack {
         val manual = converter.toManual(item)
@@ -82,8 +60,8 @@ class InventoryFactories @Inject constructor(
         private val instance: InventoryFactories
             get() = _instance ?: InventoryFactories(MerchantItemConverter.companionInstance).also { _instance = it }
 
-        fun createEquipmentFromRecipe(recipe: ForgeRecipe) = instance.createEquipmentFromRecipe(recipe)
-        fun createEquipmentFromMerchantItem(item: MerchantItem) = instance.createEquipmentFromMerchantItem(item)
+        fun createEquipmentFromMerchantItem(item: MerchantItem, rng: Random) =
+            instance.createEquipmentFromMerchantItem(item, rng)
         fun createManualFromMerchantItem(item: MerchantItem) = instance.createManualFromMerchantItem(item)
         fun createPillFromMerchantItem(item: MerchantItem) = instance.createPillFromMerchantItem(item)
         fun createMaterialFromMerchantItem(item: MerchantItem) = instance.createMaterialFromMerchantItem(item)

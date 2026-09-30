@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.battle
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -8,8 +7,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
@@ -45,11 +42,12 @@ import org.mockito.kotlin.whenever
 /**
  * 天道试炼通关奖励领取链路测试。
  *
- * 奖励装备/功法必须写入仓库渲染的堆叠轨道（equipmentStacks/manualStacks），
- * 统一委托 InventorySystem.addXxx，玩家领取后可见。
+ * B3 装备重构：奖励装备入实例轨（equipmentInstances，仓库 UI 已实例轨渲染），
+ * 功法照旧入堆叠轨（manualStacks），统一委托 InventorySystem.addXxx。
  *
  * 使用支持 COW 副本 + 重入缓冲的 [TrialTestStore]（模拟 GameStateStoreImpl 事务语义），
- * 验证物品落堆叠轨道、来源追踪、容量不足时事务整体回滚（凭据保留可重试）。
+ * 验证物品落轨、来源追踪（容量不足回滚守卫随装备堆叠轨退役删除——
+ * B3 装备实例无容量语义）。
  */
 class HeavenlyTrialClaimRewardTest {
 
@@ -115,19 +113,15 @@ class HeavenlyTrialClaimRewardTest {
     }
 
     @Test
-    fun `claimClearReward - 第六关领取后装备进入 equipmentStacks 而非 instances`() = runTest {
+    fun `claimClearReward - 第六关领取后装备进入实例轨`() = runTest {
         markLevelFullyCleared(5)
 
         val result = service.claimClearReward(5)
 
         assertTrue("应返回 Success", result is ClaimClearRewardResult.Success)
-        val stacks = store.equipmentStacks.value
-        assertEquals("装备堆叠总数量应为 5", 5, stacks.sumOf { it.quantity })
-        assertTrue("装备稀有度应为地品（5）", stacks.all { it.rarity == 5 })
-        assertTrue(
-            "实例表应为空（修复前装备写入 equipmentInstances，仓库 UI 不渲染导致不可见）",
-            store.equipmentInstances.value.isEmpty()
-        )
+        val instances = store.equipmentInstances.value
+        assertEquals("装备实例应为 5 件", 5, instances.size)
+        assertTrue("装备稀有度应为地品（5）", instances.all { it.rarity == 5 })
         assertEquals(
             "储物袋奖励应正常入仓（10 个玄品储物袋）",
             10,
@@ -186,38 +180,6 @@ class HeavenlyTrialClaimRewardTest {
         assertEquals(ClaimClearRewardResult.LevelNotCleared, result)
         assertTrue(store.gameDataValue.heavenlyTrialState.claimedRewardLevels.isEmpty())
     }
-
-    @Test
-    fun `claimClearReward - 仓库容量满时返回 CapacityInsufficient 且事务整体回滚`() = runTest {
-        // 预置占满全部仓库槽位的装备堆叠（无仓库建筑时容量 = BASE_CAPACITY）：
-        // 第 1 件奖励装备必然无槽可建（名字不匹配预置堆叠）→ addXxx Failure →
-        // 抛异常整体回滚，前序/后续发放（储物袋）均不落库，凭据保留可重试
-        val baseCapacity = GameConfig.Warehouse.BASE_CAPACITY
-        store.update {
-            equipmentStacks.replaceAll(
-                (0 until baseCapacity).map { i ->
-                    EquipmentStack(
-                        id = "pre_fill_$i",
-                        name = "预置装备$i",
-                        rarity = 1,
-                        slot = EquipmentSlot.WEAPON,
-                        quantity = 1
-                    )
-                }
-            )
-        }
-        markLevelFullyCleared(5)
-
-        val result = service.claimClearReward(5)
-
-        assertTrue("应返回 CapacityInsufficient", result is ClaimClearRewardResult.CapacityInsufficient)
-        assertEquals("预置堆叠不得被部分发放污染", baseCapacity, store.equipmentStacks.value.size)
-        assertTrue("储物袋不得发放（同事务回滚）", store.storageBags.value.isEmpty())
-        assertTrue(
-            "凭据不得写入，玩家清理仓库后可重试",
-            store.gameDataValue.heavenlyTrialState.claimedRewardLevels.isEmpty()
-        )
-    }
 }
 
 /**
@@ -238,7 +200,6 @@ private class TrialTestStore : GameStateStore {
     override val discipleTables: DiscipleTables get() = _tables
 
     // 持久 EntityStore（事务提交时 replaceAll 写回）
-    private val eqStacks = EntityStore<EquipmentStack>()
     private val eqInstances = EntityStore<EquipmentInstance>()
     private val mnStacks = EntityStore<ManualStack>()
     private val mnInstances = EntityStore<ManualInstance>()
@@ -249,7 +210,6 @@ private class TrialTestStore : GameStateStore {
     private val stBags = EntityStore<StorageBag>()
 
     // 仓库 StateFlow（事务提交时同步）
-    private val _equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
     private val _equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     private val _manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
     private val _manualInstances = MutableStateFlow<List<ManualInstance>>(emptyList())
@@ -258,7 +218,6 @@ private class TrialTestStore : GameStateStore {
     private val _herbs = MutableStateFlow<List<Herb>>(emptyList())
     private val _seeds = MutableStateFlow<List<Seed>>(emptyList())
     private val _storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
-    override val equipmentStacks: StateFlow<List<EquipmentStack>> get() = _equipmentStacks
     override val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = _equipmentInstances
     override val manualStacks: StateFlow<List<ManualStack>> get() = _manualStacks
     override val manualInstances: StateFlow<List<ManualInstance>> get() = _manualInstances
@@ -280,7 +239,6 @@ private class TrialTestStore : GameStateStore {
         val mutable = MutableGameState(
             gameData = gameDataValue,
             discipleTables = _tables,
-            equipmentStacks = EntityStore(eqStacks.all()),
             equipmentInstances = EntityStore(eqInstances.all()),
             manualStacks = EntityStore(mnStacks.all()),
             manualInstances = EntityStore(mnInstances.all()),
@@ -300,7 +258,6 @@ private class TrialTestStore : GameStateStore {
             // 提交：写回持久 EntityStore + gameData + StateFlow
             gameDataValue = mutable.gameData
             _gameDataFlow.value = mutable.gameData
-            eqStacks.replaceAll(mutable.equipmentStacks.all())
             eqInstances.replaceAll(mutable.equipmentInstances.all())
             mnStacks.replaceAll(mutable.manualStacks.all())
             mnInstances.replaceAll(mutable.manualInstances.all())
@@ -309,7 +266,6 @@ private class TrialTestStore : GameStateStore {
             hrbs.replaceAll(mutable.herbs.all())
             sds.replaceAll(mutable.seeds.all())
             stBags.replaceAll(mutable.storageBags.all())
-            _equipmentStacks.value = mutable.equipmentStacks.all()
             _equipmentInstances.value = mutable.equipmentInstances.all()
             _manualStacks.value = mutable.manualStacks.all()
             _manualInstances.value = mutable.manualInstances.all()
@@ -343,7 +299,6 @@ private class TrialTestStore : GameStateStore {
     override val entityState = MutableStateFlow(GameStateStore.EntityState())
     override val configState = MutableStateFlow(GameStateStore.ConfigState())
     override val disciplesSnapshot: List<Disciple> get() = emptyList()
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = eqStacks.all()
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = eqInstances.all()
     override val manualStacksSnapshot: List<ManualStack> get() = mnStacks.all()
     override val manualInstancesSnapshot: List<ManualInstance> get() = mnInstances.all()
@@ -396,7 +351,6 @@ private class TrialTestStore : GameStateStore {
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>,
         equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>,
         manualInstances: List<ManualInstance>,

@@ -33,10 +33,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
         "cultivationCompletionMonths"),
     IntTableRef(manualCompletionMonths, DiscipleTables::manualCompletionMonths, "manualCompletionMonths"),
     IntTableRef(manualCompletionPhases, DiscipleTables::manualCompletionPhases, "manualCompletionPhases"),
-    IntTableRef(equipmentNurturingCompletionMonths, DiscipleTables::equipmentNurturingCompletionMonths,
-        "equipmentNurturingCompletionMonths"),
-    IntTableRef(equipmentNurturingCompletionPhases, DiscipleTables::equipmentNurturingCompletionPhases,
-        "equipmentNurturingCompletionPhases"),
     IntTableRef(intelligences, DiscipleTables::intelligences, "intelligences"),
     IntTableRef(charms, DiscipleTables::charms, "charms"),
     IntTableRef(comprehensions, DiscipleTables::comprehensions, "comprehensions"),
@@ -82,10 +78,12 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     RefTableRef(spiritRootTypes, DiscipleTables::spiritRootTypes, "spiritRootTypes"),
     RefTableRef(innateDamageTypes, DiscipleTables::innateDamageTypes, "innateDamageTypes"),
     RefTableRef(activePillCategories, DiscipleTables::activePillCategories, "activePillCategories"),
+    RefTableRef(headIds, DiscipleTables::headIds, "headIds"),
+    RefTableRef(bodyIds, DiscipleTables::bodyIds, "bodyIds"),
+    RefTableRef(handsIds, DiscipleTables::handsIds, "handsIds"),
+    RefTableRef(feetIds, DiscipleTables::feetIds, "feetIds"),
     RefTableRef(weaponIds, DiscipleTables::weaponIds, "weaponIds"),
-    RefTableRef(armorIds, DiscipleTables::armorIds, "armorIds"),
-    RefTableRef(bootsIds, DiscipleTables::bootsIds, "bootsIds"),
-    RefTableRef(accessoryIds, DiscipleTables::accessoryIds, "accessoryIds"),
+    RefTableRef(legsIds, DiscipleTables::legsIds, "legsIds"),
 
     // ── Set 表（需深拷贝 toSet） ──
     MutableTableRef(activePillTypes, DiscipleTables::activePillTypes, "activePillTypes") { it.toSet() },
@@ -105,8 +103,4 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
 
     // ── 枚举/数据类单值表（值不可变，浅拷贝安全） ──
     RefTableRef(statuses, DiscipleTables::statuses, "statuses"),
-    RefTableRef(weaponNurtures, DiscipleTables::weaponNurtures, "weaponNurtures"),
-    RefTableRef(armorNurtures, DiscipleTables::armorNurtures, "armorNurtures"),
-    RefTableRef(bootsNurtures, DiscipleTables::bootsNurtures, "bootsNurtures"),
-    RefTableRef(accessoryNurtures, DiscipleTables::accessoryNurtures, "accessoryNurtures")
 )

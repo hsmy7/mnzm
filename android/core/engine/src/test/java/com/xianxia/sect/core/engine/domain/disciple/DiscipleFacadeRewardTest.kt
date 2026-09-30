@@ -1,9 +1,13 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipAffixSet
+import com.xianxia.sect.core.model.EquipGrowth
+import com.xianxia.sect.core.model.EquipInstanceMeta
+import com.xianxia.sect.core.model.EquipStat
+import com.xianxia.sect.core.model.EquipStatValue
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
@@ -17,7 +21,6 @@ import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -29,12 +32,12 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 赏赐路径测试（DiscipleFacadeImpl.rewardItemsToDisciple）。
+ * 赏赐路径测试（DiscipleFacadeImpl.rewardItemsToDisciple，B3 实例轨语义）。
  *
  * 独立存储语义守卫：
- * - 不可装装备赏赐：仓库扣 1 + 袋铸造 stackedData 条目（minRealm/slot 保真）
- * - 可装装备赏赐：装上身 + 旧装备实例直接铸造入袋 + 实例表删除（防双持有）
- * - 仓库数量不足：不铸造袋条目（唯一失败条件，袋容量无上限永不因袋满失败）
+ * - 不可装装备赏赐：完整实例入袋（payload 保真），实例表保留下线态
+ * - 可装装备赏赐：装上身 + 旧装备实例入袋（实例表保留 isEquipped=false 下线态）
+ * - 实例缺失/已穿戴：无操作
  * - 丹药赏赐：扣数量 + 袋条目
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
@@ -88,18 +91,31 @@ class DiscipleFacadeRewardTest {
         tables.realms[id] = realm
     }
 
-    private fun eqStack(id: String, qty: Int, minRealm: Int = 0) = EquipmentStack(
-        id = id, name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = qty, minRealm = minRealm
+    /** B3 实例轨种子装备（武器部位、可配境界门槛/穿戴态） */
+    private fun eqInstance(
+        id: String,
+        minRealm: Int = 0,
+        isEquipped: Boolean = false,
+        ownerId: String? = null
+    ) = EquipmentInstance(
+        id = id, name = "精铁剑",
+        part = EquipmentSlot.WEAPON,
+        growth = EquipGrowth(
+            affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
+        ),
+        meta = EquipInstanceMeta(rarity = 1, minRealm = minRealm),
+        isEquipped = isEquipped,
+        ownerId = ownerId
     )
 
     // ═══════════════════════════════════════════════════════════════
-    // 不可装装备：仓库扣 1 + 袋铸造（独立存储）
+    // 不可装装备：实例入袋（独立存储）
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `equipment reward below realm requirement casts bag entry and deducts warehouse`() {
+    fun `equipment reward below realm requirement casts bag entry and keeps instance offline`() {
         insertDisciple(1, realm = 9) // 练气弟子（数值越大境界越低），不满足 minRealm=7 的装备
-        setStore { equipmentStacks = EntityStore(listOf(eqStack("eq1", qty = 3, minRealm = 7))) }
+        setStore { equipmentInstances = EntityStore(listOf(eqInstance("eq1", minRealm = 7))) }
 
         facade.rewardItemsToDisciple("1", listOf(
             RewardSelectedItem(id = "eq1", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
@@ -108,24 +124,31 @@ class DiscipleFacadeRewardTest {
         val bagItems = tables.storageBagItems[1]
         assertEquals("袋铸造 1 条", 1, bagItems.size)
         val bagItem = bagItems.first()
-        assertEquals("itemId 引用仓库堆叠 id", "eq1", bagItem.itemId)
-        assertTrue("payload 已铸造", bagItem.isMaterialized)
-        assertEquals("minRealm 保真", 7, bagItem.stackedData?.minRealm)
-        assertEquals("slot 保真", EquipmentSlot.WEAPON.name, bagItem.stackedData?.slot)
-        assertEquals("仓库扣减 3→2", 2, mockStore.equipmentStacks.value.firstOrNull { it.id == "eq1" }?.quantity)
+        assertEquals("itemId 引用实例 id", "eq1", bagItem.itemId)
+        assertEquals("完整实例保真", "eq1", bagItem.equipmentInstance?.id)
+        // B3：实例保留实例表（下线态），未装备
+        val instance = requireNotNull(mockStore.equipmentInstances.value.firstOrNull { it.id == "eq1" })
+        assertTrue("实例表保留下线态", !instance.isEquipped)
         assertEquals("未装备", "", tables.weaponIds[1])
     }
 
     @Test
-    fun `equipment reward with insufficient warehouse quantity does nothing`() {
+    fun `equipment reward with missing or equipped instance does nothing`() {
         insertDisciple(1, realm = 9)
-        setStore { equipmentStacks = EntityStore(listOf(eqStack("eq1", qty = 0, minRealm = 7))) }
+        // 已穿戴实例：赏赐无操作（防双持有）；缺失实例：同样无操作
+        setStore {
+            equipmentInstances = EntityStore(listOf(
+                eqInstance("eq-busy", isEquipped = true, ownerId = "2")
+            ))
+        }
 
         facade.rewardItemsToDisciple("1", listOf(
-            RewardSelectedItem(id = "eq1", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
+            RewardSelectedItem(id = "eq-busy", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1),
+            RewardSelectedItem(id = "eq-missing", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
         ))
 
-        assertEquals("袋无条目（仓库数量不足）", 0, tables.storageBagItems[1].size)
+        assertEquals("袋无条目（已穿戴/缺失不赏赐）", 0, tables.storageBagItems[1].size)
+        assertEquals("已穿戴实例穿戴态不变", "", tables.weaponIds[1])
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -136,21 +159,23 @@ class DiscipleFacadeRewardTest {
     fun `equipment reward meeting realm equips and old instance casts into bag`() {
         insertDisciple(1, realm = 5) // 数值越小境界越高：5 <= minRealm=7 满足（境界足够装）
         // 弟子已穿旧武器实例 i-old
-        val oldInstance = EquipmentInstance(id = "i-old", name = "旧剑", rarity = 1, slot = EquipmentSlot.WEAPON)
-        setStore { equipmentInstances = EntityStore(listOf(oldInstance)) }
+        val oldInstance = eqInstance("i-old", isEquipped = true, ownerId = "1")
+        setStore { equipmentInstances = EntityStore(listOf(oldInstance, eqInstance("eq-new", minRealm = 7))) }
         tables.weaponIds[1] = "i-old"
-        setStore { equipmentStacks = EntityStore(listOf(eqStack("eq-new", qty = 2, minRealm = 7))) }
 
         facade.rewardItemsToDisciple("1", listOf(
             RewardSelectedItem(id = "eq-new", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
         ))
 
         // 新装备上身
-        assertNull("旧实例已从实例表移除（防双持有）", mockStore.equipmentInstances.value.firstOrNull { it.id == "i-old" })
-        assertEquals("实例表仅剩新实例 1 条", 1, mockStore.equipmentInstances.value.size)
         val newEquipId = tables.weaponIds[1]
         assertTrue("新实例已装备", newEquipId.isNotEmpty() && newEquipId != "i-old")
-        assertEquals("仓库扣减 2→1", 1, mockStore.equipmentStacks.value.firstOrNull { it.id == "eq-new" }?.quantity)
+        assertEquals("新实例穿戴态", true,
+            mockStore.equipmentInstances.value.firstOrNull { it.id == "eq-new" }?.isEquipped)
+        // B3：旧实例保留实例表（下线态 isEquipped=false），同时完整入袋
+        val old = requireNotNull(mockStore.equipmentInstances.value.firstOrNull { it.id == "i-old" })
+        assertTrue("旧实例应转为下线态", !old.isEquipped)
+        assertEquals("实例表两条都在", 2, mockStore.equipmentInstances.value.size)
         // 旧实例入袋（容量无上限，永不失败）
         val bagItems = tables.storageBagItems[1]
         assertEquals("旧装备实例入袋", 1, bagItems.size)
@@ -180,13 +205,13 @@ class DiscipleFacadeRewardTest {
 
     @Test
     fun `reward to nonexistent disciple ignored`() {
-        setStore { equipmentStacks = EntityStore(listOf(eqStack("eq1", qty = 2))) }
+        setStore { equipmentInstances = EntityStore(listOf(eqInstance("eq1"))) }
 
         facade.rewardItemsToDisciple("999", listOf(
             RewardSelectedItem(id = "eq1", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
         ))
 
-        assertEquals("仓库未扣减", 2, mockStore.equipmentStacks.value.firstOrNull { it.id == "eq1" }?.quantity)
+        assertEquals("实例表未变化", 1, mockStore.equipmentInstances.value.size)
     }
 
     @Test
@@ -223,19 +248,16 @@ class DiscipleFacadeRewardTest {
     fun `reward many items never fails on bag capacity - unlimited bag`() {
         insertDisciple(1, realm = 9)
         // 模拟高境界装备池：大量不可装装备连续赏赐（旧设计 BAG_CAPACITY=30 会因袋满失败）
-        val stacks = (0 until 50).map { i ->
-            EquipmentStack(
-                id = "eq$i", name = "高级武器$i", rarity = 1,
-                slot = EquipmentSlot.WEAPON, quantity = 1, minRealm = 7
-            )
+        val instances = (0 until 50).map { i ->
+            eqInstance("eq$i", minRealm = 7)
         }
-        setStore { equipmentStacks = EntityStore(stacks) }
+        setStore { equipmentInstances = EntityStore(instances) }
 
         facade.rewardItemsToDisciple("1", (0 until 50).map { i ->
-            RewardSelectedItem(id = "eq$i", type = "equipment", name = "高级武器$i", rarity = 1, quantity = 1)
+            RewardSelectedItem(id = "eq$i", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
         })
 
         assertEquals("50 件全部入袋（无袋满概念）", 50, tables.storageBagItems[1].size)
-        assertEquals("仓库清空", 0, mockStore.equipmentStacks.value.size)
+        assertEquals("实例表全部保留（下线态）", 50, mockStore.equipmentInstances.value.size)
     }
 }

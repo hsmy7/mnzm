@@ -325,7 +325,9 @@ class ProductionCoordinator @Inject constructor(
 
         val availableMaterials = buildForgeAvailableMaterials(materials = materials)
 
-        val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
+        // B3：配方不分 tier——coordinator 侧时长取凡品档（1 旬基准），
+        // 实际锻造时长以 BuildingService 主链按锻造弟子等级计算的值为准
+        val duration = ForgeRecipeDatabase.getDurationByTier(1)
 
         val currentSlot = repository.getSlotByBuildingId(buildingId, slotIndex)
         val startSpec = ProductionStartSpec(
@@ -337,10 +339,10 @@ class ProductionCoordinator @Inject constructor(
             discipleId = currentSlot?.assignedDiscipleId,
             discipleName = currentSlot?.assignedDiscipleName ?: "",
             successRate = successRate,
-            materials = recipe.materials,
+            materials = recipe.materialsFor(1),
             outputItemId = recipe.id,
             outputItemName = recipe.name,
-            outputItemRarity = recipe.rarity
+            outputItemRarity = 0 // B3 配方不分品阶
         )
         val txResult = transactionManager.executeStartProductionByBuildingId(
             buildingId = buildingId,
@@ -358,7 +360,7 @@ class ProductionCoordinator @Inject constructor(
         // 按 materialId 聚合消耗量，逐 material 扣减直到满足配方要求
         val newMaterials = consumeMaterialsForRecipe(
             materials = materials,
-            recipeMaterials = recipe.materials
+            recipeMaterials = recipe.materialsFor(1)
         )
 
         DomainLog.d(TAG, "Forging started successfully: $buildingId[$slotIndex]")
@@ -367,7 +369,7 @@ class ProductionCoordinator @Inject constructor(
             slotIndex = slotIndex,
             recipeId = recipeId,
             recipeName = recipe.name,
-            materials = recipe.materials,
+            materials = recipe.materialsFor(1),
             reason = "锻造开始",
             buildingId = buildingId
         )

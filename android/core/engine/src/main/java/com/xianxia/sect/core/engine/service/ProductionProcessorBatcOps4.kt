@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.engine.system.InventoryFactories
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.profession.ProfessionRules
@@ -17,7 +16,9 @@ import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.model.production.BuildingType
 
 // ── ProductionProcessor 拆分域 4/5（行为零变更） ──
@@ -30,7 +31,7 @@ internal fun ProductionProcessor.batchAutoForge(
     val gd = state.gameData
     val policyBonus = if (gd.sectPolicies.forgeIncentive)
         GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
-    val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+    val allRecipes = ForgeRecipeDatabase.getAllRecipes()
     val materialIndex = state.materials.all().groupBy { it.name to it.rarity }
         .mapValues { (_, list) -> list.sumOf { it.quantity } }
 
@@ -70,17 +71,18 @@ internal fun ProductionProcessor.autoForgeRestartSlot(
         ?: 1
     val recipeToStart = findForgeRecipe(allRecipes, materialIndex, maxTier) ?: return false
 
-    consumeMaterialsForRecipeLocal(recipeToStart.materials, state)
+    consumeMaterialsForRecipeLocal(recipeToStart.materialsFor(1), state)
     val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
     // B5 毫秒孪生双写（月初锚点，与 C++ startSlotWorking/回填同口径）
     val startedAtGameMs = GameConfig.Time.calendarToGameMs(gd.gameYear, gd.gameMonth, 0)
-    val duration = ForgeRecipeDatabase.getDurationByTier(recipeToStart.tier)
+    // B3 配方不分 tier：时长按锻造弟子职业等级品阶
+    val duration = ForgeRecipeDatabase.getDurationByTier(maxTier)
 
     // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
     val effectiveSuccessRate = formulaService.buildSuccessRateZones(
         disciple = worker,
         buildingId = BuildingNames.FORGE,
-        recipeTier = recipeToStart.tier,
+        recipeTier = maxTier,
         policyBonus = policyBonus
     ).calculate()
     slots[slotIdx] = slots[slotIdx].copy(
@@ -98,7 +100,7 @@ internal fun ProductionProcessor.autoForgeRestartSlot(
             duration.coerceAtLeast(1) * GameConfig.Time.GAME_MS_PER_MONTH,
         outputItemId = recipeToStart.id,
         outputItemName = recipeToStart.name,
-        outputItemRarity = recipeToStart.rarity
+        outputItemRarity = maxTier
     )
     return true
 }
@@ -157,7 +159,12 @@ internal fun ProductionProcessor.isCompleteForgeSlot(slot: ProductionSlot, year:
 internal fun ProductionProcessor.produceForgeEquipmentShadow(slot: ProductionSlot, state: MutableGameState) {
     val recipeId = slot.recipeId ?: return
     val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return
-    state.equipmentStacks.add(InventoryFactories.createEquipmentFromRecipe(recipe))
+    // B3 实例轨：产出品阶 = 锻造弟子职业等级
+    val forgeTier = slot.assignedDiscipleId?.toIntOrNull()?.let { pid ->
+        state.discipleTables.assemble(pid)?.skills?.forgeLevel
+    }?.coerceIn(1, 6) ?: 1
+    val kr = rngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+    state.equipmentInstances.add(EquipmentFactory.create(recipe.setId, recipe.part, forgeTier, kr))
 }
 
 /**
@@ -173,7 +180,8 @@ internal fun ProductionProcessor.settleForgeCompletionShadow(
     success: Boolean
 ): Boolean {
     // 配方无效（数据损坏）时 recipeTier=0：低阶不充数规则下不结算晋升
-    val recipeTier = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it)?.tier } ?: 0
+    // B3 配方不分 tier：影子版晋升按凡品档计（与 ProductionSettlement 同口径）
+    val recipeTier = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it)?.let { 1 } } ?: 0
     val currentList = state.discipleTables.assembleAll()
     var discipleAlive = false
     val updated = currentList.map {

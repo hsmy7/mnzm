@@ -150,7 +150,12 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
         {"manualIds", {"a", "b"}},
         {"manualMasteries", {{"m1", 3}, {"m2", 7}}},
         {"statusData", {{"k", "v"}}},
-        {"weaponNurture", {{"equipmentId", "w1"}, {"rarity", 2}, {"nurtureLevel", 4}, {"nurtureProgress", 0.25}}},
+        {"headId", "h1"},
+        {"bodyId", "b1"},
+        {"handsId", "ha1"},
+        {"feetId", "f1"},
+        {"weaponId", "w1"},
+        {"legsId", "l1"},
         {"storageBagItems", {{{"id", "s1"}, {"count", 9}}}},
         {"spiritStones", 88},
     };
@@ -196,12 +201,20 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
     ASSERT_TRUE(decodeFields(status[0].bytes, se));
     EXPECT_EQ("k", fieldsWith(se, 1)[0].bytes);
     EXPECT_EQ("v", fieldsWith(se, 2)[0].bytes);
-    auto nurture = fieldsWith(r, 71);            // weaponNurture
-    ASSERT_EQ(1u, nurture.size());
-    std::vector<std::pair<uint32_t, DecodedField>> ne;
-    ASSERT_TRUE(decodeFields(nurture[0].bytes, ne));
-    EXPECT_EQ("w1", fieldsWith(ne, 1)[0].bytes);
-    EXPECT_DOUBLE_EQ(0.25, asDouble(fieldsWith(ne, 4)[0].fixed64));
+    // B3 六部位：67-70 头/身/手/脚 + weaponId 122 / legsId 123；
+    // 71..74（旧四槽 + nurture 视图）退役禁复用 → 全空
+    auto headF = fieldsWith(r, 67);
+    ASSERT_EQ(1u, headF.size());
+    EXPECT_EQ("h1", headF[0].bytes);
+    EXPECT_EQ("b1", fieldsWith(r, 68)[0].bytes);
+    EXPECT_EQ("ha1", fieldsWith(r, 69)[0].bytes);
+    EXPECT_EQ("f1", fieldsWith(r, 70)[0].bytes);
+    EXPECT_EQ("w1", fieldsWith(r, 122)[0].bytes);
+    EXPECT_EQ("l1", fieldsWith(r, 123)[0].bytes);
+    EXPECT_TRUE(fieldsWith(r, 71).empty());
+    EXPECT_TRUE(fieldsWith(r, 72).empty());
+    EXPECT_TRUE(fieldsWith(r, 73).empty());
+    EXPECT_TRUE(fieldsWith(r, 74).empty());
     EXPECT_TRUE(fieldsWith(r, 75).empty());      // storageBagItemsJson 停写保留（号冻结）
     auto bagRows = fieldsWith(r, 110);           // storageBagItemsTyped（TypedRow ×1）
     ASSERT_EQ(1u, bagRows.size());

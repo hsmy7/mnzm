@@ -54,6 +54,7 @@
 #include "gamecore/data/beast_material_db.h"
 #include "gamecore/data/equipment_db.h"
 #include "gamecore/data/manual_db.h"
+#include "gamecore/system/equipment_factory.h"  // B3 装备唯一产出入口
 #include "gamecore/data/recipe_db.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
@@ -69,7 +70,7 @@ namespace gamecore::system::mission_settle {
 using gamecore::state::ActiveMission;
 using gamecore::state::Disciple;
 using gamecore::state::EquipmentInstance;
-using gamecore::state::EquipmentStack;
+using gamecore::state::EquipmentInstance;
 using gamecore::state::GameState;
 using gamecore::state::ManualInstance;
 using gamecore::state::ManualProficiencyData;
@@ -247,37 +248,8 @@ inline std::vector<T> javaShuffled(std::vector<T> list, JavaRandom& rnd) {
     return list;
 }
 
-// ── 装备/功法模板随机生成（Kotlin EquipmentDatabase/ManualDatabase） ──
-
-/// 按槽位+品阶过滤模板（Kotlin getBySlot(slot).filter { it.rarity == rarity }；
-/// 槽位序 = equipmentTemplates() 向量序——与 Kotlin
-/// weapons+armors+boots+accessories 拼接序逐位一致，随机索引依赖该序）
-inline std::vector<const gamecore::data::EquipmentTemplate*> equipmentBySlotRarity(
-        const std::string& slot, int32_t rarity) {
-    std::vector<const gamecore::data::EquipmentTemplate*> out;
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.slot == slot && t.rarity == rarity) out.push_back(&t);
-    }
-    return out;
-}
-
-inline std::vector<const gamecore::data::EquipmentTemplate*> equipmentBySlot(
-        const std::string& slot) {
-    std::vector<const gamecore::data::EquipmentTemplate*> out;
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.slot == slot) out.push_back(&t);
-    }
-    return out;
-}
-
-inline std::vector<const gamecore::data::EquipmentTemplate*> equipmentByRarity(
-        int32_t rarity) {
-    std::vector<const gamecore::data::EquipmentTemplate*> out;
-    for (const auto& t : gamecore::data::equipmentTemplates()) {
-        if (t.rarity == rarity) out.push_back(&t);
-    }
-    return out;
-}
+// ── 装备/功法模板随机生成（B3：装备产出收敛 EquipmentFactory 唯一入口，
+//    旧 equipmentTemplates 过滤辅助段删除；功法模板面不变） ──
 
 inline std::vector<const gamecore::data::ManualTemplate*> manualByRarity(
         int32_t rarity) {
@@ -357,29 +329,6 @@ inline const char* materialCategoryName(const std::string& category) {
     if (category == "shell") return "BEAST_SHELL";
     if (category == "blood") return "BEAST_BLOOD";
     return "BEAST_HIDE";
-}
-
-/// EquipmentInstance → EquipmentStack（Kotlin EquipmentStack 字段集——
-/// id 由模板构造器注入 nextItemId（Kotlin 侧为 UUID，对拍面忽略））
-inline EquipmentStack equipmentStackFromTemplate(
-        const gamecore::data::EquipmentTemplate& tpl) {
-    EquipmentStack s;
-    s.id = nextItemId("gc-eq");
-    s.name = tpl.name;
-    s.rarity = tpl.rarity;
-    s.description = tpl.description;
-    s.slot = tpl.slot;
-    s.physicalAttack = tpl.physicalAttack;
-    s.magicAttack = tpl.magicAttack;
-    s.physicalDefense = tpl.physicalDefense;
-    s.magicDefense = tpl.magicDefense;
-    s.speed = tpl.speed;
-    s.hp = tpl.hp;
-    s.mp = tpl.mp;
-    s.critChance = tpl.critChance;
-    s.minRealm = realmMinForRarity(tpl.rarity);
-    s.quantity = 1;
-    return s;
 }
 
 /// ManualTemplate → ManualStack（Kotlin createFromTemplate 全字段 +
@@ -616,60 +565,50 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         const int32_t minRarity = realmMaxRarity(realm);
         const int32_t maxRarity = std::min(minRarity + 1, 6);
 
-        // 装备：4 槽 java.util.Random(seed) 降序洗牌 + count + 逐槽生成
+        // 装备生成（B3：六部位随机排列、敌随机穿其中若干件；实例经
+        // EquipmentFactory.create 唯一产出（套装随机二选一）；属性按逐件
+        // totalBonus 累加——孕养随机等级逻辑已随孕养系统删除）
         JavaRandom javaRnd(static_cast<int64_t>(enemyRng.nextInt()));
-        std::vector<std::string> slots = {"WEAPON", "ARMOR", "BOOTS", "ACCESSORY"};
+        std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"};
         slots = javaShuffled(slots, javaRnd);
         const int32_t equipmentCount = enemyRng.nextInt(5);
 
-        // 装备属性累加器（Kotlin EquipmentStatsAccumulator）
-        int32_t eqHp = 0, eqMp = 0, eqPa = 0, eqPd = 0, eqSpd = 0;
+        // 装备属性累加器（Kotlin EquipmentStatsAccumulator B3 口径：
+        // ATTACK/DEFENSE/HP 逐条 .toInt() 截断累加、CRIT_RATE 比例直加，
+        // CRIT_DAMAGE/乘区项消费点待 B4——跳过不崩；装备不提供速度/灵力 S14）
+        int32_t eqHp = 0, eqPa = 0, eqPd = 0;
         double eqCrit = 0.0;
         for (int32_t i = 0; i < equipmentCount; ++i) {
-            const auto& slot = slots[static_cast<std::size_t>(i)];
+            const auto& part = slots[static_cast<std::size_t>(i)];
+            // 品阶沿用旧口径：在 [minRarity, maxRarity] 均匀抽取
             const int32_t rarity = minRarity + enemyRng.nextInt(maxRarity + 1 - minRarity);
-            // generateRandomBySlot：模板抽取恰一注（空表回退槽内全模板——
-            // 双查表顺序一致，正常数据 rarity 过滤非空）
-            auto templates = equipmentBySlotRarity(slot, rarity);
-            const auto& pool = templates.empty() ? equipmentBySlot(slot) : templates;
-            if (pool.empty()) throw std::runtime_error("no equipment templates");
-            const auto* tpl =
-                pool[static_cast<std::size_t>(enemyRng.nextInt(
-                    static_cast<int32_t>(pool.size())))];
-            const int32_t maxNurture = [&] {
-                switch (rarity) {
-                    case 1: return 5;
-                    case 2: return 9;
-                    case 3: return 13;
-                    case 4: return 17;
-                    case 5: return 21;
-                    case 6: return 25;
-                    default: return 5;
+            // 套装随机二选一（lietian 物理 / zifu 法术）
+            const std::string setId =
+                enemyRng.nextDouble() < 0.5 ? "lietian" : "zifu";
+            auto instOpt = equipment_factory::create(setId, part, rarity, enemyRng);
+            if (!instOpt.has_value()) continue;
+            const EquipmentInstance& inst = *instOpt;
+            // totalBonus（Lv1：主词条 ×(1+0.10×0)=1.0 + 副词条 ×强化次数）
+            auto accumulate = [&](const std::string& stat, double value) {
+                if (stat == "ATTACK") eqPa += static_cast<int32_t>(value);
+                else if (stat == "DEFENSE") eqPd += static_cast<int32_t>(value);
+                else if (stat == "HP") eqHp += static_cast<int32_t>(value);
+                else if (stat == "CRIT_RATE") eqCrit += value;
+            };
+            {
+                const double mult =
+                    1.0 + 0.10 * (static_cast<double>(inst.growth.level) - 1.0);
+                accumulate(inst.growth.affix.mainStat.stat,
+                           inst.growth.affix.mainStat.value * mult);
+                for (std::size_t k = 0; k < inst.growth.affix.subStats.size(); ++k) {
+                    const int32_t rolls =
+                        k < inst.growth.affix.subRolls.size()
+                            ? inst.growth.affix.subRolls[k]
+                            : 1;
+                    accumulate(inst.growth.affix.subStats[k].stat,
+                               inst.growth.affix.subStats[k].value * rolls);
                 }
-            }();
-            const int32_t nurtureLevel = enemyRng.nextInt(maxNurture + 1);
-            EquipmentInstance inst;
-            inst.name = tpl->name;
-            inst.rarity = tpl->rarity;
-            inst.description = tpl->description;
-            inst.slot = tpl->slot;
-            inst.physicalAttack = tpl->physicalAttack;
-            inst.magicAttack = tpl->magicAttack;
-            inst.physicalDefense = tpl->physicalDefense;
-            inst.magicDefense = tpl->magicDefense;
-            inst.speed = tpl->speed;
-            inst.hp = tpl->hp;
-            inst.mp = tpl->mp;
-            inst.critChance = tpl->critChance;
-            inst.nurtureLevel = nurtureLevel;
-            inst.minRealm = realmMinForRarity(tpl->rarity);
-            const auto fs = gamecore::stats::equipmentFinalStats(inst);
-            eqPa += fs.attack;
-            eqPd += fs.defense;
-            eqSpd += fs.speed;
-            eqHp += fs.hp;
-            eqMp += fs.mp;
-            eqCrit += inst.critChance;
+            }
         }
 
         // 功法：count + 逐条（类型 roll / 未用 rarity 抽取 / 模板生成 / 熟练度）
@@ -751,8 +690,9 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         enemy.hp = static_cast<int32_t>(
                        static_cast<double>(rc.baseHp) * rngVar() * layerMult) + eqHp + mHp;
         enemy.maxHp = enemy.hp;
+        // B3（S14）：装备不提供速度/灵力——mp 只含功法段
         enemy.mp = static_cast<int32_t>(
-                       static_cast<double>(rc.baseMp) * rngVar() * layerMult) + eqMp + mMp;
+                       static_cast<double>(rc.baseMp) * rngVar() * layerMult) + mMp;
         enemy.maxMp = enemy.mp;
         // 单列口径（B1）：物法两半各自 round 后相加（同一方差乘区）
         const double atkVarE = rngVar();
@@ -765,7 +705,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
             static_cast<int32_t>(
             static_cast<double>(rc.baseMagicDefense) * rngVar() * layerMult) + eqPd + mPd;
         enemy.speed = static_cast<int32_t>(
-            static_cast<double>(rc.baseSpeed) * rngVar() * layerMult) + eqSpd + mSpd;
+            static_cast<double>(rc.baseSpeed) * rngVar() * layerMult) + mSpd;
         enemy.critRate = 0.05 + realm * 0.01 + eqCrit + mCrit;
         enemy.skills = skills;
         if (enemy.skills.empty()) {
@@ -864,27 +804,28 @@ inline std::vector<Pill> generatePills(const MissionRewardConfig& rewards,
     return out;
 }
 
-/// generateEquipment（chance gate + 品阶带（min==max 不抽）+ 模板抽取；
-/// 空表回退全模板池——Kotlin generateRandom 双查表序一致）
-inline std::vector<EquipmentStack> generateEquipment(
+/// generateEquipment（B3：chance gate + EquipmentFactory 分层品阶口径
+///（任务奖励无弟子境界上下文不钳制，收敛到配置品阶上限）+ 套装二选一
+/// + create 实例产出（词条 kEquipment 分区 roll）。nextBoolean = Kotlin
+/// Random.nextBoolean 默认臂 nextBits(1) != 0（适配器 nextBits(1) =
+/// nextInt() 无符号右移 31 位——恰耗一注整 nextInt））
+inline bool kotlinNextBoolean(rng::DeterministicRng& r) {
+    return (static_cast<uint32_t>(r.nextInt()) >> 31) != 0;
+}
+
+inline std::vector<EquipmentInstance> generateEquipment(
         const MissionRewardConfig& rewards, rng::DeterministicRng& r) {
-    std::vector<EquipmentStack> out;
+    std::vector<EquipmentInstance> out;
     if (rewards.equipmentChance <= 0.0) return out;
     if (r.nextDouble() >= rewards.equipmentChance) return out;
-    const int32_t rarity =
-        equipmentRarityRoll(rewards.equipmentMinRarity, rewards.equipmentMaxRarity, r);
-    auto templates = equipmentByRarity(rarity);
-    const auto& pool = templates;
-    const gamecore::data::EquipmentTemplate* tpl = nullptr;
-    if (!pool.empty()) {
-        tpl = pool[static_cast<std::size_t>(
-            r.nextInt(static_cast<int32_t>(pool.size())))];
-    } else {
-        // Kotlin 回退 allTemplates.values.random(random)（全模板序）
-        const auto& all = gamecore::data::equipmentTemplates();
-        tpl = &all[static_cast<std::size_t>(r.nextInt(static_cast<int32_t>(all.size())))];
-    }
-    out.push_back(equipmentStackFromTemplate(*tpl));
+    const int32_t rarity = std::min(
+        equipment_factory::pickRarity(rewards.equipmentMinRarity,
+                                      equipment_factory::kRealmUnrestricted, r),
+        rewards.equipmentMaxRarity);
+    const std::string setId = kotlinNextBoolean(r) ? "lietian" : "zifu";
+    auto inst = equipment_factory::create(
+        setId, equipment_factory::pickPart(setId, r), rarity, r);
+    if (inst.has_value()) out.push_back(std::move(*inst));
     return out;
 }
 
@@ -982,7 +923,7 @@ struct MissionCompletionOutcome {
     std::vector<std::string> discipleIdsConsumed;   // 原任务成员 id（状态重置遍历域）
     std::vector<Material> materials;
     std::vector<Pill> pills;
-    std::vector<EquipmentStack> equipmentStacks;
+    std::vector<EquipmentInstance> equipmentInstances;
     std::vector<ManualStack> manualStacks;
 };
 
@@ -1019,7 +960,7 @@ inline MissionCompletionOutcome completeSingleMission(
         out.spiritStones = rollSpiritStones(rewards, missionRng);
         out.materials = generateMaterials(rewards, missionRng);
         out.pills = generatePills(rewards, missionRng);
-        out.equipmentStacks = generateEquipment(rewards, missionRng);
+        out.equipmentInstances = generateEquipment(rewards, missionRng);
         out.manualStacks = generateManuals(rewards, missionRng);
         out.survivors = battle.survivorIds;
         out.consumed = true;
@@ -1043,7 +984,7 @@ inline MissionCompletionOutcome completeSingleMission(
     out.spiritStones = rollSpiritStones(rewards, missionRng);
     out.materials = generateMaterials(rewards, missionRng);
     out.pills = generatePills(rewards, missionRng);
-    out.equipmentStacks = generateEquipment(rewards, missionRng);
+    out.equipmentInstances = generateEquipment(rewards, missionRng);
     out.manualStacks = generateManuals(rewards, missionRng);
     out.survivors = battle.survivorIds;
     out.consumed = true;
@@ -1072,8 +1013,9 @@ inline void applyMissionRewards(
         for (const auto& pill : reward.pills) {
             addPill(state, pill, overflowMail, "trial", false);
         }
-        for (const auto& equip : reward.equipmentStacks) {
-            addEquipmentStack(state, equip, overflowMail, "trial", false);
+        for (const auto& equip : reward.equipmentInstances) {
+            // B3 单轨实例：无堆叠合并/溢出面（tracking source 随堆叠轨退役）
+            (void)addEquipmentInstance(state, equip, "quest");
         }
         for (const auto& manual : reward.manualStacks) {
             addManualStack(state, manual, overflowMail, "unknown", false);

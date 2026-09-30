@@ -36,10 +36,12 @@ data class BagMaterializeInput(
  * **从仓库扣减对应数量**——否则同一物品在仓库与袋中同时存在（复制）。
  *
  * 规则（对每条 `!isMaterialized` 条目）：
- * - equipment_stack / manual_stack：从对应仓库堆叠扣 1 份 → 铸造 [BagStackedData]
- *   （minRealm/slot/manualType 供取回重建，不依赖模板）
- * - equipment_instance / manual_instance：从实例表取出完整实例（含 nurture）
- *   → 存入袋条目，实例从表删除
+ * - **装备三类条目（equipment/equipment_stack/equipment_instance）原样保留不物化**
+ *   （B3 装备体系替换：旧装备已整体作废，物化会污染新实例轨/丢失补偿源——
+ *   引用式条目由 `LegacyEquipmentCompensationRule` 折算摘除）；
+ * - manual_stack：从对应仓库堆叠扣 1 份 → 铸造 [BagStackedData]
+ *   （minRealm/manualType 供取回重建，不依赖模板）
+ * - manual_instance：从实例表取出完整实例 → 存入袋条目，实例从表删除
  * - pill / material / herb / seed：从对应堆叠扣条目 quantity 份 → 铸造空 [BagStackedData]
  *   标记已物化（effect/grade 等展示数据已在条目顶层）
  * - **悬空条目**（查不到对应堆叠/实例）：直接删除（替代原 C10 悬空清理职责）
@@ -103,15 +105,13 @@ object StorageBagMaterializer {
      */
     private fun materializeItem(item: StorageBagItem, maps: BagMaps): StorageBagItem? =
         when (item.itemType) {
-            "equipment_stack" -> maps.eqStacks[item.itemId]?.let { stack ->
-                deductOne(maps.eqStacks, stack)
-                item.copy(stackedData = BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name))
-            }
+            // 装备三类（B3）：原样保留不物化——旧装备由补偿规则折算摘除，
+            // 新装备为一行一实例无堆叠语义（此处物化会丢补偿源/污染实例轨）
+            "equipment", "equipment_stack", "equipment_instance" -> item
             "manual_stack" -> maps.mnStacks[item.itemId]?.let { stack ->
                 deductOne(maps.mnStacks, stack)
                 item.copy(stackedData = BagStackedData(minRealm = stack.minRealm, manualType = stack.type.name))
             }
-            "equipment_instance" -> maps.eqInstances.remove(item.itemId)?.let { item.copy(equipmentInstance = it) }
             "manual_instance" -> maps.mnInstances.remove(item.itemId)?.let { item.copy(manualInstance = it) }
             "pill" -> materializeStacked(item, maps.pills)
             "material" -> materializeStacked(item, maps.materials)

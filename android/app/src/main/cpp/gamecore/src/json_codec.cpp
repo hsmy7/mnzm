@@ -97,48 +97,56 @@ static void manualBaseFromJson(const nlohmann::json& j, ManualBase& v) {
     GC_FROM(j, v, minRealm);
 }
 
-// ── Items ────────────────────────────────────────────────────────────
+// ── 装备实例（B3 新模型；JSON 键与 kotlinx 驼峰一致：setId/part/
+//    growth{level,exp,affix{mainStat{stat,value},subStats[],subRolls[]}}/
+//    meta{rarity,minRealm,description,isLocked}；part/stat 为枚举 name 串）──
 
-void to_json(nlohmann::json& j, const EquipmentStack& v) {
+void to_json(nlohmann::json& j, const EquipStatValue& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
-    GC_TO(v, j, rarity); GC_TO(v, j, description);
-    GC_TO(v, j, slot); GC_TO(v, j, physicalAttack); GC_TO(v, j, magicAttack);
-    GC_TO(v, j, physicalDefense); GC_TO(v, j, magicDefense);
-    GC_TO(v, j, speed); GC_TO(v, j, hp); GC_TO(v, j, mp);
-    GC_TO(v, j, critChance); GC_TO(v, j, minRealm);
-    GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
+    GC_TO(v, j, stat); GC_TO(v, j, value);
 }
-void from_json(const nlohmann::json& j, EquipmentStack& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
-    GC_FROM(j, v, rarity); GC_FROM(j, v, description);
-    GC_FROM(j, v, slot); GC_FROM(j, v, physicalAttack); GC_FROM(j, v, magicAttack);
-    GC_FROM(j, v, physicalDefense); GC_FROM(j, v, magicDefense);
-    GC_FROM(j, v, speed); GC_FROM(j, v, hp); GC_FROM(j, v, mp);
-    GC_FROM(j, v, critChance); GC_FROM(j, v, minRealm);
-    GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
+void from_json(const nlohmann::json& j, EquipStatValue& v) {
+    GC_FROM(j, v, stat); GC_FROM(j, v, value);
+}
+
+void to_json(nlohmann::json& j, const EquipAffixSet& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, mainStat); GC_TO(v, j, subStats); GC_TO(v, j, subRolls);
+}
+void from_json(const nlohmann::json& j, EquipAffixSet& v) {
+    GC_FROM(j, v, mainStat); GC_FROM(j, v, subStats); GC_FROM(j, v, subRolls);
+}
+
+void to_json(nlohmann::json& j, const EquipGrowth& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, level); GC_TO(v, j, exp); GC_TO(v, j, affix);
+}
+void from_json(const nlohmann::json& j, EquipGrowth& v) {
+    GC_FROM(j, v, level); GC_FROM(j, v, exp); GC_FROM(j, v, affix);
+}
+
+void to_json(nlohmann::json& j, const EquipInstanceMeta& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, rarity); GC_TO(v, j, minRealm);
+    GC_TO(v, j, description); GC_TO(v, j, isLocked);
+}
+void from_json(const nlohmann::json& j, EquipInstanceMeta& v) {
+    GC_FROM(j, v, rarity); GC_FROM(j, v, minRealm);
+    GC_FROM(j, v, description); GC_FROM(j, v, isLocked);
 }
 
 void to_json(nlohmann::json& j, const EquipmentInstance& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
-    GC_TO(v, j, rarity); GC_TO(v, j, description);
-    GC_TO(v, j, slot); GC_TO(v, j, physicalAttack); GC_TO(v, j, magicAttack);
-    GC_TO(v, j, physicalDefense); GC_TO(v, j, magicDefense);
-    GC_TO(v, j, speed); GC_TO(v, j, hp); GC_TO(v, j, mp);
-    GC_TO(v, j, critChance);
-    GC_TO(v, j, nurtureLevel); GC_TO(v, j, nurtureProgress);
-    GC_TO(v, j, minRealm); GC_TO_OPT(v, j, ownerId); GC_TO(v, j, isEquipped);
+    GC_TO(v, j, setId); GC_TO(v, j, part);
+    GC_TO(v, j, growth); GC_TO(v, j, meta);
+    GC_TO_OPT(v, j, ownerId); GC_TO(v, j, isEquipped);
 }
 void from_json(const nlohmann::json& j, EquipmentInstance& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
-    GC_FROM(j, v, rarity); GC_FROM(j, v, description);
-    GC_FROM(j, v, slot); GC_FROM(j, v, physicalAttack); GC_FROM(j, v, magicAttack);
-    GC_FROM(j, v, physicalDefense); GC_FROM(j, v, magicDefense);
-    GC_FROM(j, v, speed); GC_FROM(j, v, hp); GC_FROM(j, v, mp);
-    GC_FROM(j, v, critChance);
-    GC_FROM(j, v, nurtureLevel); GC_FROM(j, v, nurtureProgress);
-    GC_FROM(j, v, minRealm); GC_FROM_OPT(j, v, ownerId); GC_FROM(j, v, isEquipped);
+    GC_FROM(j, v, setId); GC_FROM(j, v, part);
+    GC_FROM(j, v, growth); GC_FROM(j, v, meta);
+    GC_FROM_OPT(j, v, ownerId); GC_FROM(j, v, isEquipped);
 }
 
 void to_json(nlohmann::json& j, const ManualStack& v) {
@@ -248,8 +256,9 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, discipleType);
     GC_TO(v, j, cultivationCompletionMonth);   // cultivationCompletionPhase 已退役（#10 死值 1，旧档键宽松忽略）
     GC_TO(v, j, manualCompletionMonth); GC_TO(v, j, manualCompletionPhase);
-    GC_TO(v, j, equipmentNurturingCompletionMonth);
-    GC_TO(v, j, equipmentNurturingCompletionPhase);
+    // equipmentNurturingCompletion{Month,Phase} 已随 B3 孕养管线退役（禁写；
+    // from_json 保留宽松读取供旧档导入，列枚举已无对应列——ColumnDirtyTest
+    // 双射守卫口径）
     // CombatAttributes（单列口径 B1：只写新键；旧物法双列键退役不再写出）
     GC_TO(v, j, baseHp); GC_TO(v, j, baseMp);
     GC_TO(v, j, baseAttack); GC_TO(v, j, baseDefense);
@@ -269,11 +278,11 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, pillCultivationSpeedBonus); GC_TO(v, j, pillSkillExpSpeedBonus);
     GC_TO(v, j, pillEffectDuration);
     GC_TO(v, j, activePillTypes); GC_TO(v, j, activePillCategory);
-    // EquipmentSet
-    GC_TO(v, j, weaponId); GC_TO(v, j, armorId);
-    GC_TO(v, j, bootsId); GC_TO(v, j, accessoryId);
-    GC_TO(v, j, weaponNurture); GC_TO(v, j, armorNurture);
-    GC_TO(v, j, bootsNurture); GC_TO(v, j, accessoryNurture);
+    // EquipmentSet（B3 六部位：显示序 头/身/手/脚/武/腿；旧四槽 id 与
+    // nurture 四列退役——键不再写出，读面宽松忽略旧档旧键）
+    GC_TO(v, j, headId); GC_TO(v, j, bodyId);
+    GC_TO(v, j, handsId); GC_TO(v, j, feetId);
+    GC_TO(v, j, weaponId); GC_TO(v, j, legsId);
     GC_TO(v, j, storageBagItems); GC_TO(v, j, storageBagSpiritStones);
     GC_TO(v, j, spiritStones);
     // SkillStats
@@ -335,11 +344,11 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, pillCultivationSpeedBonus); GC_FROM(j, v, pillSkillExpSpeedBonus);
     GC_FROM(j, v, pillEffectDuration);
     GC_FROM(j, v, activePillTypes); GC_FROM(j, v, activePillCategory);
-    // EquipmentSet
-    GC_FROM(j, v, weaponId); GC_FROM(j, v, armorId);
-    GC_FROM(j, v, bootsId); GC_FROM(j, v, accessoryId);
-    GC_FROM(j, v, weaponNurture); GC_FROM(j, v, armorNurture);
-    GC_FROM(j, v, bootsNurture); GC_FROM(j, v, accessoryNurture);
+    // EquipmentSet（B3 六部位；旧四槽 id/nurture 键宽松忽略——旧档读入后
+    // 装备面由迁移清空六槽位，与 Kotlin v64 迁移⑤同口径）
+    GC_FROM(j, v, headId); GC_FROM(j, v, bodyId);
+    GC_FROM(j, v, handsId); GC_FROM(j, v, feetId);
+    GC_FROM(j, v, weaponId); GC_FROM(j, v, legsId);
     GC_FROM(j, v, storageBagItems); GC_FROM(j, v, storageBagSpiritStones);
     GC_FROM(j, v, spiritStones);
     // SkillStats
@@ -1039,16 +1048,7 @@ void from_json(const nlohmann::json& j, SecretRealmAITeam& v) {
 }
 
 // ── 储物袋条目体系 ──────────────────────────────────────────────
-
-void to_json(nlohmann::json& j, const EquipmentNurtureData& v) {
-    j = nlohmann::json::object();
-    GC_TO(v, j, equipmentId); GC_TO(v, j, rarity);
-    GC_TO(v, j, nurtureLevel); GC_TO(v, j, nurtureProgress);
-}
-void from_json(const nlohmann::json& j, EquipmentNurtureData& v) {
-    GC_FROM(j, v, equipmentId); GC_FROM(j, v, rarity);
-    GC_FROM(j, v, nurtureLevel); GC_FROM(j, v, nurtureProgress);
-}
+// （EquipmentNurtureData 编解码已随孕养体系退役——B3 等级/词条随实例单点）
 
 void to_json(nlohmann::json& j, const BagStackedData& v) {
     j = nlohmann::json::object();
@@ -1392,7 +1392,7 @@ void to_json(nlohmann::json& j, const GameState& v) {
         disciplesArr.push_back(v.disciples.materialize(i));
     }
     j["disciples"] = std::move(disciplesArr);
-    j["equipmentStacks"] = v.equipmentStacks;
+    // equipmentStacks 容器已退役（B3 单轨实例）；equipmentInstances 顶层面
     j["equipmentInstances"] = v.equipmentInstances;
     j["manualStacks"] = v.manualStacks;
     j["manualInstances"] = v.manualInstances;
@@ -1425,7 +1425,7 @@ void from_json(const nlohmann::json& j, GameState& v) {
         j.at("disciples").get_to(tmp);
         v.disciples.loadFromVector(tmp);
     }
-    if (j.contains("equipmentStacks")) j.at("equipmentStacks").get_to(v.equipmentStacks);
+    // equipmentStacks 顶层键已退役（B3 单轨实例轨）——宽松跳过旧快照旧键
     if (j.contains("equipmentInstances")) j.at("equipmentInstances").get_to(v.equipmentInstances);
     if (j.contains("manualStacks")) j.at("manualStacks").get_to(v.manualStacks);
     if (j.contains("manualInstances")) j.at("manualInstances").get_to(v.manualInstances);

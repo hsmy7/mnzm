@@ -182,7 +182,6 @@ class CaveExplorationProcessorTest {
                 worldMapSects = worldMapSects
             ),
             discipleTables = tables,
-            equipmentStacks = EntityStore(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
             manualInstances = EntityStore(),

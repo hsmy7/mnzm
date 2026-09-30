@@ -30,7 +30,6 @@ class DiscipleDeathHandlerTest {
     private fun createState(): MutableGameState = MutableGameState(
         gameData = GameData(),
         discipleTables = tables,
-        equipmentStacks = com.xianxia.sect.core.state.EntityStore(emptyList()),
         equipmentInstances = com.xianxia.sect.core.state.EntityStore(emptyList()),
         manualStacks = com.xianxia.sect.core.state.EntityStore(emptyList()),
         manualInstances = com.xianxia.sect.core.state.EntityStore(emptyList()),

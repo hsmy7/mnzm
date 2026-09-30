@@ -14,7 +14,6 @@ import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -318,7 +317,6 @@ class GameEngineCoordinationTest {
             env.engine.loadData(
                 gameData = GameData().apply { sectName = "云档" },
                 disciples = emptyList(),
-                equipmentStacks = emptyList(),
                 equipmentInstances = emptyList(),
                 manualStacks = emptyList(),
                 manualInstances = emptyList(),
@@ -373,7 +371,6 @@ class GameEngineCoordinationTest {
         env.engine.loadData(
             gameData = GameData().apply { sectName = "本地档" },
             disciples = emptyList(),
-            equipmentStacks = emptyList(),
             equipmentInstances = emptyList(),
             manualStacks = emptyList(),
             manualInstances = emptyList(),
@@ -572,7 +569,6 @@ private class SimpleStore : GameStateStore {
     override val discipleTables: DiscipleTables get() = _tables
 
     // EntityStore 实例（MutableGameState 需要）
-    private val eqStacks = EntityStore<EquipmentStack>()
     private val eqInstances = EntityStore<EquipmentInstance>()
     private val mnStacks = EntityStore<ManualStack>()
     private val mnInstances = EntityStore<ManualInstance>()
@@ -595,7 +591,6 @@ private class SimpleStore : GameStateStore {
     private fun newMutableState() = MutableGameState(
         gameData = gameDataValue,
         discipleTables = _tables,
-        equipmentStacks = eqStacks,
         equipmentInstances = eqInstances,
         manualStacks = mnStacks,
         manualInstances = mnInstances,
@@ -630,7 +625,6 @@ private class SimpleStore : GameStateStore {
     override val runState = MutableStateFlow(RunState.IDLE)
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val discipleAggregates = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
-    override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
     override val equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
     override val manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
     override val manualInstances = MutableStateFlow<List<ManualInstance>>(emptyList())
@@ -653,7 +647,6 @@ private class SimpleStore : GameStateStore {
     override val entityState = MutableStateFlow(GameStateStore.EntityState())
     override val configState = MutableStateFlow(GameStateStore.ConfigState())
     override val disciplesSnapshot: List<Disciple> get() = emptyList()
-    override val equipmentStacksSnapshot: List<EquipmentStack> get() = emptyList()
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = emptyList()
     override val manualStacksSnapshot: List<ManualStack> get() = emptyList()
     override val manualInstancesSnapshot: List<ManualInstance> get() = emptyList()
@@ -693,7 +686,7 @@ private class SimpleStore : GameStateStore {
     override fun setSavingDirect(saving: Boolean) = Unit
     override suspend fun loadFromSnapshot(
         gameData: GameData, disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
+        equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
         pills: List<Pill>, materials: List<Material>, herbs: List<Herb>,
         seeds: List<Seed>, storageBags: List<StorageBag>,

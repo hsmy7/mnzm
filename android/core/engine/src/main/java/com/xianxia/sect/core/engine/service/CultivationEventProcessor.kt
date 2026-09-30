@@ -205,8 +205,8 @@ class CultivationEventProcessor @Inject constructor(
                 reward.pills.forEach { pill ->
                     logGrantOutcome(pill.name, inventorySystem.addPill(pill))
                 }
-                reward.equipmentStacks.forEach { equip ->
-                    logGrantOutcome(equip.name, inventorySystem.addEquipmentStack(equip))
+                reward.equipmentInstances.forEach { equip ->
+                    logGrantOutcome(equip.name, inventorySystem.addEquipmentInstance(equip))
                 }
             }
             reward.manualStacks.forEach { manual ->

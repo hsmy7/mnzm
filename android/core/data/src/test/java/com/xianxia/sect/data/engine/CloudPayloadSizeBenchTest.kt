@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ExploredSectInfo
@@ -224,12 +223,12 @@ class CloudPayloadSizeBenchTest {
         discipleType = if (idx % 3 == 0) "inner" else "outer"
     ).copy(
         equipment = EquipmentSet(
+            headId = "head_${idx % 200}",
+            bodyId = "body_${idx % 200}",
+            handsId = "hands_${idx % 100}",
+            feetId = "feet_${idx % 100}",
             weaponId = "weapon_${idx % 200}",
-            armorId = "armor_${idx % 200}",
-            bootsId = "boots_${idx % 100}",
-            accessoryId = "accessory_${idx % 100}",
-            weaponNurture = EquipmentNurtureData("weapon_${idx % 200}", idx % 3, nurtureLevel = idx % 10,
-                nurtureProgress = 0.5),
+            legsId = "legs_${idx % 100}",
             storageBagSpiritStones = (1000 + idx).toLong(),
             spiritStones = 100 + idx
         ),

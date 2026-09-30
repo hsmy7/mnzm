@@ -6,8 +6,6 @@ import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +21,7 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 库存 add/remove 家族 native 转发回退守卫。
+ * 库存 remove/add 家族 native 转发回退守卫（B3 装备堆叠转发入口已随堆叠轨退役）。
  *
  * JVM 测试环境无桌面 JNI（GameCoreBridge.isLoaded=false），native 通道恒降级 null——
  * 本类断言：① OFF 模式走 Kotlin 实现；② AUTHORITATIVE 模式在 native 不可用时
@@ -40,10 +38,6 @@ class GameEngineInventoryForwardTest {
 
     private lateinit var engine: GameEngine
     private lateinit var inventoryFacade: InventoryFacade
-
-    private val stack = EquipmentStack(
-        id = "eq-1", name = "木剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 5
-    )
 
     @Before
     fun setup() {
@@ -79,22 +73,6 @@ class GameEngineInventoryForwardTest {
         val mockPC = mock<ProductionCoordinator>()
         whenever(mockPC.repository).thenReturn(mock())
         whenever(it.productionCoordinator).thenReturn(mockPC)
-    }
-
-    @Test
-    fun `OFF 模式 addEquipmentStack 走 Kotlin 原实现`() = runBlocking {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
-            engine.addEquipmentStack(stack)
-        }
-        verify(inventoryFacade).addEquipmentStack(stack)
-    }
-
-    @Test
-    fun `AUTHORITATIVE 且 native 不可用时 addEquipmentStack 静默回退 Kotlin`() = runBlocking {
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
-            engine.addEquipmentStack(stack)  // JVM 无 JNI → tryExecuteNative 返回 null
-        }
-        verify(inventoryFacade).addEquipmentStack(stack)
     }
 
     @Test

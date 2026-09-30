@@ -54,20 +54,14 @@ class InventoryAddPathGuardTest {
     /**
      * 反模式 5：向实例表（equipmentInstances/manualInstances）直接追加。
      *
-     * 仓库 UI 只渲染堆叠轨道（equipmentStacks/manualStacks），
-     * 误写实例轨道的装备/功法对玩家不可见。
-     *
-     * 实例轨道仅允许以下语义（白名单见 [instanceAllowedFileNames]）：
-     * - 弟子装备/功法分配（ownerId 绑定，从仓库堆叠扣减后转实例）
-     * - 俘虏模板 id → 玩家 UUID 实例转换（CaptiveGearUtils）
-     * - 自动装备/学习落库（袋内堆叠 → 实例）
-     * - AI 敌人装备生成（非玩家发放）
-     * - InventorySystem.addEquipmentInstance/addManualInstance 自身
-     *
-     * 玩家物品发放必须委托 InventorySystem.addEquipmentStack/addManualStack
-     * （堆叠轨道，仓库可见 + 来源追踪 + 溢出兜底）。
+     * **B3 语义更新（2026-09-30，装备堆叠轨→实例轨原子替换）**：equipmentInstances
+     * 即仓库装备轨（仓库 UI 渲染面 = GameViewModel.equipmentInstances），原
+     * "误写实例轨道对玩家不可见"的理由对**装备**不再成立；功法不变
+     * （manualStacks 仍为仓库可见轨）。本守卫对装备面收敛为**直写登记面**：
+     * equipmentInstances 直写仅限白名单内的装配/事务结算/分配/AI 语义；
+     * manualInstances 沿用原口径（玩家发放必须走 addManualStack）。
      */
-    // 发放误写实例轨道的教训：装备/功法奖励对玩家不可见（仓库只渲染堆叠）
+    // 发放误写实例轨道的教训（B2 功法面仍有效）：仓库只渲染堆叠轨
     private val instanceAppendPattern = Regex(
         "(equipmentInstances|manualInstances)\\s*(\\+=|=)\\s*\\(?\\s*(?:state|this)?\\s*\\.?" +
             "\\s*\\1\\s*(?:\\+|\\s*\\.\\s*plus\\s*\\()" +
@@ -131,7 +125,7 @@ class InventoryAddPathGuardTest {
 
     @Test
     fun `no direct list append to warehouse stacks`() {
-        val files = sourceFiles()
+        val files = sourceFiles().filter { it.name !in directAppendAllowedFileNames }
         val matches = matchesIn(files, directAppendPattern)
         assertEquals(
             "发现 ${matches.size} 处仓库堆叠列表直接追加：\n" +
@@ -140,6 +134,17 @@ class InventoryAddPathGuardTest {
             emptyList<Pair<File, String>>(), matches
         )
     }
+
+    /**
+     * 反模式 2 的白名单（B3 登记）：
+     * - EquipmentUpgradeService：分解返还兽材（`materials = materials + material`）——
+     *   仅在**无任何 rarity=1 堆叠可并入时**新铸条目（有堆叠则原地合并数量，零分裂
+     *   风险），且与 C++ equipment_tx 返还口径逐字同式（双臂对拍面，不得单侧改道
+     *   统一入口）；委托 addMaterial 需嵌套事务重构，超出 B3 最小面。
+     */
+    private val directAppendAllowedFileNames = setOf(
+        "EquipmentUpgradeService.kt"
+    )
 
     @Test
     fun `no inline quantity-merge outside allowed legacy file`() {
@@ -189,7 +194,12 @@ class InventoryAddPathGuardTest {
         // batch-01 拆分产物（同语义归属，见上两行的原文件）
         "CultivationEventAutoWarehouseOps.kt",  // 自动装备/学习袋内堆叠落库
         "DiscipleFacadeImpl功法Ops1.kt",         // 弟子丹药/功法分配（ownerId 绑定）
-        "DiscipleFacadeImpl战斗Ops2.kt"          // 弟子装备/功法分配（ownerId 绑定）
+        "DiscipleFacadeImpl战斗Ops2.kt",         // 弟子装备/功法分配（ownerId 绑定）
+        // B3 实例轨（equipmentInstances = 仓库装备轨）追加的合法面：
+        "AISectTeamComposer.kt",        // 宗门战奖励**本地装配列表**（非 state 实例表；
+                                        // 落库统一走 grantWarRewardsInside → addEquipmentInstance）
+        "ProductionProcessorBatcOps4.kt" // 影子月结锻造产出（并行 computePhaseTick 的
+                                         // shadow MutableGameState 写入，不走 stateStore/统一入口）
     )
 
     @Test
@@ -222,10 +232,9 @@ class InventoryAddPathGuardTest {
         assertEquals(
             "发现 ${matches.size} 处实例表直接追加：\n" +
                 matches.joinToString("\n") { it.second } +
-                "\n玩家物品发放误写实例轨道（equipmentInstances/manualInstances）时，" +
-                "仓库 UI 不渲染该轨道，奖励对玩家不可见。" +
-                "\n发放必须委托 InventorySystem.addEquipmentStack/addManualStack" +
-                "（堆叠轨道，仓库可见 + 来源追踪 + 溢出兜底）",
+                "\nB3 起 equipmentInstances 即仓库装备轨（直写须登记白名单并写明语义）；" +
+                "manualInstances 仍受原口径管控：功法玩家发放必须委托 " +
+                "InventorySystem.addManualStack（堆叠轨道，仓库可见 + 来源追踪 + 溢出兜底）",
             emptyList<Pair<File, String>>(), matches
         )
     }

@@ -33,6 +33,7 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/economy.h"
+#include "gamecore/system/equipment_factory.h"  // B3 装备唯一产出入口（toEquipment 消费）
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/settlement_detail.h"
 #include "nlohmann/json.hpp"
@@ -40,7 +41,7 @@
 namespace gamecore::system::merchant_settle {
 
 using gamecore::state::AutoBuyEntry;
-using gamecore::state::EquipmentStack;
+
 using gamecore::state::GameState;
 using gamecore::state::Herb;
 using gamecore::state::ManualStack;
@@ -121,48 +122,25 @@ inline const T& fallbackPick(const std::vector<T>& templates,
     return pool.empty() ? templates[0] : *pool[stableNameHash(name) % pool.size()];
 }
 
-/// 装备转换（模板命中 → 模板字段；未知 → generateRandom(rarity) 回退）
-inline EquipmentStack toEquipment(const MerchantItem& item) {
-    const auto& templates = gamecore::data::equipmentTemplates();
-    const auto it = std::find_if(templates.begin(), templates.end(),
-        [&](const auto& t) { return t.name == item.name; });
-    if (it != templates.end()) {
-        EquipmentStack s;
-        s.id = nextItemId();
-        s.name = it->name;
-        s.slot = it->slot;
-        s.rarity = item.rarity;
-        s.physicalAttack = it->physicalAttack;
-        s.magicAttack = it->magicAttack;
-        s.physicalDefense = it->physicalDefense;
-        s.magicDefense = it->magicDefense;
-        s.speed = it->speed;
-        s.hp = it->hp;
-        s.mp = it->mp;
-        // 对齐 Kotlin MerchantItemConverter.toEquipment 模板分支：critChance
-        // 保持默认 0（Kotlin 该分支遗漏模板 critChance——预存行为，对拍逐位一致）
-        s.description = it->description;
-        s.minRealm = minRealmForRarity(item.rarity);
-        return s;
+/// 装备转换（B3 实例轨；Kotlin MerchantItemConverter.toEquipment 逐位移植）：
+/// 部件名反查 12 部件表定 setId/part（未知名回退物理套随机部件——装备照常
+/// 产出不丢购买），create 唯一产出入口（词条 kEquipment 分区 roll）
+inline std::optional<gamecore::state::EquipmentInstance> toEquipment(
+    const MerchantItem& item, rng::DeterministicRng& equipRng) {
+    namespace ef = gamecore::system::equipment_factory;
+    std::string setId = "lietian";   // DEFAULT_EQUIPMENT_SET_ID
+    std::string part;
+    bool pieceFound = false;
+    for (const auto& piece : gamecore::data::setPieceTemplates()) {
+        if (piece.name == item.name) {
+            setId = piece.setId;
+            part = piece.part;
+            pieceFound = true;
+            break;
+        }
     }
-    // 回退分支（物品名稳定散列选池，零分区 RNG 消耗）
-    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
-    EquipmentStack s;
-    s.id = nextItemId();
-    s.name = chosen.name;
-    s.slot = chosen.slot;
-    s.rarity = item.rarity;
-    s.physicalAttack = chosen.physicalAttack;
-    s.magicAttack = chosen.magicAttack;
-    s.physicalDefense = chosen.physicalDefense;
-    s.magicDefense = chosen.magicDefense;
-    s.speed = chosen.speed;
-    s.hp = chosen.hp;
-    s.mp = chosen.mp;
-    s.critChance = chosen.critChance;
-    s.description = chosen.description;
-    s.minRealm = minRealmForRarity(item.rarity);
-    return s;
+    if (!pieceFound) part = ef::pickPart(setId, equipRng);
+    return ef::create(setId, part, item.rarity, equipRng);
 }
 
 /// 功法转换（模板命中 → 模板字段；未知 → generateRandom(rarity) 回退）
@@ -441,17 +419,10 @@ inline bool canAddItemInTransaction(const GameState& state) {
            gamecore::system::computeMaxSlots(state);
 }
 
-/// 装备堆叠合并余量（canAddEquipment：同键堆叠未满 或 有总槽位）
-inline bool canAddEquipment(const GameState& state, const std::string& name,
-                            int32_t rarity, const std::string& slot) {
-    const int32_t maxStack = maxStackForType("equipment_stack");
-    int32_t totalFree = 0;
-    for (const auto& s : state.equipmentStacks) {
-        if (s.name == name && s.rarity == rarity && s.slot == slot) {
-            totalFree += maxStack - s.quantity;
-        }
-    }
-    return totalFree > 0 || canAddItemInTransaction(state);
+/// 装备容量谓词（B3 实例轨：Kotlin InventorySystem.canAddEquipment() =
+/// canAddItem()——纯槽位检查，实例无合并面）
+inline bool canAddEquipment(const GameState& state) {
+    return canAddItemInTransaction(state);
 }
 
 inline bool canAddManual(const GameState& state, const std::string& name,
@@ -517,14 +488,18 @@ inline bool canAddSeed(const GameState& state, const std::string& name,
 }
 
 /// 自动购买仓库预检（AutoBuyService.canAddToWarehouse：
-/// 先总槽位，再按类型合并空间）
+/// 先总槽位，再按类型合并空间）。B3 实例轨：装备容量谓词为纯槽位检查，
+/// 不接收装备转换产物（与 Kotlin 臂一致——容量门不 roll 词条，词条 roll
+/// 只发生在入库阶段逐件 toEquipment；预转换会白掷 kEquipment 分区抽取，
+/// 造成双臂逐位对拍分叉）
 inline bool canAddToWarehouse(const GameState& state, const MerchantItem& item,
-                              const EquipmentStack& eq, const ManualStack& mn,
+                              const ManualStack& mn,
                               const Pill& pill, const Material& mt,
                               const Herb& hb, const Seed& sd) {
     if (!canAddItemInTransaction(state)) return false;
     const std::string& type = item.type;
-    if (type == "equipment") return canAddEquipment(state, eq.name, eq.rarity, eq.slot);
+    // B3 实例轨：装备容量谓词 = 纯槽位检查（实例无合并面）
+    if (type == "equipment") return canAddEquipment(state);
     if (type == "manual") return canAddManual(state, mn.name, mn.rarity, mn.type);
     if (type == "pill") return canAddPill(state, pill.name, pill.rarity, pill.category, pill.grade);
     if (type == "material") return canAddMaterial(state, mt.name, mt.rarity, mt.category);
@@ -536,9 +511,11 @@ inline bool canAddToWarehouse(const GameState& state, const MerchantItem& item,
 
 // ── 主流程：executeAutoBuy（Kotlin AutoBuyService.executeAutoBuy 等价） ──
 
-/// 12 月自动购买（仅当月调用；全链零 RNG——含未知名回退的确定性散列选池，
-/// overflow 草稿本地收集丢弃——Kotlin 真相源发送溢出邮件）
-inline void executeAutoBuy(GameState& state) {
+/// 12 月自动购买（仅当月调用；装备臂消费 kEquipment 分区——入库逐件
+/// toEquipment，容量门零消耗与 Kotlin 臂逐位对齐；未知名回退的确定性散列
+/// 选池零分区消耗；overflow 草稿本地收集丢弃——Kotlin 真相源发送溢出邮件）
+inline void executeAutoBuy(GameState& state,
+                           rng::DeterministicRng& equipRng) {
     auto& gd = state.gameData;
     if (gd.autoBuyList.empty()) return;
     if (gd.travelingMerchantItems.empty()) return;
@@ -561,8 +538,10 @@ inline void executeAutoBuy(GameState& state) {
         const MerchantItem merchantItem = newMerchantItems[matchIdx];
         if (merchantItem.quantity <= 0) continue;
 
-        // 转换物品（模板路径；未知名走确定性散列回退——零分区 RNG 消耗）
-        EquipmentStack eq;
+        // 转换物品（容量门输入面；其余类型模板路径不变，未知名走确定性散列
+        // 回退——零分区 RNG 消耗）。装备**不在此预转换**：容量谓词是纯槽位
+        // 检查（Kotlin 臂同构），预转换会白掷 kEquipment 分区抽取造成双臂
+        // 分叉；词条 roll 只发生在入库阶段逐件 toEquipment
         ManualStack mn;
         Pill pill;
         Material mt;
@@ -570,7 +549,9 @@ inline void executeAutoBuy(GameState& state) {
         Seed sd;
         bool converted = true;
         const std::string& type = merchantItem.type;
-        if (type == "equipment") { eq = toEquipment(merchantItem); }
+        if (type == "equipment") {
+            // B3 实例轨：词条 roll 延后至入库阶段逐件转换，此处仅类型登记
+        }
         else if (type == "manual") { mn = toManual(merchantItem); }
         else if (type == "pill") { pill = toPill(merchantItem); }
         else if (type == "material") { mt = toMaterial(merchantItem); }
@@ -580,7 +561,7 @@ inline void executeAutoBuy(GameState& state) {
         if (!converted) continue;
 
         // 仓库容量检查
-        if (!canAddToWarehouse(state, merchantItem, eq, mn, pill, mt, hb, sd)) continue;
+        if (!canAddToWarehouse(state, merchantItem, mn, pill, mt, hb, sd)) continue;
 
         // 可买数量
         const int32_t buyQty = calculateBuyQuantity(
@@ -607,8 +588,14 @@ inline void executeAutoBuy(GameState& state) {
         // 发邮件；C++ 月结上下文无邮件通道，草稿丢弃）
         gamecore::system::OverflowMailCollector overflowMail;
         if (type == "equipment") {
-            eq.quantity = buyQty;
-            gamecore::system::addEquipmentStack(state, eq, overflowMail, "merchant", false);
+            // B3 实例轨：buyQty 件 = buyQty 条实例（kEquipment 分区 roll；
+            // 自动路径无容量半途失败面——容量门已前置 canAddToWarehouse）
+            for (int32_t i = 0; i < buyQty; ++i) {
+                auto inst = toEquipment(merchantItem, equipRng);
+                if (inst.has_value()) {
+                    (void)addEquipmentInstance(state, *inst, "merchant");
+                }
+            }
         } else if (type == "manual") {
             mn.quantity = buyQty;
             gamecore::system::addManualStack(state, mn, overflowMail, "merchant", false);

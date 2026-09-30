@@ -130,7 +130,6 @@ abstract class ProductionProcessorTestBase {
                 activeSectId = env.activeSectId
             ),
             discipleTables = env.discipleTables,
-            equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
             manualInstances = EntityStore(emptyList()),

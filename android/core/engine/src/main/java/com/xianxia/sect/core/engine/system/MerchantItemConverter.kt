@@ -1,13 +1,15 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
@@ -22,61 +24,29 @@ import com.xianxia.sect.core.model.Seed
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
 
 @Singleton
 class MerchantItemConverter @Inject constructor() {
 
-    fun toEquipment(item: MerchantItem): EquipmentStack {
-        val template = EquipmentDatabase.getTemplateByName(item.name)
-        if (template != null) {
-            return EquipmentStack(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                slot = template.slot,
-                rarity = item.rarity,
-                physicalAttack = template.physicalAttack,
-                magicAttack = template.magicAttack,
-                physicalDefense = template.physicalDefense,
-                magicDefense = template.magicDefense,
-                speed = template.speed,
-                hp = template.hp,
-                mp = template.mp,
-                description = template.description,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
-            )
-        }
-        return EquipmentDatabase.generateRandom(item.rarity, item.rarity).copy(
-            id = UUID.randomUUID().toString(),
-            rarity = item.rarity
-        )
+    /**
+     * 商人货单装备条目 → 装备实例（B3 实例轨：经 [EquipmentFactory] 唯一产出入口）。
+     *
+     * 条目名按套装部件名（如「裂天罡煞·头冠」）反查部件得 (setId, part)；
+     * 旧档遗留的已退役模板名无法对应部件时回退物理套随机部件（装备照常产出，不丢购买）。
+     *
+     * @param rng 装备 RNG（RngPartition.EQUIPMENT 流），由调用方显式传入保确定性
+     */
+    fun toEquipment(item: MerchantItem, rng: Random): EquipmentInstance {
+        val piece = EquipmentDatabase.setPieces.find { it.name == item.name }
+        val setId = piece?.setId ?: DEFAULT_EQUIPMENT_SET_ID
+        val part = piece?.part ?: EquipmentFactory.pickPart(setId, rng)
+        return EquipmentFactory.create(setId = setId, part = part, rarity = item.rarity, rng = rng)
     }
 
-    fun toEquipmentBatch(item: MerchantItem, quantity: Int): EquipmentStack {
-        val template = EquipmentDatabase.getTemplateByName(item.name)
-        if (template != null) {
-            return EquipmentStack(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                slot = template.slot,
-                rarity = item.rarity,
-                physicalAttack = template.physicalAttack,
-                magicAttack = template.magicAttack,
-                physicalDefense = template.physicalDefense,
-                magicDefense = template.magicDefense,
-                speed = template.speed,
-                hp = template.hp,
-                mp = template.mp,
-                description = template.description,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity),
-                quantity = quantity
-            )
-        }
-        return EquipmentDatabase.generateRandom(item.rarity, item.rarity).copy(
-            id = UUID.randomUUID().toString(),
-            rarity = item.rarity,
-            quantity = quantity
-        )
-    }
+    /** 货单装备条目对应部位（按部件名反查；查不到返回 null） */
+    fun equipmentPartOf(item: MerchantItem): EquipmentSlot? =
+        EquipmentDatabase.setPieces.find { it.name == item.name }?.part
 
     fun toManual(item: MerchantItem): ManualStack {
         val template = ManualDatabase.getByName(item.name)
@@ -290,6 +260,9 @@ class MerchantItemConverter @Inject constructor() {
     // -- 向后兼容：companion 桥接，现有调用点无需改动 --
 
     companion object {
+        /** 货单名无法对应部件时的兜底套装 id（物理套「裂天罡煞」） */
+        private const val DEFAULT_EQUIPMENT_SET_ID = "lietian"
+
         @Volatile
         private var _instance: MerchantItemConverter? = null
 
@@ -303,8 +276,8 @@ class MerchantItemConverter @Inject constructor() {
         /** 供其他 companion 桥接使用的内部访问器 */
         internal val companionInstance: MerchantItemConverter get() = instance
 
-        fun toEquipment(item: MerchantItem) = instance.toEquipment(item)
-        fun toEquipmentBatch(item: MerchantItem, quantity: Int) = instance.toEquipmentBatch(item, quantity)
+        fun toEquipment(item: MerchantItem, rng: Random) = instance.toEquipment(item, rng)
+        fun equipmentPartOf(item: MerchantItem) = instance.equipmentPartOf(item)
         fun toManual(item: MerchantItem) = instance.toManual(item)
         fun toPill(item: MerchantItem) = instance.toPill(item)
         fun toMaterial(item: MerchantItem) = instance.toMaterial(item)

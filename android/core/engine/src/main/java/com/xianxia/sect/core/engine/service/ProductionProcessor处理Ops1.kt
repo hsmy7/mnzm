@@ -18,7 +18,9 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.domain.EquipmentFactory
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.repository.getSlotsByBuildingId
 import com.xianxia.sect.core.repository.getSlotsByType
@@ -127,9 +129,14 @@ internal fun ProductionProcessor.producePill(slot: ProductionSlot): Boolean {
 
 internal fun ProductionProcessor.produceForgeEquipment(slot: ProductionSlot): Boolean {
     val recipe = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it) } ?: return false
-    val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
+    // B3 实例轨：产出品阶 = 锻造弟子职业等级（槽位 assignedDiscipleId），Factory 内境界钳制
+    val forgeTier = slot.assignedDiscipleId?.let { pid ->
+        inventorySystem.stateStore.disciples.value.find { it.id == pid }?.skills?.forgeLevel
+    }?.coerceIn(1, 6) ?: 1
+    val kr = rngManager.getRng(RngPartition.EQUIPMENT).asKotlinRandom()
+    val equipment = EquipmentFactory.create(recipe.setId, recipe.part, forgeTier, kr)
     val r = inventorySystem.withTrackingSource("forge") {
-        inventorySystem.addEquipmentStack(equipment)
+        inventorySystem.addEquipmentInstance(equipment)
     }
     return when (r) {
         is DomainResult.Success -> true

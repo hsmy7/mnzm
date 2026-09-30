@@ -121,7 +121,6 @@ class SaveLoadLoadDelegate(
         gameEngine.loadData(
             gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
             disciples = saveData.disciples,
-            equipmentStacks = saveData.equipmentStacks,
             equipmentInstances = saveData.equipmentInstances,
             manualStacks = saveData.manualStacks,
             manualInstances = saveData.manualInstances,

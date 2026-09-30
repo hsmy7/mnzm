@@ -68,22 +68,45 @@ TEST(JsonCodecTest, DiscipleRoundTrip) {
 }
 
 TEST(JsonCodecTest, ItemsRoundTrip) {
-    EquipmentStack es;
-    es.id = "eq-s1";
-    es.name = "青锋剑";
-    es.rarity = 3;
-    es.quantity = 2;
-    es.slot = "WEAPON";
-    es.physicalAttack = 15;
-    es.isLocked = true;
-    EXPECT_EQ(es.id, nlohmann::json(es).get<EquipmentStack>().id);
-    EXPECT_EQ(es.isLocked, nlohmann::json(es).get<EquipmentStack>().isLocked);
-
+    // B3 实例轨：EquipmentInstance 全字段往返（含 growth 词条面 + meta 横切面）
     EquipmentInstance ei;
     ei.id = "eq-i1";
+    ei.slotId = 100;
+    ei.name = "裂天罡煞·战刃";
+    ei.setId = "lietian";
+    ei.part = "WEAPON";
+    ei.growth.level = 5;
+    ei.growth.exp = 120;
+    ei.growth.affix.mainStat = EquipStatValue{"ATTACK", 27.0};
+    ei.growth.affix.subStats = {EquipStatValue{"CRIT_RATE", 0.004},
+                                EquipStatValue{"HP", 106.0}};
+    ei.growth.affix.subRolls = {1, 3};
+    ei.meta.rarity = 3;
+    ei.meta.minRealm = 6;
+    ei.meta.description = "套装战刃";
+    ei.meta.isLocked = true;
     ei.ownerId = "d-1";
     ei.isEquipped = true;
     const auto eiDecoded = nlohmann::json(ei).get<EquipmentInstance>();
+    EXPECT_EQ(ei.id, eiDecoded.id);
+    EXPECT_EQ(ei.slotId, eiDecoded.slotId);
+    EXPECT_EQ(ei.name, eiDecoded.name);
+    EXPECT_EQ(ei.setId, eiDecoded.setId);
+    EXPECT_EQ(ei.part, eiDecoded.part);
+    EXPECT_EQ(ei.growth.level, eiDecoded.growth.level);
+    EXPECT_EQ(ei.growth.exp, eiDecoded.growth.exp);
+    EXPECT_EQ(ei.growth.affix.mainStat.stat, eiDecoded.growth.affix.mainStat.stat);
+    EXPECT_DOUBLE_EQ(ei.growth.affix.mainStat.value,
+                     eiDecoded.growth.affix.mainStat.value);
+    ASSERT_EQ(ei.growth.affix.subStats.size(), eiDecoded.growth.affix.subStats.size());
+    EXPECT_EQ(ei.growth.affix.subStats[0].stat, eiDecoded.growth.affix.subStats[0].stat);
+    EXPECT_DOUBLE_EQ(ei.growth.affix.subStats[0].value,
+                     eiDecoded.growth.affix.subStats[0].value);
+    EXPECT_EQ(ei.growth.affix.subRolls, eiDecoded.growth.affix.subRolls);
+    EXPECT_EQ(ei.meta.rarity, eiDecoded.meta.rarity);
+    EXPECT_EQ(ei.meta.minRealm, eiDecoded.meta.minRealm);
+    EXPECT_EQ(ei.meta.description, eiDecoded.meta.description);
+    EXPECT_EQ(ei.meta.isLocked, eiDecoded.meta.isLocked);
     EXPECT_EQ(ei.ownerId, eiDecoded.ownerId);
     EXPECT_TRUE(eiDecoded.isEquipped);
 

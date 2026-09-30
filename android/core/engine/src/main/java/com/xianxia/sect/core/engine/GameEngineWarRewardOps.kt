@@ -44,8 +44,8 @@ internal fun GameEngine.applyDefeatPendingResult(log: BattleLog, teamMembers: Li
         spiritStoneWallet.add(state, rewards.spiritStones,
             SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
         inventorySystem.withTrackingSource("battle") {
-            rewards.equipmentStacks.forEach { item ->
-                grantStackResult(item.name, inventorySystem.addEquipmentStack(item))
+            rewards.equipmentInstances.forEach { item ->
+                grantStackResult(item.name, inventorySystem.addEquipmentInstance(item))
             }
         }
         rewards.manualStacks.forEach { item ->
@@ -83,8 +83,8 @@ internal fun GameEngine.applyDefeatPendingResult(log: BattleLog, teamMembers: Li
             cards.add(RewardCardItem(itemName = ItemNames.SPIRIT_STONE, itemType = "spiritStones",
                 rarity = Rarity.COMMON.toInt(), quantity = rewards.spiritStones.toInt()))
         }
-        rewards.equipmentStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "equipment",
-            rarity = it.rarity, quantity = it.quantity)) }
+        rewards.equipmentInstances.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "equipment",
+            rarity = it.rarity, quantity = 1)) }
         rewards.manualStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "manual",
             rarity = it.rarity, quantity = it.quantity)) }
         rewards.pills.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "pill", rarity = it.rarity,

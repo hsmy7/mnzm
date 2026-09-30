@@ -31,8 +31,10 @@ internal fun ProductionProcessor.findForgeRecipe(
     materialIndex: Map<Pair<String, Int>, Int>,
     maxTier: Int = 1
 ): ForgeRecipeDatabase.ForgeRecipe? {
+    // B3：配方不分 tier（12 条全候选取材料足额的第一条）；产出品阶由 maxTier
+    // 在产出事务内决定，此处只做材料可行性筛选
     return recipes.firstOrNull { recipe ->
-        recipe.tier <= maxTier && recipe.materials.all { (materialId, requiredQty) ->
+        recipe.materialsFor(maxTier).all { (materialId, requiredQty) ->
             val matData = BeastMaterialDatabase.getMaterialById(materialId)
             matData != null && (materialIndex[matData.name to matData.rarity] ?: 0) >= requiredQty
         }
@@ -192,8 +194,10 @@ internal fun ProductionProcessor.recalculateSuccessRate(data: GameData, slot: Pr
     val recipeTier = when (slot.buildingType) {
         BuildingType.ALCHEMY ->
             PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.tier
-        BuildingType.FORGE ->
-            ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.tier
+        BuildingType.FORGE -> {
+            // B3 配方不分 tier：锻造成功率重算按 slot 已存 successRate（null → 早退保留旧值）
+            ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.let { 1 }
+        }
         else -> null
     } ?: return slot.successRate
 

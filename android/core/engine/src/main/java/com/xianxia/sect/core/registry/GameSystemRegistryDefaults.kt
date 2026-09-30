@@ -28,7 +28,7 @@ object GameSystemRegistryDefaults {
         register("engine.service", "DiscipleBreakthroughHandler")
         register("engine.service", "DiscipleLifecycleProcessor")
         register("engine.service", "DisciplePurchaseService")
-        register("engine.service", "EquipmentNurtureService")
+        register("engine.service", "EquipmentUpgradeService")
         register("engine.service", "FormulaService")
         register("engine.service", "HpMpRecoveryService")
         register("engine.service", "MailService")

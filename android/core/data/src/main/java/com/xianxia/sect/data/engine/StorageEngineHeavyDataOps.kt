@@ -16,7 +16,9 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.util.BagMaterializeInput
+import com.xianxia.sect.core.util.MaterializedBagResult
 import com.xianxia.sect.core.util.StorageBagMaterializer
+import com.xianxia.sect.data.local.EquipmentLegacyTableReader
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -239,32 +241,13 @@ internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
         gameData = gameData
     )
 
-    // 储物袋独立存储兼容：老存档引用式袋条目（payload==null）物化为持有数据，
-    // 并从仓库扣减对应数量（防复制）；悬空条目直接删除。物化幂等。
-    val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
-        BagMaterializeInput(
-            disciples = loaded.disciples,
-            equipmentStacks = loaded.equipmentStacks,
-            equipmentInstances = loaded.equipmentInstances,
-            manualStacks = loaded.manualStacks,
-            manualInstances = loaded.manualInstances,
-            pills = loaded.pills,
-            materials = loaded.materials,
-            herbs = loaded.herbs,
-            seeds = loaded.seeds
-        )
-    )
-    if (materialized.materializedCount > 0) {
-        Log.i(TAG, "储物袋物化迁移 ${materialized.materializedCount} 条（D-03 独立存储）")
-    }
-    if (materialized.droppedCount > 0) {
-        Log.w(TAG, "储物袋悬空条目清理 ${materialized.droppedCount} 条（引用不存在，防复制删除）")
-    }
+    val materialized = materializeDiscipleBags(loaded)
+    val legacyRows = loadLegacyEquipmentRows(gameData)
 
     SaveData(
         gameData = gameData,
         disciples = materialized.disciples,
-        equipmentStacks = materialized.equipmentStacks,
+        equipmentStacks = legacyRows,
         equipmentInstances = materialized.equipmentInstances,
         manualStacks = materialized.manualStacks,
         manualInstances = materialized.manualInstances,
@@ -286,12 +269,52 @@ internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
     }
 }
 
+/** 储物袋独立存储兼容（buildSaveDataFromDatabase 拆分）：老存档引用式袋条目物化 + 悬空清理 */
+private fun materializeDiscipleBags(loaded: DbLoadResult): MaterializedBagResult {
+    // 老存档引用式袋条目（payload==null）物化为持有数据，并从仓库扣减对应
+    // 数量（防复制）；悬空条目直接删除。物化幂等。
+    val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
+        BagMaterializeInput(
+            disciples = loaded.disciples,
+            equipmentStacks = loaded.equipmentStacks,
+            equipmentInstances = loaded.equipmentInstances,
+            manualStacks = loaded.manualStacks,
+            manualInstances = loaded.manualInstances,
+            pills = loaded.pills,
+            materials = loaded.materials,
+            herbs = loaded.herbs,
+            seeds = loaded.seeds
+        )
+    )
+    if (materialized.materializedCount > 0) {
+        Log.i(TAG, "储物袋物化迁移 ${materialized.materializedCount} 条（D-03 独立存储）")
+    }
+    if (materialized.droppedCount > 0) {
+        Log.w(TAG, "储物袋悬空条目清理 ${materialized.droppedCount} 条（引用不存在，防复制删除）")
+    }
+    return materialized
+}
+
+/** B3 影子表物化（buildSaveDataFromDatabase 拆分）：补偿未置位读影子行；已置位惰性清表；新档恒空 */
+private fun StorageEngine.loadLegacyEquipmentRows(gameData: GameData): List<EquipmentStack> {
+    val legacyReader = EquipmentLegacyTableReader(core.database)
+    val legacyRows = if (!gameData.legacyEquipmentCompensated) {
+        legacyReader.readLegacyStacks() + legacyReader.readLegacyInstancesAsStacks()
+    } else {
+        legacyReader.dropLegacyTables()
+        emptyList()
+    }
+    if (legacyRows.isNotEmpty()) {
+        Log.i(TAG, "旧装备影子行物化 ${legacyRows.size} 件（补偿数据源）")
+    }
+    return legacyRows
+}
+
 /**
  * 并行读取槽位全量实体：async 并发 + await 汇总。
  */
 internal suspend fun StorageEngine.loadAllEntities(slot: Int): DbLoadResult = withContext(Dispatchers.IO) {
     val deferredDisciples = async { core.database.discipleDao().getAllSync(slot) }
-    val deferredEquipmentStacks = async { core.database.equipmentStackDao().getAllSync(slot) }
     val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync(slot) }
     val deferredManualStacks = async { core.database.manualStackDao().getAllSync(slot) }
     val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync(slot) }
@@ -305,7 +328,7 @@ internal suspend fun StorageEngine.loadAllEntities(slot: Int): DbLoadResult = wi
 
     DbLoadResult(
         disciples = deferredDisciples.await(),
-        equipmentStacks = deferredEquipmentStacks.await(),
+        equipmentStacks = emptyList(), // B3：equipment_stacks 表已 DROP，影子行在 build 阶段装配
         equipmentInstances = deferredEquipmentInstances.await(),
         manualStacks = deferredManualStacks.await(),
         manualInstances = deferredManualInstances.await(),

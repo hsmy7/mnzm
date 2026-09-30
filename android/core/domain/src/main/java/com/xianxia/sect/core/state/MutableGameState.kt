@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventRecord
@@ -27,7 +26,6 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 data class MutableGameState(
     var gameData: GameData,
     var discipleTables: DiscipleTables,        // 替代 List<Disciple>，组件表存储
-    var equipmentStacks: EntityStore<EquipmentStack>,
     var equipmentInstances: EntityStore<EquipmentInstance>,
     var manualStacks: EntityStore<ManualStack>,
     var manualInstances: EntityStore<ManualInstance>,

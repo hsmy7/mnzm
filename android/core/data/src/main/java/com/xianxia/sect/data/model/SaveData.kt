@@ -59,7 +59,10 @@ data class SaveData(
     @ProtoNumber(2) val timestamp: Long = System.currentTimeMillis(),
     @ProtoNumber(3) val gameData: GameData,
     @ProtoNumber(4) val disciples: List<Disciple>,
-    // 🔴 E1 冻结表（B0）：equipmentStacks(53) 已划入退役清单（B3 删堆叠批退役）——禁改指向，退役后号禁复用
+    // 🔴 E1 冻结表（B0/B3）：equipmentStacks(53) 已退役——保留声明 @Deprecated
+    // 仅供旧档补偿折算（LegacyEquipmentCompensationRule 读影子物化/旧 .sav），
+    // 禁新增业务写入点；Room 表已随 MIGRATION_63_64 DROP，号禁复用
+    @Deprecated("装备堆叠已随 B3 退役；保留声明仅供旧档补偿折算读取")
     @ProtoNumber(53) val equipmentStacks: List<EquipmentStack> = emptyList(),
     @ProtoNumber(5) val equipmentInstances: List<EquipmentInstance> = emptyList(),
     @ProtoNumber(54) val manualStacks: List<ManualStack> = emptyList(),

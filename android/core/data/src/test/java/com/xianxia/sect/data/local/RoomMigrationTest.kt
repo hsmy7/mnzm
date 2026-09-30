@@ -399,6 +399,30 @@ class RoomMigrationTest {
         }
     }
 
+    /**
+     * 全链真实 Room 校验：v63 库升级到当前版本（v64，装备体系原子替换 B3），
+     * 触发 onValidateSchema 对全部表做列/索引/外键全等校验——七步迁移
+     * （影子表搬运/堆叠表 DROP/实例表重建/六部位五列/清槽/删旧列/标记列）
+     * 任何一步漏改表结构都会在此崩溃。
+     */
+    @Test
+    fun `MIGRATION_63_TO_64 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_63_64_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 63).close()
+            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                // 迁移链取自单点登记表——`@Database(version)` 递增无需改本文件
+                .addMigrations(*ALL_MIGRATIONS)
+                .build()
+            db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
     @Test
     fun `MIGRATION_42_TO_43 passes real Room schema validation`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
