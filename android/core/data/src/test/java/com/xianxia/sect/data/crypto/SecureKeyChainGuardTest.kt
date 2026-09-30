@@ -79,7 +79,7 @@ class SecureKeyChainGuardTest {
         assertTrue("C3 已删的零调用者加解密面重新出现：$offenders", offenders.isEmpty())
     }
 
-    // ── 源面解析（同 SaveMigrationGuardTest / WallClockReflowGuardTest 口径）──
+    // ── 源面解析（同 WallClockReflowGuardTest 口径）──
 
     private fun androidRoot(): File {
         var dir: File? = File(System.getProperty("user.dir"))

@@ -12,8 +12,8 @@ import java.io.File
  * 堆叠符号必须从**状态面与 UI 消费面**归零（GameStateStore 四件套、GameEngine
  * 流/快照、GameViewModel 流）；**有意偏差白名单**（HANDOVER-B3 §五.1 登记，
  * 与方案字面 S12「符号归零」的差异）：[EquipmentStack] 以 @Deprecated 载体
- * 保留在补偿链（影子表→SaveData(53)→折算邮件→惰性清表）与已登记的过渡面
- * （秘境旧背包轨待 B4、旧 ForgeRecipe DTO 待后续批）。
+ * 保留为 SaveData(53) 协议占位（旧字节按未知字段忽略，号禁复用）与已登记
+ * 的过渡面（秘境旧背包轨待 B4、旧 ForgeRecipe DTO 待后续批）。
  *
  * 守卫口径：主源**剥注释后**扫描 `equipmentStacks|EquipmentStack`；
  * [MUST_BE_ZERO] 文件出现符号即红；[TOLERATED] 文件为登记白名单（文件被删
@@ -64,33 +64,27 @@ class EquipmentStackRemovalGuardTest {
      */
     private val tolerated: Map<String, String> = mapOf(
         "core/domain/src/main/java/com/xianxia/sect/core/model/Items.kt"
-            to "@Deprecated 载体 + toLegacyInstance 过渡桥（补偿链依赖，勿删）",
+            to "@Deprecated 载体 + toLegacyInstance 过渡桥（协议占位依赖，勿删）",
         "core/domain/src/main/java/com/xianxia/sect/core/model/SecretRealmModels.kt"
             to "SecretRealmBackpack.equipment 旧轨（C++ 已实例轨，跨端过渡待 B4）",
         "core/domain/src/main/java/com/xianxia/sect/core/model/AlchemySystem.kt"
             to "旧 ForgeRecipe DTO 装备字段（引擎 10+ 文件仍消费，登记后续批）",
         "core/domain/src/main/java/com/xianxia/sect/core/util/StorageBagMaterializer.kt"
-            to "补偿物化链输入面（影子行→SaveData 载体）",
+            to "物化链输入面（SaveData 载体装配）",
         "core/domain/src/main/java/com/xianxia/sect/core/util/ItemSortUtils.kt"
             to "排序键载体兼容分支（watchKey 按名，随载体退役清）",
         "core/domain/src/main/java/com/xianxia/sect/core/repository/SaveStorage.kt"
             to "存档仓储兼容参数（SaveData(53) 载体链）",
         "core/data/src/main/java/com/xianxia/sect/data/model/SaveData.kt"
-            to "SaveData.equipmentStacks(53) @Deprecated 载体（补偿链依赖）",
-        "core/data/src/main/java/com/xianxia/sect/data/local/EquipmentLegacyTableReader.kt"
-            to "影子表读取器（补偿物化）",
-        "core/data/src/main/java/com/xianxia/sect/data/integrity/rules/LegacyEquipmentCompensationRule.kt"
-            to "旧装备折算补偿规则（order=27）",
-        "core/data/src/main/java/com/xianxia/sect/data/local/GameDatabaseMigrationsV64.kt"
-            to "v64 迁移（影子表搬运 + 堆叠表 DROP）",
+            to "SaveData.equipmentStacks(53) @Deprecated 载体（协议号占位）",
         "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt"
             to "存档体积估算兼容面",
         "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineHeavyDataOps.kt"
-            to "读档装配物化（补偿未置位物化/置位惰性清）",
+            to "读档装配物化",
         "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineLoadOps.kt"
             to "读档链载体装配",
         "core/data/src/main/java/com/xianxia/sect/data/GameStateRepository.kt"
-            to "仓储读档 shim（空载体喂存档链，随补偿链退役清）",
+            to "仓储读档 shim（空载体喂存档链）",
         "core/engine/src/main/java/com/xianxia/sect/core/engine/domain/exploration/SecretRealmRuinsResolver.kt"
             to "遗迹奖励旧背包轨（同 SecretRealmModels，待 B4）",
         "core/engine/src/main/java/com/xianxia/sect/core/nativebridge/NativeGameState.kt"

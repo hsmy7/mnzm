@@ -165,3 +165,7 @@ docs/gacha-watch/_dispatch-*.md
 # 临时诊断转储（一次性产物，不入库）
 .clash-repair/
 bench_out.txt
+
+# Room schema 导出目录（room.schemaLocation 当期产物；历史基线已随 SS0 删档重置清除，不入库）
+android/app/schemas/
+android/core/data/schemas/

@@ -25,7 +25,7 @@ import java.io.File
  *
  * 装备实例 1 件 1 槽后容量模型 = **无硬上限**：EntityCountBoundsRule 对装备
  * 只告警不截断（warn 800 / 页面提示 1200），不走溢出邮件——溢出邮件的装备
- * 分支必须保持零调用（唯一合法装备键 = 存档补偿 equipment_legacy_compensation）。
+ * 分支必须保持零调用（装备来源键白名单 = ∅，任何装备键出现即红）。
  */
 class EquipmentNoCapGuardTest {
 
@@ -115,8 +115,7 @@ class EquipmentNoCapGuardTest {
     @Test
     fun `溢出邮件装备分支零调用`() {
         // S18：装备容量不走溢出邮件。OverflowMailSender 的装备来源键白名单
-        // = { equipment_legacy_compensation }（B3 存档补偿唯一通道），
-        // 出现第二把装备键（如容量溢出分支复活）即红。
+        // = ∅（B3 存档补偿通道已随 SS0 退役），出现任何装备键即红。
         val file = File(
             "../../core/engine/src/main/java/com/xianxia/sect/core/engine/service/OverflowMailSender.kt"
         )
@@ -127,7 +126,7 @@ class EquipmentNoCapGuardTest {
             .toSet()
         assertEquals(
             "溢出邮件装备来源键白名单漂移（装备容量溢出分支不得复活，0.2-2 拍板）",
-            setOf("equipment_legacy_compensation"), equipmentKeys
+            emptySet<String>(), equipmentKeys
         )
     }
 }

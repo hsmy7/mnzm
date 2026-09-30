@@ -46,7 +46,7 @@ class TapCloudSaveManager @Inject constructor(
         private const val MAX_CLOUD_SAVE_SIZE_BYTES = 10L * 1024 * 1024
 
         /** 云存档唯一标识名称 */
-        private const val CLOUD_SAVE_ARCHIVE_NAME = "mnzm_cloud_save"
+        private const val CLOUD_SAVE_ARCHIVE_NAME = "mnzm_v2_save"
 
         /** 下载文件大小上限：50MB（防御 OOM） */
         private const val MAX_DOWNLOAD_SIZE_BYTES = 50L * 1024 * 1024
@@ -597,14 +597,16 @@ class TapCloudSaveManager @Inject constructor(
         }
     }
 
-    // ── 云端孤立存档清理 ──
+    // ── 云端旧协议存档清理（SS0 删档重置第二保险）──
 
     /**
-     * 一次性云端存档检查（历史遗留"孤立存档清理"）。
+     * 一次性云端旧档清理：删除当前登录账号下全部旧协议命名档
+     * （[TapTapSaveBackend.isLegacyArchiveName]——`mnzm_cloud_save` / `slot_N`）。
      *
-     * 多设备场景下非 "mnzm_cloud_save" 命名的存档可能是其他设备/其他命名版本
-     * 的有效存档，删除不可逆——因此不删除任何未知命名的存档（保留数据），
-     * 仅记录审计日志；清除缓存的 UUID 后完成一次性任务。
+     * 双保险中的辅助手段（D-5）：旧命名在新版本零读取路径（命名失联）才是
+     * 主保险；本删除尽力而为——单档删除失败仅记日志不阻断，也不因失败拒绝
+     * 写完成标记（标记表达"清理动作已执行过"，失联语义不依赖删除成功）。
+     * 新协议命名（v2）与非本游戏命名的存档一律不动。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun oneTimeCleanup() {
@@ -614,13 +616,19 @@ class TapCloudSaveManager @Inject constructor(
         val api = CloudSaveApiReflector.resolve() ?: return
         try {
             val allArchives = api.listAllArchives()
-            val others = allArchives.filter { it.name != CLOUD_SAVE_ARCHIVE_NAME }
-            if (others.isNotEmpty()) {
-                DomainLog.i(
-                    TAG,
-                    "oneTimeCleanup: 发现 ${others.size} 个非当前命名存档，保留并记录: " +
-                        others.joinToString { "${it.name}(${it.uuid.take(8)})" }
-                )
+            val legacyTargets = allArchives.filter { TapTapSaveBackend.isLegacyArchiveName(it.name) }
+            legacyTargets.forEach { target ->
+                try {
+                    api.deleteArchive(target.uuid)
+                    DomainLog.i(TAG, "oneTimeCleanup: 旧协议云档已删除 ${target.name}(${target.uuid.take(8)})")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    DomainLog.w(TAG, "oneTimeCleanup: 旧协议云档删除失败（不阻断）${target.name}: ${e.message}")
+                }
+            }
+            if (legacyTargets.isEmpty()) {
+                DomainLog.i(TAG, "oneTimeCleanup: 无旧协议云档")
             }
             clearCachedArchiveUuid()
             keyValueStore.putBoolean(KEY_CLEANUP_DONE, true)

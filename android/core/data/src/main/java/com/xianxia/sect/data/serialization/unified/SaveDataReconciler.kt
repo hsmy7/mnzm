@@ -7,10 +7,9 @@ import com.xianxia.sect.data.model.SaveData
 /**
  * 旧存档堆叠数据协调器（B3 起：堆叠重建仅剩功法）。
  *
- * 新存档携带堆叠（stacksSerialized = true）；旧存档（false）的仓库堆叠
- * 物理上从未被序列化，经 [reconcileStacks] 从实例重建兜底——装备堆叠已随
- * B3 移除堆叠退役（R6，装备补偿走 `LegacyEquipmentCompensationRule`），
- * 仅剩功法堆叠重建。
+ * 新存档携带堆叠（stacksSerialized = true）；标记为 false 的存档（历史
+ * 版本落库形态）仓库堆叠物理上从未被序列化，经 [reconcileStacks] 从实例
+ * 重建兜底——装备堆叠已随 B3 退役，仅剩功法堆叠重建。
  */
 object SaveDataReconciler {
     private const val TAG = "SaveDataReconciler"

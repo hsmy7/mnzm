@@ -45,7 +45,5 @@ class PersistenceFacade @Inject constructor(
     val saveBackend: SaveBackend,
     // SR-6 C4：云档→本地缓存的落盘段（VM 的 boot 前段与迁移侧共用，见该类 KDoc）
     val cloudSaveCacheWriter: CloudSaveCacheWriter,
-    // SR-6 存量迁移引导（迁移卡数据源与动作入口，消费方 = 游戏内存档管理弹窗）
-    val migrationCoordinator: SaveMigrationCoordinator,
     @ApplicationContext val context: Context
 )

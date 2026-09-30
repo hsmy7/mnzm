@@ -20,8 +20,7 @@ class AnalyticsEventsDictionaryTest {
             AnalyticsEvents.BATTLE_FIRST_WIN,
             AnalyticsEvents.BREAKTHROUGH_SUCCESS,
             AnalyticsEvents.BREAKTHROUGH_FIRST,
-            AnalyticsEvents.AD_REWARD_CLAIM,
-            AnalyticsEvents.SAVE_MIGRATION_RESULT
+            AnalyticsEvents.AD_REWARD_CLAIM
         )
         customEvents.forEach { event ->
             assertTrue("自定义事件 $event 必须以 # 开头（TapDB 规范）", event.startsWith("#"))
@@ -46,7 +45,6 @@ class AnalyticsEventsDictionaryTest {
             AnalyticsEvents.BREAKTHROUGH_SUCCESS,
             AnalyticsEvents.BREAKTHROUGH_FIRST,
             AnalyticsEvents.AD_REWARD_CLAIM,
-            AnalyticsEvents.SAVE_MIGRATION_RESULT,
             AnalyticsEvents.GAME_START,
             AnalyticsEvents.BATTLE_END
         )
@@ -58,7 +56,6 @@ class AnalyticsEventsDictionaryTest {
             "#breakthrough_success",
             "#breakthrough_first",
             "#ad_reward_claim",
-            "#save_migration_result",
             "game_start",
             "battle_end"
         )
@@ -74,7 +71,6 @@ class AnalyticsEventsDictionaryTest {
             AnalyticsEvents.BREAKTHROUGH_SUCCESS,
             AnalyticsEvents.BREAKTHROUGH_FIRST,
             AnalyticsEvents.AD_REWARD_CLAIM,
-            AnalyticsEvents.SAVE_MIGRATION_RESULT,
             AnalyticsEvents.GAME_START,
             AnalyticsEvents.BATTLE_END
         )

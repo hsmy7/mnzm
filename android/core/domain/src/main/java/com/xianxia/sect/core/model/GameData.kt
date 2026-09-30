@@ -858,14 +858,14 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gachaHistory: List<GachaHistoryEntry> = emptyList(),
 
-    // 孕养类加成丹药（R11）退役补偿已发放幂等标记——与补偿发放同事务落盘
-    //（NurturePillRetirementRule），true 后规则恒 Passed 不再补偿
+    // 孕养类加成丹药（R11）退役补偿已发放幂等标记（历史补偿规则已随 SS0
+    // 退役，字段保留防协议号漂移，恒 false）
     @ProtoNumber(168)
     @ColumnInfo(name = "nurture_pills_retired", defaultValue = "0")
     var nurturePillsRetired: Boolean = false,
 
     // 旧装备（R2）折算补偿已发放幂等标记——与补偿发放同事务落盘
-    //（LegacyEquipmentCompensationRule），true 后规则恒 Passed 不再补偿
+    //（历史补偿规则已随 SS0 退役，字段保留防协议号漂移，恒 false）
     @ProtoNumber(169)
     @ColumnInfo(name = "legacy_equipment_compensated", defaultValue = "0")
     var legacyEquipmentCompensated: Boolean = false,

@@ -40,7 +40,9 @@ import javax.inject.Singleton
  *
  * - extra JSON 在现役协议（year/month/sect/disciples/stones/version）上新增 `saveId`
  *   （云端实际保存序号 W 的回带源；存量档无该字段 = W 未知 → 仲裁 U11 保守退化）；
- * - 槽位映射：slot 0 = 存量单档 `mnzm_cloud_save`（SR-6 迁移源），slot 1..6 = `slot_N`；
+ * - 槽位映射：slot 0 = 云会话单档 `mnzm_v2_save`，slot 1..6 = `mnzm_v2_slot_N`；
+ *   单存档测试期删档（SS0）换用 v2 命名——旧命名（`mnzm_cloud_save`/`slot_N`）
+ *   不再被本类识别（[slotFromArchiveName] 返回 null），旧云档自然失联；
  * - 操作互斥：类内 Mutex（对齐 TapCloudSaveManager.cloudOpLock 语义）；
  * 上传队列侧另有单飞 worker（全局串行 + 共享冷却），两层互斥不冲突；
  * - IN3：本类是 feature 面唯一的云后端出口，UI 层只依赖 [SaveBackend] 接口；
@@ -370,18 +372,34 @@ class TapTapSaveBackend @Inject constructor(
         private const val EXTRA_KEY_SIGNATURE = "sig"
         private const val EXTRA_KEY_SIGNATURE_VERSION = "sigVer"
 
-        /** 存量单档名（与 TapCloudSaveManager.CLOUD_SAVE_ARCHIVE_NAME 一致；slot 0 = 云会话槽） */
-        internal const val LEGACY_ARCHIVE_NAME = "mnzm_cloud_save"
+        /** 云会话单档名（与 TapCloudSaveManager.CLOUD_SAVE_ARCHIVE_NAME 一致；slot 0 = 云会话槽） */
+        internal const val SESSION_ARCHIVE_NAME = "mnzm_v2_save"
 
-        /** slot → 云端 archive 名：0 = 存量单档（SR-6 迁移源），1..6 = slot_N（SR-0 §3.4） */
+        /** v2 槽位命名前缀 */
+        private const val V2_SLOT_PREFIX = "mnzm_v2_slot_"
+
+        /** slot → 云端 archive 名：0 = 云会话单档，1..6 = mnzm_v2_slot_N */
         internal fun archiveNameFor(slot: Int): String =
-            if (slot == StorageConstants.CLOUD_SAVE_SLOT) LEGACY_ARCHIVE_NAME else "slot_$slot"
+            if (slot == StorageConstants.CLOUD_SAVE_SLOT) SESSION_ARCHIVE_NAME else "$V2_SLOT_PREFIX$slot"
 
-        /** 云端 archive 名 → slot；非槽位命名（其他设备/历史遗留）返回 null（oneTimeCleanup 同纪律：保留不动） */
+        /** 云端 archive 名 → slot；v2 槽位命名之外的命名（含旧协议 `mnzm_cloud_save`/`slot_N`）一律返回 null */
         internal fun slotFromArchiveName(name: String): Int? = when {
-            name == LEGACY_ARCHIVE_NAME -> StorageConstants.CLOUD_SAVE_SLOT
-            name.startsWith("slot_") -> name.removePrefix("slot_").toIntOrNull()?.takeIf { it in 1..6 }
+            name == SESSION_ARCHIVE_NAME -> StorageConstants.CLOUD_SAVE_SLOT
+            name.startsWith(V2_SLOT_PREFIX) ->
+                name.removePrefix(V2_SLOT_PREFIX).toIntOrNull()?.takeIf { it in 1..6 }
             else -> null
+        }
+
+        /**
+         * 是否为旧协议云档命名（SS0 删档重置前的 `mnzm_cloud_save` / `slot_N`）。
+         * 命中者由 TapCloudSaveManager.oneTimeCleanup 主动删除（尽力而为）；
+         * 本类所有读路径对旧命名零识别，删除失败也不构成恢复路径。
+         */
+        internal fun isLegacyArchiveName(name: String): Boolean = when {
+            name == "mnzm_cloud_save" -> true
+            name.startsWith("slot_") ->
+                name.removePrefix("slot_").toIntOrNull()?.takeIf { it in 1..6 } != null
+            else -> false
         }
 
         internal fun tempFileName(slot: Int): String = "cloud_save_temp_slot_$slot.dat"

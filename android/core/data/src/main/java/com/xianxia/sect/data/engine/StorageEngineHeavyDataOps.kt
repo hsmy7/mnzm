@@ -18,7 +18,6 @@ import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.util.BagMaterializeInput
 import com.xianxia.sect.core.util.MaterializedBagResult
 import com.xianxia.sect.core.util.StorageBagMaterializer
-import com.xianxia.sect.data.local.EquipmentLegacyTableReader
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -242,12 +241,11 @@ internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
     )
 
     val materialized = materializeDiscipleBags(loaded)
-    val legacyRows = loadLegacyEquipmentRows(gameData)
 
     SaveData(
         gameData = gameData,
         disciples = materialized.disciples,
-        equipmentStacks = legacyRows,
+        equipmentStacks = emptyList(),
         equipmentInstances = materialized.equipmentInstances,
         manualStacks = materialized.manualStacks,
         manualInstances = materialized.manualInstances,
@@ -293,21 +291,6 @@ private fun materializeDiscipleBags(loaded: DbLoadResult): MaterializedBagResult
         Log.w(TAG, "储物袋悬空条目清理 ${materialized.droppedCount} 条（引用不存在，防复制删除）")
     }
     return materialized
-}
-
-/** B3 影子表物化（buildSaveDataFromDatabase 拆分）：补偿未置位读影子行；已置位惰性清表；新档恒空 */
-private fun StorageEngine.loadLegacyEquipmentRows(gameData: GameData): List<EquipmentStack> {
-    val legacyReader = EquipmentLegacyTableReader(core.database)
-    val legacyRows = if (!gameData.legacyEquipmentCompensated) {
-        legacyReader.readLegacyStacks() + legacyReader.readLegacyInstancesAsStacks()
-    } else {
-        legacyReader.dropLegacyTables()
-        emptyList()
-    }
-    if (legacyRows.isNotEmpty()) {
-        Log.i(TAG, "旧装备影子行物化 ${legacyRows.size} 件（补偿数据源）")
-    }
-    return legacyRows
 }
 
 /**

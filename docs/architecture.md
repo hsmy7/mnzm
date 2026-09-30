@@ -243,7 +243,7 @@ EquipmentInstance:    一行一实例，setId/part + growth{level 1–30, exp, �
 | 需求 | 终态 | 落批 | 守卫/判据 |
 |---|---|---|---|
 | R1 六部位（头/身/手/脚/武/腿） | ✅ | B3 | `EquipmentSlotOrderGuardTest` |
-| R2 删除全部旧装备 + 补偿 | ✅（100% basePrice 折算，1 亿上限，幂等） | B3 | `EquipmentLegacyCompensationTest` + `RoomMigrationV63To64Test` |
+| R2 删除全部旧装备 + 补偿 | ✅（折算补偿已随 SS0 删档重置退役，装备堆叠轨归零） | B3/SS0 | `EquipmentStackRemovalGuardTest` |
 | R3 套装 2/4/6 件档 | ✅ | B3 | `EquipmentSetBonusTest` + `equip_set_bonus_test.cpp` |
 | R4 升级 1–30 替换孕养 | ✅（每旬孕养结算层删除） | B3 | `EquipmentLevelSystemTest` + `DiffEquipmentUpgradeTest` |
 | R5 装卸不改等级 | ✅（等级随实例单点，D2 根因清除） | B3 | `EquipmentLevelPersistGuardTest` |

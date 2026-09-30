@@ -39,10 +39,10 @@ class BaselineFieldCoverageGuardTest {
         "pendingPatrolBattleResults", // 同上
         "lastYearSpiritStoneIncome", // 缺陷 #3 退役：C++ models/json_codec 已除名，
                                       // 年贡改读 annualTotalIncome；Kotlin 字段保留仅存档 schema 稳定
-        "nurturePillsRetired", // EQ-B2/R11 孕养丹退役补偿幂等标记：纯 Kotlin 读档链
-                               // （NurturePillRetirementRule）消费，C++ GameData 未建模
+        "nurturePillsRetired", // EQ-B2/R11 孕养丹退役补偿幂等标记：历史补偿规则已
+                               // 随 SS0 退役，字段保留防协议号漂移，C++ GameData 未建模
         "legacyEquipmentCompensated", // EQ-B3 装备堆叠轨→实例轨退役补偿幂等标记：存档侧专用
-                                      // （LegacyEquipmentCompensationRule 读档链消费，防重复补偿），
+                                      // （历史补偿幂等标记，规则已随 SS0 退役，字段保留防协议号漂移），
                                       // C++ 引擎无消费者、不进镜像，同 nurturePillsRetired 口径
     )
 

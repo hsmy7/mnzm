@@ -7,7 +7,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 import com.xianxia.sect.core.model.BattleLog
@@ -45,61 +44,35 @@ import java.util.concurrent.atomic.AtomicLong
 
 
 
-/** 文件级日志 TAG（迁移前备份恢复顶层辅助函数共用） */
+/** 文件级日志 TAG（启动前快照恢复顶层辅助函数共用） */
 private const val TAG = "GameDatabase"
 
-/** 恢复尝试 marker 文件名——恢复后迁移崩溃时防止"恢复→崩溃"死循环 */
+/** 恢复尝试 marker 文件名——恢复后数据库重建崩溃时防止"恢复→崩溃"死循环 */
 private const val RESTORE_ATTEMPT_MARKER = ".restore_attempted"
 private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
 
-/** 迁移前备份文件大小上限（200MB，防恶意/损坏超大备份占满磁盘） */
-/**
- * 全部历史迁移的**单点登记**（升序；`endVersion` 自 3 连续至
- * [GameDatabaseConfig.DATABASE_VERSION]）。
- *
- * 两处消费：`GameDatabase.build()` 的 `addMigrations` 与各迁移测试的建库链。
- * 测试此前各自维护链尾——`@Database(version)` 递增时必然滞后（2026-09-15
- * v50→v51 实测：5 个测试文件 12 处链尾全部失效，Room 报
- * `A migration from 38 to 51 was required but not found`）。收敛到本表后
- * "递增版本 = 只改一处"，连续性由 `MigrationChainGuardTest` 断言。
- */
-internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
-    MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-    MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
-    MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
-    MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
-    MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-    MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-    MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
-    MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
-    MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57,
-    MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61,
-    MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65
-)
-
+/** 启动前快照文件大小上限（200MB，防恶意/损坏超大快照占满磁盘） */
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
 
-/** 迁移前备份 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
+/** 启动前快照 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
 private const val MAX_BACKUP_GAME_DATA_ROWS = 64
 
 
 object GameDatabaseConfig {
     /**
-     * 数据库 schema 版本号——@Database(version) 与迁移前备份判据统一引用此常量，
+     * 数据库 schema 版本号——@Database(version) 与启动前快照判据统一引用此常量，
      * 禁止任何位置硬编码版本号。
-     * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
+     * 升级数据库版本时必须同步递增此常量、注册 `MIGRATION_(N-1)_N` 并更新
+     * `MigrationRequiredGuardTest` 的实体清单基线（缺迁移 = 老库被 destructive 重建）。
      */
-    const val DATABASE_VERSION = 65
+    const val DATABASE_VERSION = 66
 
     /**
-     * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
+     * 判定是否应从启动前快照恢复（纯逻辑，无 I/O——独立测试覆盖）。
      *
      * @param currentRowCount 当前数据库 game_data 行数（-1 = 读取失败/库打不开）
      * @param currentVersion 当前数据库 user_version（-1 = 读取失败）
-     * @param backupVersion 迁移前备份的 user_version
+     * @param backupVersion 启动前快照的 user_version
      * @return true = 应恢复；false = 跳过
      */
     @Suppress("ReturnCount") // 恢复判定多分支守卫，多 return 为守卫风格
@@ -108,16 +81,16 @@ object GameDatabaseConfig {
         currentVersion: Int,
         backupVersion: Int
     ): Boolean {
-        // 当前库打不开/表缺失（-1）或空库（destructive fallback 后）→ 恢复
+        // 当前库打不开/表缺失（-1）或空库（destructive 重建后）→ 恢复
         if (currentRowCount <= 0) return true
         // 降级场景：当前库版本高于 App 支持的版本（高版本 App 数据回退到低版本
-        // App）→ Room 无法降级打开必然崩溃——用迁移前备份（旧版本、迁移链可达）恢复
+        // App）→ Room 无法降级打开必然崩溃——用启动前快照（旧版本）恢复
         if (currentVersion > DATABASE_VERSION &&
             backupVersion in 2..DATABASE_VERSION && backupVersion < currentVersion
         ) {
             return true
         }
-        // 有数据但迁移待完成（备份创建后迁移从未完成）→ 恢复
+        // 有数据但版本升级待完成（快照创建后重建从未完成）→ 恢复
         return currentVersion < DATABASE_VERSION && backupVersion == currentVersion
     }
 
@@ -163,86 +136,15 @@ object GameDatabaseConfig {
         OverflowMailDraftEntity::class,
         DirectMailDraftEntity::class
     ],
-    // v40: MIGRATION_39_40 game_data 新增战斗队伍持久化三列
-    //（battle_teams/used_team_numbers/battle_teams_initialized）
-    // v41: MIGRATION_40_41 game_data 新增 last_ai_sect_recruit_year 列
-    //（AI 宗门弟子三年一度招募差值判据）
-    // v42: MIGRATION_41_42 game_data 新增玉符（氪金货币）四列
-    //（jade_symbols/jade_symbols_today/jade_day_anchor_ms/jade_accum_ms）
-    // v43: MIGRATION_42_43 新增溢出/直发邮件草稿持久化两表
-    //（overflow_mail_drafts/direct_mail_drafts，邮件事务化落盘）
-    // v44: MIGRATION_43_44 弟子炼丹师/锻造师职业 4 列
-    //（alchemyLevel/alchemyPromotionCount/forgeLevel/forgePromotionCount，
-    // disciples 与 disciples_attributes 两表各 4 列）
-    // v45: MIGRATION_44_45 世界地图探索队功能下线——删除 exploration_teams 表
-    // v46: MIGRATION_45_46 弟子新增基础属性"资质"——disciples 与 disciples_attributes
-    // 两表各加 aptitude 列（DEFAULT 50 为旧档自愈哨兵值）
-    // v47: MIGRATION_46_47 game_data 新增"新增天赋/体质/词条"待确认产物列
-    //（pending_trait_adds，玉符消耗玩法刷新结果持久化）
-    // v48: MIGRATION_47_48 overflow_mail_drafts 新增 item_id 列
-    //（溢出邮件附件携带物品模板 id，领取时精确还原物品而非随机生成）
-    // v49: MIGRATION_48_49 game_data 新增"石板道路"列（roads，自动拼接道路数据）
-    // v50: MIGRATION_49_50 自动存档残留清理——删除 game_data 与 sect_policy_state
-    //（纯手动存档设计：autoSaveIntervalMonths 列已删除，实体字段 @Ignore 不映射）
-    // v51: MIGRATION_50_51 地图冻结（WS-5b）——game_data 新增地形段两列
-    //（map_gen_version 版本戳 + terrain_tiles 行主序 flat 瓦片段；
-    // "存的地形恒优先"，仅无段才按 mapSeed 生成回填）
-    // v52: MIGRATION_51_52 Room 死列清理（B19）——game_data 删除两列死列
-    //（battleTeam 单数 / aiBattleTeams：全仓零读写点，且 @Transient 不进 .sav；
-    // 旧档数据窗口勘察判归"业务上可弃"，不做单数→复数搬运）
-    // v53: MIGRATION_52_53 零读者镜像表废除（SR-7 schema 第二刀）——删除
-    // disciples_core/disciples_combat/disciples_equipment/disciples_extended/
-    // disciples_attributes/disciple_compact 六表。六表唯一生产者是 writeDisciples
-    // 里由 disciples 同行派生的 X.fromDisciple(...)，SELECT 方法全仓零调用者
-    // ⇒ 纯冗余副本；五个同名领域类保留（DiscipleAggregate/DiscipleStatCalculator 在
-    // 内存侧消费），仅 DiscipleCompact 因连内存侧都零消费者而删类。详见该迁移 KDoc
-    // v55: MIGRATION_54_55 字段链删列（G02）——disciples 删除 age/lifespan/soulPower/
-    // loyalty/usage_usedExtendLifePillIds 五列；game_data 删除 annual_theft_count/
-    // theft_judgements_this_month/warehouseGarrisons 三列（寿命/忠诚/神魂/偷盗/
-    // 延寿丹追踪/仓库驻守玩法下线，读写面同批清零）。详见该迁移 KDoc
-    // v56: MIGRATION_55_56 招募链字段删列（G05）——game_data 删除 lastRecruitYear/
-    // last_ai_sect_recruit_year/open_recruitment_last_paid_month/autoRecruitSpiritRootFilter/
-    // autoRejectSpiritRootFilter 五列；sect_policy_state 删除 autoRecruitSpiritRootFilter
-    // 一列（招募链/广纳门徒/自动过滤下线，读写面同批清零；recruitList 列保留恒空）。详见该迁移 KDoc
-    // v59: MIGRATION_58_59 字段链删列（G15）——disciples 删除 social_masterId 一列
-    //（师徒玩法整线下线：拜师事务 1591 退役、师徒修炼/突破乘区与突破后师徒赠送
-    // 同批清零，`SocialData` 组件仅此一列故随列整类下线；读写面同批清零）。详见该迁移 KDoc
-    // v60: MIGRATION_59_60 双轨时间权威轴（结算改造 B3）——game_data 新增
-    // elapsedGameMs/lastSettleGameMs/spiritMineLastSettledGameMs 三列，
-    // production_slots 新增 startedAtGameMs/completeAtGameMs 两列（全 DEFAULT 0，
-    // 旧档读档归一化按旧字段换算回填；旧字段全部保留，判据切换随 B5/B6）
-    // v61: MIGRATION_60_61 死值退役（结算改造 B9，方案 §9.1 缺陷 #10）——
-    // disciples 删除 cultivationCompletionPhase 一列（C++ 硬编码恒 1、零读取方，
-    // Proto/Room/镜像三重承载纯协议成本；读写面同批清零）。详见该迁移 KDoc
-    // v62: MIGRATION_61_62 弟子属性单列化（装备重构 B1，方案 §15/§5.1）——
-    // disciples 删 12 列（物法攻防基值/方差/丹药加成）增 7 列（baseAttack/baseDefense/
-    // innateDamageType/attackVariance/defenseVariance/pillAttackBonus/pillDefenseBonus），
-    // 回填取和（Q7，k=1）+ 固有属性按首灵根派生；详见该迁移 KDoc
-    // v63: MIGRATION_62_63 孕养类加成丹药退役（装备重构 B2/R11，方案 §5.7）——
-    // disciples 删 pillNurtureSpeedBonus 一列（生效中孕养速度临时效果随列清零，不补偿）、
-    // game_data 增 nurture_pills_retired 补偿幂等标记列、recipes 表清孕养配方行；
-    // 详见该迁移 KDoc
-    // v58: MIGRATION_57_58 字段链删列（G04）——disciples 删除 talentIds/physiqueIds/
-    // affixIds/aptitude 四列（comprehension 悟性列保留）；game_data 删除血炼四列
-    // bloodRefinements/activeBloodRefinements/bloodRefinementBonusTotals/
-    // bloodRefinementPctTotals 与 pending_trait_adds（洗炼/资质/三表/血炼玩法下线，
-    // 读写面同批清零）。详见该迁移 KDoc
-    // v64: MIGRATION_63_64 装备体系原子替换（装备重构 B3，方案 §5.1/§6.5 A1）——
-    // DROP equipment_stacks、DROP+CREATE equipment_instances（词条/等级随实例单点）、
-    // disciples 增 5 部位列 + 清空六部位列（幽灵件兜底）+ 删 9 旧列、
-    // game_data 增 legacy_equipment_compensated 补偿幂等标记列；详见该迁移 KDoc
-    // v65: MIGRATION_64_65 AI 洞府探索队伍链退役——game_data/world_map_state 双表
-    // 删 aiCaveTeams 一列（写入方已随 W4-D 死代码清零删除，零消费休眠列）；详见该迁移 KDoc
-    // v57: MIGRATION_56_57 字段链删列（G03）——disciples 删除 social_partnerId/
-    // social_partnerSectId/social_parentId1/social_parentId2/social_lastChildYear/
-    // social_childBirthMonth/social_griefEndYear 七列（social_masterId 本批未删）；
-    // game_data 与 sect_policy_state 各删除 daoCompanionBannedRootCounts/
-    // daoCompanionConsentRequired 两列（生育/道侣/亲缘玩法下线，读写面同批清零）。详见该迁移 KDoc
+    // v66: 存量迁移链整体退役（SS0）——测试期主动删档，旧库（v65 及更早）在本版本
+    // 打开时无迁移路径，由 fallbackToDestructiveMigration 全量毁灭重建（前置 wiping
+    // 见 app 层 SaveWipeCoordinator）；此后新增 @Entity / 列变更必须同批注册
+    // MIGRATION_(N-1)_N，否则老库被静默重建——`MigrationRequiredGuardTest` 守卫
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
-@Suppress("TooManyFunctions") // Room 数据库契约面：27 个 abstract DAO 访问器 = Room 强制协议 + 迁移回调，
+@Suppress("TooManyFunctions") // Room 数据库契约面：27 个 abstract DAO 访问器 = Room 强制协议 + 数据库回调，
 // 函数数=注册 DAO 数，拆分即破坏 RoomDatabase 单元
 abstract class GameDatabase : RoomDatabase() {
 
@@ -326,8 +228,8 @@ abstract class GameDatabase : RoomDatabase() {
     }
 
     /**
-     * 裁剪迁移前备份（审计 P1-5 / 方案 D4 改动 1）：按版本号降序保留最近
-     * [keep] 份 `.pre_migrate_backup.v{N}`，删除更旧。
+     * 裁剪启动前快照：按版本号降序保留最近 [keep] 份 `.pre_migrate_backup.v{N}`，
+     * 删除更旧。
      * 幂等可重入；接入两处——verifyAndRecoverDatabase 版本达标分支（每次
      * 启动 DB 打开）+ DataPruningScheduler 周期任务（双保险）。
      */
@@ -443,7 +345,7 @@ abstract class GameDatabase : RoomDatabase() {
         private const val TAG = "GameDatabase"
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
 
-        /** 迁移备份保留份数（审计 P1-5）：最近 2 个版本供降级恢复 */
+        /** 快照保留份数：最近 2 个版本供降级恢复 */
         const val MIGRATION_BACKUP_RETENTION = 2
     /** 静态实现（companion 可达——verifyAndRecoverDatabase 为 companion 域） */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -461,7 +363,7 @@ abstract class GameDatabase : RoomDatabase() {
             backups.sortedByDescending { it.first }
                 .drop(keep.coerceAtLeast(0))
                 .forEach { (_, f) ->
-                    if (f.delete()) Log.i(TAG, "Pruned old migration backup: ${f.name}")
+                    if (f.delete()) Log.i(TAG, "Pruned old startup snapshot: ${f.name}")
                 }
         } catch (e: Exception) {
             Log.w(TAG, "pruneMigrationBackups failed (non-fatal)", e)
@@ -474,18 +376,20 @@ abstract class GameDatabase : RoomDatabase() {
         private val threadCounter = AtomicInteger(0)
 
         /**
-         * 在 Room migration 前备份 SQLite 数据库文件。
-         * 将 xianxia_sect.db 复制到 xianxia_sect.db.pre_migrate_backup。
-         * 仅当检测到需要 migration 时才执行，避免无意义的 I/O。
+         * 在数据库打开前落启动前快照。
+         * 将 xianxia_sect.db 复制到 xianxia_sect.db.pre_migrate_backup.v{当前版本}。
+         * 仅当数据库版本落后于 [GameDatabaseConfig.DATABASE_VERSION] 时执行——
+         * 版本落后即意味着本次启动将发生 destructive 重建，快照是重建前唯一的
+         * 抢救副本（供 [restoreFromBackupIfNeeded] 的损坏恢复与降级恢复消费）。
          *
          * 注意：WAL 模式下直接文件复制可能包含未检查点的 wal 数据。
          * 此处使用 PRAGMA wal_checkpoint(TRUNCATE) 先行落盘再复制。
          */
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-        fun backupDatabaseForMigration(context: Context) {
+        fun snapshotDatabaseBeforeUpgrade(context: Context) {
             val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
             if (!dbFile.exists()) {
-                Log.d(TAG, "数据库文件不存在，跳过迁移前备份（首次安装）")
+                Log.d(TAG, "数据库文件不存在，跳过启动前快照（首次安装）")
                 return
             }
 
@@ -498,49 +402,64 @@ abstract class GameDatabase : RoomDatabase() {
                     cursor.close()
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "无法读取当前数据库版本，跳过迁移前备份", e)
+                Log.w(TAG, "无法读取当前数据库版本，跳过启动前快照", e)
                 return
             }
 
             val targetVersion = GameDatabaseConfig.DATABASE_VERSION
             if (currentVersion >= targetVersion) {
-                Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需备份")
+                Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需快照")
                 return
             }
             if (currentVersion < 2) {
-                // v1 数据库允许 fallbackToDestructiveMigrationFrom(1) 毁灭重建，无需备份
-                Log.d(TAG, "数据库版本 v$currentVersion 低于 v2，允许毁灭回退，跳过备份")
+                // v1 数据库允许 destructive 重建，无保留价值，跳过快照
+                Log.d(TAG, "数据库版本 v$currentVersion 低于 v2，允许毁灭回退，跳过快照")
                 return
             }
 
-            // 备份版本化命名 `{db}.pre_migrate_backup.v{currentVersion}`——迁移成功后
-            // 保留备份：高版本 App 数据降回旧版 App 时仍需旧版本备份恢复，
+            // 快照版本化命名 `{db}.pre_migrate_backup.v{currentVersion}`——重建成功后
+            // 保留快照：高版本 App 数据降回旧版 App 时仍需旧版本快照恢复，
             // 多版本保留供降级恢复与维护清理
             val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup.v$currentVersion")
             try {
-                // WAL 模式下先 checkpoint 确保数据一致性
-                SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-                    db.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
-                }
-                // 文件级复制备份
+                checkpointForSnapshot(dbFile)
+                // 文件级复制快照
                 dbFile.inputStream().use { input ->
                     backupFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
-                Log.i(TAG, "迁移前备份完成: ${backupFile.absolutePath} (v$currentVersion → v$targetVersion)")
+                Log.i(TAG, "启动前快照完成: ${backupFile.absolutePath} (v$currentVersion → v$targetVersion)")
             } catch (e: Exception) {
-                Log.e(TAG, "迁移前备份失败（非阻断，继续执行）", e)
-                backupFile.delete()  // 清理不完整备份
+                Log.e(TAG, "启动前快照失败（非阻断，继续执行）", e)
+                backupFile.delete()  // 清理不完整快照
             }
         }
 
-        @Suppress("SpreadOperator") // Room addMigrations 为 vararg API，迁移链取自单点登记表（ALL_MIGRATIONS）必须散布传入
+        /**
+         * 快照前 WAL 落盘：部分 SQLite 实现拒绝 execSQL 执行 PRAGMA 查询
+         * （真机 Bugly 同源现象，见 performCheckpointSync），拒绝时降级 rawQuery 重试。
+         */
+        @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+        private fun checkpointForSnapshot(dbFile: File) {
+            SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                try {
+                    db.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+                } catch (e: android.database.sqlite.SQLiteException) {
+                    if (e.message?.contains("query or rawQuery") == true) {
+                        db.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).close()
+                    } else {
+                        throw e
+                    }
+                }
+            }
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
-            // 在 Room 迁移前备份 SQLite 文件，防止 migration 失败导致数据丢失
-            backupDatabaseForMigration(context)
+            // 数据库打开前落启动前快照（destructive 重建前的抢救副本）
+            snapshotDatabaseBeforeUpgrade(context)
 
             return Room.databaseBuilder(
                 context.applicationContext,
@@ -558,7 +477,6 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(*ALL_MIGRATIONS)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
@@ -567,11 +485,14 @@ abstract class GameDatabase : RoomDatabase() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database opened")
                         optimizeDatabase(db)
-                        // 启动时检查数据库完整性，并在异常时自动尝试从备份恢复
+                        // 启动时检查数据库完整性，并在异常时自动尝试从快照恢复
                         verifyAndRecoverDatabase(db, context)
                     }
                 })
-                .fallbackToDestructiveMigrationFrom(1)
+                // 版本落后且无迁移路径时毁灭重建（dropAllTables 含 Room schema 外
+                // 的历史残留表）；忘写迁移 = 静默清档，由 MigrationRequiredGuardTest
+                // 在 CI 面兜住
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }
@@ -671,11 +592,11 @@ abstract class GameDatabase : RoomDatabase() {
 
         /**
          * 检查数据库完整性并验证数据非空。
-         * 如果 integrity_check 失败或 game_data 为空（可能由 destructive migration 导致），
+         * 如果 integrity_check 失败或 game_data 为空（可能由 destructive 重建导致），
          * 记录严重警告以便后续处理。
          * 实际的数据恢复通过以下机制完成：
          * 1. StorageEngine.load() → SaveFileManager.readWithFallback() 自动从 .sav/.bak 恢复
-         * 2. 如果已调用 restoreFromBackupIfNeeded() 且 .pre_migrate_backup 存在，则文件级恢复优先
+         * 2. 如果已调用 restoreFromBackupIfNeeded() 且启动前快照存在，则文件级恢复优先
          */
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, context: Context) {
@@ -692,8 +613,8 @@ abstract class GameDatabase : RoomDatabase() {
                     "数据将由 StorageEngine 从 SaveFileManager 备份恢复")
             }
 
-            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker + 裁剪迁移
-            // 备份（审计 P1-5：注释承诺的维护任务接线——版本达标即旧版备份
+            // Step 4: 版本达标后清理恢复 marker + 裁剪启动前快照
+            //（注释承诺的维护任务接线——版本达标即旧版快照
             // 价值衰减，按保留窗口留最近 MIGRATION_BACKUP_RETENTION 份）
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
@@ -702,7 +623,7 @@ abstract class GameDatabase : RoomDatabase() {
                     pruneMigrationBackups(dbFile.absolutePath)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "清理恢复 marker/迁移备份失败", e)
+                Log.w(TAG, "清理恢复 marker/启动前快照失败", e)
             }
         }
 
@@ -751,9 +672,9 @@ abstract class GameDatabase : RoomDatabase() {
         }
 
         /**
-         * 在 Room databaseBuilder 执行前检查并恢复备份。
-         * 如果 pre_migrate_backup 文件存在且当前数据库为空/损坏，
-         * 用备份文件覆盖当前数据库。
+         * 在 Room databaseBuilder 执行前检查并恢复快照。
+         * 如果启动前快照文件存在且当前数据库为空/损坏，
+         * 用快照文件覆盖当前数据库。
          *
          * 此方法必须在 [create] 之前调用。当前由 AppModule.provideGameDatabase 调用。
          *
@@ -766,10 +687,10 @@ abstract class GameDatabase : RoomDatabase() {
             val markerFile = File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER)
             if (!dbFile.exists()) return false
 
-            // 验证备份文件可用（含大小/行数上限检查）
+            // 验证快照文件可用（含大小/行数上限检查）
             val backup = readBackupInfo(backupFile)
             if (!backup.ok) {
-                Log.w(TAG, "备份文件 integrity_check 失败，不可用于恢复")
+                Log.w(TAG, "快照文件 integrity_check 失败，不可用于恢复")
                 return false
             }
 
@@ -779,19 +700,19 @@ abstract class GameDatabase : RoomDatabase() {
             if (!shouldAttemptRestore(current, backup, markerFile)) {
                 return false
             }
-            logMigrationPendingIfAny(current, backup)
+            logUpgradePendingIfAny(current, backup)
 
-            // 执行恢复：用备份文件覆盖当前数据库
+            // 执行恢复：用快照文件覆盖当前数据库
             return performFileRestoreWithMarker(dbFile, backupFile, backup, markerFile)
         }
 
         /**
          * 恢复前置判定：当前库无数据、判定不通过或存在恢复 marker 时跳过并记录原因。
          *
-         * - 迁移待完成（迁移崩溃后 DB 行数仍 > 0）场景的判定在
+         * - 版本升级待完成（重建崩溃后 DB 行数仍 > 0）场景的判定在
          *   GameDatabaseConfig.shouldRestoreFromBackup 纯函数中，便于单元测试
-         * - 恢复-迁移崩溃死循环防护：上次恢复后迁移仍未完成（marker 存在）→
-         *   跳过重复恢复，让 Room 直接尝试迁移并崩溃报错（行为可预期）
+         * - 恢复-重建崩溃死循环防护：上次恢复后重建仍未完成（marker 存在）→
+         *   跳过重复恢复，让 Room 直接重建并崩溃报错（行为可预期）
          */
         private fun shouldAttemptRestore(
             current: CurrentDbInfo,
@@ -802,23 +723,23 @@ abstract class GameDatabase : RoomDatabase() {
                     current.rowCount, current.version, backup.version
                 )
             ) {
-                Log.d(TAG, "当前数据库有数据 (${current.rowCount} 行)，跳过备份恢复")
+                Log.d(TAG, "当前数据库有数据 (${current.rowCount} 行)，跳过快照恢复")
                 return false
             }
             if (markerFile.exists()) {
-                Log.w(TAG, "检测到上次恢复后迁移仍未完成，跳过重复恢复（防止死循环）")
+                Log.w(TAG, "检测到上次恢复后重建仍未完成，跳过重复恢复（防止死循环）")
                 return false
             }
             return true
         }
 
-        /** 迁移未完成场景告警：备份与当前库同版本且低于目标版本 */
-        private fun logMigrationPendingIfAny(current: CurrentDbInfo, backup: BackupValidation) {
+        /** 版本升级未完成场景告警：快照与当前库同版本且低于目标版本 */
+        private fun logUpgradePendingIfAny(current: CurrentDbInfo, backup: BackupValidation) {
             if (current.version < GameDatabaseConfig.DATABASE_VERSION &&
                 backup.version == current.version
             ) {
-                Log.w(TAG, "检测到迁移未完成 (v${current.version} → v" +
-                    "${GameDatabaseConfig.DATABASE_VERSION})，从迁移前备份恢复")
+                Log.w(TAG, "检测到版本升级未完成 (v${current.version} → v" +
+                    "${GameDatabaseConfig.DATABASE_VERSION})，从启动前快照恢复")
             }
         }
 
@@ -845,7 +766,7 @@ abstract class GameDatabase : RoomDatabase() {
                     Log.e(TAG, "文件覆盖失败，未执行恢复 (backup=${backupFile.absolutePath})")
                     return false
                 }
-                // 创建恢复 marker：迁移成功后由 verifyAndRecoverDatabase 清理
+                // 创建恢复 marker：重建成功后由 verifyAndRecoverDatabase 清理
                 try {
                     markerFile.writeText(RESTORE_ATTEMPT_MARKER_CONTENT)
                 } catch (e: Exception) {
@@ -861,18 +782,16 @@ abstract class GameDatabase : RoomDatabase() {
         }
 
         /**
-         * 扫描可用的迁移前备份文件。
+         * 扫描可用的启动前快照文件。
          *
-         * 备份版本化命名 `{db}.pre_migrate_backup.v{N}`，选择最高可用版本
+         * 快照版本化命名 `{db}.pre_migrate_backup.v{N}`，选择最高可用版本
          * （N ∈ 2..DATABASE_VERSION-1）——降级场景（高版本 App 回退）需要比
-         * 当前库版本低的备份；同时兼容旧的无版本后缀备份（`.pre_migrate_backup`）。
+         * 当前库版本低的快照。
          */
         private fun findVersionedBackup(dbFile: File): File? {
-            val legacy = File(dbFile.absolutePath + ".pre_migrate_backup")
-            val versioned = (2 until GameDatabaseConfig.DATABASE_VERSION).mapNotNull { v ->
+            return (2 until GameDatabaseConfig.DATABASE_VERSION).mapNotNull { v ->
                 File(dbFile.absolutePath + ".pre_migrate_backup.v$v").takeIf { it.exists() }
             }.maxByOrNull { it.name.substringAfterLast(".v").toIntOrNull() ?: -1 }
-            return versioned ?: legacy.takeIf { it.exists() }
         }
 
         /** 备份文件验证结果 */
@@ -891,7 +810,7 @@ abstract class GameDatabase : RoomDatabase() {
 
 
 
-// ==================== 迁移前备份恢复辅助（文件顶层私有） ====================
+// ==================== 启动前快照恢复辅助（文件顶层私有） ====================
 
 /** 备份文件验证结果 */
 private data class BackupValidation(val ok: Boolean, val rowCount: Int, val version: Int)
@@ -925,7 +844,7 @@ private fun readGameDataRowCount(db: SQLiteDatabase): Int {
     }
 }
 
-/** 验证迁移前备份文件可用性（integrity_check + user_version + game_data 行数 + 大小/行数上限） */
+/** 验证启动前快照文件可用性（integrity_check + user_version + game_data 行数 + 大小/行数上限） */
 @Suppress("ReturnCount", "TooGenericExceptionCaught") // 备份多失败守卫，多 return 为守卫风格
 private fun readBackupInfo(backupFile: File): BackupValidation {
     // 文件大小上限——恶意/损坏超大备份会占满磁盘
@@ -941,7 +860,7 @@ private fun readBackupInfo(backupFile: File): BackupValidation {
             cursor.close()
         }
     } catch (e: Exception) {
-        Log.e(TAG, "备份文件验证失败: ${backupFile.absolutePath}", e)
+        Log.e(TAG, "快照文件验证失败: ${backupFile.absolutePath}", e)
     }
     if (!ok) return BackupValidation(false, -1, -1)
     val rowCount = try {
@@ -949,12 +868,12 @@ private fun readBackupInfo(backupFile: File): BackupValidation {
             readGameDataRowCount(bdb)
         }
     } catch (e: Exception) {
-        Log.e(TAG, "备份文件行数读取失败: ${backupFile.absolutePath}", e)
+        Log.e(TAG, "快照文件行数读取失败: ${backupFile.absolutePath}", e)
         -1
     }
     // game_data 行数上限（正常每槽一行 ≤ 7）
     if (rowCount > MAX_BACKUP_GAME_DATA_ROWS) {
-        Log.w(TAG, "备份 game_data 行数异常 ($rowCount)，视为无效")
+        Log.w(TAG, "快照 game_data 行数异常 ($rowCount)，视为无效")
         return BackupValidation(false, -1, -1)
     }
     val version = try {
@@ -962,7 +881,7 @@ private fun readBackupInfo(backupFile: File): BackupValidation {
             readUserVersion(bdb)
         }
     } catch (e: Exception) {
-        Log.e(TAG, "备份文件版本读取失败: ${backupFile.absolutePath}", e)
+        Log.e(TAG, "快照文件版本读取失败: ${backupFile.absolutePath}", e)
         -1
     }
     return BackupValidation(ok, rowCount, version)
@@ -976,7 +895,7 @@ private fun readCurrentDbInfo(dbFile: File): CurrentDbInfo {
             readGameDataRowCount(cdb)
         }
     } catch (e: Exception) {
-        Log.w(TAG, "当前数据库无法打开，将直接使用备份覆盖", e)
+        Log.w(TAG, "当前数据库无法打开，将直接使用快照覆盖", e)
         -1
     }
     val version = try {

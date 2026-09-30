@@ -18,12 +18,9 @@ import java.io.File
  *   相加，四列字段本身保留；
  * - **功法数据面**（`ManualInstance.stats` map 的 "physicalAttack" 等字符串键）——
  *   Q2 拍板「150+ 功法数据与 codegen 一字不改」，结算层相加；
- * - **旧档归一化源**（`DiscipleSerializer.DiscipleSurrogate` 的 69..72/62..65/36..39
- *   deprecated 只读声明、`ItemEffect/PillEffect` 旧四列、`WorldLevel`
- *   旧列、`OldSerializableSaveData`；`AICaveDisciple` 链已随 v65 迁移整链退役）——
- *   旧档读取兼容面，禁复用号、暂不删声明；
- * - **迁移面**（`GameDatabaseMigrationsV62` 的 SQL 列名、`RoomMigration*Test` 的
- *   v61 种子/断言列名）——迁移的输入就是旧 schema；
+ * - **协议占位面**（`DiscipleSerializer.DiscipleSurrogate` 的 69..72/62..65/36..39
+ *   deprecated 只读声明、`ItemEffect/PillEffect` 旧四列、`WorldLevel` 旧列）——
+ *   号禁复用的只读声明，暂不删；
  * - **展示文案**（EFFECT_KEY_NAMES 物攻/法攻等 UI 键）——物品效果键非弟子属性。
  */
 class SingleColumnStatGuardTest {
@@ -40,11 +37,8 @@ class SingleColumnStatGuardTest {
         "EquipmentRegistry", "EquipmentFinalStats", "equipment_db",
         // 功法数据面（Q2 一字不改）
         "Manual", "manual_db",
-        // 旧档归一化源（兼容面）
-        "DiscipleSerializer", "OldSerializableSaveData", "ItemEffect", "Items",
-        "CultivatorCave", "WorldLevel",
-        // Room 迁移面（输入 = 旧 schema）
-        "GameDatabaseMigrations", "RoomMigration",
+        // 协议占位面（号禁复用只读声明）
+        "DiscipleSerializer", "ItemEffect", "Items", "CultivatorCave", "WorldLevel",
         // 战斗对拍桥的装备 JSON（equipment 段键）
         "battle_json",
     )

@@ -14,8 +14,8 @@ import java.io.File
  *    - 角色属性 `speed`（身法）：`FormulaService`/`HeavenlyTrialBuildOps` 的
  *      `var speed` 聚合、`Disciple`/`disciple_stats`/`battle`/`level_generator`
  *      等战力与身法面——与本守卫守护的「时间倍速」无关，不扫描；
- *    - `GameDatabaseMigrationsV11ToV20`/`RoomMigrationTest`：历史迁移 SQL 中的
- *      `gameSpeed` 是 v20 已删列的历史事实记录，非现行机制，不扫描。
+ *    - 历史迁移 SQL 中的 `gameSpeed` 是 v20 已删列的历史事实记录，非现行
+ *      机制（迁移链已随 SS0 整体退役），不扫描。
  * ③ 错误消息带操作指引（见 [GUARD_MESSAGE]）。
  *
  * 墙钟成本：纯文件读取 + 字符串包含判定，< 50ms，确定性单次迭代。

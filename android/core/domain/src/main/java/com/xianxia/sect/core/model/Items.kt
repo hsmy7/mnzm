@@ -28,16 +28,15 @@ sealed class GameItem : HasId {
 }
 
 /**
- * 旧装备堆叠（B3 起退役——仅作旧档补偿的**只读载体**保留声明，禁参与任何新逻辑）。
+ * 旧装备堆叠（B3 起退役——仅作 **SaveData(53) 协议占位**的只读载体保留声明，
+ * 禁参与任何新逻辑）。
  *
- * 保留原因（EQ-B1/B2「保留+归一化」先例）：旧 .sav/云档与 MIGRATION_63_64 影子表
- * （`legacy_equipment_stacks`/`legacy_equipment_instances`）中的堆叠/实例行需要
- * 可反序列化的载体，`LegacyEquipmentCompensationRule` 据此按 §5.4 折算补偿；
- * 补偿完成后该类型不再有写入点（R6：运行时装备一律一行一实例，无堆叠语义）。
- * `nurtureLevel(18)` 为 B3 搬运新增号（旧实例行 → 堆叠形搬运时携带孕养等级，
- * 供补偿公式 `basePrice × (1 + 0.5 × 已孕养等级/品阶满级)` 取值）。
+ * 保留原因（EQ-B1/B2「保留+归一化」先例）：proto 53 号已随旧字节落库，声明
+ * 保留使旧字节按未知字段语义可忽略、号禁复用；该类型无写入点（R6：运行时
+ * 装备一律一行一实例，无堆叠语义）。
+ * `nurtureLevel(18)` 为 B3 搬运新增号（历史搬运期携带孕养等级取值）。
  */
-@Deprecated("装备堆叠已随 B3 退役（一行一实例）；保留声明仅供旧档补偿折算，禁新增写入点")
+@Deprecated("装备堆叠已随 B3 退役（一行一实例）；保留声明仅作协议号占位，禁新增写入点")
 @Keep
 @Serializable
 data class EquipmentStack(
@@ -183,7 +182,7 @@ object LegacyEquipmentPrices {
  * `setId(60)/part(61)/growth(62)/meta(63)`；退役
  * `slot(3)/rarity(4)/description(7)/critChance(10)/nurtureLevel(13)/
  * nurtureProgress(14)/minRealm(15)/面板属性(50–56)`——旧档字节按未知字段
- * 忽略，禁复用；旧档实例在 MIGRATION_63_64 全部作废（R2 + §5.4 补偿）。
+ * 忽略，禁复用；旧档实例一律作废。
  */
 @Keep
 @Serializable
@@ -268,7 +267,7 @@ data class EquipmentInstance(
 @Serializable
 enum class EquipmentSlot {
     // 编号 0..3 为已退役的四部位（原 WEAPON/ARMOR/BOOTS/ACCESSORY）：保留 reserved
-    // 语义，禁复用（同名冲突仅 WEAPON 旧0/新14，由 MIGRATION_63_64 清空旧行兜底）。
+    // 语义，禁复用。
     @ProtoNumber(10) HEAD,      // 头部
     @ProtoNumber(11) BODY,      // 身体
     @ProtoNumber(12) HANDS,     // 手部

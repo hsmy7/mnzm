@@ -221,9 +221,9 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ### 7. 数据库规范
 
-**7.1 🔴 任何 Entity 变更必须有 Migration** — 每次变更：递增 `@Database(version)` + 编写 `MIGRATION_N_M` + 注册到 `build()`。**修改 `@Entity` 前必须先读 `rules/database-migration.md`**——最常见的存档损坏原因就是改字段没写 Migration。拿不准时保留旧字段 + 新字段（`@Ignore`），永远不要删列。
+**7.1 🔴 任何 Entity 变更必须有 Migration** — 每次变更：递增 `@Database(version)` + 编写 `MIGRATION_(N-1)_N` + 更新 `MigrationRequiredGuardTest` 基线（同 commit 三处）。**修改 `@Entity` 前必须先读 `rules/database-migration.md`**——缺迁移 = 老库被 `fallbackToDestructiveMigration` 静默重建。拿不准时保留旧字段 + 新字段（`@Ignore`），永远不要删列。
 
-**7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。用 `db.safeDropColumns()` 或保留旧列 + `@Ignore`。
+**7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。保留旧列 + `@Ignore`，或自写 create-copy-drop-rename 重建。
 
 **7.4 🔴 Migration 必须有测试** — 旧版本插入种子数据 → 运行迁移 → 验证数据完整性。
 

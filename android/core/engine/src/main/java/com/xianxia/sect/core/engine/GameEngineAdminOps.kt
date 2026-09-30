@@ -66,20 +66,3 @@ suspend fun GameEngine.sendAdminCompensation(
     DomainLog.i(TAG, "补偿邮件 $mailId 已注入到 slot=$slotId")
 }
 
-/**
- * 向指定存档注入白名单专属福利邮件（永久有效，每档一次）。
- *
- * 白名单判定与幂等保护均在
- * [com.xianxia.sect.core.engine.service.MailService.injectWhitelistBonus]
- * 内部完成（AdFreeWhitelist + mailRecords + Room DB 三重防护）。
- *
- * @param slotId 目标存档槽位
- */
-suspend fun GameEngine.sendWhitelistBonus(slotId: Int) {
-    val injected = mailService.injectWhitelistBonus(slotId)
-    if (injected) {
-        DomainLog.i(TAG, "白名单福利已注入 slot=$slotId")
-    } else {
-        DomainLog.i(TAG, "白名单福利跳过注入（slotId=$slotId）")
-    }
-}

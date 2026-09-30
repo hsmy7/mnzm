@@ -27,7 +27,7 @@ import org.junit.Test
  * 持有数据的独立条目（payload 非空）并从仓库扣减对应数量——防同一物品双持有。
  *
  * 覆盖（B3 语义：装备三类条目**原样保留不物化**——旧装备已整体作废，物化会
- * 丢失补偿源/污染新实例轨；引用式装备条目由 LegacyEquipmentCompensationRule
+ * 污染新实例轨；引用式装备条目悬空
  * 折算摘除，见主代码 KDoc）：
  * - 5 类堆叠条目铸造 payload + 仓库扣减（复制防护）
  * - 实例条目：manual_instance 从实例表取出入袋；equipment_instance 原样保留

@@ -54,7 +54,7 @@ import com.xianxia.sect.core.engine.restartGameSuspend
  * SaveLoadViewModel 云读档路径单元测试。
  *
  * 云读档管线的回归守卫：
- * 1. 云档写入本地前必须执行 saveVersion 迁移（v0→2）与完整性校验修复
+ * 1. 云档写入本地前必须执行完整性校验修复（saveVersion 为版本戳，仅作识别）
  * 2. 云档写入本地失败时必须中止（不再继续读档，避免读到旧数据）
  * 3. 游戏内云下载与加载流程重叠时必须拒绝（isLoading 保护）
  *

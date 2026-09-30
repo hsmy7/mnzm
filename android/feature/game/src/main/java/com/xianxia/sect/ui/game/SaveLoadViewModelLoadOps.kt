@@ -7,7 +7,6 @@ import com.xianxia.sect.core.engine.setSaveLoadFlags
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import kotlinx.coroutines.*
-import com.xianxia.sect.core.engine.sendWhitelistBonus
 import com.xianxia.sect.core.engine.clearActiveLoadJob
 
 // ── 读档流程（守卫/循环停止/落库/启动序列/标志复位）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
@@ -205,9 +204,6 @@ internal suspend fun SaveLoadViewModel.performLoadBoot(effectiveSlot: Int, start
     )
 
     if (bootResult.isSuccess) {
-        // 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
-        gameEngine.sendWhitelistBonus(effectiveSlot)
-
         val gd = gameEngine.gameData.value
         Log.i(SaveLoadViewModelConstants.TAG, "=== loadGame SUCCESS === " +
             "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +

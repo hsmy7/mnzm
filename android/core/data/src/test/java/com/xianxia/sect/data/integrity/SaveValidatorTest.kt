@@ -89,41 +89,38 @@ class SaveValidatorTest {
     }
 
     /**
-     * 恒空契约下的"合法存档"判据：默认注册表下 recruitList 恒空规则无条件
-     * 返回 Repaired（单条恒空修复）——details 恰为该单条即隐含其余规则零修复。
+     * "合法存档"判据：默认注册表下合法数据零修复（Passed）；recruitList
+     * 恒空由写入面保证（清空规则已随 SS0 退役），一并断言防回填。
      */
-    private fun assertOnlyRecruitListRepair(result: IntegrityResult) {
-        assertTrue("预期仅招募恒空修复的 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
-        result as IntegrityResult.Repaired
-        assertEquals(listOf("招募链已下线，招募列表清空"), result.details)
-        assertTrue(result.data.gameData.recruitList.isEmpty())
+    private fun assertValidNoRepair(result: IntegrityResult) {
+        assertTrue("预期零修复的 Passed，实际得到 $result", result is IntegrityResult.Passed)
     }
 
-    // ── 1. 合法存档（恒空契约下 = 仅招募恒空修复） ─────────────
+    // ── 1. 合法存档（零修复） ─────────────
 
     @Test
-    fun `validate - all fields valid - 仅招募恒空修复`() {
+    fun `validate - all fields valid - 零修复`() {
         val data = minimalValidSaveData()
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        assertValidNoRepair(SaveValidator.validate(data))
     }
 
     @Test
-    fun `validate - valid disciples with equipment instance - 仅招募恒空修复`() {
+    fun `validate - valid disciples with equipment instance - 零修复`() {
         val instance = makeEquipmentInstance("eq-1")
         val disciple = makeDisciple(weaponId = "eq-1")
         val data = minimalValidSaveData().copy(
             equipmentInstances = listOf(instance),
             disciples = listOf(disciple)
         )
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        assertValidNoRepair(SaveValidator.validate(data))
     }
 
     @Test
-    fun `validate - cultivation at exact boundary - 仅招募恒空修复`() {
+    fun `validate - cultivation at exact boundary - 零修复`() {
         // 炼气 1 层: base=50, next=200, layers=9 → max = 50 + 0*(200-50)/9 = 50
         val disciple = makeDisciple(realm = 9, realmLayer = 1, cultivation = 50.0)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        assertValidNoRepair(SaveValidator.validate(data))
     }
 
     // ── 2. SectName ───────────────────────────────────────────
@@ -285,7 +282,7 @@ class SaveValidatorTest {
             equipmentInstances = listOf(instance),
             disciples = listOf(disciple)
         )
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        assertValidNoRepair(SaveValidator.validate(data))
     }
 
     @Test
@@ -321,7 +318,7 @@ class SaveValidatorTest {
             residenceSlots = listOf(slot)
         )
         val data = minimalValidSaveData().copy(gameData = gd)
-        assertOnlyRecruitListRepair(SaveValidator.validate(data))
+        assertValidNoRepair(SaveValidator.validate(data))
     }
 
     @Test
@@ -349,9 +346,11 @@ class SaveValidatorTest {
         )
         val data = minimalValidSaveData().copy(gameData = gd)
         val result = SaveValidator.validate(data)
-        assertOnlyRecruitListRepair(result)
-        val slotKept = (result as IntegrityResult.Repaired).data.gameData.residenceSlots
-        assertEquals("空 buildingInstanceId 槽位不得被清除", 1, slotKept.size)
+        assertValidNoRepair(result)
+        assertEquals(
+            "空 buildingInstanceId 槽位不得被清除", 1,
+            minimalValidSaveData().copy(gameData = gd).gameData.residenceSlots.size
+        )
     }
 
     // ── 8. Edge cases ─────────────────────────────────────────
@@ -524,8 +523,8 @@ class SaveValidatorTest {
             disciples = listOf(disciple), gameData = gd
         )
         val result = SaveValidator.validate(data)
-        assertOnlyRecruitListRepair(result)
-        val slots = (result as IntegrityResult.Repaired).data.gameData.residenceSlots
+        assertValidNoRepair(result)
+        val slots = data.gameData.residenceSlots
         assertEquals("合法槽位引用应保留", 1, slots.size)
         assertEquals("d-1", slots.first().discipleId)
     }
@@ -538,11 +537,10 @@ class SaveValidatorTest {
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         assertTrue(repaired.data.disciples.isEmpty())
-        // 修复条目 = 幽灵弟子清理（order=10）+ 招募恒空（order=20），
+        // 修复条目 = 幽灵弟子清理（order=10）唯一一条，
         // 不应有 residence slot 相关修复
-        assertEquals(2, repaired.details.size)
-        assertTrue(repaired.details.first().contains("幽灵弟子"))
-        assertEquals("招募链已下线，招募列表清空", repaired.details.last())
+        assertEquals(1, repaired.details.size)
+        assertTrue(repaired.details.single().contains("幽灵弟子"))
     }
 
     // ── 11. C8：注册表 clear 后自动重新注册 ──────────────────────
@@ -551,7 +549,7 @@ class SaveValidatorTest {
     fun `validate - registry cleared then validate - re-registers defaults`() {
         // 守卫：clear 后再次 validate 必须按注册表规模重新注册默认规则
         //（空规则集会使损坏数据全部误判 Passed）
-        assertOnlyRecruitListRepair(SaveValidator.validate(minimalValidSaveData()))
+        assertValidNoRepair(SaveValidator.validate(minimalValidSaveData()))
 
         com.xianxia.sect.data.integrity.rules.SaveValidationRuleRegistry.clear()
         assertEquals("clear 后注册表为空", 0, com.xianxia.sect.data.integrity.rules.SaveValidationRuleRegistry.size)

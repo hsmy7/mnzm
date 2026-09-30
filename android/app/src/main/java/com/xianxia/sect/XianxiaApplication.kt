@@ -136,6 +136,9 @@ class XianxiaApplication : Application() {
         assembleTrimBridgeActions()
         initCrashProtection()
         initBuglyAndMmkv()
+        // 单存档测试期删档重置（SS0）：幂等标记内控；必须在 Room 库首次打开
+        //（Hilt 注入 GameDatabase）之前执行，删文件才安全
+        com.xianxia.sect.data.wipe.SaveWipeCoordinator.wipeIfNeeded(this)
 
         // changelog_entries.json（129KB JSON 全量解析）在 AppStartup-Init 后台执行器
         // 解析。唯一消费者是设置页更新日志（SettingsTab，用户触达时后台解析早已完成）；

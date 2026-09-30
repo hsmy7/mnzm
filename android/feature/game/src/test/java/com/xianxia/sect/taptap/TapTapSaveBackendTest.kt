@@ -4,10 +4,12 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.model.SaveData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.junit.Assert.assertNull
-import org.junit.Test
 
 /**
  * TapTapSaveBackend 纯映射单测（槽位命名 / extra saveId / 错误码分类）——
@@ -27,24 +29,40 @@ class TapTapSaveBackendTest {
         seeds = emptyList()
     )
 
-    // ── 槽位 ↔ 云端命名（SR-0 §3.4：slot_N + 存量单档）──
+    // ── 槽位 ↔ 云端命名（v2 命名基线；旧协议命名零识别）──
 
     @Test
-    fun `archiveNameFor - slot0 映射存量单档 1至6 映射 slot_N`() {
-        assertEquals("mnzm_cloud_save", TapTapSaveBackend.archiveNameFor(0))
-        assertEquals("slot_1", TapTapSaveBackend.archiveNameFor(1))
-        assertEquals("slot_6", TapTapSaveBackend.archiveNameFor(6))
+    fun `archiveNameFor - slot0 映射云会话单档 1至6 映射 v2 槽位命名`() {
+        assertEquals("mnzm_v2_save", TapTapSaveBackend.archiveNameFor(0))
+        assertEquals("mnzm_v2_slot_1", TapTapSaveBackend.archiveNameFor(1))
+        assertEquals("mnzm_v2_slot_6", TapTapSaveBackend.archiveNameFor(6))
     }
 
     @Test
-    fun `slotFromArchiveName - 槽位命名可逆且非法命名返回 null`() {
-        assertEquals(0, TapTapSaveBackend.slotFromArchiveName("mnzm_cloud_save"))
-        assertEquals(3, TapTapSaveBackend.slotFromArchiveName("slot_3"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("slot_0"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("slot_7"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("slot_abc"))
-        // 其他设备/历史遗留命名：保留不动（oneTimeCleanup 同纪律），不参与槽位映射
+    fun `slotFromArchiveName - v2 命名可逆且旧协议命名一律失联`() {
+        assertEquals(0, TapTapSaveBackend.slotFromArchiveName("mnzm_v2_save"))
+        assertEquals(3, TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_3"))
+        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_0"))
+        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_7"))
+        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_abc"))
+        // 旧协议命名（SS0 删档重置前）：零读取路径，旧云档失联
+        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_cloud_save"))
+        assertNull(TapTapSaveBackend.slotFromArchiveName("slot_3"))
+        // 其他设备/非本游戏命名：不参与槽位映射
         assertNull(TapTapSaveBackend.slotFromArchiveName("some_other_device_save"))
+    }
+
+    @Test
+    fun `isLegacyArchiveName - 仅旧协议命名命中`() {
+        assertTrue(TapTapSaveBackend.isLegacyArchiveName("mnzm_cloud_save"))
+        assertTrue(TapTapSaveBackend.isLegacyArchiveName("slot_1"))
+        assertTrue(TapTapSaveBackend.isLegacyArchiveName("slot_6"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_save"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_1"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_0"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_7"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_abc"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("some_other_device_save"))
     }
 
     // ── extra JSON saveId（云端 W 回带；存量档无字段 = null，U11 保守退化）──

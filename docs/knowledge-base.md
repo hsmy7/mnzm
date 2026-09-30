@@ -164,7 +164,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | `EquipmentLevelSystem` / `EquipmentUpgradeService` | core/engine | 升级 1–30（替换孕养）：曲线 `100×level×rarityMul`、每 3 级强化一条副词条、分解返还 50%；升级/分解走 native 事务（ActionId 1486/1487，C++ `equipment_tx.h`） |
 | `EquipStatResolver` | core/engine | 词条+套装加成解析单点（2/4/6 档相加口径）；**恒等键整解析缓存**（4096 清空护栏；值语义键深哈希 6.3× 劣化实测否定，勿翻案） |
 | `DiscipleEquipmentService` / `DiscipleEquipmentManager` | core/engine | 穿卸单轨六部位（卸装 = 实例保留 `isEquipped=false`，非删除）；`DiscipleSurrogate` 六部位列 headId(112)..legsId(116) 扁平代理 |
-| `LegacyEquipmentCompensationRule` / `EquipmentValueSanitizeRule` | core/data integrity | 旧装备 100% basePrice 折算补偿（order=27，1 亿上限、幂等）/ 词条完整性消毒（order=28，coerce 双端一致） |
+| `EquipmentValueSanitizeRule` | core/data integrity | 词条完整性消毒（order=28，coerce 双端一致）；旧装备折算补偿规则（原 order=27）已随 SS0 删档重置退役 |
 | C++ 对偶 | `gamecore/data/equip_*.h`、`equipment_tx.h`、`equipment_factory.h`、`equipment_entries.h` | AUTHORITATIVE 真相源：装备事务/词条抽取/套装结算与 Kotlin 逐位对拍（`DiffEquipmentUpgradeTest` + `equip_*_test.cpp`） |
 | codegen 链 | `scripts/data/equipment_db_sample.json` + `scripts/gen-templates.mjs` / `gen-game-data.mjs` | 静态数据单一真源（E4 禁手改生成物；G0 幂等门 + `TemplateCodegenIntegrityGuardTest`） |
 
@@ -397,7 +397,7 @@ TapTap Cloud Save API   ← createArchive / updateArchive / getArchiveList / get
 
 - **slot 0 = 云存档入口** — 在游戏内存档管理弹窗显示"云"图标 + 云端存档信息（宗门/年份/弟子/灵石），与本地存档操作一致（主菜单选档页已于 2026-10-01 退役）
 - **UUID 缓存** — 第一次上传成功后本地缓存云端 Archive UUID，后续直接 `updateArchive(uuid)` 避免创建重复存档
-- **一次性孤岛清理** — 老玩家首次上传前清理云端非 `mnzm_cloud_save` 名称的孤立存档，避免 TapTap 100 存档限制（400003）
+- **一次性旧档清理** — 首次上传前删除当前账号下全部旧协议命名档（`mnzm_cloud_save`/`slot_N`，SS0 删档重置第二保险；v2 命名之外的非本游戏命名档不动），单档删除失败不阻断
 - **反射桥接** — 使用 `java.lang.reflect.Proxy` 动态代理适配 TapTap SDK，兼容 XDSDK 和原生 SDK 两套 API
 
 ### 反射 API 确认
@@ -428,8 +428,7 @@ com.taptap.sdk.cloudsave.ArchiveData      ← getUuid/getFileId/getName/getSumma
 
 下载的云存档写入本地前依次执行：
 
-1. **版本迁移** `SaveDataVersionMigrator.migrate` — saveVersion 顺序迁移（v0→1 修炼值缩放、v1→2 外交关系升级）。本地读档（`StorageEngine.loadFromDatabaseInternal`）与云存档加载共用同一迁移器（从 StorageEngine 提取），旧云档不再跳过迁移
-2. **完整性校验** `SaveValidator.validate` — 损坏（Corrupted）拒绝加载并提示；可修复（Repaired）自动修复后继续
+1. **完整性校验** `SaveValidator.validate` — 损坏（Corrupted）拒绝加载并提示；可修复（Repaired）自动修复后继续。saveVersion 为云档版本戳（`SaveVersion.CURRENT`，写入时盖章；顺序迁移器已随 SS0 删档重置退役）
 3. **堆叠重建** `SaveDataReconciler.reconcileStacks` — 旧格式云档无堆叠数据时从实例重建
 
 写入本地失败（低内存/编码失败）**必须中止并明确提示**，不再静默继续读档误读旧数据。游戏内下载（`performCloudDownload`）同样经过上述管线并**持久化到本地 DB**（重启不再丢失），且与加载流程重叠时拒绝执行（isLoading 保护）。
@@ -447,7 +446,7 @@ Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物
 - **初始化**: `mailService.resetAndInitSlot()` 在世界初始化后调用
 - **清理**: `StorageEngine.delete()` 清理已删档位的 mails 表
 - **RNG 分区（2026-07-26）：** 邮件奖励随机生成使用 `RngPartition.MAIL` 分区 PRNG，通过 `GameRngManager` 注入到 `MailService` 和 `RedeemCodeService`，所有 `generateRandom*` 调用传入一致的 RNG 实例。
-- **邮件来源收敛（2026-09-15）：** 仅保留节日/内置邮件（`loadBuiltinMails`）与白名单福利（`injectWhitelistBonus`）两条运营注入通道 + 功能性邮件（溢出/秘境关闭 + `sendAdminCompensation` 通用工具）；在线邮件月度拉取（原 `fetchOnlineMails`/`MailSystem`）、单用户定向注入（专属福利/储物袋补偿）与旧档天枢殿拆除补偿迁移（`filterLegacyTianshuHalls`/`migrateLegacyTianshuHalls`）已整体删除——天枢殿回归 `fixupBuildingSizes` 正常尺寸修正，读档绝不拆除；存量邮件不清理、自然过期。
+- **邮件来源收敛（2026-09-15，SS0 再收敛）：** 运营注入通道仅剩节日/内置邮件（`loadBuiltinMails`，28 封）+ 管理员通用补偿（`sendAdminCompensation`）；QQ 群引导邮件与白名单福利邮件（`injectWhitelistBonus`/`sendWhitelistBonus`）已随 SS0 删除（白名单只留免广告特权）；功能性邮件（溢出/秘境关闭）保留；在线邮件月度拉取、单用户定向注入与旧档天枢殿拆除补偿迁移已删除；存量邮件不清理、自然过期。
 
 ---
 
@@ -640,7 +639,7 @@ fun watchAdForNewFeature() {
 | 激励视频广告位 | 仅 1 个：`JADE_SYMBOL_BONUS`（观看广告获得玉符） | `AdPurpose` 枚举：`core/engine/.../service/AdService.kt` |
 | 广告调用链 | `AdService`（接口）→ `AdServiceImpl`（app 层，白名单守卫集中检查）→ `RewardVideoAdManager`（TapTap SDK 封装，冷却+每日次数限制） | `:app/.../taptap/AdServiceImpl.kt`、`AdsDelegate.kt` |
 | IAP/内购 | **0 个付费点**（无月卡/战令/礼包/直购） | 无代码 |
-| 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时/`minVersion` 门槛/QQ 群引导）+ 白名单福利 `injectWhitelistBonus`；在线月度拉取、单用户定向注入与天枢殿拆除补偿迁移已于 2026-09-15 删除（存量自然过期）；管理员通用补偿入口 `GameEngineAdminOps.sendAdminCompensation` 保留 | `core/engine/.../config/BuiltinMailConfig.kt`、`MailService.kt` |
+| 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时 + `minVersion` 门槛，28 封；QQ 群引导与白名单福利已随 SS0 删除）；在线月度拉取、单用户定向注入与天枢殿拆除补偿迁移已于 2026-09-15 删除（存量自然过期）；管理员通用补偿入口 `GameEngineAdminOps.sendAdminCompensation` 保留 | `core/engine/.../config/BuiltinMailConfig.kt`、`MailService.kt` |
 | 远程配置 | **未绑定**：`CoreModule.kt:157` 的 `HttpRemoteConfigProvider` 处于注释状态，`ConfigLoader(assetReader)` 无远程；接口 `RemoteConfigProvider`（core/domain）+ 实现 `HttpRemoteConfigProvider`（core/engine，10s 超时）已存在 | `:app/.../di/CoreModule.kt:156-158`、`core/domain/.../config/RemoteConfigProvider.kt` |
 | 免广告白名单 | `AdFreeWhitelist` + `GameConfig.Whitelist.AD_FREE_UNION_IDS`（硬编码）+ 专属福利邮件 | 见"免广告特权白名单"章节 |
 | 更新日志 | 游戏内 `android/app/src/main/assets/changelog_entries.json`（本地 asset，`core/data/.../ChangelogData.kt` 解析） | `ChangelogData.kt:39` |
@@ -678,7 +677,6 @@ fun watchAdForNewFeature() {
 | `#breakthrough_success` | 引擎 `DiscipleBreakthroughHandler` 突破成功 | realm, realm_layer, disciple_name | 自定义 |
 | `#breakthrough_first` | 突破成功首次（`FirstEventTracker` 去重） | realm | 自定义 |
 | `#ad_reward_claim` | 广告奖励验证通过（AdServiceImpl.onRewardVerify） | purpose, reward_name, reward_amount | 自定义 |
-| `#save_migration_result` | 主菜单存量迁移引导收口（`SaveMigrationCoordinator` 进入 DONE / PARTIAL_FAILED 时边沿触发一次，`start()` 复位） | pending_total, migrated_total, conflict_total, blocked_total, mode_after | 自定义（SR-6 完成率指标；**TapDB 后台「事件管理」待录入**） |
 | `game_start` | GameActivity PLAYING（兼容旧事件） | sect_name, game_version | 兼容 |
 | `battle_end` | 引擎 `CaveExplorationProcessor`（兼容旧事件） | outcome, enemy_type, turns, team_size | 兼容 |
 
@@ -724,8 +722,8 @@ fun watchAdForNewFeature() {
 | 产（源） | 宗门交易/商人 | 出售物品/灵石商品 | `SectTradeDialog`、`MerchantAndRecruitService.kt` |
 | 产（源） | 运营发放 | 兑换码/节日邮件/白名单 1000 万灵石邮件（每日签到已移除 2026-08-07） | `RedeemCodeService`、`BuiltinMailConfig` |
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
-| 产（源） | **孕养丹退役补偿**（装备重构 B2/R11，**纯新增源**、一次性） | 旧档存量孕养类丹药（`nurtureSpeed_*`/`nurtureAdd_*` 两族 36 id）按退役时刻价格快照 100% 折算灵石，单封补偿邮件发放（source=`nurture_pill_retirement`，永久有效）；**单档上限 2000 万灵石**，超出按比例截断并记日志；幂等标记 `GameData.nurturePillsRetired`(168) 同事务；额度量级=存量×原价（tier6 中品单颗 2688 万必触上限），**产出缺口**：奖励池/商店/兑换码的孕养丹条目随模板退役移除，原孕养丹产出通道灵石消耗同步消失（负向缺口已随体系退役，无需补位） | `NurturePillRetirementRule`（core/data integrity，order=26） |
-| 产（源） | **旧装备折算补偿**（装备重构 B3/R2，**纯新增源**、一次性） | 旧档全部旧装备（72 旧模板，含仓库堆叠/储物袋/已穿戴）按 100% `basePrice` 折算灵石，补偿邮件发放；**单档上限 1 亿灵石**，超出按比例截断并记日志；幂等标记（game_data 补偿标记列，Room v64 迁移同批新增）同事务；迁移链见 `GameDatabaseMigrationsV64`（影子表 `legacy_equipment_stacks` 为补偿数据源） | `LegacyEquipmentCompensationRule`（core/data integrity，order=27） |
+| 产（源） | ~~孕养丹退役补偿~~（装备重构 B2/R11 引入，**已随 SS0 删档重置退役**——规则与补偿邮件链删除，幂等标记 `GameData.nurturePillsRetired`(168) 字段保留防协议号漂移） | — | — |
+| 产（源） | ~~旧装备折算补偿~~（装备重构 B3/R2 引入，**已随 SS0 删档重置退役**——规则/影子表读取器删除，幂等标记字段保留防协议号漂移） | — | — |
 | 产（源） | **装备分解返还**（装备重构 B3，装备线新汇的配套回收） | 分解已升级装备返还 **50% 累计升级消耗**（灵石+兽材，向下取整；锁定/已穿戴拒绝分解）；T6 满级单件返还 783,000 灵石 + 19 兽材（测试断言锚）。返还率 50% 低于重取期望成本——抑制"分解/重取"循环放大波动（方案 R15） | `EquipmentUpgradeService`（core/engine）、C++ `equipment_tx.h`（ActionId 1487） |
 | 耗（汇） | **装备升级消耗**（装备重构 B3/B4，装备线主消耗汇） | 公式：灵石 `100 × rarity² × level`/级 + 兽材 `max(1, floor(level/10))` 件/级；T6 单件 1→30 累计 **1,566,000 灵石 + 39 兽材**，一套六件满级 **9,396,000 灵石 + 234 兽材**；升级走 native 事务（ActionId 1486，先验后扣、失败臂零消费）。**月产出锚 `M` = 9,400,000 灵石/月**（`EquipmentEconomyCalibrationTest.STANDARD_MONTH_OUTPUT_AT_T6_STAGE`，T6 可穿阶段标准月画像，**拍板口径反推定锚、非测量值**，上线后以运营数据回标；量级交叉核对 = T6 物品市价 2,688 万 ≈ 2.9 个月产出）：满级一套 ÷ M = **0.9996** ∈ [0.75,1.25]（拍板 #4"一套满级 ≈ 1 个月"验收锚） | `EquipmentLevelSystem`/`EquipLevelCurve`（core/engine）、`EquipmentEconomyCalibrationTest` |
 | 耗（汇） | **装备锻造**（装备重构 B3，装备线第二消耗汇） | 12 配方**天然定向**套装+部位（旧 73 配方退役）；品阶受职业等级上限钳制、T6 成功率 25%、**失败材料整耗**、主词条每炉重 roll；理想套（理想主词条+T6）期望 **88 次锻造**（头 8/身 16/手 12/脚 20/武 12/腿 20 单件；掉落链对照 11,389 件掉落——期望成本全景见方案 §九 I9）；与升级消耗 940 万灵石叠加构成装备线双汇，已可审计 | `ForgeRecipeDatabase`、`BuildingService` 锻造链、C++ `equipment_factory.h` |

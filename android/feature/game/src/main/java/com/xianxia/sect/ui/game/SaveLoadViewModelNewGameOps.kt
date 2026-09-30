@@ -4,7 +4,6 @@ import android.util.Log
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import kotlinx.coroutines.*
-import com.xianxia.sect.core.engine.sendWhitelistBonus
 import com.xianxia.sect.core.engine.createNewGame
 import com.xianxia.sect.core.engine.updateGameData
 
@@ -106,9 +105,6 @@ internal suspend fun SaveLoadViewModel.performNewGameBoot(slot: Int, startTime: 
 
     if (bootResult.isSuccess) {
         loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_COMPLETE
-
-        // 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
-        gameEngine.sendWhitelistBonus(slot)
 
         val gd = gameEngine.gameData.value
         Log.i(SaveLoadViewModelConstants.TAG, "=== startNewGame SUCCESS === " +

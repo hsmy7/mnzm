@@ -63,9 +63,8 @@ class RedeemCodeTest {
 
     @Test
     fun redeemRewardType_wireValueIsOrdinalPlusOne_insertMustAppendAtTail() {
-        // 本仓存在「枚举按 ordinal+1 上 wire」的先例
-        // （core/data/.../serialization/backwardcompat/OldSerializableSaveData.kt:522 一族），
-        // 因此枚举的**声明序本身**就是存档面资产：删/插中间项会让其后所有取值的
+        // 枚举一旦上 wire，「按 ordinal+1 编号」是其唯一稳定契约：
+        // 声明序本身即存档面资产——删/插中间项会让其后所有取值的
         // 序号整体前移/后移，旧档静默错位。
         // RedeemRewardType 当前不落 Room 也不进 ProtoBuf（见其 KDoc），
         // 本断言把现状钉死：一旦将来上 wire，只有满足「末位追加」的改动才不会伤旧档。

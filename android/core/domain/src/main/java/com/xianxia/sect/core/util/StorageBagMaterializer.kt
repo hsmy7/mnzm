@@ -38,7 +38,7 @@ data class BagMaterializeInput(
  * 规则（对每条 `!isMaterialized` 条目）：
  * - **装备三类条目（equipment/equipment_stack/equipment_instance）原样保留不物化**
  *   （B3 装备体系替换：旧装备已整体作废，物化会污染新实例轨/丢失补偿源——
- *   引用式条目由 `LegacyEquipmentCompensationRule` 折算摘除）；
+ *   引用式条目悬空时按防复制删除清点）；
  * - manual_stack：从对应仓库堆叠扣 1 份 → 铸造 [BagStackedData]
  *   （minRealm/manualType 供取回重建，不依赖模板）
  * - manual_instance：从实例表取出完整实例 → 存入袋条目，实例从表删除
