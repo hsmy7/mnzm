@@ -522,7 +522,7 @@ inline gamecore::battle::Combatant secretRealmBeast(
     b.attack = std::max(pre.attack, 0);
     b.defense = std::max(pre.defense, 0);
     b.speed = std::max(pre.speed, 0);
-    b.critRate = 0.05 + realmIndex * 0.01;
+    b.critRate = 0.0;  // 敌人不暴击（暴击系统口径）
     b.realm = realmIndex;
     b.realmLayer = pre.realmLayer;
     b.element = type->element;

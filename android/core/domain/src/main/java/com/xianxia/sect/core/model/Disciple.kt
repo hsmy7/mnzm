@@ -329,7 +329,14 @@ data class DiscipleStats(
     val mining: Int = 0,
     val spiritPlanting: Int = 0,
     val artifactRefining: Int = 0,
-    val pillRefining: Int = 0
+    val pillRefining: Int = 0,
+    /**
+     * 暴击伤害加成：暴击时伤害倍率 = `1 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + 本字段`。
+     * 来源 = 装备（含套装）critDamage 词条 + 丹药暴击效果（pillCritEffectBonus），
+     * 由属性结算管线派生累加；面板展示与 Combatant 装配直读本字段。
+     * 追加在字段末尾（kotlinx-proto 隐式字段号按声明序，插入中部会漂移旧档解码）。
+     */
+    val critDamageBonus: Double = 0.0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -349,7 +356,8 @@ data class DiscipleStats(
             mining = mining + other.mining,
             spiritPlanting = spiritPlanting + other.spiritPlanting,
             artifactRefining = artifactRefining + other.artifactRefining,
-            pillRefining = pillRefining + other.pillRefining
+            pillRefining = pillRefining + other.pillRefining,
+            critDamageBonus = critDamageBonus + other.critDamageBonus
         )
     }
 }

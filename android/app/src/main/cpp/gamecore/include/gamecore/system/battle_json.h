@@ -155,7 +155,7 @@ inline Combatant combatantFromJson(const nlohmann::json& j) {    Combatant c;
     c.fireDamageReduction = j.value("fireDamageReduction", 0.0);
     c.earthDamageReduction = j.value("earthDamageReduction", 0.0);
     c.speed = j.value("speed", 0);
-    c.critRate = j.value("critRate", 0.05);
+    c.critRate = j.value("critRate", 0.0);
     c.critDamageBonus = j.value("critDamageBonus", 0.0);
     if (j.contains("skills") && j["skills"].is_array()) {
         for (const auto& s : j.at("skills")) c.skills.push_back(skillFromJson(s));

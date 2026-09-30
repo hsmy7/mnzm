@@ -210,8 +210,8 @@ object EnemyGenerator {
             attack = attack,
             defense = defense,
             speed = speed,
-            // 基础暴击(与玩家 BASE_CRIT_RATE 一致) + 境界暴击 + 装备 + 功法暴击
-            critRate = 0.05 + realm * 0.01 + equipmentStats.critRate + manualStats.critChance,
+            // 敌人不暴击（暴击系统口径：敌人无暴击来源，恒 0）
+            critRate = 0.0,
             skills = if (skills.isNotEmpty()) skills else listOf(createDefaultAttackSkill()),
             realm = realm,
             realmName = GameConfig.Realm.getName(realm),
@@ -260,8 +260,8 @@ object EnemyGenerator {
      * 功法属性累加器。
      *
      * 与 DiscipleStatCalculator.computeFinalStats 的功法逻辑逐字一致：
-     * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起），
-     * critRate 为百分比值 ÷ 100。
+     * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起）。
+     * 暴击词条不消费——敌人生成不暴击（暴击系统口径）。
      */
     /** 功法属性累加器（单列口径 B1：物法攻/防相加进 attack/defense，Q2 结算层相加） */
     internal class ManualStatsAccumulator {
@@ -275,8 +275,6 @@ object EnemyGenerator {
             private set
         var speed: Int = 0
             private set
-        var critChance: Double = 0.0
-            private set
 
         fun add(manual: ManualInstance, masteryLevel: Int) {
             val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
@@ -289,15 +287,13 @@ object EnemyGenerator {
             defense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
                 ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
             speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
-            critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
         }
     }
 
     /**
      * 装备属性累加器（装备重构 B3 新口径）：逐件 `totalBonus()` 累加——
-     * ATTACK/DEFENSE/HP 为 flat（Int 取整），CRIT_RATE 为比例值直加；
-     * CRIT_DAMAGE 与乘区项（ATTACK_PCT/物理/法术伤害%）的战斗公式消费点
-     * 待 B4 接线，此处跳过不崩。装备不提供速度/灵力（S14）。
+     * ATTACK/DEFENSE/HP 为 flat（Int 取整）。敌人生成不消费暴击/乘区词条
+     * （敌人不暴击口径），跳过不崩。装备不提供速度/灵力（S14）。
      */
     private class EquipmentStatsAccumulator {
         var attack: Int = 0
@@ -306,8 +302,6 @@ object EnemyGenerator {
             private set
         var hp: Int = 0
             private set
-        var critRate: Double = 0.0
-            private set
 
         fun add(instance: EquipmentInstance) {
             instance.totalBonus().forEach { bonus ->
@@ -315,7 +309,6 @@ object EnemyGenerator {
                     EquipStat.ATTACK -> attack += bonus.value.toInt()
                     EquipStat.DEFENSE -> defense += bonus.value.toInt()
                     EquipStat.HP -> hp += bonus.value.toInt()
-                    EquipStat.CRIT_RATE -> critRate += bonus.value
                     else -> {}
                 }
             }

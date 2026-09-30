@@ -52,21 +52,24 @@ class DiffBattleTest {
     private fun finalDamageOp(
         rawAttack: Int, defense: Int, skillMultiplier: Double = 1.0,
         zones: JsonObject = zonesJson(), isCrit: Boolean = false, variance: Double = 1.0,
+        critDamageBonus: Double = 0.0,
     ) = buildJsonObject {
         put("op", "finalDamage"); put("rawAttack", rawAttack); put("defense", defense)
         put("skillMultiplier", skillMultiplier); put("zones", zones)
         put("isCrit", isCrit); put("variance", variance)
+        put("critDamageBonus", critDamageBonus)
     }
 
     /** Kotlin 基准：复刻 calculateFinalDamage（无 Combatant 依赖） */
     private fun kotlinFinalDamage(
         rawAttack: Int, defense: Int, skillMultiplier: Double,
         zones: com.xianxia.sect.core.util.DamageZones, isCrit: Boolean, variance: Double,
+        critDamageBonus: Double = 0.0,
     ): Int {
         val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
-        val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
+        val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + critDamageBonus else 1.0
         return (preCritDamage * critMult
             * (1.0 + zones.damageAmplification + zones.typeDamageBonus)
             * (1.0 + zones.realmGapDamageAmplification)
@@ -115,6 +118,26 @@ class DiffBattleTest {
         assertEquals(
             kotlinFinalDamage(100, 0, 1.0, kotlinZones(), true, 1.0),
             cpp["value"]!!.toString().toInt()
+        )
+    }
+
+    @Test
+    fun `final damage crit with crit damage bonus matches Kotlin`() {
+        // 暴击伤害接线对拍：critDamageBonus 只进暴击倍率（1 + 基础暴伤 + 加成）
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        val op = finalDamageOp(100, 0, isCrit = true, critDamageBonus = 0.25)
+        val cpp = cppOp(op)
+        assertEquals(
+            kotlinFinalDamage(100, 0, 1.0, kotlinZones(), true, 1.0, critDamageBonus = 0.25),
+            cpp["value"]!!.toString().toInt()
+        )
+        val nonCritOp = finalDamageOp(100, 0, isCrit = false, critDamageBonus = 0.25)
+        val nonCritCpp = cppOp(nonCritOp)
+        assertEquals(
+            "非暴击不消费暴伤加成",
+            kotlinFinalDamage(100, 0, 1.0, kotlinZones(), false, 1.0),
+            nonCritCpp["value"]!!.toString().toInt()
         )
     }
 

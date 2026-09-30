@@ -190,7 +190,7 @@ object BattleCalculator {
      * - 防御减伤率 = defense / (defense + DEFENSE_CONSTANT)（单列，与类型无关）
      * - 类型增伤/减伤 = zones.typeDamageBonus / typeDamageReduction（类型通道结算位，
      *   默认 0.0 时与无类型通道的基准公式逐位一致，S19）
-     * - critMult = 暴击时 (1 + 基础暴伤)，非暴击时 1.0
+     * - critMult = 暴击时 (1 + 基础暴伤 + 攻击方暴伤加成)，非暴击时 1.0
      * - 境界压制增伤/减伤：独立乘算因子（不进任何加算乘区被稀释），
      *   由 buildDamageZones 按双方小层差距填充，至多一个因子生效
      * - 大境界增伤：独立乘算因子（不进任何加算乘区被稀释），每高 1 大境界 +100%（累加不封顶），
@@ -202,13 +202,14 @@ object BattleCalculator {
         skillMultiplier: Double,
         zones: DamageZones,
         isCrit: Boolean,
-        variance: Double
+        variance: Double,
+        critDamageBonus: Double = 0.0
     ): Int {
         val effectiveAttack = rawAttack.toDouble()
         val reduction = defense / (defense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) {
-            1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER
+            1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + critDamageBonus
         } else {
             1.0
         }
@@ -273,6 +274,8 @@ object BattleCalculator {
         val innateDamageType: DamageType get() = DamageType.PHYSICAL
         val speed: Int
         val critRate: Double
+        /** 暴击伤害加成（暴击时 critMult = 1 + 基础暴伤 + 本字段；Combatant 装配值，默认 0） */
+        val critDamageBonus: Double get() = 0.0
         val realm: Int
         val element: String
         /** 含 buff 的有效暴击率，默认实现返回基础暴击率 */
@@ -338,7 +341,8 @@ object BattleCalculator {
             skillMultiplier = skillDamageMultiplier,
             zones = zonesWithRealmGap,
             isCrit = isCrit,
-            variance = variance
+            variance = variance,
+            critDamageBonus = attacker.critDamageBonus
         )
 
         return DamageResult(
@@ -439,7 +443,8 @@ object BattleCalculator {
             skillMultiplier = skillMultiplier,
             zones = damageZones,
             isCrit = isCrit,
-            variance = variance
+            variance = variance,
+            critDamageBonus = attacker.critDamageBonus
         ).toLong() * safeHits)
             .coerceIn(GameConfig.Battle.MIN_DAMAGE.toLong(), Int.MAX_VALUE.toLong())
             .toInt()
@@ -477,8 +482,8 @@ object BattleCalculator {
             damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
         )
 
-        // 期望暴击：avgCritMult = (1 - p) × 1.0 + p × (1 + 基础暴伤)
-        val buffCritMult = 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER
+        // 期望暴击：avgCritMult = (1 - p) × 1.0 + p × (1 + 基础暴伤 + 暴伤加成)（与 C++ 同式）
+        val buffCritMult = 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + attacker.critDamageBonus
         val critRate = attacker.effectiveCritRate.coerceIn(0.0, 1.0)
         val avgCritMult = (1.0 - critRate) * 1.0 + critRate * buffCritMult
 

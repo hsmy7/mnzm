@@ -489,7 +489,8 @@ nlohmann::json handleBattle(int32_t actionId, const nlohmann::json& params) {
             return ok({{"value", gamecore::battle::calculateFinalDamage(
                            params.value("rawAttack", 0), params.value("defense", 0),
                            params.value("skillMultiplier", 1.0), zones,
-                           params.value("isCrit", false), params.value("variance", 1.0))}});
+                           params.value("isCrit", false), params.value("variance", 1.0),
+                           params.value("critDamageBonus", 0.0))}});
         }
         case action::BATTLE_REALM_GAP_FACTORS: {
             const auto f = gamecore::battle::calculateRealmGapFactors(

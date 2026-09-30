@@ -446,8 +446,9 @@ inline double masteryLevelBonus(int32_t masteryLevel) {
 
 /// 战斗装配最终属性（Kotlin computeFinalStats 等价——基础 + 装备 + 功法
 /// （熟练度乘区）+ 丹药加成；critRate 分累加，各项与 Kotlin 逐位一致）。
-/// @param outEquipBonus 非空时回传装备/套装加成（critDamage/类型通道供
-///        Combatant 装配消费——D3 接线 + 物法分桶，面板列不展示）
+/// @param outEquipBonus 非空时回传装备/套装加成（critDamage 供 Combatant
+///        装配消费——暴击伤害接线已生效，装配处另加丹药暴击效果；本结构
+///        面板列不展示暴伤）
 inline ::gamecore::disciple::DiscipleStats finalStats(
         const Disciple& d,
         const std::map<std::string, EquipmentInstance>& equipmentMap,

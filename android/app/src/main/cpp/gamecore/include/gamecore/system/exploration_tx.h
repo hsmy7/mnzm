@@ -105,7 +105,7 @@ proficienciesByDisciple(const GameState& state) {
 }
 
 /// 妖兽战斗体组装——pregen 分支（Kotlin createBeast → resolveBeastStats
-/// preGenStats 臂：钳制 [1,1e7] / critRate=0.05+realm×0.01 / realmLayer 取
+/// preGenStats 臂：钳制 [1,1e7] / critRate=0（敌人不暴击口径）/ realmLayer 取
 /// 关卡预生成层；类型按 TYPES[clamped beastType] 直取——Kotlin getType(index)
 /// → createBeast(beastType=name) → TYPES.find{name} 同一解析结果）
 inline gamecore::battle::Combatant worldLevelBeastPreGen(
@@ -124,7 +124,7 @@ inline gamecore::battle::Combatant worldLevelBeastPreGen(
     b.attack = std::max(level.beastAttack, 0);
     b.defense = std::max(level.beastDefense, 0);
     b.speed = std::max(level.beastSpeed, 0);
-    b.critRate = 0.05 + realmIndex * 0.01;
+    b.critRate = 0.0;  // 敌人不暴击（暴击系统口径）
     b.realm = realmIndex;
     b.realmLayer = level.realmLayer;
     b.element = type.element;

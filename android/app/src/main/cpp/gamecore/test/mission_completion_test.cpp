@@ -415,7 +415,7 @@ TEST(BeastAssemblyTest, RealmStatsGoldenValues) {
     //   pa/ma = (76*1.4*1.4).toInt() = 148（atkMod=1.4）
     //   pd/md = (57*1.4*0.7).toInt() = 55
     //   speed = (41*1.4*1.0).toInt() = 57
-    //   critRate = 0.05 + 8*0.01 = 0.13
+    //   critRate = 0（暴击系统口径：敌人不暴击）
     auto beast = mc::detail::createBeast(8, 3, 0);
     EXPECT_EQ(beast.id, "beast_3");
     EXPECT_EQ(beast.name, "狂暴虎妖");
@@ -427,7 +427,7 @@ TEST(BeastAssemblyTest, RealmStatsGoldenValues) {
     EXPECT_EQ(beast.attack, 296);
     EXPECT_EQ(beast.defense, 110);
     EXPECT_EQ(beast.speed, 57);
-    EXPECT_DOUBLE_EQ(beast.critRate, 0.13);
+    EXPECT_DOUBLE_EQ(beast.critRate, 0.0);
     EXPECT_EQ(beast.realm, 8);
     EXPECT_EQ(beast.realmLayer, 5);
     EXPECT_EQ(beast.element, "metal");

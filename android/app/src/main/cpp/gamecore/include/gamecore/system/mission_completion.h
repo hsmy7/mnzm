@@ -429,7 +429,7 @@ inline gamecore::battle::Combatant createBeast(int32_t beastRealm, int32_t index
     beast.attack = scaled(rs.attack, type.atkMod) * 2;
     beast.defense = scaled(rs.defense, type.defMod) * 2;
     beast.speed = scaled(rs.speed, type.speedMod);
-    beast.critRate = 0.05 + realmIndex * 0.01;
+    beast.critRate = 0.0;  // 敌人不暴击（暴击系统口径）
     // 普攻类型按 innateDamageType 配置（默认物理；当前设定全物理，可按兽种配置）
     beast.realm = realmIndex;
     beast.realmLayer = 5;
@@ -475,8 +475,10 @@ inline gamecore::battle::Combatant discipleToCombatant(
     const std::map<std::string, ManualProficiencyData>& discipleProficiencies =
         profIt == proficiencies.end() ? kEmpty : profIt->second;
 
+    // 装备/套装加成旁路回传（暴击伤害加成供 Combatant 装配消费）
+    gamecore::stats::EquipBonus equipBonus;
     const auto stats = gamecore::stats::finalStats(
-        d, equipmentMap, manualMap, discipleProficiencies);
+        d, equipmentMap, manualMap, discipleProficiencies, &equipBonus);
 
     // 技能：manualIds.mapNotNull { manual → manual.skill + 熟练度倍率 }
     std::vector<gamecore::battle::CombatSkill> skills;
@@ -522,6 +524,9 @@ inline gamecore::battle::Combatant discipleToCombatant(
     c.defense = stats.defense;
     c.speed = stats.speed;
     c.critRate = stats.critRate;
+    // 暴击伤害加成 = 装备（含套装）+ 丹药暴击效果（加法序与 Kotlin 装配一致：装备先丹药后）
+    c.critDamageBonus = equipBonus.critDamage +
+        (d.pillEffectDuration > 0 ? d.pillCritEffectBonus : 0.0);
     c.skills = std::move(skills);
     c.realm = d.realm;
     c.realmLayer = d.realmLayer;
@@ -576,10 +581,9 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         const int32_t equipmentCount = enemyRng.nextInt(5);
 
         // 装备属性累加器（Kotlin EquipmentStatsAccumulator B3 口径：
-        // ATTACK/DEFENSE/HP 逐条 .toInt() 截断累加、CRIT_RATE 比例直加，
-        // CRIT_DAMAGE/乘区项消费点待 B4——跳过不崩；装备不提供速度/灵力 S14）
+        // ATTACK/DEFENSE/HP 逐条 .toInt() 截断累加；敌人生成不消费暴击/乘区
+        // 词条——敌人不暴击口径，跳过不崩；装备不提供速度/灵力 S14）
         int32_t eqHp = 0, eqPa = 0, eqPd = 0;
-        double eqCrit = 0.0;
         for (int32_t i = 0; i < equipmentCount; ++i) {
             const auto& part = slots[static_cast<std::size_t>(i)];
             // 品阶沿用旧口径：在 [minRarity, maxRarity] 均匀抽取
@@ -595,7 +599,6 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
                 if (stat == "ATTACK") eqPa += static_cast<int32_t>(value);
                 else if (stat == "DEFENSE") eqPd += static_cast<int32_t>(value);
                 else if (stat == "HP") eqHp += static_cast<int32_t>(value);
-                else if (stat == "CRIT_RATE") eqCrit += value;
             };
             {
                 const double mult =
@@ -615,7 +618,6 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
 
         // 功法：count + 逐条（类型 roll / 未用 rarity 抽取 / 模板生成 / 熟练度）
         int32_t mHp = 0, mMp = 0, mPa = 0, mPd = 0, mSpd = 0;
-        double mCrit = 0.0;
         std::vector<gamecore::battle::CombatSkill> skills;
         const int32_t manualCount = enemyRng.nextInt(6);
         bool hasMindManual = false;
@@ -668,7 +670,6 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
                 static_cast<double>(statOf("magicDefense", "")) * bonus);
             mSpd += static_cast<int32_t>(
                 static_cast<double>(statOf("speed", "")) * bonus);
-            mCrit += (static_cast<double>(statOf("critRate", "")) * bonus) / 100.0;
             // 技能（skillName 非空才生成 + 熟练度倍率调整）
             if (stack.skillName.has_value()) {
                 gamecore::battle::CombatSkill skill = manualCombatSkill(stack);
@@ -708,7 +709,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
             static_cast<double>(rc.baseMagicDefense) * rngVar() * layerMult) + eqPd + mPd;
         enemy.speed = static_cast<int32_t>(
             static_cast<double>(rc.baseSpeed) * rngVar() * layerMult) + mSpd;
-        enemy.critRate = 0.05 + realm * 0.01 + eqCrit + mCrit;
+        enemy.critRate = 0.0;  // 敌人不暴击（暴击系统口径）
         enemy.skills = skills;
         if (enemy.skills.empty()) {
             gamecore::battle::CombatSkill def;

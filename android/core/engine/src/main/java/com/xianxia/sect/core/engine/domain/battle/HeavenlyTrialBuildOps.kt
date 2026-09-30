@@ -147,7 +147,6 @@ internal fun HeavenlyTrialService.buildTrialBaseStats(
         attack = baseAttack + equipBonus.attack + manualBonus.attack,
         defense = baseDefense + equipBonus.defense + manualBonus.defense,
         speed = baseSpeed + equipBonus.speed + manualBonus.speed,
-        critChance = equipBonus.critChance + manualBonus.critChance,
         typeBonuses = equipBonus.typeBonuses
     )
 }
@@ -163,7 +162,7 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
     maxRarity: Int,
     rng: DeterministicRng
 ): StatBonus {
-    var hp = 0; var attack = 0; var defense = 0; var critChance = 0.0
+    var hp = 0; var attack = 0; var defense = 0
     var physicalPct = 0.0; var metalPct = 0.0; var woodPct = 0.0
     var waterPct = 0.0; var firePct = 0.0; var earthPct = 0.0
     val recipes = listOfNotNull(
@@ -178,7 +177,6 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
                 EquipStat.ATTACK -> attack += bonus.value.toInt()
                 EquipStat.DEFENSE -> defense += bonus.value.toInt()
                 EquipStat.HP -> hp += bonus.value.toInt()
-                EquipStat.CRIT_RATE -> critChance += bonus.value
                 EquipStat.PHYSICAL_DAMAGE_PCT -> physicalPct += bonus.value
                 EquipStat.METAL_DAMAGE_PCT -> metalPct += bonus.value
                 EquipStat.WOOD_DAMAGE_PCT -> woodPct += bonus.value
@@ -194,7 +192,7 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
         physical = physicalPct, metal = metalPct, wood = woodPct,
         water = waterPct, fire = firePct, earth = earthPct
     )
-    return StatBonus(hp = hp, attack = attack, defense = defense, critChance = critChance,
+    return StatBonus(hp = hp, attack = attack, defense = defense,
         typeBonuses = typeBonuses)
 }
 
@@ -204,7 +202,7 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
 internal fun HeavenlyTrialService.sumManualStatBonuses(selected: List<ManualDatabase.ManualTemplate>): StatBonus {
     var hp = 0; var mp = 0
     var attack = 0; var defense = 0
-    var speed = 0; var critChance = 0.0
+    var speed = 0
     val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
     // 功法属性加成（单列口径 B1/Q2：功法数据双列不动，结算层相加）
     for (manual in selected) {
@@ -217,11 +215,10 @@ internal fun HeavenlyTrialService.sumManualStatBonuses(selected: List<ManualData
         defense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt() +
             ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
         speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
-        critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
     }
     return StatBonus(
         hp = hp, mp = mp, attack = attack, defense = defense,
-        speed = speed, critChance = critChance
+        speed = speed
     )
 }
 

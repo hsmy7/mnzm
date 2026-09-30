@@ -1074,7 +1074,8 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
         result["value"] = gamecore::battle::calculateFinalDamage(
             op.value("rawAttack", 0), op.value("defense", 0),
             op.value("skillMultiplier", 1.0), zones,
-            op.value("isCrit", false), op.value("variance", 1.0));
+            op.value("isCrit", false), op.value("variance", 1.0),
+            op.value("critDamageBonus", 0.0));
     } else if (opName == "realmGapFactors") {
         const auto f = gamecore::battle::calculateRealmGapFactors(
             op.value("attackerRealm", 9), op.value("attackerLayer", 1),

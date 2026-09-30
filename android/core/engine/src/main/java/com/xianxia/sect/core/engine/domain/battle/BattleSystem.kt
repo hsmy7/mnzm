@@ -298,6 +298,7 @@ class BattleSystem @Inject constructor(
             earthDamageBonus = typeBonuses.earth,
             speed = stats.speed,
             critRate = stats.critRate,
+            critDamageBonus = stats.critDamageBonus,
             skills = skills,
             realm = disciple.realm,
             realmName = GameConfig.Realm.getName(disciple.realm),

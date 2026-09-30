@@ -388,6 +388,7 @@ object AISectAttackManager {
             earthDamageBonus = typeBonuses.earth,
             speed = stats.speed,
             critRate = stats.critRate,
+            critDamageBonus = stats.critDamageBonus,
             realm = disciple.realm,
             realmName = disciple.realmName,
             realmLayer = disciple.realmLayer,

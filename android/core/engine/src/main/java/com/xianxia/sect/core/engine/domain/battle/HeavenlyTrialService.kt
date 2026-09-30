@@ -105,7 +105,7 @@ class HeavenlyTrialService @Inject constructor(
             attack = stats.attack,
             defense = stats.defense,
             speed = stats.speed,
-            critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
+            critRate = 0.0,
             skills = beastSkills,
             realm = safeRealm,
             realmName = GameConfig.Realm.getName(safeRealm),
@@ -159,7 +159,7 @@ class HeavenlyTrialService @Inject constructor(
             fireDamageBonus = stats.typeBonuses.fire,
             earthDamageBonus = stats.typeBonuses.earth,
             speed = stats.speed,
-            critRate = 0.05 + def.realm * 0.01 + stats.critChance,
+            critRate = 0.0,
             skills = buildTrialSkills(selected),
             realm = def.realm,
             realmName = GameConfig.Realm.getName(def.realm),
@@ -190,7 +190,6 @@ class HeavenlyTrialService @Inject constructor(
         val attack: Int,
         val defense: Int,
         val speed: Int,
-        val critChance: Double,
         /** 装备类型伤害加成六路（试炼敌人按元素配装口径，不经 gate） */
         val typeBonuses: TypeDamageBonuses = TypeDamageBonuses()
     )
@@ -199,7 +198,7 @@ class HeavenlyTrialService @Inject constructor(
     internal data class StatBonus(
         val hp: Int = 0, val mp: Int = 0,
         val attack: Int = 0, val defense: Int = 0,
-        val speed: Int = 0, val critChance: Double = 0.0,
+        val speed: Int = 0,
         /** 装备类型伤害加成六路（试炼敌人按元素配装口径，不经 gate） */
         val typeBonuses: TypeDamageBonuses = TypeDamageBonuses()
     )

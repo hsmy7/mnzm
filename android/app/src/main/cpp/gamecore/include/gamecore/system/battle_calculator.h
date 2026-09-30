@@ -251,9 +251,9 @@ struct Combatant {
     double fireDamageReduction = 0.0;
     double earthDamageReduction = 0.0;
     int32_t speed = 0;
-    double critRate = 0.05;
-    // 暴击伤害加成（B3 接线 D3：暴击时 critMult = 1 + 基础暴伤 + 本字段；
-    // 来源 = EquipStatResolver.critDamage（套装 4 件档等），默认 0.0 逐位一致）
+    double critRate = 0.0;
+    // 暴击伤害加成（暴击伤害接线：暴击时 critMult = 1 + 基础暴伤 + 本字段；
+    // 来源 = EquipStatResolver.critDamage（套装 4 件档等）+ 丹药暴击效果，默认 0.0）
     double critDamageBonus = 0.0;
     std::vector<CombatSkill> skills;
     std::vector<CombatBuff> buffs;

@@ -14,14 +14,13 @@ class EnemyGeneratorTest {
     // ═══════════════════════════════════════════════════════════════
 
     private fun manualInstance(
-        hp: Int = 0, physicalAttack: Int = 0, critRatePercent: Int = 0
+        hp: Int = 0, physicalAttack: Int = 0
     ) = com.xianxia.sect.core.model.ManualInstance(
         name = "功法", rarity = 3, description = "", type = com.xianxia.sect.core.model.ManualType.ATTACK,
         stats = mapOf(
             "hp" to hp,
             "maxHp" to hp,
-            "physicalAttack" to physicalAttack,
-            "critRate" to critRatePercent
+            "physicalAttack" to physicalAttack
         ),
         skillName = "斩", skillDescription = "",
         skillType = "attack", skillDamageType = "physical",
@@ -34,11 +33,10 @@ class EnemyGeneratorTest {
     @Test
     fun `ManualStatsAccumulator - 功法属性按熟练度加成与玩家公式一致`() {
         val acc = EnemyGenerator.ManualStatsAccumulator()
-        // NOVICE(0) bonus=1.5：hp 100→150、攻击 50→75、暴击 10%→15%
-        acc.add(manualInstance(hp = 100, physicalAttack = 50, critRatePercent = 10), masteryLevel = 0)
+        // NOVICE(0) bonus=1.5：hp 100→150、攻击 50→75
+        acc.add(manualInstance(hp = 100, physicalAttack = 50), masteryLevel = 0)
         assertEquals(150, acc.hp)
         assertEquals(75, acc.attack)
-        assertEquals(0.15, acc.critChance, 1e-9)
         // 小成(1) bonus=2.0：hp 100→200
         acc.add(manualInstance(hp = 100), masteryLevel = 1)
         assertEquals(350, acc.hp)
@@ -204,7 +202,8 @@ class EnemyGeneratorTest {
     }
 
     @Test
-    fun generateHumanEnemies_critRateIsNonNegative() {
+    fun generateHumanEnemies_critRateIsAlwaysZero() {
+        // 暴击系统口径：敌人生成不暴击，critRate 恒 0（含装备/功法词条不消费）
         val results = EnemyGenerator.generateHumanEnemies(
             realmMin = 5,
             realmMax = 7,
@@ -212,7 +211,7 @@ class EnemyGeneratorTest {
             rngManager = rngManager
         )
         for (data in results) {
-            assertTrue("Crit rate should be non-negative", data.combatant.critRate >= 0.0)
+            assertEquals("敌人应恒不暴击", 0.0, data.combatant.critRate, 0.0)
         }
     }
 

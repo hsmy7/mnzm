@@ -7,7 +7,8 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 object DiscipleStatCalculator {
     // ---- 魔法数字命名常量 ----
     internal const val LAYER_MULTIPLIER = 0.1
-    internal const val BASE_CRIT_RATE = 0.05
+    /** 基础暴击率（暴击系统口径：全员 0% 起步，暴击只来自装备/功法/丹药加成；C++ kBaseCritRate 同值） */
+    internal const val BASE_CRIT_RATE = 0.0
     internal const val MIN_CULTIVATION_PER_PHASE = 1.0
     internal const val BASE_MANUAL_SLOTS = 6
     internal const val ELDER_BONUS_PER_STEP = 0.01
@@ -47,8 +48,12 @@ object DiscipleStatCalculator {
         val pillRefining: Int
     )
 
-    /** 属性累加器：主属性合计 + 暴击率独立累加 */
-    internal data class StatAccum(val total: DiscipleStats, val critRate: Double)
+    /** 属性累加器：主属性合计 + 暴击率/暴击伤害加成独立累加 */
+    internal data class StatAccum(
+        val total: DiscipleStats,
+        val critRate: Double,
+        val critDamageBonus: Double = 0.0
+    )
 
     /**
      * 列直读输入：每旬 HP/MP 恢复热点的最小列集。

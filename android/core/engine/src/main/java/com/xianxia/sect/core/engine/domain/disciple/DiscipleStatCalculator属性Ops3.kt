@@ -187,19 +187,23 @@ internal fun DiscipleStatCalculator.computeFinalStats(
 ): DiscipleStats {
     val acc = applyPillStats(
         applyManualStats(
-            applyEquipmentStats(StatAccum(baseStats, baseStats.critRate), equipmentIds, equipments),
+            applyEquipmentStats(
+                StatAccum(baseStats, baseStats.critRate, baseStats.critDamageBonus),
+                equipmentIds, equipments
+            ),
             manualIds, manuals, manualProficiencies
         ),
         pillEffects
     )
-    return acc.total.copy(critRate = acc.critRate)
+    return acc.total.copy(critRate = acc.critRate, critDamageBonus = acc.critDamageBonus)
 }
 
 /**
  * 装备加成（B3，方案 §3.4.1 乘区口径）：
  * `atk = (baseAtk + Σ装备flatAtk) × (1 + Σ装备atkPct) + Σ功法flat + Σ丹药flat`——
  * 装备乘区只放大装备自身贡献；功法/丹药加法序与既有对拍基线逐位不变。
- * critRate（含套装）与 critDamage（暴击伤害，接线 D3）单列累加。
+ * critRate（含套装）与 critDamageBonus（暴击伤害加成，含套装）单列累加——
+ * 暴击伤害接线后随最终面板 [computeFinalStats] 与 Combatant 装配输出。
  */
 internal fun DiscipleStatCalculator.applyEquipmentStats(
     acc: StatAccum,
@@ -246,10 +250,10 @@ internal fun DiscipleStatCalculator.applyManualStats(
             critRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
         }
     }
-    return StatAccum(total, critRate)
+    return StatAccum(total, critRate, acc.critDamageBonus)
 }
 
-/** 丹药加成：有效期内的丹药面板与暴击率累加 */
+/** 丹药加成：有效期内的丹药面板、暴击率与暴击伤害加成（暴击效果）累加 */
 
 internal fun DiscipleStatCalculator.applyPillStats(acc: StatAccum, pillEffects: PillEffects): StatAccum {
     if (pillEffects.pillEffectDuration <= 0) return acc
@@ -263,7 +267,11 @@ internal fun DiscipleStatCalculator.applyPillStats(acc: StatAccum, pillEffects: 
         speed = pillEffects.pillSpeedBonus,
         critRate = pillEffects.pillCritRateBonus
     )
-    return StatAccum(acc.total + pillBonus, acc.critRate + pillEffects.pillCritRateBonus)
+    return StatAccum(
+        acc.total + pillBonus,
+        acc.critRate + pillEffects.pillCritRateBonus,
+        acc.critDamageBonus + pillEffects.pillCritEffectBonus
+    )
 }
 
 // ==================== 装备加成应用（共享实现，Ops4 列直读版复用） ====================
@@ -275,7 +283,8 @@ internal fun DiscipleStatCalculator.applyEquipBonus(baseStats: DiscipleStats, bo
         defense = baseStats.defense + bonus.flatDefense.toInt(),
         maxHp = baseStats.maxHp + bonus.flatHp.toInt(),
         hp = baseStats.hp + bonus.flatHp.toInt(),
-        critRate = baseStats.critRate + bonus.critRate
+        critRate = baseStats.critRate + bonus.critRate,
+        critDamageBonus = baseStats.critDamageBonus + bonus.critDamage
     )
     val pctAttack = (withFlat.attack.toDouble() * bonus.pctAttack).toInt()
     return withFlat.copy(attack = withFlat.attack + pctAttack)
@@ -291,14 +300,8 @@ internal fun DiscipleStatCalculator.applyEquipBonusToAccum(acc: StatAccum, bonus
     )
     val pctAttack = (flat.attack.toDouble() * bonus.pctAttack).toInt()
     val total = flat.copy(attack = flat.attack + pctAttack)
-    return StatAccum(total, acc.critRate + bonus.critRate)
+    return StatAccum(total, acc.critRate + bonus.critRate, acc.critDamageBonus + bonus.critDamage)
 }
-
-/** 暴击伤害加成（D3 接线）：战斗期字段消费，面板列不展示 */
-fun DiscipleStatCalculator.critDamageBonusOf(
-    equipments: Map<String, EquipmentInstance>,
-    equipmentIds: List<String>
-): Double = EquipStatResolver.resolve(equipmentIds.mapNotNull { equipments[it] }).critDamage
 
 /**
  * 类型伤害加成六路汇总（五行属性伤害系统 §3.7②）：装备/套装词条原始值

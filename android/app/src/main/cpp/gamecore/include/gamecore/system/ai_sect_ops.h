@@ -466,7 +466,7 @@ inline gamecore::battle::BattleState aiCreateBattle(
     b.defense = std::max(beast.beastDefense, 0);
     b.speed = std::max(beast.beastSpeed, 0);
     // 普攻类型按 innateDamageType 配置（默认物理；妖兽普攻类型当前设定全物理，可按兽种配置）
-    b.critRate = 0.05 + realmIndex * 0.01;
+    b.critRate = 0.0;  // 敌人不暴击（暴击系统口径）
     b.realm = realmIndex;
     b.realmLayer = beast.realmLayer;
     b.element = type.element;
