@@ -7,6 +7,8 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-30 09:3x 看护轮#97：EQ-B4 正式测试类三缺一**。dirty 7→10：`EquipmentPowerParityTest`（新）、`EquipmentEconomyCalibrationTest`（新）、`EquipmentRarityGateTest`（改断言——B3 品阶门基础之上扩展，符合派发件「改断言」类处置）三写面现身；仅剩 `EquipmentStatHotPathBenchmark` 未落。构建 23 产物/12 分钟（测试循环活跃）。无报告。推送仍断（7897，本轮重试失败）。下轮：实施期观察（热路径基准→门禁全套→报告）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（测试面铺开期）。**
+
 - **2026-09-30 09:2x 看护轮#96：EQ-B4 调 k 落地——写入面 7 项与派发件 codegen 链精确吻合**。dirty 1→7：`scripts/data/equipment_db_sample.json`（调 k 源）+ 测试模板副本 + `equip_main_stat_db.h`（重生成）+ `EquipMainStatPool.kt`（JSON↔Kotlin 双改同步）+ `game-data.json`/`game-data.hash.txt`（gen-game-data 产物）+ 探针。构建 16 产物/12 分钟（codegen+测试循环中）。四个正式测试类未现身（下一步预期）。无报告。GUI 免截图（CLI 活跃实证充分）。下轮：实施期观察（正式测试类渐起→门禁→报告）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（调 k 后校准验证期）。**
 
 - **2026-09-30 09:0x 看护轮#94：EQ-B4 勘察转写入——校准探针落地并实测中**。首个写入面 `CalibrationProbe.kt`（engine 测试域新增，+69 行，untracked）+ 正跑 `:core:engine:testReleaseUnitTest` 实测。**校准方法论正确**（GUI 实证）：先写临时探针复刻真实 Lv30 词条形态 → 实测各阶段装备战力占比（预判 k<1：T6 基数固定而境界基础属性持续增长⇒占比随阶段衰减；暴击/类型词条不进战力公式⇒进一步拉低）→ 再定 equipment_db_sample.json 的校准 k——与派发件「调权重先实测、既有实例不重 roll」精神一致。另确认主词条基数 JSON↔Kotlin 双份需同 commit 双改（codegen 只产 C++ 头），同步守卫在查。任务面板 2/13（勘察现状收尾）。GLM-5.3-Flash ✓。推送仍断（7897，本轮重试失败）。下轮：实施期观察（预期探针结论→调 k→四个正式测试类）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（校准实测期）。**
