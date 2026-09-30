@@ -43,14 +43,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.data.SessionManager
-import com.xianxia.sect.data.cloud.CloudSaveEntry
-import com.xianxia.sect.data.cloud.SaveBackend
-import com.xianxia.sect.data.cloud.SaveBackendMode
 import com.xianxia.sect.data.cloud.SaveBackendModeProvider
-import com.xianxia.sect.ui.game.saveload.MigrationUiState
-import com.xianxia.sect.ui.game.saveload.SaveMigrationCoordinator
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapTapAuthManager
@@ -69,7 +65,8 @@ import com.xianxia.sect.ui.components.AudioToggleRow
 import androidx.compose.runtime.CompositionLocalProvider
 import com.xianxia.sect.ui.components.LocalPlayClickSound
 import com.xianxia.sect.ui.components.clickableWithSound
-import com.xianxia.sect.ui.model.SaveSelectMode
+import com.xianxia.sect.ui.model.AutoEntry
+import com.xianxia.sect.ui.model.AutoEntryResolver
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import com.xianxia.sect.core.audio.AudioConfig
@@ -139,16 +136,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var tapCloudSaveManager: TapCloudSaveManager
 
-    // SR-3 云主路径：云槽位列表数据源（接口隔离 IN3）+ 模式门控读取端
-    @Inject
-    lateinit var saveBackend: SaveBackend
-
+    // SR-3 云主路径：模式门控读取端（存储初始化失败文案按模式如实降级）
     @Inject
     lateinit var saveBackendModeProvider: SaveBackendModeProvider
-
-    // SR-6 存量迁移引导：主菜单迁移卡的数据源与动作入口
-    @Inject
-    lateinit var migrationCoordinator: SaveMigrationCoordinator
 
     @Inject
     lateinit var audioConfig: AudioConfig
@@ -170,8 +160,6 @@ class MainActivity : ComponentActivity() {
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
 
-    /** SR-6：迁移态订阅任务（重复进入选档页时先取消上一轮，防多路重建互相覆盖） */
-    private var migrationRenderJob: Job? = null
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
     internal var tapTapReady = mutableStateOf(false)
     internal val loadingProgress = mutableFloatStateOf(0f)
@@ -207,8 +195,17 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SECT_NAME = "sect_name"
         const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
 
-        /** SR-3：云槽位下载（slot_1..slot_6 → 云端 slot_N 档）目标槽位 */
-        const val EXTRA_CLOUD_SLOT = "cloud_slot"
+        /** 自动进入：本地无可读档时云端存在性检查的超时（超时按「云端无档」处理，不阻塞进入） */
+        private const val AUTO_ENTER_CLOUD_CHECK_TIMEOUT_MS = 5_000L
+
+        /** 自动进入：自动新建档的固定落位槽位（宗门名走引擎默认「青云宗」，游戏内可改名） */
+        private const val AUTO_ENTER_NEW_GAME_SLOT = 1
+
+        /** 自动进入：加载页静态进度（存档判定阶段无真实进度可报，取中段值配合阶段文案） */
+        private const val AUTO_ENTER_LOADING_PROGRESS = 0.5f
+
+        /** 自动进入：槽位整表查询失败的阻断文案（重试入口见 StorageInitErrorScreen） */
+        private const val AUTO_ENTER_STORAGE_ERROR_MESSAGE = "存档数据读取失败，为保护存档已停止自动进入"
     }
 
     /**
@@ -256,8 +253,8 @@ class MainActivity : ComponentActivity() {
             showComplianceVerificationScreen()
         }
 
-        override fun onShowModeSelection() {
-            showModeSelectionScreen()
+        override fun onEnterGame() {
+            enterGameAuto()
         }
 
         override fun onShowLoginScreen() {
@@ -519,7 +516,7 @@ class MainActivity : ComponentActivity() {
                 )
                 // 等待登录 SDK 就绪（"SDK 调用前必须就绪"契约——冷启动路径合规回调
                 // 注册早于 SDK 就绪会注册失败并永久失去回调），再经状态机 ColdStart
-                // 事件路由：已验证 → 直接进模式选择；未验证 → 显示实名认证界面手动重试
+                // 事件路由：已验证 → 自动进入游戏；未验证 → 显示实名认证界面手动重试
                 awaitTapTapSdkReady()
                 withContext(Dispatchers.Main) {
                     loginFlowStateMachine.onEvent(
@@ -589,176 +586,101 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    internal fun showModeSelectionScreen() {
-        setContent {
-            XianxiaTheme {
-                CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
-                ModeSelectionScreen(
-                    userName = sessionManager.userName ?: "TapTap用户",
-                    unionId = sessionManager.unionId ?: "",
-                    avatarUrl = sessionManager.avatar,
-                    onNewGame = {
-                        showSaveSelectScreen(mode = SaveSelectMode.NEW_GAME)
-                    },
-                    onLoadSave = {
-                        showSaveSelectScreen(mode = SaveSelectMode.LOAD_SAVE)
-                    },
-                    onLogout = {
-                        // 登出统一入口：状态机 LogoutRequested → ClearSessionAndLogout
-                        //（清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调）+
-                        // ShowLoginScreen。不再依赖 recreate() 重置状态——状态机自身复位
-                        loginFlowStateMachine.onEvent(LoginFlowEvent.LogoutRequested)
-                    },
-                    soundEnabled = audioConfig.soundEnabled,
-                    musicEnabled = audioConfig.musicEnabled,
-                    onSoundToggle = { enabled ->
-                        audioConfig.soundEnabled = enabled
-                        sessionManager.soundEnabled = enabled
-                    },
-                    onMusicToggle = { enabled ->
-                        audioConfig.musicEnabled = enabled
-                        sessionManager.musicEnabled = enabled
-                        if (enabled) audioEngine.playBGM() else audioEngine.stopBGM()
-                    }
-                )
-                }
-            }
-        }
-    }
-
-    internal fun showSaveSelectScreen(mode: SaveSelectMode = SaveSelectMode.LOAD_SAVE) {
-        lifecycleScope.launch {
-            val saveSlots = loadSaveSlotsForSelect()
-            val cloudInfo = queryCloudSaveInfo()
-            val cloudSlots = queryCloudSlotEntries()
-            // SR-6 阶段 A：本地扫描（零云请求），迁移态此后每次变化重建同一界面
-            migrationCoordinator.scan()
-            renderSaveSelectScreen(
-                mode, saveSlots, cloudInfo, cloudSlots, migrationCoordinator.state.value
-            )
-            observeMigrationState(mode, saveSlots, cloudInfo, cloudSlots)
-        }
-    }
+    // ── 自动进入（登录/防沉迷验证通过后的唯一入口：跳过一切选择界面，加载界面承载全程）──
 
     /**
-     * 迁移态订阅（SR-6）：主菜单是 Activity 重建式 `setContent`，组合内没有
-     * `collectAsState` 先例（施工卡 F13）⇒ 用 lifecycleScope 收 StateFlow 后重建渲染。
-     * 只在迁移卡可见时重建，避免收口后的空态把已渲染的选档页刷掉。
-     */
-    private fun observeMigrationState(
-        mode: SaveSelectMode,
-        saveSlots: List<SaveSlot>,
-        cloudInfo: TapCloudSaveManager.CloudSaveInfo?,
-        cloudSlots: List<CloudSaveEntry>
-    ) {
-        migrationRenderJob?.cancel()
-        migrationRenderJob = lifecycleScope.launch {
-            // StateFlow 自带"只在值变化时发射"语义（distinctUntilChanged 对它已废弃且无效）
-            migrationCoordinator.state.collect { migration ->
-                if (migration.visible) {
-                    renderSaveSelectScreen(mode, saveSlots, cloudInfo, cloudSlots, migration)
-                }
-            }
-        }
-    }
-
-    /** 渲染存档选择界面（含全部存档操作回调） */
-    private fun renderSaveSelectScreen(
-        mode: SaveSelectMode,
-        saveSlots: List<SaveSlot>,
-        cloudInfo: TapCloudSaveManager.CloudSaveInfo?,
-        cloudSlots: List<CloudSaveEntry> = emptyList(),
-        migration: MigrationUiState = MigrationUiState()
-    ) {
-        setContent {
-            XianxiaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    SaveSelectScreen(
-                        mode = mode,
-                        saveSlots = saveSlots,
-                        cloudSaveInfo = cloudInfo,
-                        cloudSlots = cloudSlots,
-                        migration = migration, migrationActions = buildMigrationActions(),
-                        onLoadSlot = { slot ->
-                            launchGame(slot = slot)
-                        },
-                        onCloudSaveLoad = {
-                            if (!sessionManager.isLoggedIn) {
-                                Toast.makeText(
-                                    this@MainActivity, "请先登录 TapTap",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@SaveSelectScreen
-                            }
-                            launchGame(cloudLoad = true)
-                        },
-                        onCloudSlotLoad = { slot ->
-                            if (!sessionManager.isLoggedIn) {
-                                Toast.makeText(
-                                    this@MainActivity, "请先登录 TapTap",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@SaveSelectScreen
-                            }
-                            launchGame(cloudSlot = slot)
-                        },
-                        onNewGame = { slot, sectName ->
-                            launchGame(
-                                slot = slot,
-                                newGame = true,
-                                sectName = sectName
-                            )
-                        },
-                        onDeleteSlot = { slot ->
-                            lifecycleScope.launch {
-                                withContext(ioDispatcher.dispatcher) {
-                                    storageFacade.delete(slot)
-                                }
-                                showSaveSelectScreen(mode)
-                            }
-                        },
-                        onBack = {
-                            showModeSelectionScreen()
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * 迁移卡动作位（SR-6）。
+     * 按存档状态自动进入游戏，判定全程由加载界面承载（玩家零选择界面）。
      *
-     * 未登录时先如实提示，不静默失败（与相邻云槽位/云存档入口同纪律）；
-     * 「启用云存档」是同步的判据复核 + 写模式，无需协程。
+     * 决策（[AutoEntryResolver]）：本地最新档自动读 → 本地全空时查云端
+     *（换机/重装兜底）→ 均无档自动新建（[AUTO_ENTER_NEW_GAME_SLOT] 号槽 +
+     * 引擎默认宗门名「青云宗」，游戏内可改名）。
+     *
+     * 存储状态未知（槽位整表查询失败）时阻断在如实错误屏并给重试入口——
+     * 绝不在存档状态不明时自动新建，防止覆盖既有进度。
      */
-    private fun buildMigrationActions() = MigrationActions(
-        onStart = {
-            if (sessionManager.isLoggedIn) {
-                lifecycleScope.launch { migrationCoordinator.start() }
-            } else {
-                Toast.makeText(this@MainActivity, "请先登录 TapTap", Toast.LENGTH_SHORT).show()
+    internal fun enterGameAuto() {
+        showAutoEnterLoadingScreen()
+        lifecycleScope.launch {
+            val slots = queryLocalSlots()
+            if (slots == null) {
+                showAutoEnterStorageError(AUTO_ENTER_STORAGE_ERROR_MESSAGE)
+                return@launch
             }
-        },
-        onDecision = { slot, keepLocal ->
-            lifecycleScope.launch { migrationCoordinator.resolveConflict(slot, keepLocal) }
-        },
-        onLegacyDownload = { targetSlot ->
-            lifecycleScope.launch { migrationCoordinator.migrateLegacyArchive(targetSlot) }
-        },
-        onEnableCloud = { migrationCoordinator.confirmEnableCloud() }
-    )
+            // 有可读本地档的玩家跳过云端查询（零网络等待）；查询仅在换机/重装路径发生
+            val cloudHasSave = if (AutoEntryResolver.hasLoadableLocal(slots)) {
+                null
+            } else {
+                queryCloudHasSave()
+            }
+            when (val entry = AutoEntryResolver.resolve(slots, cloudHasSave)) {
+                is AutoEntry.LoadLocal -> launchGame(slot = entry.slot)
+                AutoEntry.LoadCloud -> launchGame(cloudLoad = true)
+                AutoEntry.CreateNew -> launchGame(
+                    slot = AUTO_ENTER_NEW_GAME_SLOT,
+                    newGame = true,
+                    sectName = null
+                )
+            }
+        }
+    }
 
-    /** 携带存档参数启动游戏 Activity（slot/新游戏/云存档/云槽位 四选一或组合） */
+    /** 自动进入加载页：建档/读档的判定与后续 boot 都表现为同一个加载界面 */
+    private fun showAutoEnterLoadingScreen() {
+        setContent {
+            XianxiaTheme {
+                LoadingScreen(
+                    progress = AUTO_ENTER_LOADING_PROGRESS,
+                    showProgress = true,
+                    phaseText = "正在进入修仙世界..."
+                )
+            }
+        }
+    }
+
+    /** 自动进入阻断错误屏：存档状态不明时不放行，重试重新走完整判定 */
+    private fun showAutoEnterStorageError(message: String) {
+        setContent {
+            XianxiaTheme {
+                StorageInitErrorScreen(
+                    message = message,
+                    onRetry = { enterGameAuto() }
+                )
+            }
+        }
+    }
+
+    /** 本地槽位快照；null = 整表查询失败（存储状态未知，调用方必须阻断而非降级） */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/DB不可枚举, 上抛为阻断态而非静默降级
+    private suspend fun queryLocalSlots(): List<SaveSlot>? = withContext(ioDispatcher.dispatcher) {
+        try {
+            storageFacade.getSaveSlotsSuspend()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "auto-enter: load save slots failed", e)
+            null
+        }
+    }
+
+    /** 云端是否有档（带超时）；null = 超时/失败未判定，决策侧按「云端无档」处理 */
+    private suspend fun queryCloudHasSave(): Boolean? = withContext(ioDispatcher.dispatcher) {
+        withTimeoutOrNull(AUTO_ENTER_CLOUD_CHECK_TIMEOUT_MS) {
+            try {
+                tapCloudSaveManager.checkCloudSave().hasSaveData
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // 取消穿透：画面退出/超时取消时上抛，不以"无云档"冒充
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    /** 携带存档参数启动游戏 Activity（槽位读档/自动新建/云存档读档 三选一） */
     private fun launchGame(
         slot: Int? = null,
         newGame: Boolean = false,
         sectName: String? = null,
-        cloudLoad: Boolean = false,
-        cloudSlot: Int? = null
+        cloudLoad: Boolean = false
     ) {
         val intent = Intent(this, GameActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -768,69 +690,9 @@ class MainActivity : ComponentActivity() {
                 putExtra(EXTRA_SECT_NAME, sectName)
             }
             if (cloudLoad) putExtra(EXTRA_CLOUD_SAVE_LOAD, true)
-            if (cloudSlot != null) putExtra(EXTRA_CLOUD_SLOT, cloudSlot)
         }
         startActivity(intent)
         finish()
-    }
-
-    /** 加载全部存档槽位（失败返回空列表） */
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    private suspend fun loadSaveSlotsForSelect(): List<SaveSlot> {
-        return withContext(ioDispatcher.dispatcher) {
-            try {
-                storageFacade.getSaveSlotsSuspend()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "getSaveSlots failed, returning empty list", e)
-                emptyList()
-            }
-        }
-    }
-
-    /** 查询云存档信息（异步，失败则静默跳过） */
-    private suspend fun queryCloudSaveInfo(): TapCloudSaveManager.CloudSaveInfo? {
-        return withContext(ioDispatcher.dispatcher) {
-            try {
-                tapCloudSaveManager.checkCloudSave()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e // 取消穿透: 画面退出取消时上抛, 不以 null 冒充"无云存档"
-            } catch (_: Exception) {
-                null
-            }
-        }
-    }
-
-    /**
-     * 查询云槽位列表（SR-3：SaveBackend.list() → slot_N 映射 + 摘要）。
-     *
-     * **LEGACY 短路（硬红线）**：默认模式零查询零 UI——与 SR-3 落库前主菜单行为
-     * 逐行一致。查询失败降级空列表（主菜单仍可用，云槽位区不显示，如实日志留痕）。
-     */
-    // 防御兜底: 列表查询异常源跨 IO/SDK 不可枚举, 降级空列表+日志留痕, 非静默吞噬
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun queryCloudSlotEntries(): List<CloudSaveEntry> {
-        if (saveBackendModeProvider.current() == SaveBackendMode.LEGACY) {
-            Log.d(TAG, "cloud slot list skipped: mode=LEGACY")
-            return emptyList()
-        }
-        return withContext(ioDispatcher.dispatcher) {
-            try {
-                when (val result = saveBackend.list()) {
-                    is com.xianxia.sect.data.cloud.SaveBackendResult.Success -> result.data
-                    is com.xianxia.sect.data.cloud.SaveBackendResult.Failure -> {
-                        Log.w(TAG, "cloud slot list failed: ${result.message}")
-                        emptyList()
-                    }
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e // 取消穿透: 画面退出取消时上抛
-            } catch (e: Exception) {
-                Log.e(TAG, "cloud slot list error", e)
-                emptyList()
-            }
-        }
     }
 
     /**
@@ -862,12 +724,14 @@ class MainActivity : ComponentActivity() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: java.util.concurrent.TimeoutException) {
-                // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）
+                // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）。
+                // 降级路径：SDK 不可用（无网络/SDK 异常）时同样自动进入游戏——
+                // 未登录时云端判定自然降级（查云恒为无档），本地档照常可读
                 com.xianxia.sect.taptap.SdkInitGuard.releaseTapTapSdkInit()
                 tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
                 withContext(Dispatchers.Main) {
-                    showSaveSelectScreen()
+                    enterGameAuto()
                 }
             } catch (e: Exception) {
                 // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）
@@ -983,7 +847,7 @@ class MainActivity : ComponentActivity() {
     // 回调注册已由 ComplianceCallbackHost 进程级持有，本组方法仅承担 UI 响应；
     // 登录流程回调转发为状态机事件（状态转移与副作用由 LoginFlowStateMachine 统一管理）。
 
-    /** 合规验证成功（登录窗口回调）：状态机 VerificationSuccess → 进模式选择 */
+    /** 合规验证成功（登录窗口回调）：状态机 VerificationSuccess → 自动进入游戏 */
     internal fun onComplianceLoginSuccess() {
         Log.i(TAG, "防沉迷验证成功（CODE_LOGIN_SUCCESS）")
         sessionManager.markComplianceVerified()

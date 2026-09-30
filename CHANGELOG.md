@@ -1,5 +1,44 @@
 ## [4.01.16] - 2026-09-22
 
+### 主界面退役——登录后自动进入游戏（自动建档 / 自动读档） — `feat(remove-main-menu)`（2026-10-01 单批交付）
+
+> 需求拍板：登录/防沉迷验证通过后不再出现「主界面（模式选择）」与「存档选择页」两层——新玩家自动建档
+> （默认「青云宗」，游戏内可改名）、老玩家自动读最新档、本地全空时云端兜底、均无档自动新建；
+> 判定全程由加载界面承载。宗门名默认直接进 / 云端兜底参与判定 / 三个管理功能迁入游戏内存档管理
+> （用户三拍板）。零 Room 迁移、零存档 schema 变更、零镜像合法面变更。
+
+- **自动进入决策**：新增 `AutoEntryResolver` 纯函数（app `ui/model/AutoEntry.kt`）——本地可读档
+  （非空非损坏）取 timestamp 最新（并列取槽位号小者）→ 云端兜底（`checkCloudSave` 带 5s 超时，
+  仅本地无可读档时查询）→ 均无自动新建（1 号槽 + 引擎默认宗门名）；**存档安全红线**：存在损坏档
+  （isLoadError）时永不静默新建——损坏档交读档链（`SaveValidator` 修复或 boot 失败弹窗显式删档）。
+  守卫测试 `AutoEntryResolverTest` 12 用例（最新档选取/并列/云伪槽排除/云端三分支/损坏档三向）。
+- **MainActivity**：`LoginFlowHost.onShowModeSelection` → `onEnterGame` = `enterGameAuto()`
+  （全屏 `LoadingScreen` 承载判定 + IO 槽位快照 + 云端检查 + `launchGame`）；槽位整表查询失败阻断在
+  `StorageInitErrorScreen`（存储状态未知绝不自动新建防覆盖）。删除 `showModeSelectionScreen` /
+  `showSaveSelectScreen` / `renderSaveSelectScreen` / `observeMigrationState` / `buildMigrationActions` /
+  `queryCloudSaveInfo` / `queryCloudSlotEntries` / `loadSaveSlotsForSelect`；SDK 初始化超时降级路径
+  （原直跳选档页）改为同样自动进入（未登录时云端判定自然降级，本地档照常可读）。
+- **删除**：`ModeSelectionScreen.kt` / `SaveSelectScreen.kt` / `CloudSlotEntryCard.kt` /
+  `SaveSelectMode.kt` 与 `SaveSelectCloudSlotsTest` / `SaveSlotDispatchTest`；`EXTRA_CLOUD_SLOT`
+  启动参数全链退役（`GameLaunchParams.cloudSlot` + 分发分支删除——游戏内云槽下载走弹窗
+  `loadCloudSlot`，两旧界面无埋点零上报损失）。
+- **登录状态机**：`LoginFlowSideEffect.ShowModeSelection` → `EnterGame`（Verified/ColdStart 两转移点 +
+  `LoginFlowHost.onEnterGame`），`LoginFlowStateMachineTest` 断言同步；`docs/login-flow-state-machine.md`
+  转移表/副作用清单/数据流/冒烟清单更新（附 2026-10-01 更新注记）。
+- **存档管理弹窗扩容（SettingsTab / SaveSlotDialog）**：① 本地非空槽新增删除入口（`deleteSlot` 扩展，
+  `SaveResult.Failure` 如实报错，确认弹窗即确认位；slot 0 云会话不归此入口）；② 云槽位下载区
+  （`queryCloudSlotEntries` 扩展自 MainActivity 迁入，**LEGACY 短路零查询硬红线保留**；
+  `CloudSlotEntryCard` 原样迁至 feature:game `saveload` 包）；③ SR-6 迁移引导卡迁入（`SaveMigrationCard`
+  迁至 feature:game 与协调器同包，`migrationCardVisible(mode,…)` 模式参数退役改用 `MigrationUiState.visible`；
+  打开弹窗即 `scan()`——阶段 A 纯本地零云请求；`PersistenceFacade` 增补协调器注入点，
+  `SaveLoadViewModel` 只读透传 `migrationCoordinator`）；`SaveMigrationCardTest` 随迁
+  （模式可见性用例改判 `visible`）。
+- **GameActivity 逃生口**：boot 失败弹窗「返回主菜单」→「删除存档并重新开始」（自动进入后返回门户 =
+  重读同档死循环；删档后自动进入落到下一最新档或自动新建；失败槽位取 `currentSlot`，`pendingSlot`
+  兜底，按钮即删除确认位）；适龄限制 `onAgeFinish` 改走 `performComplianceLogout`（受限账号回门户会
+  立即重进再弹，登出是唯一有意义出口）。
+- **文档**：`docs/knowledge-base.md`（云存档架构入口改挂存档管理弹窗 + Navigation Pattern 收敛为
+  单一 Activity 迁移）、`I18nPreparation.kt` 文件清单、双 changelog（玩家文案 5 条）。
 ### AI 洞府探索队伍链整链退役——Room v65 双表删列 · 存档 schema 减负 — `refactor(cave-retire)`（2026-09-30 单批交付）
 
 > 背景（前批分析结论）：`GameData.aiCaveTeams`（AI 洞府遭遇战玩法）的写入方已随 W4-D/D5

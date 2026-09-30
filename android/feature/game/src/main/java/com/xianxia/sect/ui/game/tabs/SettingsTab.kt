@@ -28,7 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.data.ChangelogEntry
@@ -38,6 +40,7 @@ import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.render.ClarityMode
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -48,9 +51,21 @@ import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.RewardItem
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
+import com.xianxia.sect.ui.game.SaveLoadState
 import com.xianxia.sect.ui.game.SaveLoadViewModel
+import com.xianxia.sect.ui.game.cancelSaveLoad
+import com.xianxia.sect.ui.game.checkCloudSave
+import com.xianxia.sect.ui.game.deleteSlot
+import com.xianxia.sect.ui.game.loadCloudSlot
+import com.xianxia.sect.ui.game.queryCloudSlotEntries
+import com.xianxia.sect.ui.game.saveGame
+import com.xianxia.sect.ui.game.saveload.CloudSlotEntryCard
+import com.xianxia.sect.ui.game.saveload.MigrationActions
+import com.xianxia.sect.ui.game.saveload.MigrationUiState
+import com.xianxia.sect.ui.game.saveload.SaveMigrationCard
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
+import java.text.SimpleDateFormat
 import java.util.Locale
 import com.xianxia.sect.ui.game.cancelSaveLoad
 import com.xianxia.sect.ui.game.checkCloudSave
@@ -884,34 +899,63 @@ internal fun SaveSlotDialog(
 ) {
     val saveSlots by saveLoadViewModel.saveSlots.collectAsStateWithLifecycle()
     val saveLoadState by saveLoadViewModel.saveLoadState.collectAsStateWithLifecycle()
+    // SR-6 存量迁移引导：迁移卡常驻本弹窗（可见性判据 MigrationUiState.visible）
+    val migration by saveLoadViewModel.migrationCoordinator.state.collectAsStateWithLifecycle()
     val isBusy = saveLoadState.isBusy
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
-    // ── 转圈动画状态（最少显示 1 秒） ──
-    var showAnimation by remember { mutableStateOf(false) }
-    var animationStartTime by remember { mutableLongStateOf(0L) }
-    var operationLabel by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<Int?>(null) }
+    var cloudEntries by remember { mutableStateOf<List<CloudSaveEntry>>(emptyList()) }
+    // ── 转圈动画状态（最少显示 1 秒；持状态对象传入最短显示时长 Effect） ──
+    val showAnimation = remember { mutableStateOf(false) }
+    val animationStartTime = remember { mutableLongStateOf(0L) }
+    val operationLabel = remember { mutableStateOf("") }
+    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    // 打开对话框即刷新云存档摘要，slot 0（云存档槽位）才能显示真实数据
-    //（而非 StorageEngine 的硬编码全 0 占位）
-    LaunchedEffect(Unit) {
-        saveLoadViewModel.checkCloudSave()
-    }
-
-    LaunchedEffect(isBusy) {
-        if (isBusy) {
-            animationStartTime = System.currentTimeMillis()
-            showAnimation = true
-            operationLabel = if (saveLoadState.isSaving) "保存中..." else "读取中..."
-        } else if (showAnimation) {
-            val elapsed = System.currentTimeMillis() - animationStartTime
-            if (elapsed < 1000) {
-                delay(1000 - elapsed)
-            }
-            showAnimation = false
-        }
-    }
+    SaveSlotOpenRefreshEffect(saveLoadViewModel, onCloudEntries = { cloudEntries = it })
+    SaveSlotBusyMinDurationEffect(saveLoadState, showAnimation, animationStartTime, operationLabel)
     SaveLoadWatchdogEffect(saveLoadViewModel = saveLoadViewModel)
 
+    val migrationActions = buildMigrationActions(saveLoadViewModel, rememberCoroutineScope())
+
+    SaveSlotDialogContainer(saveLoadViewModel, isBusy, onDismiss) {
+        if (showAnimation.value) {
+            SaveSlotBusyIndicator(operationLabel = operationLabel.value)
+        }
+        if (!showAnimation.value) {
+            SaveSlotEditableContent(
+                state = SaveSlotListState(
+                    saveSlots, migration, migrationActions, cloudEntries, dateFormat, selectedSlot
+                ),
+                isBusy = isBusy,
+                onSlotClick = { selectedSlot = it },
+                onDeleteClick = { deleteTarget = it },
+                onCloudSlotLoad = { saveLoadViewModel.loadCloudSlot(it) },
+                onSubmit = SaveSlotSubmitActions(
+                    onSave = { saveLoadViewModel.saveGame(it.toString()) },
+                    onLoad = { saveLoadViewModel.loadGameFromSlot(it) }
+                )
+            )
+        }
+    }
+
+    DeleteSlotConfirmDialog(
+        target = deleteTarget,
+        onDismiss = { deleteTarget = null },
+        onConfirm = {
+            saveLoadViewModel.deleteSlot(it)
+            deleteTarget = null
+        }
+    )
+}
+
+/** 弹窗容器：标题/取消动作 + 全屏内容列（忙碌中点外/取消 = 中止当前保存读取） */
+@Composable
+private fun SaveSlotDialogContainer(
+    saveLoadViewModel: SaveLoadViewModel,
+    isBusy: Boolean,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
     UnifiedGameDialog(
         onDismissRequest = {
             if (isBusy) saveLoadViewModel.cancelSaveLoad()
@@ -928,18 +972,177 @@ internal fun SaveSlotDialog(
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (showAnimation) {
-                SaveSlotBusyIndicator(operationLabel = operationLabel)
-            }
+            content()
+        }
+    }
+}
 
-            if (!showAnimation) {
-                SaveSlotDialogContent(
-                    saveSlots = saveSlots,
-                    selectedSlot = selectedSlot,
-                    isBusy = isBusy,
-                    onSlotClick = { selectedSlot = it },
-                    onSave = { saveLoadViewModel.saveGame(it.toString()) },
-                    onLoad = { saveLoadViewModel.loadGameFromSlot(it) }
+/** 列表区 + 操作按钮行（转圈动画未显示时的可编辑内容） */
+@Composable
+private fun ColumnScope.SaveSlotEditableContent(
+    state: SaveSlotListState,
+    isBusy: Boolean,
+    onSlotClick: (Int) -> Unit,
+    onDeleteClick: (Int) -> Unit,
+    onCloudSlotLoad: (Int) -> Unit,
+    onSubmit: SaveSlotSubmitActions
+) {
+    SaveSlotContentList(
+        state = state,
+        onSlotClick = onSlotClick,
+        onDeleteClick = onDeleteClick,
+        onCloudSlotLoad = onCloudSlotLoad
+    )
+    SaveSlotActionRow(
+        selectedSlot = state.selectedSlot,
+        saveSlots = state.saveSlots,
+        isBusy = isBusy,
+        onSave = onSubmit.onSave,
+        onLoad = onSubmit.onLoad
+    )
+}
+
+/** 保存/读取提交动作（分组传参，控制 Composable 形参预算） */
+private data class SaveSlotSubmitActions(
+    val onSave: (Int) -> Unit,
+    val onLoad: (Int) -> Unit
+)
+
+/** 打开弹窗时的刷新面：云摘要（slot 0 显示真实数据）+ 迁移扫描（阶段 A 纯本地零云请求）
+ *  + 云槽位列表（LEGACY 短路零查询）。 */
+@Composable
+private fun SaveSlotOpenRefreshEffect(
+    saveLoadViewModel: SaveLoadViewModel,
+    onCloudEntries: (List<CloudSaveEntry>) -> Unit
+) {
+    LaunchedEffect(Unit) {
+        saveLoadViewModel.checkCloudSave()
+        saveLoadViewModel.migrationCoordinator.scan()
+        onCloudEntries(saveLoadViewModel.queryCloudSlotEntries())
+    }
+}
+
+/** 保存/读取转圈动画的最短显示时长（1 秒）——忙碌即显，收尾不足 1 秒补足 */
+@Composable
+private fun SaveSlotBusyMinDurationEffect(
+    saveLoadState: SaveLoadState,
+    showAnimation: MutableState<Boolean>,
+    animationStartTime: MutableState<Long>,
+    operationLabel: MutableState<String>
+) {
+    LaunchedEffect(saveLoadState.isBusy) {
+        if (saveLoadState.isBusy) {
+            animationStartTime.value = System.currentTimeMillis()
+            showAnimation.value = true
+            operationLabel.value = if (saveLoadState.isSaving) "保存中..." else "读取中..."
+        } else if (showAnimation.value) {
+            val elapsed = System.currentTimeMillis() - animationStartTime.value
+            if (elapsed < 1000) {
+                delay(1000 - elapsed)
+            }
+            showAnimation.value = false
+        }
+    }
+}
+
+/** 迁移卡动作位：经弹窗协程驱动协调器（未登录时 start 内部自报服务不可达，不在此重复拦截） */
+private fun buildMigrationActions(
+    saveLoadViewModel: SaveLoadViewModel,
+    scope: CoroutineScope
+): MigrationActions = MigrationActions(
+    onStart = { scope.launch { saveLoadViewModel.migrationCoordinator.start() } },
+    onDecision = { slot, keepLocal ->
+        scope.launch { saveLoadViewModel.migrationCoordinator.resolveConflict(slot, keepLocal) }
+    },
+    onLegacyDownload = { targetSlot ->
+        scope.launch { saveLoadViewModel.migrationCoordinator.migrateLegacyArchive(targetSlot) }
+    },
+    onEnableCloud = { saveLoadViewModel.migrationCoordinator.confirmEnableCloud() }
+)
+
+/** 删除存档确认（破坏性操作显式确认；文案与既有删除确认一致） */
+@Composable
+private fun DeleteSlotConfirmDialog(
+    target: Int?,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    if (target == null) return
+    StandardPromptDialog(
+        onDismissRequest = onDismiss,
+        title = "确认删除",
+        text = "确定要删除存档吗？此操作不可撤销。",
+        dismissLabel = "取消",
+        onDismiss = onDismiss,
+        confirmLabel = "删除",
+        onConfirm = { onConfirm(target) }
+    )
+}
+
+/** 存档列表区渲染入参（分组传参，控制 Composable 形参预算） */
+private data class SaveSlotListState(
+    val saveSlots: List<SaveSlot>,
+    val migration: MigrationUiState,
+    val migrationActions: MigrationActions,
+    val cloudEntries: List<CloudSaveEntry>,
+    val dateFormat: SimpleDateFormat,
+    val selectedSlot: Int?
+)
+
+/** 对话框内容区：迁移引导卡 + 槽位列表 + 云槽位区 + 操作按钮 */
+@Composable
+private fun ColumnScope.SaveSlotContentList(
+    state: SaveSlotListState,
+    onSlotClick: (Int) -> Unit,
+    onDeleteClick: (Int) -> Unit,
+    onCloudSlotLoad: (Int) -> Unit
+) {
+    val emptyLocalSlots = state.saveSlots
+        .filter { it.isEmpty && it.slot != 0 }
+        .map { it.slot }
+    LazyColumn(
+        modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // SR-6 迁移引导卡：有可迁内容即常驻列表首位（收口即消失，判据 MigrationUiState.visible）
+        if (state.migration.visible) {
+            item(key = "migration_card", contentType = { "migration_card" }) {
+                SaveMigrationCard(
+                    migration = state.migration,
+                    emptyLocalSlots = emptyLocalSlots,
+                    actions = state.migrationActions
+                )
+            }
+        }
+        items(state.saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
+            SaveSlotCard(
+                slot = slot,
+                isSelected = state.selectedSlot == slot.slot,
+                onClick = { onSlotClick(slot.slot) },
+                onDeleteClick = if (slot.slot != 0 && !slot.isEmpty) {
+                    { onDeleteClick(slot.slot) }
+                } else {
+                    null
+                }
+            )
+        }
+        // SR-3 云端槽位存档区（已登录 + 非 LEGACY 时非空；点击下载到本机槽并加载）
+        if (state.cloudEntries.isNotEmpty()) {
+            item(key = "cloud_slot_header", contentType = { "cloud_slot_header" }) {
+                Text(
+                    text = "云端槽位存档",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+            items(state.cloudEntries, key = { "cloud_${it.slot}" }, contentType = { "cloud_slot" }) { entry ->
+                CloudSlotEntryCard(
+                    entry = entry,
+                    dateFormat = state.dateFormat,
+                    onClick = { onCloudSlotLoad(entry.slot) }
                 )
             }
         }
@@ -956,30 +1159,6 @@ private fun SaveLoadWatchdogEffect(saveLoadViewModel: SaveLoadViewModel) {
             saveLoadViewModel.cancelSaveLoad()
         }
     }
-}
-
-/** 对话框内容区：转圈动画 + 槽位列表 + 操作按钮 */
-@Composable
-private fun ColumnScope.SaveSlotDialogContent(
-    saveSlots: List<SaveSlot>,
-    selectedSlot: Int?,
-    isBusy: Boolean,
-    onSlotClick: (Int) -> Unit,
-    onSave: (Int) -> Unit,
-    onLoad: (Int) -> Unit
-) {
-    SaveSlotList(
-        saveSlots = saveSlots,
-        selectedSlot = selectedSlot,
-        onSlotClick = onSlotClick
-    )
-    SaveSlotActionRow(
-        selectedSlot = selectedSlot,
-        saveSlots = saveSlots,
-        isBusy = isBusy,
-        onSave = onSave,
-        onLoad = onLoad
-    )
 }
 
 /** 保存/读取中转圈指示 */
@@ -1004,29 +1183,6 @@ private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
                 text = operationLabel,
                 fontSize = 16.sp,
                 color = Color.Black
-            )
-        }
-    }
-}
-
-/** 存档槽位列表 */
-@Composable
-private fun ColumnScope.SaveSlotList(
-    saveSlots: List<SaveSlot>,
-    selectedSlot: Int?,
-    onSlotClick: (Int) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier
-            .weight(1f)
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
-            SaveSlotCard(
-                slot = slot,
-                isSelected = selectedSlot == slot.slot,
-                onClick = { onSlotClick(slot.slot) }
             )
         }
     }
@@ -1114,7 +1270,8 @@ private fun SaveSlotCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
 internal fun SaveSlotCard(
     slot: SaveSlot,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val borderColor = if (isSelected) Color.Black else GameColors.Border
     val borderWidth = if (isSelected) 2.dp else 1.dp
@@ -1135,7 +1292,8 @@ internal fun SaveSlotCard(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1146,11 +1304,28 @@ internal fun SaveSlotCard(
                         color = Color.Black
                     )
                 }
-                Text(
-                    text = if (slot.isEmpty) "空" else slot.saveTime,
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 删除入口：本地非空存档显示（slot 0 云会话不在此删除）
+                    if (onDeleteClick != null) {
+                        Text(
+                            text = "✕",
+                            fontSize = 14.sp,
+                            color = Color(0xFFE53935),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable { onDeleteClick() }
+                                .padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
+                        )
+                    }
+                    Text(
+                        text = if (slot.isEmpty) "空" else slot.saveTime,
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
             }
             SaveSlotDetails(slot = slot)
         }

@@ -1,20 +1,15 @@
-package com.xianxia.sect.ui
+package com.xianxia.sect.ui.game.saveload
 
-import com.xianxia.sect.ui.game.saveload.MigrationPhase
-import com.xianxia.sect.ui.game.saveload.MigrationSlotRow
-import com.xianxia.sect.ui.game.saveload.MigrationUiState
-import com.xianxia.sect.ui.game.saveload.SlotMigrationStatus
-import com.xianxia.sect.ui.model.SaveSelectMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 迁移引导卡的可见性与文案守卫（SR-6 C8）。
+ * 迁移引导卡的可见性与文案守卫（SR-6 C8，游戏内存档管理弹窗）。
  *
  * 两条各管一头：
- * - **可见性**：新游戏模式不得冒出迁移卡（与 SR-3 云槽位卡 `visibleCloudSlots` 同纪律）；
- *   引导完成（全员收口 + 云存档已启用）后卡片必须消失，否则"引导"变常驻噪音；
+ * - **可见性**：有可迁内容即常驻（进弹窗看到的第一件事），引导完成（全员收口 +
+ *   云存档已启用）后必须消失，否则"引导"变常驻噪音；
  * - **文案全覆盖**：每个槽位状态与每个阶段都必须有非空玩家文案——空串意味着某条状态
  *   进了 UI 却没有任何解释（"算了但没人看"的 UI 版）。
  */
@@ -39,20 +34,13 @@ class SaveMigrationCardTest {
     )
 
     @Test
-    fun `读档模式有可迁槽时卡片可见，新游戏模式一律不可见`() {
-        val state = migration()
-        assertTrue(migrationCardVisible(SaveSelectMode.LOAD_SAVE, state))
-        assertFalse(migrationCardVisible(SaveSelectMode.NEW_GAME, state))
-    }
-
-    @Test
     fun `空态不可见；服务不可达即使无行也要可见（原因必须让玩家看见）`() {
-        assertFalse(migrationCardVisible(SaveSelectMode.LOAD_SAVE, MigrationUiState()))
+        assertFalse(MigrationUiState().visible)
         val unavailable = MigrationUiState(
             phase = MigrationPhase.SERVICE_UNAVAILABLE,
             notice = "云存档服务不可达：未连接"
         )
-        assertTrue(migrationCardVisible(SaveSelectMode.LOAD_SAVE, unavailable))
+        assertTrue(unavailable.visible)
     }
 
     @Test

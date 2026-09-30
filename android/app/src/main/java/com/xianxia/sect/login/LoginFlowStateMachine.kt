@@ -11,7 +11,7 @@ package com.xianxia.sect.login
  * - 一次性标记永不复位 → "退出认证/切换账号后再登录"验证被永久跳过
  * - 回调注册与 SDK 就绪时序无统一契约 → 冷启动路径注册失败后永久失去回调
  *
- * 本状态机将"登录 → 防沉迷验证 → 进模式选择"收敛为单一真相源：状态转移表唯一、
+ * 本状态机将"登录 → 防沉迷验证 → 自动进入游戏"收敛为单一真相源：状态转移表唯一、
  * 副作用经 [LoginFlowHost] 执行、事件幂等防重入。详见 docs/login-flow-state-machine.md。
  *
  * ## 关键机制
@@ -106,7 +106,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
         host.onSetVerificationTimeout(false)
         pendingUnionId = null
         state = LoginFlowState.Verified
-        host.onShowModeSelection()
+        host.onEnterGame()
     }
 
     private fun onVerificationExited() {
@@ -171,7 +171,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
         when {
             event.complianceVerified -> {
                 state = LoginFlowState.Verified
-                host.onShowModeSelection()
+                host.onEnterGame()
             }
             event.unionId.isNullOrEmpty() -> {
                 host.onLog("已登录但缺少 unionId，需要重新登录")

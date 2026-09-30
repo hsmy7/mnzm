@@ -10,9 +10,8 @@
  *
  * 1. 创建 values-en/strings.xml 和 values-zh-rCN/strings.xml
  * 2. 提取以下文件中的硬编码字符串到 string resources：
- *    - SaveSelectScreen.kt（存档选择界面）
  *    - PrivacyConsentScreen.kt（隐私政策界面）
- *    - MainActivity.kt（主界面）
+ *    - MainActivity.kt（登录/自动进入门户）
  *    - GameActivity.kt（游戏界面）
  *    - SettingsTab.kt（设置界面）
  *    - 仓库/背包 UI 文件（10+ 个 Composable）
