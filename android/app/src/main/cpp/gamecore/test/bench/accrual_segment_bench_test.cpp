@@ -50,7 +50,6 @@ state::Disciple makeBenchDisciple(int32_t n) {
 void populateFullInventory(state::GameState& state) {
     state.disciples.manualIds.resize(kBenchDisciples);
     state.disciples.weaponIds.resize(kBenchDisciples);
-    state.disciples.armorIds.resize(kBenchDisciples);
     for (int32_t n = 1; n <= kBenchDisciples; ++n) {
         const std::string id = std::to_string(n);
 
@@ -66,7 +65,7 @@ void populateFullInventory(state::GameState& state) {
         state::EquipmentInstance w;
         w.id = "w" + id;
         w.name = "剑" + id;
-        w.slot = "WEAPON";
+        w.part = "WEAPON";
         w.ownerId = id;
         w.isEquipped = true;
         state.equipmentInstances.push_back(w);
@@ -75,11 +74,11 @@ void populateFullInventory(state::GameState& state) {
         state::EquipmentInstance a;
         a.id = "a" + id;
         a.name = "甲" + id;
-        a.slot = "ARMOR";
+        a.part = "BODY";
         a.ownerId = id;
         a.isEquipped = true;
         state.equipmentInstances.push_back(a);
-        state.disciples.armorIds[n - 1] = a.id;
+        state.disciples.bodyIds[n - 1] = a.id;
     }
 }
 
