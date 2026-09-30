@@ -7,6 +7,8 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-30 10:0x 看护轮#100：EQ-B4 会话自查升级触 C++——.so 重编中（任务面板 7/10）**。会话发现**调 k 触 C++ 静态数据**（equip_main_stat_db.h 变更 ⇒ 派发件「预期不触 C++」假设失效）——正确升级：G0 零等已验 ✓ → **.so 必须重编**（否则双端 T6 数值分叉）→ ctest 必重跑；正在 gamecore/build 重编（GUI 实证执行中）。旧用例处置核查进行中（「总战力持平」判据旧用例→分维度改写，派发件处置表预期）。余待办：门禁全跑（六模块 JVM+ctest+lint/detekt+jni-count+agent）→ report-B4.md 归档+单笔收官。**§5 核验盯点追加：.so mtime 必须晚于 equip_main_stat_db.h 调 k 时刻（build-desktop-jni.ps1 重编证据）+ engine Diff 门绿**。门禁期静默属正常（JNI 重编+ctest+六模块预计 30-90 分钟）。下轮：静默判读（build 计数+GUI）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（C++ 重编+门禁期）。**
+
 - **2026-09-30 09:5x 看护轮#99：EQ-B4 校准收官信号——探针清理+方案文档回写**。dirty 仍 12 但组成变更：临时探针 `CalibrationProbe.kt` **已删**（一次性代码清理纪律落实✓）；新增 `docs/design/equipment-set-system-refactor-plan.md` 修改（校准结论回写方案 §13 数值口径的预期动作）。校准阶段结束，转报告前固化期。**§5 核验追加盯点：收官笔内不得出现 CalibrationProbe.kt**（一次性件，验证已清）。无报告。下轮：观察（预期报告落盘+门禁收尾）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（收尾期渐近）。**
 
 - **2026-09-30 09:4x 看护轮#98：EQ-B4 写入面全数落齐（四测试类+调 k+resolver 数值面）**。dirty 10→**12**：`EquipmentStatHotPathBenchmark`（新）压轴现身，四个正式测试类齐；新增主代码 `EquipStatResolver.kt` 修改（数值面正当写入——占比校准落点，核验时对照 S19/S20 既有锁定复核）。构建 36 产物/12 分钟（门禁节奏渐近）。无报告。下轮：实施期观察（预期门禁全套→报告落盘）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（门禁期渐近）。**
