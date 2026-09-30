@@ -318,6 +318,16 @@ class GachaRenderModelTest {
             readModel.rarityWeights,
         )
         assertEquals(
+            "碎片数量权重表逐档等值（下标 i = i+1 片 → (片数, 权重)）",
+            listOf(1 to 30, 2 to 20, 3 to 20, 4 to 20, 5 to 10),
+            readModel.fragmentCountWeights,
+        )
+        assertEquals(
+            "物品数量权重表逐档等值（下标 i = i+1 件 → (件数, 权重)）",
+            listOf(1 to 2, 2 to 4, 3 to 9, 4 to 15, 5 to 20, 6 to 20, 7 to 15, 8 to 9, 9 to 4, 10 to 2),
+            readModel.itemCountWeights,
+        )
+        assertEquals(
             "物品类别的品阶上限逐项来自池配置（角色类是碎片/星级制，不进上限表）",
             mapOf("herb" to 4),
             readModel.maxRarityPerKind,
@@ -459,10 +469,12 @@ class GachaRenderModelTest {
             GachaRarityWeightSpec(2, 33),
             GachaRarityWeightSpec(1, 22),
         ),
+        fragmentCountWeights = listOf(30, 20, 20, 20, 10),
+        itemCountWeights = listOf(2, 4, 9, 15, 20, 20, 15, 9, 4, 2),
         pity = GachaPitySpec(
             GameConfig.Gacha.PITY_PULL_THRESHOLD,
             GameConfig.Gacha.PITY_FRAGMENT_COUNT,
-            "random",
+            "singleSpiritRoot",
         ),
     )
 

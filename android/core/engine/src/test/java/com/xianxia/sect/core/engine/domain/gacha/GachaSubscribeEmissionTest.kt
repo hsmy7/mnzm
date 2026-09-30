@@ -165,6 +165,8 @@ class GachaSubscribeEmissionTest {
         pricePerPull = PRICE_PER_PULL,
         categories = listOf(GachaCategorySpec(CATEGORY_KIND, WEIGHT_TOTAL, listOf(TEMPLATE_ID), "", 0)),
         itemRarityWeights = listOf(GachaRarityWeightSpec(RARITY, WEIGHT_TOTAL)),
+        fragmentCountWeights = listOf(WEIGHT_TOTAL),
+        itemCountWeights = listOf(WEIGHT_TOTAL),
         pity = GachaPitySpec(PITY_THRESHOLD, PITY_FRAGMENT_COUNT, PICK_MODE),
     )
 

@@ -39,7 +39,8 @@ data class GachaRarityWeightSpec(val rarity: Int, val weightPct: Int)
  * 保底配置。
  *
  * 语义是"第 [pullThreshold] 抽**本身**发 [fragmentCount] 片随机角色碎片"，
- * 不是在该抽之外额外赠送；[pickMode] 本批只支持 `"random"`。
+ * 不是在该抽之外额外赠送；[pickMode] 支持 `"random"`（池内全部角色）与
+ * `"singleSpiritRoot"`（池内单灵根角色），其余取值按池不自洽拒绝。
  */
 data class GachaPitySpec(
     val pullThreshold: Int,
@@ -53,6 +54,10 @@ data class GachaPitySpec(
  * @property pricePerPull 单抽价（下品灵石）
  * @property categories 类别权重表——**声明序即加权累加序**，与 C++ 同序
  * @property itemRarityWeights 品阶权重表——同样声明序敏感
+ * @property fragmentCountWeights 角色碎片数量权重表——**下标 i = i+1 片**，全表和为 100，
+ *   声明序敏感（与 C++ `GachaPoolTemplate.fragmentCountWeights` 同构）
+ * @property itemCountWeights 物品数量权重表——**下标 i = i+1 件**，全表和为 100
+ *   （钟形近似正态分布），声明序敏感（与 C++ `GachaPoolTemplate.itemCountWeights` 同构）
  */
 data class GachaPoolSpec(
     val poolId: String,
@@ -60,6 +65,8 @@ data class GachaPoolSpec(
     val pricePerPull: Int,
     val categories: List<GachaCategorySpec>,
     val itemRarityWeights: List<GachaRarityWeightSpec>,
+    val fragmentCountWeights: List<Int>,
+    val itemCountWeights: List<Int>,
     val pity: GachaPitySpec,
 )
 
@@ -130,6 +137,8 @@ private fun JsonElement?.asPoolSpec(): GachaPoolSpec? {
             ?: emptyList(),
         itemRarityWeights = (obj["itemRarityWeights"] as? JsonArray)
             ?.mapNotNull { it.asRarityWeightSpec() } ?: emptyList(),
+        fragmentCountWeights = obj.intList("fragmentCountWeights"),
+        itemCountWeights = obj.intList("itemCountWeights"),
         pity = (obj["pity"] as? JsonObject).asPitySpec(),
     )
 }
@@ -162,3 +171,7 @@ private fun JsonObject?.asPitySpec(): GachaPitySpec = GachaPitySpec(
 private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
 private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
+
+/** 整数数组字段（缺键/非数组一律空表——池自洽校验会以「权重和 ≠ 100」显式拒绝） */
+private fun JsonObject.intList(key: String): List<Int> =
+    (this[key] as? JsonArray)?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()

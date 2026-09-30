@@ -736,7 +736,7 @@ fun watchAdForNewFeature() {
 | 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
 | 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |
 | 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
-| 耗（汇） | 仙缘寻访 | 单抽/十连扣灵石（`GameConfig.Gacha.PRICE_PER_PULL`=5000/抽；保底 `PITY_PULL_THRESHOLD`=10 抽内必出角色碎片 `PITY_FRAGMENT_COUNT`=5），结算在 C++ `gacha_tx.h` | `GachaFacade`、`GachaService`、`GameConfig.Gacha` |
+| 耗（汇） | 仙缘寻访 | 单抽/十连扣灵石（`GameConfig.Gacha.PRICE_PER_PULL`=5000/抽；保底 `PITY_PULL_THRESHOLD`=10 抽内必出单灵根角色碎片 `PITY_FRAGMENT_COUNT`=5，`pickMode=singleSpiritRoot`；普通角色碎片加权 1..5 片 30/20/20/20/10、物品加权 1..10 件钟形 2/4/9/15/20/20/15/9/4/2——池配置 `fragmentCountWeights`/`itemCountWeights` 单源，2026-09-30），结算在 C++ `gacha_tx.h` | `GachaFacade`、`GachaService`、`GameConfig.Gacha` |
 
 ### 玉符（氪金货币）经济登记与墙钟豁免论证（2026-08-07）
 

@@ -1,5 +1,38 @@
 ## [4.01.16] - 2026-09-22
 
+### 常驻池奖励数量调整（2026-09-30 单批交付）——角色碎片 1..5 加权 · 物品 1..10 钟形 · 保底单灵根 — `feat(gacha)`
+
+> 需求拍板（用户数值）：普通角色抽碎片随机 1..5 片（30/20/20/20/10）；其他物品随机
+> 1..10 件（正态钟形离散权重表 2/4/9/15/20/20/15/9/4/2，中心 5~6 件、期望 5.5 件——连续
+> 高斯采样方案经比选否决，离散表与既有加权机制同构且可逐档公示）；保底改「每第 10 抽必得
+> 5 片**单灵根**角色碎片」（周明/苏晴二选一，数量固定不参与加权）。业务口径权威
+> [docs/character-gacha-redesign-2026-09-23.md](docs/character-gacha-redesign-2026-09-23.md) §4.1/§4.2
+> 已同步修订。版本号不自增（4.01.16 原值并入本条）；**零 Room 迁移、零存档 schema 变更**
+> （`gachaPityCounters`/`gachaHistory` 结构不变，仅 count 取值域变化，旧档顺延兼容）。
+
+- **配置单源**：`scripts/data/gacha_config_sample.json` 池级新增 `fragmentCountWeights` /
+  `itemCountWeights` 两张和恒 100 的权重表，`pity.pickMode` 切 `singleSpiritRoot`（`random`
+  保留在白名单内）；`gen-game-data.mjs --check` 产物再生。
+- **双臂同式（对拍命门）**：掷点契约修订——保底抽仍 1 次（候选集 = 全角色按模板灵根数=1
+  过滤）、角色抽 2→**3** 次（末位 `nextInt(100)` 掷碎片数量）、物品抽 3→**4** 次（末位掷
+  物品数量）；C++ `gacha_tx.h`（`pityCandidates`/`singleRootCandidates` + `weightTableMalformed`
+  四表校验 + `grantItem` 参数化 count，满仓溢出仍整包转邮件）↔ Kotlin `GachaPullLedger`
+  （同构 + `pityCandidates` 扩展属性）；`GachaPoolSpec`/`GachaPoolConfig` 解析两新表，
+  `GachaService` 入库改用 `grant.count`。
+- **UI 概率公示**：`GachaOddsPanel` 新增「角色碎片数量」「物品数量」两节逐档公示，
+  保底行改「必得 5 片单灵根角色碎片」、选取方式改「单灵根角色等概率随机」。
+- **测试**：C++ `gacha_pull_test` 消费序参照流改 1/3/4 同构 + 保底归属单灵根 + 数量权重
+  表字面量钉死 + 池校验新增六分支；`DiffGachaPullTest` VECTORS 黄金表全量重生成
+  （双臂+黄金表三方比对、12 号分区事后状态逐位全等，带桌面 .so 6/6 真跑零跳过）；
+  `GachaPullGuardTest` bound 序列 `[100,n,100]`/`[100,100,n,100]` + 两张数量表逐档边界
+  断言 + 拒绝分支新增 5 条；`GachaConfigGuardTest` 拍板数值逐档比对。门禁：ctest
+  1534/1535（唯一余红 `AccrualSegmentBench` = HEAD 已定性机器环境劣化，与本批零交集）；
+  JVM 六模块全量 **7669/0 失败/22 既有跳过**；`compileReleaseKotlin`/`lintRelease`/`detekt` 绿。
+- **经济影响（拍板知情）**：角色升星期望 ≈2.6×（100 抽/星 → 约 38 抽/星）；保底 5 片必落
+  单灵根（原六选一期望 0.83 片），最高稀有度灵根获取大幅提速；材料供给 ≈5.5×（每抽期望
+  材料 0.79 → 4.35 件，炼丹/种植/锻造材料端通胀——如需产能端对冲另开数值任务）；灵石
+  消耗与保底节奏不变。
+
 ### 五行属性伤害系统（2026-09-30 单批交付）——DamageType 六值化 · 灵根 gate · 六套 36 部件 — `feat(elemental)`
 
 > 批次依据：`docs/design/elemental-damage-system-plan.md`（P1–P9 / E1–E12 权威方案）；决策记录

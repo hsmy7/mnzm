@@ -79,17 +79,17 @@ fun GachaOddsPanel(
                         swatch = GachaColors.rarityColor(rarity),
                     )
                 }
-                GachaOddsSectionTitle(PITY_SECTION_TITLE)
-                OddsRow(
-                    label = "每 ${pool.pity.pullThreshold} 次寻访",
-                    valueText = "必得 ${pool.pity.fragmentCount} 片角色碎片",
-                    swatch = null,
+                CountWeightsSection(
+                    title = FRAGMENT_COUNT_SECTION_TITLE,
+                    rows = readModel.fragmentCountWeights,
+                    unitText = FRAGMENT_UNIT_TEXT,
                 )
-                OddsRow(
-                    label = PITY_PICK_LABEL,
-                    valueText = pickModeLabel(pool.pity.pickMode),
-                    swatch = null,
+                CountWeightsSection(
+                    title = ITEM_COUNT_SECTION_TITLE,
+                    rows = readModel.itemCountWeights,
+                    unitText = ITEM_COUNT_UNIT_TEXT,
                 )
+                PitySection(pool)
             }
         }
         GameButton(text = BACK_TEXT, onClick = onBack)
@@ -106,6 +106,27 @@ private fun GachaOddsSectionTitle(title: String) {
         modifier = Modifier.padding(top = SECTION_GAP_DP.dp, bottom = SECTION_INSET_DP.dp),
     )
     HorizontalDivider(thickness = SECTION_RULE_DP.dp, color = GameColors.Border)
+}
+
+/** 数量分布一节（碎片片数 / 物物件数共用）：标题 + 逐档「N 片/件 —— 百分比」 */
+@Composable
+private fun CountWeightsSection(title: String, rows: List<Pair<Int, Int>>, unitText: String) {
+    GachaOddsSectionTitle(title)
+    rows.forEach { (count, weightPct) ->
+        OddsRow(label = "$count $unitText", valueText = percentText(weightPct), swatch = null)
+    }
+}
+
+/** 保底一节：触发阈值 + 奖励与归属面（文案随 pity.pickMode） */
+@Composable
+private fun PitySection(pool: GachaPoolSpec) {
+    GachaOddsSectionTitle(PITY_SECTION_TITLE)
+    OddsRow(
+        label = "每 ${pool.pity.pullThreshold} 次寻访",
+        valueText = pityRewardText(pool.pity.pickMode, pool.pity.fragmentCount),
+        swatch = null,
+    )
+    OddsRow(label = PITY_PICK_LABEL, valueText = pickModeLabel(pool.pity.pickMode), swatch = null)
 }
 
 /** 一行「名称 —— 数值」，可选左侧品阶色圆点 */
@@ -149,9 +170,18 @@ private fun categoryValueText(readModel: GachaPoolReadModel, kind: String, weigh
     return "${percentText(weightPct)}（最高 $maxRarity 阶）"
 }
 
-/** 选取方式的可读称呼（当前配置只有随机；未知值原样显示，便于发现配置漂移） */
-private fun pickModeLabel(mode: String): String =
-    if (mode == PICK_MODE_RANDOM) "全部角色等概率随机" else mode
+/** 选取方式与保底奖励的可读称呼（未知值原样显示，便于发现配置漂移） */
+private fun pickModeLabel(mode: String): String = when (mode) {
+    PICK_MODE_RANDOM -> "全部角色等概率随机"
+    PICK_MODE_SINGLE_SPIRIT_ROOT -> "单灵根角色等概率随机"
+    else -> mode
+}
+
+/** 保底奖励文案：归属面随 pickMode（与 pickModeLabel 同一取值域口径） */
+private fun pityRewardText(pickMode: String, fragmentCount: Int): String = when (pickMode) {
+    PICK_MODE_SINGLE_SPIRIT_ROOT -> "必得 $fragmentCount 片单灵根角色碎片"
+    else -> "必得 $fragmentCount 片角色碎片"
+}
 
 private const val ODDS_H_PADDING_DP = 16
 private const val SECTION_GAP_DP = 10
@@ -163,9 +193,14 @@ private const val BACK_TEXT = "返回"
 private const val SINGLE_PULL_LABEL = "单次寻访"
 private const val STONE_UNIT_TEXT = "灵石"
 private const val RARITY_SUFFIX_TEXT = "阶物品"
+private const val FRAGMENT_COUNT_SECTION_TITLE = "角色碎片数量"
+private const val FRAGMENT_UNIT_TEXT = "片"
+private const val ITEM_COUNT_SECTION_TITLE = "物品数量"
+private const val ITEM_COUNT_UNIT_TEXT = "件"
 private const val CATEGORY_SECTION_TITLE = "出货类别权重"
 private const val RARITY_SECTION_TITLE = "物品品阶权重"
 private const val PITY_SECTION_TITLE = "保底"
 private const val PITY_PICK_LABEL = "保底碎片的角色选取"
 private const val PICK_MODE_RANDOM = "random"
+private const val PICK_MODE_SINGLE_SPIRIT_ROOT = "singleSpiritRoot"
 private const val POOL_UNAVAILABLE_TEXT = "这个去处暂时寻访不了"

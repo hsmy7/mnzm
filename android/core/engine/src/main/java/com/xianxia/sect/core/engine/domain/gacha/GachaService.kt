@@ -244,7 +244,7 @@ class GachaService @Inject constructor(
                         name = grant.name,
                         rarity = grant.rarity,
                         category = grant.category,
-                        quantity = GachaPullLedger.ITEM_QUANTITY,
+                        quantity = grant.count,
                     )
                 )
                 ITEM_SOURCE_SEEDS -> inventorySystem.addSeed(
@@ -254,7 +254,7 @@ class GachaService @Inject constructor(
                         rarity = grant.rarity,
                         growTime = grant.growTime,
                         yield = grant.yield,
-                        quantity = GachaPullLedger.ITEM_QUANTITY,
+                        quantity = grant.count,
                     )
                 )
                 else -> inventorySystem.addMaterial(
@@ -265,7 +265,7 @@ class GachaService @Inject constructor(
                         // 候选来自 BeastMaterialDatabase 模板本身，枚举名往返恒等
                         // （C++ 侧同一模板把 materialCategory 字符串直接写入实例）
                         category = MaterialCategory.valueOf(grant.category),
-                        quantity = GachaPullLedger.ITEM_QUANTITY,
+                        quantity = grant.count,
                     )
                 )
             }
