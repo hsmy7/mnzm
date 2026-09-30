@@ -281,83 +281,6 @@ enum class CaveStatus {
 
 @Keep
 @Serializable
-enum class AITeamStatus {
-    EXPLORING,
-    DEFEATED;
-    
-    val displayName: String get() = when (this) {
-        EXPLORING -> "探索中"
-        DEFEATED -> "已击败"
-    }
-}
-
-@Keep
-@Serializable
-data class AICaveDisciple(
-    @ProtoNumber(1) val id: String = "",
-    @ProtoNumber(2) val name: String = "",
-    @ProtoNumber(3) val realm: Int = 5,
-    val realmName: String = "",
-    @ProtoNumber(5) val hp: Int = 1000,
-    @ProtoNumber(6) val maxHp: Int = 1000,
-    @ProtoNumber(7) val mp: Int = 500,
-    @ProtoNumber(8) val maxMp: Int = 500,
-    // ── 攻防单列口径（B1，方案 §15.4）──
-    // 新写入 attack(17)/defense(18)；旧物法四列（9–12）保留声明仅作旧 JSON
-    // 归一化读取（洞府数据存 game_data TEXT 列，字段名即 JSON 键），
-    // 消费点一律读 [attackTotal]/[defenseTotal]。
-    @Deprecated("旧物攻，仅旧档归一化读取；改用 attackTotal")
-    @ProtoNumber(9) val physicalAttack: Int = 0,
-    @Deprecated("旧法攻，仅旧档归一化读取")
-    @ProtoNumber(10) val magicAttack: Int = 0,
-    @Deprecated("旧物防，仅旧档归一化读取")
-    @ProtoNumber(11) val physicalDefense: Int = 0,
-    @Deprecated("旧法防，仅旧档归一化读取")
-    @ProtoNumber(12) val magicDefense: Int = 0,
-    @ProtoNumber(17) val attack: Int = 150,
-    @ProtoNumber(18) val defense: Int = 90,
-    @ProtoNumber(13) val speed: Int = 100,
-    @ProtoNumber(14) val critRate: Double = 0.05,
-    @ProtoNumber(15) val equipments: List<AIRandomEquipment> = emptyList(),
-    @ProtoNumber(16) val manuals: List<AIRandomManual> = emptyList()
-) {
-    val isAlive: Boolean get() = hp > 0
-    val hpPercent: Int get() = if (maxHp > 0) ((hp.toDouble() / maxHp) * 100).toInt() else 0
-
-    /** 有效攻击：新单列值 + 旧物法两列归一化（旧 JSON 9/10 有值、新档恒 0） */
-    val attackTotal: Int get() = attack + physicalAttack + magicAttack
-
-    /** 有效防御：口径同 [attackTotal] */
-    val defenseTotal: Int get() = defense + physicalDefense + magicDefense
-}
-
-@Keep
-@Serializable
-data class AIRandomEquipment(
-    @ProtoNumber(1) val slot: EquipmentSlot,
-    @ProtoNumber(2) val name: String,
-    @ProtoNumber(3) val rarity: Int,
-    @ProtoNumber(4) val nurtureLevel: Int,
-    @ProtoNumber(5) val physicalAttack: Int = 0,
-    @ProtoNumber(6) val magicAttack: Int = 0,
-    @ProtoNumber(7) val physicalDefense: Int = 0,
-    @ProtoNumber(8) val magicDefense: Int = 0,
-    @ProtoNumber(9) val speed: Int = 0,
-    @ProtoNumber(10) val hp: Int = 0,
-    @ProtoNumber(11) val mp: Int = 0
-)
-
-@Keep
-@Serializable
-data class AIRandomManual(
-    @ProtoNumber(1) val name: String,
-    @ProtoNumber(2) val rarity: Int,
-    @ProtoNumber(3) val mastery: Int,
-    @ProtoNumber(4) val stats: Map<String, Int> = emptyMap()
-)
-
-@Keep
-@Serializable
 data class CaveExplorationTeam(
     val id: String = java.util.UUID.randomUUID().toString(),
     val caveId: String = "",
@@ -483,23 +406,3 @@ data class BattleRewardItem(
     @ProtoNumber(4) val rarity: Int = 1,
     @ProtoNumber(5) val type: String = "material"  // "spiritStones", "equipment", "manual", "pill", "material"
 )
-
-// AI洞府探索队伍（用于GameData）
-@Keep
-@Serializable
-data class AICaveTeam(
-    @ProtoNumber(1) val id: String = java.util.UUID.randomUUID().toString(),
-    @ProtoNumber(4) val caveId: String = "",
-    @ProtoNumber(2) val sectId: String = "",
-    @ProtoNumber(3) val sectName: String = "",
-    @ProtoNumber(9) val memberCount: Int = 5,
-    @ProtoNumber(10) val avgRealm: Int = 5,
-    @ProtoNumber(11) val avgRealmName: String = "",
-    @ProtoNumber(5) val disciples: List<AICaveDisciple> = emptyList(),
-    @ProtoNumber(6)
-    @Serializable(with = AITeamStatusAsStringSerializer::class)
-    val status: AITeamStatus = AITeamStatus.EXPLORING
-) {
-    val isExploring: Boolean get() = status == AITeamStatus.EXPLORING
-    val isDefeated: Boolean get() = status == AITeamStatus.DEFEATED
-}

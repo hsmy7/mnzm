@@ -1,5 +1,30 @@
 ## [4.01.16] - 2026-09-22
 
+### AI 洞府探索队伍链整链退役——Room v65 双表删列 · 存档 schema 减负 — `refactor(cave-retire)`（2026-09-30 单批交付）
+
+> 背景（前批分析结论）：`GameData.aiCaveTeams`（AI 洞府遭遇战玩法）的写入方已随 W4-D/D5
+> 死代码清零批删除，此后全仓零构造、零读写、C++ authoritative 侧零镜像——纯死存储；
+> 用户拍板整链退役（方案 c）。版本号不自增；**Room v64→v65 迁移**（本批唯一 schema 变更）。
+
+- **删除面（模型链 6 类 + 序列化器 1 + 字段 4 处 + 转换器 2 + 旧档镜像 5）**：
+  `AICaveTeam`/`AICaveDisciple`（含 critRate=0.05 休眠默认值，proto 14）/`AIRandomEquipment`/
+  `AIRandomManual`/`AITeamStatus`/`AITeamStatusAsStringSerializer`；`GameData.aiCaveTeams`
+  （@ProtoNumber 28，双侧标记 reserved 禁复用）、`ExplorationState`/`WorldMapStateEntity`/
+  `WorldMapDomainState` 三处同名字段、`extractWorldMapState`/`mergeWorldMapState` 透传、
+  `CollectionConverters` 双转换器、`StorageEngineWriteOps` 透传、`GameEngineServiceOps` 内存
+  裁剪块、`GameDataFieldPatch` 补丁注册表条目、`OldSerializableSaveData` 五个 Serializable 镜像；
+  `SingleColumnStatGuardTest`/`BaselineFieldCoverageGuardTest` 守卫面同步。
+- **Room v64→v65**：`MIGRATION_64_65` 用 `rebuildTableDroppingColumns`（PRAGMA 重建唯一实现，
+  V49→V50 先例）删 `game_data`/`world_map_state` 双表 `aiCaveTeams` 列（幂等，V65 先注册
+  `ALL_MIGRATIONS` 单点表）；schema JSON `65.json` 随 KSP 导出提交。
+- **测试**：新增 `RoomMigrationV64To65Test` 四臂（列集精确相等 / 行数据逐值保留 / 真实 Room
+  schema 校验 / 幂等重放）；全链删列台账 `RoomMigrationV51To52Test` 登记注册集 +aiCaveTeams；
+  删 `MapModelsTest` AICaveTeam/AICaveDisciple 九例；`RoomMigrationSupport.insertMinimalGameDataV2`
+  为 v2 历史种子（全链测试用），本批不动。
+- **门禁**：compileReleaseKotlin 绿；testReleaseUnitTest 全绿（3015 例，engine 带重编桌面 JNI 桥
+  重跑，Diff 家族 0 skip）；lintRelease/detekt 无新增；agent-instructions 全绿；jni-count 87/87；
+  C++ 零改动（ctest 不适用）。
+
 ### 暴击系统口径调整——基础暴击率归零 · 暴伤接线生效 · 面板双暴显示 — `feat(crit)`（2026-09-30 单批交付）
 
 > 需求拍板：基础暴击率 5%→0%（所有角色）；敌人暴击（含境界成长/Boss 加成）一并归零——敌人永不暴击；

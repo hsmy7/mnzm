@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.gameview
 
 import com.xianxia.sect.core.model.ActiveMission
-import com.xianxia.sect.core.model.AICaveTeam
 import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.AttackWarning
@@ -186,7 +185,6 @@ internal object GameDataFieldPatch {
         f("caveExplorationTeams", { gd, el, j ->
             gd.caveExplorationTeams = j.decodeFromJsonElement<List<CaveExplorationTeam>>(el)
         }),
-        f("aiCaveTeams", { gd, el, j -> gd.aiCaveTeams = j.decodeFromJsonElement<List<AICaveTeam>>(el) }),
         f("unlockedRecipes", { gd, el, j -> gd.unlockedRecipes = j.decodeFromJsonElement<List<String>>(el) }),
         f("unlockedManuals", { gd, el, j -> gd.unlockedManuals = j.decodeFromJsonElement<List<String>>(el) }),
         f("lastSaveTime", { gd, el, j -> gd.lastSaveTime = j.decodeFromJsonElement<Long>(el) }),

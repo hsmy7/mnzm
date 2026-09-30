@@ -77,7 +77,7 @@ internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53,
     MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57,
     MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61,
-    MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64
+    MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65
 )
 
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
@@ -92,7 +92,7 @@ object GameDatabaseConfig {
      * 禁止任何位置硬编码版本号。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 64
+    const val DATABASE_VERSION = 65
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -231,6 +231,8 @@ object GameDatabaseConfig {
     // DROP equipment_stacks、DROP+CREATE equipment_instances（词条/等级随实例单点）、
     // disciples 增 5 部位列 + 清空六部位列（幽灵件兜底）+ 删 9 旧列、
     // game_data 增 legacy_equipment_compensated 补偿幂等标记列；详见该迁移 KDoc
+    // v65: MIGRATION_64_65 AI 洞府探索队伍链退役——game_data/world_map_state 双表
+    // 删 aiCaveTeams 一列（写入方已随 W4-D 死代码清零删除，零消费休眠列）；详见该迁移 KDoc
     // v57: MIGRATION_56_57 字段链删列（G03）——disciples 删除 social_partnerId/
     // social_partnerSectId/social_parentId1/social_parentId2/social_lastChildYear/
     // social_childBirthMonth/social_griefEndYear 七列（social_masterId 本批未删）；

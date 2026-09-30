@@ -250,7 +250,6 @@ internal suspend fun StorageEngine.writeDomainEntities(slot: Int, data: SaveData
         aiSectDisciples = gd.aiSectDisciples,
         cultivatorCaves = gd.cultivatorCaves,
         caveExplorationTeams = gd.caveExplorationTeams,
-        aiCaveTeams = gd.aiCaveTeams,
         worldLevels = gd.worldLevels
     ))
     core.database.sectPolicyStateDao().upsert(SectPolicyState(

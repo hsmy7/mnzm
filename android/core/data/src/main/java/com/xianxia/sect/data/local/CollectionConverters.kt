@@ -2,7 +2,6 @@ package com.xianxia.sect.data.local
 
 import android.util.Log
 import androidx.room.TypeConverter
-import com.xianxia.sect.core.model.AICaveTeam
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.Alliance
@@ -188,16 +187,6 @@ object CollectionConverters {
     @JvmStatic
     fun toMineSlotList(value: String): List<MineSlot> =
         ProtobufConverters.decodeFromBase64(ListSerializer(MineSlot.serializer()), value) { emptyList() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromAICaveTeamList(value: List<AICaveTeam>): String =
-        ProtobufConverters.encodeToBase64(ListSerializer(AICaveTeam.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toAICaveTeamList(value: String): List<AICaveTeam> =
-        ProtobufConverters.decodeFromBase64(ListSerializer(AICaveTeam.serializer()), value) { emptyList() }
 
     @TypeConverter
     @JvmStatic

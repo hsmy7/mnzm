@@ -333,10 +333,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
 
-    // AI洞府探索队伍（保留兼容）
-    @ProtoNumber(28)
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var aiCaveTeams: List<AICaveTeam> = emptyList(),
+    // reserved 28;（AI洞府探索队伍链已随 W4-D 死代码清零退役，本批删除字段，禁止复用）
 
     // 解锁的副本
     // 副本解锁由世界等级系统管理，无独立存档字段
@@ -948,7 +945,6 @@ data class GameData(
         recruitList = recruitList,
         cultivatorCaves = cultivatorCaves,
         caveExplorationTeams = caveExplorationTeams,
-        aiCaveTeams = aiCaveTeams,
         unlockedRecipes = unlockedRecipes,
         unlockedManuals = unlockedManuals,
         manualProficiencies = manualProficiencies,

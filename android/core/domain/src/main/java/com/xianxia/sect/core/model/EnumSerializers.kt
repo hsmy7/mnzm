@@ -36,16 +36,6 @@ object CaveStatusAsStringSerializer : KSerializer<CaveStatus> {
 }
 
 /**
- * AITeamStatus ↔ String 序列化器。
- */
-object AITeamStatusAsStringSerializer : KSerializer<AITeamStatus> {
-    override val descriptor = PrimitiveSerialDescriptor("AITeamStatus", PrimitiveKind.STRING)
-    override fun serialize(encoder: Encoder, value: AITeamStatus) = encoder.encodeString(value.name)
-    override fun deserialize(decoder: Decoder): AITeamStatus = safeValueOf(decoder.decodeString(),
-        AITeamStatus.EXPLORING)
-}
-
-/**
  * BuildingType ↔ String 序列化器。
  */
 object BuildingTypeAsStringSerializer : KSerializer<BuildingType> {
