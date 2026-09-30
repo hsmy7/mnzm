@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Suppress("TooManyFunctions") // Room DAO @Query 契约面：函数数=数据访问协议面（查询维度×读写双向），
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
-// （EquipmentStackDao 已随 B3 移除堆叠删除，equipment_stacks 表在 MIGRATION_63_64 DROP）
+// （EquipmentStackDao 已随 B3 移除堆叠删除）
 interface EquipmentInstanceDao {
     @Query("SELECT * FROM equipment_instances WHERE slot_id = :slotId")
     fun getAll(slotId: Int): Flow<List<EquipmentInstance>>

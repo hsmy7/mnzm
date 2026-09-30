@@ -11,8 +11,6 @@ import com.xianxia.sect.data.crypto.SavePayloadIntegrity
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
-import com.xianxia.sect.data.migration.MigrationResult
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.data.unified.SaveResult
@@ -27,7 +25,7 @@ import javax.inject.Singleton
  * **不 boot**、且可以**源槽 ≠ 目标槽**：
  * - 矩阵格"本地无 × 云有 ⇒ 直接云档"：主菜单（尚未升档）就得能把云档落成
  *   本地缓存槽，玩家随后从常规入口进游戏；
- * - 存量单档 `mnzm_cloud_save`（slot 0）→ 玩家选定的空槽 N（SR-3 报告 §4.1 移交本批）。
+ * - 云会话单档（slot 0）→ 玩家选定的空槽 N（历史跨槽语义）。
  * 按 SR-3 §5.2 登记的口径执行收敛："管线序列 ~15 行有意重复……若后续批收敛，
  * 须以行为等价测试兜底" ⇒ 本批 `SaveLoadViewModelCloudSlotLoadTest` 13 例改为**持真实
  * 本组件**跑既有断言（不用 mock 空转），等价性由那批用例锚定。
@@ -141,15 +139,10 @@ class CloudSaveCacheWriter @Inject constructor(
     }
 
     /**
-     * 云档管线（与既有云读档同语义）：版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建。
+     * 云档管线（与既有云读档同语义）：完整性校验（损坏拒绝/可修复继续）→ 堆叠重建。
      */
     private fun processDownloadedCloudSave(saveData: SaveData): PipelineResult {
-        val migration = SaveDataVersionMigrator.migrate(saveData)
-        if (migration is MigrationResult.Rejected) {
-            // saveVersion 越界（负数/伪造高版本）显式拒绝
-            return PipelineResult.Failed("云存档版本异常：${migration.reason}")
-        }
-        var processed = (migration as MigrationResult.Migrated).data
+        var processed = saveData
         when (val validation = SaveValidator.validate(processed)) {
             is IntegrityResult.Corrupted -> return PipelineResult.Failed("云存档数据损坏，无法加载")
             is IntegrityResult.Repaired -> {

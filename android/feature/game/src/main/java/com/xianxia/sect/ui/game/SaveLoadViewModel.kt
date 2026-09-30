@@ -20,7 +20,6 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
-import com.xianxia.sect.ui.game.saveload.SaveMigrationCoordinator
 import com.xianxia.sect.ui.game.saveload.SaveOrchestrator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
@@ -134,16 +133,6 @@ class SaveLoadViewModel @Inject constructor(
             mergeCloudSlot(slots, cloudInfo)
         }.stateIn(viewModelScope, sharingStarted, emptyList())
     internal val cloudSaveInfoVersion = java.util.concurrent.atomic.AtomicInteger(0)
-
-    /**
-     * SR-6 存量迁移引导（迁移卡界面态与动作入口）。
-     *
-     * 消费方 = 游戏内存档管理弹窗（SaveSlotDialog）。只读透传：状态机本体是
-     * [SaveMigrationCoordinator] 单例，界面经它收状态流、以调用方协程驱动
-     * scan/start/裁决。
-     */
-    val migrationCoordinator: SaveMigrationCoordinator
-        get() = persistenceFacade.migrationCoordinator
 
     internal val cloudSaveOperationStateFlow = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = cloudSaveOperationStateFlow.asStateFlow()

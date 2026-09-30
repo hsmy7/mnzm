@@ -114,7 +114,7 @@ class EntityCountBoundsRuleTest {
     @Test
     fun `storageBagItems kept when equipment only warned - D03 independent storage`() {
         // B3：装备只告警不截断，袋条目（含旧装备三类）与六槽引用全部原样保留；
-        // 旧装备袋条目的折算摘除由 LegacyEquipmentCompensationRule 负责
+        // 引用式旧装备袋条目按防复制删除清点
         val instances = (0 until 801).map { EquipmentInstance(id = "inst-$it", name = "剑") }
         val d = makeDisciple(
             equipment = EquipmentSet(

@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.InnateDamageType
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,11 +18,9 @@ import org.junit.Test
  * 守护面：
  * 1. **模板覆盖完整且当前全物理**——六条具名模板的 `innateDamageType` 全部非空、
  *    取值合法（`DamageType` 活跃值）且当前设定均为 PHYSICAL（内容设定数据守卫）；
- * 2. **派生幂等 + 兜底物理**——`InnateDamageType.derive` 对同一输入恒等（旧档按
- *    templateId 幂等回填的前提）；模板缺失/未知 id 兜底 PHYSICAL（旧「首灵根物法
- *    二分派生」随 MAGIC 类型退役）；
- * 3. **Room v62 迁移 SQL 历史口径**——迁移 CASE 的物法二分分支保持可扫描（存量档
- *    已按该口径回填，MAGIC 残留值经 `resolvedInnateDamageType` 非法值兜底链归物理）。
+ * 2. **派生幂等 + 兜底物理**——`InnateDamageType.derive` 对同一输入恒等（弟子
+ *    按 templateId 幂等回填的前提）；模板缺失/未知 id 兜底 PHYSICAL（「首灵根
+ *    物法二分派生」随 MAGIC 类型退役）。
  */
 class InnateDamageTypeGuardTest {
 
@@ -78,32 +75,5 @@ class InnateDamageTypeGuardTest {
                 InnateDamageType.PHYSICAL, InnateDamageType.derive("__no_such__", root)
             )
         }
-    }
-
-    @Test
-    fun `Room v62 迁移 SQL 历史口径可扫描`() {
-        // 存量档已按 MAGIC 时代的 CASE 回填——迁移文件不可改（迁移不可变），
-        // 此处仅钉住历史分支仍在位（防误改历史迁移）
-        val migrationFile = generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
-            .firstOrNull { File(it, "core/data/src/main/java/com/xianxia/sect/data/local/" +
-                "GameDatabaseMigrationsV62.kt").exists() }
-            ?.let { File(it, "core/data/src/main/java/com/xianxia/sect/data/local/" +
-                "GameDatabaseMigrationsV62.kt") }
-        val sql: String = migrationFile?.readText()
-            ?: error("迁移文件 GameDatabaseMigrationsV62.kt 未找到（cwd=${System.getProperty("user.dir")}）")
-        assertTrue("迁移文件不存在：${migrationFile.path}", migrationFile.exists())
-
-        assertTrue(
-            "迁移 SQL 缺 metal→PHYSICAL 分支（历史迁移被误改）",
-            sql.contains("WHEN 'metal' THEN 'PHYSICAL'")
-        )
-        assertTrue(
-            "迁移 SQL 缺 water→MAGIC 分支（历史迁移被误改）",
-            sql.contains("WHEN 'water' THEN 'MAGIC'")
-        )
-        assertTrue(
-            "迁移 SQL 缺 ELSE 'PHYSICAL' 兜底（历史迁移被误改）",
-            sql.contains("ELSE 'PHYSICAL'")
-        )
     }
 }

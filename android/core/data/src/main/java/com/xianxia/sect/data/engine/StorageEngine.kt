@@ -10,7 +10,7 @@ import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.cloud.shouldWriteLocalSaveFile
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
+import com.xianxia.sect.core.model.SaveVersion
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
@@ -231,12 +231,11 @@ class StorageEngine @Inject constructor(
 
         val cleanedData = cleanSaveDataWithArchive(effectiveData)
         // 保存前统一盖章当前存档版本（第二层防御）——引擎创建新档已盖章，
-        // 此处兜底一切遗漏路径（重启/迁移残留/外部构造），保证写库的存档
-        // 恒为当前数据版本，读档不会触发旧版本迁移
-        val stamped = if (cleanedData.gameData.saveVersion < SaveDataVersionMigrator.CURRENT_SAVE_VERSION) {
+        // 此处兜底一切遗漏路径（重启/外部构造），保证写库的存档恒带当前版本戳
+        val stamped = if (cleanedData.gameData.saveVersion < SaveVersion.CURRENT) {
             cleanedData.copy(
                 gameData = cleanedData.gameData.copy(
-                    saveVersion = SaveDataVersionMigrator.CURRENT_SAVE_VERSION
+                    saveVersion = SaveVersion.CURRENT
                 )
             )
         } else {
@@ -369,15 +368,6 @@ class StorageEngine @Inject constructor(
             if (readResult.repairFailed) {
                 Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
             }
-
-            // 备份恢复路径与主档加载路径对齐，恢复数据同样过版本迁移——
-            // 旧版 .sav（saveVersion 0/1）未经迁移会以旧语义运行；
-            // Rejected（版本号非法）→ 恢复失败
-            restoredData = migrateRestoredData(restoredData, slot)
-                ?: return StorageResult.failure(
-                    StorageError.SLOT_CORRUPTED,
-                    "备份恢复版本迁移拒绝 (slot=$slot)"
-                )
 
             // 备份恢复后二次验证：防止备份本身存在数据问题
             restoredData = revalidateRestoredData(slot, restoredData)

@@ -31,7 +31,7 @@ class SaveValidatorIntegrationTest {
     }
 
     @Test
-    fun `valid minimal data returns only recruit list repair`() {
+    fun `valid minimal data passes with no repair`() {
         val data = SaveData(
             gameData = GameData(sectName = "测试宗", gameYear = 5, gameMonth = 6),
             disciples = listOf(makeDisciple()),
@@ -39,16 +39,13 @@ class SaveValidatorIntegrationTest {
             seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
-        // 恒空契约：默认注册表下合法存档也恒 Repaired，修复项 = 招募清空 +
-        // TimeAxisRule 旧档归一化回填（B3：elapsedGameMs==0 且日历非初值 →
-        // calendarToGameMs 换算回填，行为见该规则测试）
-        assertTrue("预期仅恒空修复的 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        // 默认注册表下该存档唯一修复项 = TimeAxisRule 旧档归一化回填
+        //（B3：elapsedGameMs==0 且日历非初值 → calendarToGameMs 换算回填，
+        // 行为见该规则测试）
+        assertTrue("预期仅时间轴回填修复的 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val r = result as IntegrityResult.Repaired
         assertEquals(
-            listOf(
-                "招募链已下线，招募列表清空",
-                "旧档归一化：elapsedGameMs 按日历回填为 318000"
-            ),
+            listOf("旧档归一化：elapsedGameMs 按日历回填为 318000"),
             r.details
         )
         assertTrue(r.data.gameData.recruitList.isEmpty())

@@ -1,6 +1,11 @@
 @file:Suppress("TooManyFunctions") // 私有辅助函数集中在本文件
 package com.xianxia.sect.ui.game.tabs
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Process
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,9 +33,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.xianxia.sect.data.wipe.SaveWipeCoordinator
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.data.ChangelogEntry
@@ -60,9 +64,6 @@ import com.xianxia.sect.ui.game.loadCloudSlot
 import com.xianxia.sect.ui.game.queryCloudSlotEntries
 import com.xianxia.sect.ui.game.saveGame
 import com.xianxia.sect.ui.game.saveload.CloudSlotEntryCard
-import com.xianxia.sect.ui.game.saveload.MigrationActions
-import com.xianxia.sect.ui.game.saveload.MigrationUiState
-import com.xianxia.sect.ui.game.saveload.SaveMigrationCard
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
@@ -430,6 +431,11 @@ private fun OtherSettingsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+
+            // 测试期删档重置开发入口（W12：仅 Debug 构建可见，玩家不可达）
+            if (BuildConfig.DEBUG) {
+                DevWipeSection()
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -899,8 +905,6 @@ internal fun SaveSlotDialog(
 ) {
     val saveSlots by saveLoadViewModel.saveSlots.collectAsStateWithLifecycle()
     val saveLoadState by saveLoadViewModel.saveLoadState.collectAsStateWithLifecycle()
-    // SR-6 存量迁移引导：迁移卡常驻本弹窗（可见性判据 MigrationUiState.visible）
-    val migration by saveLoadViewModel.migrationCoordinator.state.collectAsStateWithLifecycle()
     val isBusy = saveLoadState.isBusy
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
     var deleteTarget by remember { mutableStateOf<Int?>(null) }
@@ -915,8 +919,6 @@ internal fun SaveSlotDialog(
     SaveSlotBusyMinDurationEffect(saveLoadState, showAnimation, animationStartTime, operationLabel)
     SaveLoadWatchdogEffect(saveLoadViewModel = saveLoadViewModel)
 
-    val migrationActions = buildMigrationActions(saveLoadViewModel, rememberCoroutineScope())
-
     SaveSlotDialogContainer(saveLoadViewModel, isBusy, onDismiss) {
         if (showAnimation.value) {
             SaveSlotBusyIndicator(operationLabel = operationLabel.value)
@@ -924,7 +926,7 @@ internal fun SaveSlotDialog(
         if (!showAnimation.value) {
             SaveSlotEditableContent(
                 state = SaveSlotListState(
-                    saveSlots, migration, migrationActions, cloudEntries, dateFormat, selectedSlot
+                    saveSlots, cloudEntries, dateFormat, selectedSlot
                 ),
                 isBusy = isBusy,
                 onSlotClick = { selectedSlot = it },
@@ -1017,7 +1019,6 @@ private fun SaveSlotOpenRefreshEffect(
 ) {
     LaunchedEffect(Unit) {
         saveLoadViewModel.checkCloudSave()
-        saveLoadViewModel.migrationCoordinator.scan()
         onCloudEntries(saveLoadViewModel.queryCloudSlotEntries())
     }
 }
@@ -1045,21 +1046,6 @@ private fun SaveSlotBusyMinDurationEffect(
     }
 }
 
-/** 迁移卡动作位：经弹窗协程驱动协调器（未登录时 start 内部自报服务不可达，不在此重复拦截） */
-private fun buildMigrationActions(
-    saveLoadViewModel: SaveLoadViewModel,
-    scope: CoroutineScope
-): MigrationActions = MigrationActions(
-    onStart = { scope.launch { saveLoadViewModel.migrationCoordinator.start() } },
-    onDecision = { slot, keepLocal ->
-        scope.launch { saveLoadViewModel.migrationCoordinator.resolveConflict(slot, keepLocal) }
-    },
-    onLegacyDownload = { targetSlot ->
-        scope.launch { saveLoadViewModel.migrationCoordinator.migrateLegacyArchive(targetSlot) }
-    },
-    onEnableCloud = { saveLoadViewModel.migrationCoordinator.confirmEnableCloud() }
-)
-
 /** 删除存档确认（破坏性操作显式确认；文案与既有删除确认一致） */
 @Composable
 private fun DeleteSlotConfirmDialog(
@@ -1082,14 +1068,12 @@ private fun DeleteSlotConfirmDialog(
 /** 存档列表区渲染入参（分组传参，控制 Composable 形参预算） */
 private data class SaveSlotListState(
     val saveSlots: List<SaveSlot>,
-    val migration: MigrationUiState,
-    val migrationActions: MigrationActions,
     val cloudEntries: List<CloudSaveEntry>,
     val dateFormat: SimpleDateFormat,
     val selectedSlot: Int?
 )
 
-/** 对话框内容区：迁移引导卡 + 槽位列表 + 云槽位区 + 操作按钮 */
+/** 对话框内容区：槽位列表 + 云槽位区 + 操作按钮 */
 @Composable
 private fun ColumnScope.SaveSlotContentList(
     state: SaveSlotListState,
@@ -1097,25 +1081,12 @@ private fun ColumnScope.SaveSlotContentList(
     onDeleteClick: (Int) -> Unit,
     onCloudSlotLoad: (Int) -> Unit
 ) {
-    val emptyLocalSlots = state.saveSlots
-        .filter { it.isEmpty && it.slot != 0 }
-        .map { it.slot }
     LazyColumn(
         modifier = Modifier
             .weight(1f)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // SR-6 迁移引导卡：有可迁内容即常驻列表首位（收口即消失，判据 MigrationUiState.visible）
-        if (state.migration.visible) {
-            item(key = "migration_card", contentType = { "migration_card" }) {
-                SaveMigrationCard(
-                    migration = state.migration,
-                    emptyLocalSlots = emptyLocalSlots,
-                    actions = state.migrationActions
-                )
-            }
-        }
         items(state.saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
             SaveSlotCard(
                 slot = slot,
@@ -1444,3 +1415,50 @@ private fun ChangelogEntryCard(entry: ChangelogEntry) {
         }
     }
 }
+
+/** 测试期删档重置段：置待执行标记 + 结束进程，下次启动由 SaveWipeCoordinator 执行 */
+@Composable
+private fun DevWipeSection() {
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        text = "测试工具",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    val activity = LocalContext.current.findHostActivity()
+    var showWipeConfirm by remember { mutableStateOf(false) }
+    Button(
+        onClick = { showWipeConfirm = true },
+        modifier = Modifier
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
+    ) {
+        Text(text = "清档重置", fontSize = 10.sp)
+    }
+    if (showWipeConfirm) {
+        StandardPromptDialog(
+            onDismissRequest = { showWipeConfirm = false },
+            title = "确认清档重置",
+            text = "将删除本机全部存档数据并重启应用（含登录与实名状态），此操作不可撤销。",
+            dismissLabel = "取消",
+            confirmLabel = "清档并重启",
+            onDismiss = { showWipeConfirm = false },
+            onConfirm = {
+                showWipeConfirm = false
+                SaveWipeCoordinator.requestWipeOnNextLaunch()
+                activity?.finishAffinity()
+                Process.killProcess(Process.myPid())
+            }
+        )
+    }
+}
+
+/** 自任一 Context 向上寻得宿主 Activity（清档重启用） */
+private tailrec fun Context.findHostActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findHostActivity()
+        else -> null
+    }

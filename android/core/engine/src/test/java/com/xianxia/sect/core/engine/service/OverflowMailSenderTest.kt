@@ -467,7 +467,7 @@ class OverflowMailSenderTest {
         /** 反向守卫的扫描根：引擎 Kotlin + C++ gamecore + 数据层完整性规则生产源 */
         val productionSourceRoots: List<File> =
             engineMainSourceRoots + File(androidRoot(), "app/src/main/cpp/gamecore") +
-                // EQ-B2 起 core/data 的 NurturePillRetirementRule 直构补偿邮件（来源点）
+                // 数据层完整性规则面也可能直构邮件（来源点登记须覆盖）
                 File(androidRoot(), "core/data/src/main/java")
 
         /** 参与扫描的源文件扩展名 */

@@ -7,8 +7,6 @@ import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
-import com.xianxia.sect.data.migration.MigrationResult
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.taptap.TapCloudSaveManager
@@ -118,20 +116,14 @@ internal suspend fun SaveLoadViewModel.performCloudUpload() {
 }
 
 /**
- * 上传前校验与版本迁移。
+ * 上传前校验。
  *
- * @return 可上传的数据（迁移+校验通过，可修复时用修复后数据）；失败置错误
+ * @return 可上传的数据（校验通过，可修复时用修复后数据）；失败置错误
  * 状态并返回 null
  */
-@Suppress("ReturnCount") // 版本/校验多失败守卫，多 return 为守卫风格
+@Suppress("ReturnCount") // 校验多失败守卫，多 return 为守卫风格
 internal fun SaveLoadViewModel.validateForUpload(saveData: SaveData): SaveData? {
-    val migration = SaveDataVersionMigrator.migrate(saveData)
-    if (migration is MigrationResult.Rejected) {
-        cloudSaveOperationStateFlow.value =
-            CloudSaveOperationState.Error("存档版本异常，无法上传: ${migration.reason}")
-        return null
-    }
-    var uploadData = (migration as MigrationResult.Migrated).data
+    var uploadData = saveData
     val validation = SaveValidator.validate(uploadData)
     when (validation) {
         is IntegrityResult.Corrupted -> {
@@ -248,15 +240,8 @@ internal suspend fun SaveLoadViewModel.handleCloudDownloadSuccess(result: TapClo
     }
 
     // 云档管线与本地读档同语义——
-    // 版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建
-    val migration = SaveDataVersionMigrator.migrate(saveData)
-    if (migration is MigrationResult.Rejected) {
-        // saveVersion 越界（负数/伪造高版本）显式拒绝
-        cloudSaveOperationStateFlow.value =
-            CloudSaveOperationState.Error("云存档版本异常：${migration.reason}")
-        return
-    }
-    var processed = (migration as MigrationResult.Migrated).data
+    // 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建
+    var processed = saveData
     val validation = SaveValidator.validate(processed)
     when (validation) {
         is IntegrityResult.Corrupted -> {

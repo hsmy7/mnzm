@@ -96,7 +96,7 @@ class WalRetirementGuardTest {
         )
     }
 
-    // ── 源面解析（同 SaveMigrationGuardTest / SecureKeyChainGuardTest 口径）──
+    // ── 源面解析（同 SecureKeyChainGuardTest 口径）──
 
     private fun androidRoot(): File {
         var dir: File? = File(System.getProperty("user.dir"))

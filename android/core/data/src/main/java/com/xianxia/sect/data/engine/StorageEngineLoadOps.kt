@@ -8,8 +8,6 @@ import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.integrity.SaveValidatorFixes
 import com.xianxia.sect.data.integrity.corrupted.CorruptedResultHandler
 import com.xianxia.sect.data.cache.CacheKey
-import com.xianxia.sect.data.migration.MigrationResult
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
@@ -49,17 +47,16 @@ internal suspend fun StorageEngine.handleDbDataHit(slot: Int, dbData: SaveData):
 }
 
 /** 缓存命中尝试（命中时记录指标与进度，返回数据；未命中返回 null）。 */
-@Suppress("ReturnCount") // 管线多级校验（迁移/基础校验/规则校验）早退，守卫风格
+@Suppress("ReturnCount") // 管线多级校验（基础校验/规则校验）早退，守卫风格
 internal suspend fun StorageEngine.tryCacheLoad(slot: Int): SaveData? {
     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
     val cachedData = loadFromCache(slot) ?: return null
-    // 缓存命中同样过迁移+校验管线（缓存内容来自保存路径，多数已处理，
-    // 但防保存路径写入未盖章数据的窗口）；Rejected/Corrupted 视为未命中回落 DB
-    val migrated = migrateOrNull(cachedData, slot) ?: return null
-    if (!validateSaveData(migrated)) return null
-    val integrity = SaveValidator.validate(migrated)
+    // 缓存命中同样过校验管线（缓存内容来自保存路径，多数已处理，
+    // 但防异常数据窗口）；Corrupted 视为未命中回落 DB
+    if (!validateSaveData(cachedData)) return null
+    val integrity = SaveValidator.validate(cachedData)
     if (integrity is IntegrityResult.Corrupted) return null
-    val data = if (integrity is IntegrityResult.Repaired) integrity.data else migrated
+    val data = if (integrity is IntegrityResult.Repaired) integrity.data else cachedData
 
     infra.storageMetrics.recordCacheHit()
     infra.storageMetrics.recordLoad()
@@ -168,24 +165,10 @@ internal suspend fun StorageEngine.loadFromDatabase(slot: Int): SaveData? {
     }
 }
 
-/**
- * 迁移存档并返回数据；版本号非法（[MigrationResult.Rejected]）
- * 时记录并返回 null，由调用方走备份恢复分支。
- */
-internal fun StorageEngine.migrateOrNull(saveData: SaveData, slot: Int): SaveData? {
-    return when (val migration = SaveDataVersionMigrator.migrate(saveData)) {
-        is MigrationResult.Migrated -> migration.data
-        is MigrationResult.Rejected -> {
-            Log.e(TAG, "存档迁移拒绝 slot=$slot: ${migration.reason}")
-            null
-        }
-    }
-}
-
 internal suspend fun StorageEngine.loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData? {
     val gameData = core.database.gameDataDao().getGameDataSync(slot) ?: return null
     val source = if (loadHeavyData) loadMergedGameData(gameData, slot) else gameData
-    return buildAndMigrateSaveData(slot, source, loadHeavyData)
+    return buildAndValidateSaveData(slot, source, loadHeavyData)
 }
 
 /**
@@ -201,20 +184,18 @@ internal suspend fun StorageEngine.loadMergedGameData(gameData: GameData, slot: 
 }
 
 /**
- * 构建 → 迁移 → 校验：版本号非法返回 null，
- * 走 load() 备份恢复分支；校验失败仅记录告警不阻断。
+ * 构建 → 校验：校验失败仅记录告警不阻断。
  */
-internal suspend fun StorageEngine.buildAndMigrateSaveData(
+internal suspend fun StorageEngine.buildAndValidateSaveData(
     slot: Int,
     source: GameData,
     loadHeavyData: Boolean
 ): SaveData? {
     val saveData = buildSaveDataFromDatabase(slot, source)
-    val migrated = migrateOrNull(saveData, slot) ?: return null
-    if (!validateSaveData(migrated)) {
+    if (!validateSaveData(saveData)) {
         logValidationFailure(slot, source, loadHeavyData)
     }
-    return migrated
+    return saveData
 }
 
 /**
@@ -249,16 +230,4 @@ internal fun StorageEngine.revalidateRestoredData(slot: Int, restoredData: SaveD
     return restoredData
 }
 
-/**
- * 备份恢复数据的版本迁移。
- *
- * @return 迁移后数据；版本号非法（[MigrationResult.Rejected]）返回 null
- */
-internal fun StorageEngine.migrateRestoredData(restoredData: SaveData, slot: Int): SaveData? {
-    val migration = SaveDataVersionMigrator.migrate(restoredData)
-    if (migration is MigrationResult.Rejected) {
-        Log.e(TAG, "备份恢复版本迁移拒绝 slot=$slot: ${migration.reason}")
-        return null
-    }
-    return (migration as MigrationResult.Migrated).data
-}
+

@@ -12,8 +12,8 @@ import kotlinx.coroutines.flow.SharedFlow
  * 现实现 = `TapTapSaveBackend`（feature/game，包装既有 CloudSaveApi 反射桥，探测逻辑复用不重写）；
  * 未来换自家游戏服务器时新增实现即可切换（D4 预埋点）。
  *
- * 槽位语义：`slot` 1..6 映射云端 `slot_N` 命名（SR-0 §3.4）；slot [com.xianxia.sect.data.
- * StorageConstants.CLOUD_SAVE_SLOT]（=0）映射存量单档 `mnzm_cloud_save`（SR-6 迁移源）。
+ * 槽位语义：`slot` 1..6 映射云端 `mnzm_v2_slot_N` 命名；slot [com.xianxia.sect.data.
+ * StorageConstants.CLOUD_SAVE_SLOT]（=0）映射云会话单档 `mnzm_v2_save`。
  *
  * 仲裁（IN2 无时钟）：本接口不提供"谁新"判定；进度新旧判定唯一入口是
  * [SaveArbiter.arbitrate]（脏标志/保存序号）。云端的实际保存序号 W 经

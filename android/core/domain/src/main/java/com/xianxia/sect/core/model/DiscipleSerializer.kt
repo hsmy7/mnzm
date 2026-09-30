@@ -237,7 +237,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             equipment = EquipmentSet(
                 // 六部位读面（B3 接线）：weaponId(17) 复用 + headId(112)..legsId(116)；
                 // 旧四槽 id（18/19/20）与 nurture（24..27）退役不读——旧档值由
-                // MIGRATION_63_64 清空/删列，读默认值即正确语义
+                // 旧档字节按未知字段忽略，读默认值即正确语义
                 headId = surrogate.headId,
                 bodyId = surrogate.bodyId,
                 handsId = surrogate.handsId,
@@ -320,7 +320,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(96) val manualCompletionMonth: Int = 0,
         @ProtoNumber(97) val manualCompletionPhase: Int = 1,
         // reserved 98,99;（equipmentNurturingCompletionMonth/Phase，B3/EQ-B3 退役——
-        // 旧档字节按未知字段忽略，禁复用；列式删除见 MIGRATION_63_64）
+        // 旧档字节按未知字段忽略，号禁复用）
 
         // ===== CombatAttributes @Embedded =====
         // 属性单列段（B1，方案 §15 / E1 冻结表增量登记）：
@@ -381,7 +381,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(45) val pillCultivationSpeedBonus: Double = 0.0,
         @ProtoNumber(46) val pillSkillExpSpeedBonus: Double = 0.0,
         // reserved 47;（pillNurtureSpeedBonus 孕养丹速度加成，B2/EQ-B2 退役——旧档字节
-        // 按未知字段忽略，禁复用；列式删除见 MIGRATION_62_63）
+        // 按未知字段忽略，号禁复用）
         @ProtoNumber(48) val pillEffectDuration: Int = 0,
         @ProtoNumber(49) val activePillCategory: String = "",
         @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),

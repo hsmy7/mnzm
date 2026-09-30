@@ -65,7 +65,7 @@ class GameDataFieldPatchGuardTest {
      */
     // nurturePillsRetired：EQ-B2/R11 补偿幂等标记，纯 Kotlin 读档链消费（不进镜像面）
     // legacyEquipmentCompensated：EQ-B3 堆叠轨→实例轨退役补偿幂等标记，存档侧专用
-    //（LegacyEquipmentCompensationRule 读档链消费防重复补偿），C++ 引擎无消费者、不进镜像面
+    //（历史补偿幂等标记，规则已随 SS0 退役），C++ 引擎无消费者、不进镜像面
     private val intentionallyUnmirrored: Set<String> =
         setOf("lastYearSpiritStoneIncome", "nurturePillsRetired", "legacyEquipmentCompensated")
 

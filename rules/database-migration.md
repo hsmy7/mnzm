@@ -14,30 +14,28 @@
 
 2. **列变更的迁移 SQL**：
    - 添加列：`ALTER TABLE table_name ADD COLUMN col_name TYPE DEFAULT val`
-   - 删除列：**使用 `db.safeDropColumns("table", "col1", "col2")`**（定义在 `GameDatabase.kt`），禁止直接写 `ALTER TABLE DROP COLUMN`（需要 SQLite 3.35.0+，所有 Android 版本均不保证支持）。内部通过 PRAGMA 表重建实现：
-     ```kotlin
-     db.safeDropColumns("game_data", "oldColumn1", "oldColumn2")
-     ```
-   - 或更简单：**保留旧列不删除**，在 Entity 中使用 `@Ignore` 标记新字段
+   - 删除列：**禁止直接写 `ALTER TABLE DROP COLUMN`**（需要 SQLite 3.35.0+，所有 Android 版本均不保证支持）。两种合法手段：
+     - **保留旧列不删除**，在 Entity 中使用 `@Ignore` 标记字段（优先——永远不要删列）
+     - 确需删列时自写 **create-copy-drop-rename 重建**（`PRAGMA table_info` 读列定义 → 剔除待删列建新表 → `INSERT SELECT` 复制 → 删旧表 → 改名 → 重建索引）
 
 3. **@Ignore 的正确用法**：
    - 添加新字段 + `@Ignore` → 无需 Migration（Room 不创建列）
    - 将旧字段标记为 `@Ignore` → **需要 Migration 删除列**，或保留旧字段在 Entity 中
    - **从 Entity 移除字段（不管是否 @Ignore）→ 必须 Migration 处理旧列**
 
-4. **版本号唯一来源**：`@Database(version = N)` 必须引用 `GameDatabaseConfig.DATABASE_VERSION` 常量（2026-08-04 起），禁止在 `backupDatabaseForMigration` 等位置硬编码版本号——历史教训：硬编码 38 与 v39 脱节导致 v38 用户升级 v39 不触发迁移前备份。升级数据库版本时同步递增此常量
+4. **版本号唯一来源**：`@Database(version = N)` 必须引用 `GameDatabaseConfig.DATABASE_VERSION` 常量，禁止在任何位置硬编码版本号。升级数据库版本时同步递增此常量，并更新 `MigrationRequiredGuardTest.BASELINE_ENTITIES` 实体基线（同 commit 三处：版本常量 / MIGRATION_(N-1)_N / 基线清单）
 
-5. **fallbackToDestructiveMigration**：
-   - 当前实现：`fallbackToDestructiveMigrationFrom(1)`——v1 及更低版本毁灭重建；**v2+ 禁止毁灭回退**（迁移链断裂时崩溃而非删数据，由迁移前备份恢复兜底）
-   - 此机制**仅作安全网**，不应依赖它处理日常变更
-   - 每次 schema 变更仍需编写显式 Migration
+5. **destructive 重建语义（SS0 起）**：
+   - 当前实现：`fallbackToDestructiveMigration(dropAllTables = true)`——任何缺迁移路径（含降级）一律毁灭重建（dropAllTables 连 Room schema 外历史残留表一并清）
+   - 迁移的职责是**保护老库数据不被重建**：忘写迁移 = 玩家档被静默清空——由 `MigrationRequiredGuardTest` 实体基线守卫在 CI 面拦截
+   - 重建前的抢救面 = 启动前快照（`snapshotDatabaseBeforeUpgrade`，版本落后即落 `{db}.pre_migrate_backup.v{N}`）
 
-6. **迁移崩溃自恢复（2026-08-04 起三层防御）**：
-   - **迁移前备份**：`GameDatabase.create()` 在 Room 构建前自动执行 `backupDatabaseForMigration`（WAL checkpoint 后文件复制为 `xianxia_sect.db.pre_migrate_backup`）
-   - **启动验证恢复**：`restoreFromBackupIfNeeded` 在 Room 构建前检查——当前库打不开 / 无数据 / **迁移待完成**（user_version 低于 `DATABASE_VERSION` 且备份同版本）时用备份覆盖恢复；恢复前先清理残留 `-wal/-shm`
-   - **迁移链完整性守卫**：`RoomMigrationTest` 的"full migration from v2 to v39"全链测试 + 迁移注册守卫——任何一步缺失即测试失败，防止跨版本升级崩溃复发
+6. **数据库自恢复（当前三层防御）**：
+   - **启动前快照**：`GameDatabase.create()` 在打开前自动执行 `snapshotDatabaseBeforeUpgrade`——版本落后即 WAL checkpoint 后复制为 `{db}.pre_migrate_backup.v{N}`（destructive 重建前唯一的抢救副本）
+   - **启动验证恢复**：`restoreFromBackupIfNeeded` 在 Room 构建前检查——当前库打不开 / 无数据 / 版本升级待完成时用快照覆盖恢复；恢复前先清理残留 `-wal/-shm`，恢复-重建死循环由 `.restore_attempted` marker 防护
+   - **迁移纪律守卫**：`MigrationRequiredGuardTest` 实体清单基线——`@Database` 实体变更而未同批写迁移并更新基线即 CI 红；行为面由 `DestructiveRebuildBaselineTest` 锁定（旧版本库在新版本打开 = 重建而非崩溃）
 
-7. **测试路径**：确认从近3个大版本升级时，迁移能成功执行且数据完整
+7. **测试路径**：新写 `MIGRATION_(N-1)_N` 时，用真实旧版本库文件走 `GameDatabase.create` 全流程验证（参照 `DestructiveRebuildBaselineTest` 的造库-打开-断言结构），确认数据完整
 
 ## 反面案例（已发生多次）
 
@@ -100,8 +98,8 @@ CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_co
 
 新增玩法系统（秘境/试炼/活动/排行榜等）需要持久化时，除遵守上述通用规则外，还必须：
 
-1. **新表同样走完整迁移链**：`@Database(version)` 递增 + `MIGRATION_N_M` + `build()` 注册 + **schema JSON 提交**（`android/app/schemas/`，参照 v26→v27 `DiscipleCompact` 完整案例）。禁止"先不加迁移，等上线后再补"——迁移缺失的存档损坏是不可逆的
-2. **新列一律带 DEFAULT 零值**（`DEFAULT 0` / `DEFAULT ''` / `DEFAULT 1` 布尔）：保证迁移幂等与旧行兼容，参照 `columnExists()` 幂等辅助模式（MIGRATION_1_26 先例）
+1. **新表同样走完整迁移纪律**：`@Database(version)` 递增 + 编写 `MIGRATION_(N-1)_N` + 更新 `MigrationRequiredGuardTest` 实体基线（同 commit 三处）。schema 导出目录（`android/{app,core/data}/schemas/`）由 `.gitignore` 管理**不入库**，历史基线已随 SS0 删档重置清除，`DeadCompatRemovalGuardTest` 防低于当期版本的孤儿回流。禁止"先不加迁移，等上线后再补"——迁移缺失 = 老库被 destructive 重建，不可逆
+2. **新列一律带 DEFAULT 零值**（`DEFAULT 0` / `DEFAULT ''` / `DEFAULT 1` 布尔）：保证迁移幂等与旧行兼容；迁移 SQL 自身的幂等写法参照 `DestructiveRebuildBaselineTest` 同批的造库-打开-断言结构与 `rules/database-migration.md` 规则 2 的 create-copy-drop-rename 模式
 3. **存储选型标准**（防止每旬热点膨胀）：
    - **热路径高频更新**（每旬结算读写）→ EntityStore 列式（Component Table 模式，参照 `DiscipleTables`）
    - **低频独立生命周期**（一次性进度/活动状态）→ Row Entity（`DiscipleCompact` 模式）

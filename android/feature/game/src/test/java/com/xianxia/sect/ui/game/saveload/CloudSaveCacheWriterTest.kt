@@ -32,7 +32,7 @@ import org.junit.Test
  *
  * 两条职责：① SR-3 抽段的**行为等价**（verdict 分流 / 管线拒绝 / 落盘失败 / 账本收敛，
  * 文案单点定义在本组件，SR-3 那 13 例持真实本组件跑同一链路互为背书）；
- * ② SR-6 新增的**跨槽语义**——存量单档 `mnzm_cloud_save`（slot 0）落到玩家选定的空槽 N，
+ * ② **跨槽语义**——云会话单档（slot 0）落到玩家选定的空槽 N，
  * 且**不把源槽的保存序号抄进目标槽**（[UploadLedger] 序号按槽独立）。
  */
 class CloudSaveCacheWriterTest {
@@ -172,14 +172,13 @@ class CloudSaveCacheWriterTest {
     }
 
     @Test
-    fun `saveVersion 越界 - 管线拒绝且不落盘`() = runTest {
-        stubDownload(6, saveId = 3L, version = SAVE_VERSION_OUT_OF_RANGE)
+    fun `saveVersion 高于当前版本 - 版本戳仅作识别，仍走校验落盘`() = runTest {
+        stubDownload(6, saveId = 3L, version = SAVE_VERSION_AHEAD)
 
         val outcome = writer.downloadIntoCache(sourceSlot = 6, targetSlot = 6)
 
-        val message = (outcome as CloudSaveCacheWriter.Outcome.Rejected).message
-        assertTrue("实际文案：$message", message.startsWith("云存档版本异常："))
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        assertTrue("高版本云档应正常落盘，实际 $outcome", outcome is CloudSaveCacheWriter.Outcome.Written)
+        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
     }
 
     @Test
@@ -200,7 +199,7 @@ class CloudSaveCacheWriterTest {
         /** 现役可加载的存档版本（与 SR-3 用例同值） */
         const val SAVE_VERSION_OK = 2
 
-        /** 越界版本：迁移器必须显式拒绝而非"尽力加载" */
-        const val SAVE_VERSION_OUT_OF_RANGE = 99
+        /** 高于当前版本的版本戳（saveVersion 仅作识别，加载管线不按版本拒绝） */
+        const val SAVE_VERSION_AHEAD = 99
     }
 }

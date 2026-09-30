@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.util.ItemNames
 
-import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.config.GameConfigProvider
@@ -111,9 +109,7 @@ class MailService @Inject constructor(
         internal val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
         // ── 白名单专属福利常量 ──
-        private const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
         /** 白名单福利灵石：1000 万 */
-        private const val WHITELIST_BONUS_SPIRIT_STONES = 10_000_000
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -323,91 +319,6 @@ class MailService @Inject constructor(
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
             }
-        }
-    }
-
-    /**
-     * 注入白名单用户专属福利邮件（永久有效，每个存档仅可领取一次）。
-     *
-     * 保护机制：
-     * 1. 白名单检查 — 仅 [AdFreeWhitelist.isCurrentUserPrivileged] 可注入
-     * 2. mailRecords 已领取检查 — 每个存档仅可领取一次
-     * 3. 重复注入检查 — 邮件已存在 DB 中则跳过
-     *
-     * 注意：永久邮件 expireTime 必须为 [Long.MAX_VALUE]——claimAttachment 与
-     * 邮件列表查询按 `expireTime <= now` 判过期，expireTime=0 会判为已过期。
-     *
-     * @param slotId 目标存档槽位
-     * @return true=成功注入, false=跳过
-     */
-    // 三道独立保护守卫均为提前返回（白名单/已领取/已存在），守卫式出口为惯用法
-    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    @Suppress("TooGenericExceptionCaught", "ReturnCount")
-    suspend fun injectWhitelistBonus(slotId: Int): Boolean {
-        // 保护1：白名单检查
-        if (!AdFreeWhitelist.isCurrentUserPrivileged()) {
-            DomainLog.i(TAG, "非白名单用户，跳过白名单福利注入")
-            return false
-        }
-
-        val snapshot = stateStore.gameData.value
-
-        // 保护2：mailRecords 已领取检查 — 每个存档仅可领取一次
-        if (snapshot.mailRecords.any { it.mailId == WHITELIST_BONUS_MAIL_ID }) {
-            DomainLog.i(TAG, "白名单福利已领取，跳过注入")
-            return false
-        }
-
-        // 保护3：重复注入检查 — 邮件已存在 DB 中则跳过
-        val existing = try {
-            mailRepo.getById(slotId, WHITELIST_BONUS_MAIL_ID)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "检查白名单福利邮件是否存在时失败", e)
-            null
-        }
-        if (existing != null) {
-            DomainLog.i(TAG, "白名单福利邮件已存在，跳过重复注入")
-            return false
-        }
-
-        val attachments = listOf(
-            MailAttachment(
-                type = "spiritStones",
-                name = ItemNames.SPIRIT_STONE,
-                quantity = WHITELIST_BONUS_SPIRIT_STONES
-            )
-        )
-
-        val mail = MailEntity(
-            id = WHITELIST_BONUS_MAIL_ID,
-            slotId = slotId,
-            source = "admin",
-            mailType = "reward",
-            title = "白名单专属福利",
-            content = "尊敬的修士，感谢您的长期支持！特赠白名单专属福利：灵石 ×10,000,000，" +
-                "永久有效，每档仅可领取一次。\n\n——天道意志",
-            senderName = "天道意志",
-            sendTime = wallClock.currentTimeMillis(),
-            expireTime = Long.MAX_VALUE,
-            hasAttachment = true,
-            attachments = json.encodeToString(
-                serializer<List<MailAttachment>>(),
-                attachments
-            )
-        )
-
-        return try {
-            insertMail(mail)
-            DomainLog.i(TAG, "白名单福利已注入到 slot=$slotId")
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // 注入失败不应阻塞游戏启动（boot 已成功），下次启动自动重试
-            DomainLog.e(TAG, "白名单福利邮件插入失败 slot=$slotId", e)
-            false
         }
     }
 

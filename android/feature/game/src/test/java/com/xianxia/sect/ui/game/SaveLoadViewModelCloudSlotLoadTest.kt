@@ -45,6 +45,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 
@@ -52,12 +53,12 @@ import org.junit.Test
  * SaveLoadViewModel 云槽位下载落盘链单测（SR-3，方案 §2 读路径 CLOUD_TRANSITION 起）。
  *
  * 锚定面：
- * 1. 落盘链（审计 §3/§12-I 修复面）：下载 → 校验/迁移 → **storageFacade.save 落缓存** →
+ * 1. 落盘链（审计 §3/§12-I 修复面）：下载 → 校验 → **storageFacade.save 落缓存** →
  *    账本 adoptCloudState → 既有 boot 链；
  * 2. verdict 分流：UPLOAD_PENDING 拒绝覆盖；CONFLICT 短路（不落盘不报错不 boot）；
  * 3. LEGACY 模式门控（硬红线）：download 零调用；
  * 4. 落缓存失败中止 boot（不带病进游戏）；
- * 5. 迁移拒绝（saveVersion 越界）不落盘。
+ * 5. 高版本云档版本戳仅作识别，校验通过即落盘。
  *
  * SR-6 C4 起本夹具的 `cloudSaveCacheWriter` 是**真实组件**（吃同一批 mock，不 stub 空转），
  * 因此上面 5 条锚定面同时是"下载落盘段抽入 `CloudSaveCacheWriter` 的行为等价"证据
@@ -306,11 +307,11 @@ class SaveLoadViewModelCloudSlotLoadTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 迁移拒绝：saveVersion 越界不落盘
+    // 版本戳仅识别：高版本云档校验通过即落盘
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `rejected migration skips cache write`() = runTest(testDispatcher) {
+    fun `高版本云档版本戳仅作识别 - 校验通过即落盘加载`() = runTest(testDispatcher) {
         stubDownload(
             6,
             CloudSavePayload(
@@ -323,8 +324,8 @@ class SaveLoadViewModelCloudSlotLoadTest {
         viewModel.loadCloudSlot(6)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
-        assertEquals(
+        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
+        assertNotEquals(
             CloudSaveOperationState.Error::class,
             viewModel.cloudSaveOperationState.value::class
         )

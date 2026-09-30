@@ -5,13 +5,10 @@ import com.xianxia.sect.core.engine.loadData
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
-import com.xianxia.sect.data.migration.MigrationResult
-import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import kotlinx.coroutines.*
-import com.xianxia.sect.core.engine.sendWhitelistBonus
 
 // ── 云读档流程（云档管线/云会话独立加载/槽位归一）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -77,14 +74,8 @@ internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSa
     }
 
     // 云档管线与本地读档同语义——
-    // 版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建
-    val migration = SaveDataVersionMigrator.migrate(saveData)
-    if (migration is MigrationResult.Rejected) {
-        // saveVersion 越界（负数/伪造高版本）显式拒绝
-        showError("云存档版本异常：${migration.reason}")
-        return
-    }
-    var processed = (migration as MigrationResult.Migrated).data
+    // 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建
+    var processed = saveData
     val validation = SaveValidator.validate(processed)
     when (validation) {
         is IntegrityResult.Corrupted -> {
@@ -193,9 +184,6 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
         )
 
         return if (bootResult.isSuccess) {
-            // 与本地读档/新游戏路径一致：注入白名单福利
-            gameEngine.sendWhitelistBonus(effectiveSlot)
-
             Result.success(Unit)
         } else {
             Result.failure(

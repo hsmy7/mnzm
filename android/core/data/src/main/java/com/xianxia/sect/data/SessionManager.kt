@@ -121,6 +121,19 @@ class SessionManager @Inject constructor(
         }
     }
 
+    /**
+     * 清空账号与合规缓存（删档重置 W5）：在 [clearSession] 基础上连隐私同意
+     * 与确认勾选记录一并清除——玩家下次启动需重新登录并重新完成实名/隐私流程。
+     * 仅供删档重置使用；普通登出走 [clearSession]（保留合规记录）。
+     */
+    fun clearAllAccountData() {
+        clearSession()
+        edit {
+            remove(KEY_PRIVACY_AGREED)
+            remove(KEY_PRIVACY_CHECKBOX_CONFIRMED)
+        }
+    }
+
     private inline fun edit(block: android.content.SharedPreferences.Editor.() -> Unit) {
         prefs.edit().apply(block).apply()
     }

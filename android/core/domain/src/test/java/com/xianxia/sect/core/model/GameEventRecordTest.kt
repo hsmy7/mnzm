@@ -242,12 +242,12 @@ class GameEventRecordTest {
         assertEquals(0, state.gameData.gameEventRecords.size)
     }
 
-    // ==================== 迁移兼容性测试 ====================
+    // ==================== 字段默认值测试 ====================
 
     @Test
-    fun `MIGRATION_20_21 adds gameEventRecords column with default empty array`() {
+    fun `gameEventRecords defaults to empty array`() {
         // 验证新创建的 GameData 的 gameEventRecords 默认为空列表
-        val gameData = GameData(id = "migration_test", slotId = 1)
+        val gameData = GameData(id = "field_default_test", slotId = 1)
         assertTrue(gameData.gameEventRecords.isEmpty())
     }
 }

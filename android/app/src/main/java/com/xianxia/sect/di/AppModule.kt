@@ -64,10 +64,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
-        // 在 Room databaseBuilder 前检查是否需要从 pre_migrate_backup 恢复
+        // 在 Room databaseBuilder 前检查是否需要从启动前快照恢复
         val restored = GameDatabase.restoreFromBackupIfNeeded(context)
         if (restored) {
-            Log.w(TAG, "数据库已从迁移前备份恢复")
+            Log.w(TAG, "数据库已从启动前快照恢复")
         }
         return GameDatabase.create(context.applicationContext)
     }

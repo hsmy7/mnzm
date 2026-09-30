@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.core.engine.restartGameSuspend
 import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.*
-import com.xianxia.sect.core.engine.sendWhitelistBonus
 
 // ── 重启流程（守卫/取锁/引擎重置/重存/收尾复位）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -223,8 +222,6 @@ internal suspend fun SaveLoadViewModel.performRestartBoot(currentSlot: Int): Boo
 
     if (bootResult.isSuccess) {
         isTimeRunningFlow.value = true
-        // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
-        gameEngine.sendWhitelistBonus(currentSlot)
         return true
     } else {
         Log.e(SaveLoadViewModelConstants.TAG,
