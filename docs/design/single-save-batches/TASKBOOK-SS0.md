@@ -22,6 +22,10 @@
 | 验收⑨ | **`SaveValidator` 28 条逐条判定**，产出处置表：为历史旧档数据写的删、为运行期完整性写的留（W7） |
 | 验收⑩ | **CI 守卫**：新增 `@Entity` / 列变更必须同批出现 `MIGRATION_*`，否则判红（铁律 17） |
 | 验收⑪ | **邮件清理（M1/M2/M3/M4）**：删 `BuiltinMailConfig` 的 QQ 群邮件（唯一非节日，29→**28** 封，只留节日）；删白名单福利邮件全链（`injectWhitelistBonus` + `sendWhitelistBonus` + **4 个调用点**）；**保留** `injectAdminMail`、`overflow`、`secret_realm` |
+| 验收⑫ | 🔴 **锚点全量枚举 + 双向对账**：按 §2.7 的锚点集扫全仓（生产 + 测试），产出**处置表**（每条 `删除` 或 `保留`+理由）；判据 = **命中条目数 == 处置表条目数**（多一条少一条都不算完成）。**禁止以"我列得仔细"代替机械对账** |
+| 验收⑬ | 🔴 **编译器背书**：删完 `compileReleaseKotlin` **零错误**（编译错误即"遗漏引用"的权威清单）+ 相关模块 `testReleaseUnitTest` 全绿（兜住"编译得过但已死"的残留） |
+| 验收⑭ | 🔴 **反向守卫**：新增 `DeadCompatRemovalGuardTest`——断言处置表"删除"列的每个路径**已不存在**，且全仓生产源码 **零** `MIGRATION_` / `backwardcompat` / `SaveDataVersionMigrator` / `cloud_migration_` 命中（白名单**显式声明**并注明理由）。**未过此守卫 = 未完成** |
+| 验收⑮ | 🔴 **独立第二遍差分复核**：由**独立会话/子代理**用同一锚点集重扫，与处置表对**差集**；差集非空即打回。复核结论须写进报告 |
 | **不做** | **不删槽位维度**（SS1）；不碰 C++ 协议字段；不删 `SaveValidator` 的运行期完整性规则；不删 `SaveFileManager` 的原子写/`.bak` 轮转（那是崩溃应急，不是版本兼容） |
 
 ---
@@ -74,6 +78,23 @@
 | `equipment_legacy_compensation` | `LegacyEquipmentCompensationRule.kt:226` | 历史兼容补偿 | 随 W7 判定 |
 
 **产品后果（须写进报告）**：删 QQ 群邮件等于取消游戏内**唯一的玩家社群引流入口**；白名单福利邮件删除后，白名单玩家只剩免广告特权、不再有每档一次的福利邮件。
+
+### 2.7 旧存档兼容代码的锚点集（验收⑫ 的检索面，**不靠记忆**）
+
+> 本节的锚点集是"不遗漏"的**唯一机械依据**。任何一条锚点扫出的命中都必须进处置表。
+
+| 锚点 | 检索模式 | 已知命中规模（2026-10-01 实测） |
+|---|---|---|
+| A1 Room 迁移 | `MIGRATION_` / `ALL_MIGRATIONS` / `fallbackToDestructive` / `safeDropColumns` / `rebuildTableDroppingColumns` / `Migration(` / `addMigrations` | **生产 180 处**（22 个 `GameDatabaseMigrations*.kt` + `GameDatabaseMigrationSupport.kt` + `GameDatabase.kt`）；**测试 23 个 `RoomMigration*Test.kt`** + `MigrationChainGuardTest` + `RoomMigrationSupport` + `RoomMigrationRecoveryTest` |
+| A2 格式兼容 | `SaveDataVersionMigrator` / `CURRENT_SAVE_VERSION` / `SaveVersion` / `saveVersion` / `backwardcompat` / `OldSaveFormatDeserializer` / `OldSerializableSaveData` | **生产 8 处调用点**（`StorageEngineLoadOps:176,258`、`StorageEngine:236,239`、`SaveLoadViewModelCloudOps:128,252`、`SaveLoadViewModelCloudLoadOps:81`、`CloudSaveCacheWriter:147`）+ 定义与 DI（`SerializationModule:5,14`、`StorageModule:67`）+ `SaveVersion.kt` + `backwardcompat/` 整包；测试 `SaveDataVersionMigratorTest` |
+| A3 存量迁移族 | `SaveMigration` / `migratableSlots` / `cloud_migration_` / `MigrationSlotState` / `SlotMigrationAction` | **生产 4 个类**（`SaveMigration{Planner,Ledger}`、`SaveMigration{State,Coordinator}`）；测试 4 个类 + `SaveMigrationGuardTest` |
+| A4 迁移备份 | `pre_migrate_backup` / `backupDatabaseForMigration` / `restoreFromBackupIfNeeded` / `pruneMigrationBackups` / `MIGRATION_BACKUP_RETENTION` / `.restore_attempted` | `GameDatabase.kt` 多处 + `AppModule.kt:67` + `RoomMigrationRecoveryTest` |
+| A5 **易漏面（必查）** | `Legacy` / `legacy` / `Compat` / `Old` / `@Deprecated` / `@Ignore` / `deprecated` | 🔴 **`core/engine/.../di/LegacyObjectModule.kt`**、`EquipmentLegacyTableReader.kt`、`LegacyEquipmentCompensationRule.kt`、`JsonConverters.kt:53`（旧行兜底分支）、`EquipmentInstanceDao.kt:14`（注释引用 `MIGRATION_63_64`）——**这几个是主线程手写清单曾漏掉的，A5 扫出来才补上** |
+| A6 槽位维度 | `slot_id` / `slotId` / `DEFAULT_MAX_SLOTS` / `resetForSlot` / `CLOUD_SAVE_SLOT` | 归 SS1（本批不动），但**必须同批登记**以保证两批合起来无残留 |
+| A7 文件与资源面 | `*.pre_migrate_backup*` / `.restore_attempted` / `slot_*.sav|.bak|.deleted` / `archives/*.arc` / `android/app/schemas/**/*.json` / MMKV `cloud_*` 键 | 见 §2.4 |
+| A8 文档/判据面 | `rules/` / `docs/` / `AGENTS.md` 中引用上述符号的行 | **不回改历史**（`docs/AGENTS.md` 批次档案），但须在报告里列出"已知过期引用清单" |
+
+**对账规则**：A1–A8 每个锚点的命中 → 逐条判定 `删除`（附去向：删文件 / 删调用点 / 改语义保留）或 `保留`（**必须附理由**，如"运行期数据完整性，非版本兼容"）。**总数必须相等。**
 
 ---
 
