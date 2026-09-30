@@ -1,8 +1,10 @@
-# TASKBOOK-SS2 · 持久化面收口四组件（change_log / WAL / 归档 / Metrics）
+# TASKBOOK-SS2 · 账号数据空间分库 + 登出五件套
 
-> **本文件是 SS2 的派工真源**。上位方案：[`../single-save-and-persistence-consolidation-plan-2026-10-01.md`](../single-save-and-persistence-consolidation-plan-2026-10-01.md) §2.6。
-> 协议：[`DISPATCH-ledger.md`](DISPATCH-ledger.md) §3 + [`../gacha-batches/EXECUTION-PROTOCOL.md`](../gacha-batches/EXECUTION-PROTOCOL.md)。
-> 入口判据：**SS0 已合入**；**`StorageModule.kt` 无他批在途改动**（本批与 SS1 共享该文件，按 §3.3 SS1 先 / SS2 后）。
+> **本文件是 SS2 的派工真源**。上位方案 §2.2 / §2.8。
+> 协议：[`DISPATCH-ledger.md`](DISPATCH-ledger.md) §4.3 + [`../gacha-batches/EXECUTION-PROTOCOL.md`](../gacha-batches/EXECUTION-PROTOCOL.md)。
+> 入口判据：**SS0 已合入**；工作树干净。
+> ⚠️ 删档重置使**旧档全部失效** ⇒ 本批**不需要任何存量迁移**，v1 时代的"分库后老玩家看不到档"窗口问题**不存在**。
+> 证据等级：行号为影响面普查 + 主线程直读；`Room.databaseBuilder` 的具体调用形态实施时以 `grep` 定位。
 
 ---
 
@@ -10,45 +12,32 @@
 
 | 项 | 内容 |
 |---|---|
-| 业务目标 | 把四个"半截"持久化组件**逐一赋责或摘除**：`change_log`（只写不读）→ 赋责；`FunctionalWAL`（有壳无芯）→ 摘除；归档表（只写不读）→ 接读面；`StorageMetrics`（只写不可读）→ 补 getter + 上报。 |
-| 验收① | **`change_log` 写入真实变更摘要**（表名/主键/字段集），不再写 `old/new = null` 的空行；**读面有真实生产消费者**（存档诊断：设置页诊断入口 + `StorageMetrics` 上报），不是"为将来预留" |
-| 验收② | **`FunctionalWAL` 摘除**：解除 DI 绑定与全部调用点；事务编排职责明确归 Room；`WalRetirementGuardTest` 改为"退役面无残留引用"断言（**改语义，不放宽**） |
-| 验收③ | **归档表接上读面**：最小可用读面 = ① 列表（按槽/时间）② 按 id 还原载荷；由**存档诊断**消费者，并被 SS4 的"恢复旧档"复用 |
-| 验收④ | **`StorageMetrics` 补 getter + 上报**（按 `rules/data-analytics.md` 三处同步：事件定义 / 上报点 / 守卫测试） |
-| 验收⑤ | `ArchiveWriteOnlyGuardTest` 按**新职责**改写（原断言"归档读面为空"必须失效并被替换，不得删除守卫） |
-| **不做** | 不改槽语义（SS3）；不改保存/读档的**行为语义**（只收口组件职责）；不接云端；不碰 C++；不做增量落盘（SS5） |
+| 业务目标 | 本地数据从"按设备归属"改为"**按账号隔离**"：一个账号一个数据空间（分库 + 分目录），换账号即切空间，且**不删库**（换回来进度还在）。同时把登出补成"五件套"。 |
+| 验收① | 数据空间按 `accountKey` 落盘：`filesDir/accounts/<accountKey>/{xianxia_sect.db(+ -wal/-shm), saves/, archives/, legacy_import/}`；`accounts/.current` 标记当前活跃空间 |
+| 验收② | **换账号不串档**：以 `@Database` 实体清单为锚点遍历的**隔离守卫测试**绿（断言不存在跨 `accountKey` 可见路径；`intentionallyExcluded` 显式声明例外并注明理由） |
+| 验收③ | **登出五件套**（原四件套 + 关闭当前数据空间）在**三处登出入口逐字一致**：`GameActivity.onLogout` / `MainActivity.performComplianceLogout` / `ComplianceVerificationScreen.onLogout`。⚠️ 规范里第四处 `ModeSelectionScreen.onLogout` **已随主界面退役删除**，本批同批修正 `rules/sdk-init-lifecycle.md:50` |
+| 验收④ | 登出**只清 `.current`、不删数据空间**；再次登录同一账号进度仍在 |
+| 验收⑤ | 无账号标识时不建库（引导登录）——分库的必然前提；**离线宽限与隐私政策不属本批**（归 SS8） |
+| 验收⑥ | 账号隔离键派生逻辑**下沉 `:core/domain` 纯函数**（双端共用），不在 Android 侧内联 |
+| **不做** | 不改槽位（SS1 已删净）；不改云端链路（SS7）；不落"全部功能要求登录"的完整门槛（SS8）；**不碰 C++** |
 
 ---
 
-## 2. 实测现状（四组件各自的"半截"）
+## 2. 实测现状
 
-### 2.1 `change_log` —— 只写不读
+- 数据库文件固定名（`getUnifiedDatabaseFile(context)`，`GameDatabase.kt:579` 附近）⇒ 全设备一份。
+- `GameDatabase.kt`：`@Database(` 在 `:136`、`version` 绑定 `:241`、`DATABASE_VERSION` 在 `:95`；**SS0 之后迁移链已清空**，`backupDatabaseForMigration` 已改语义为启动前快照。
+- **登出链只清会话，不清档、不隔离**（摸底报告 §12 结论）；本批把"数据空间切换"补进去。
+- 登出四件套（`rules/sdk-init-lifecycle.md`）：`clearSession` + `TapTapAuthManager.logout` + `TapDBManager.stopGameDurationTracking` + `ComplianceManager.unregisterCallback`。**新登出入口必须复制完整四件套，禁止只做 `clearSession()`。**
 
-- 实体/DAO/持久化：`ChangeLogEntity.kt` / `ChangeLogDao.kt` / `ChangeLogPersistence.kt`。
-- 唯一生产写点：`StorageEngineSaveSupport.kt:69-81`，每次保存写 **1 行 UPDATE**，`old/new` 恒 `null`。
-- 读方法（`getUnsyncedChanges` 一族）**生产零调用者**。
-- 7 天剪除：`DataPruningScheduler.kt:210-214`。
-- ⇒ 成本付了（每次保存一行 + 定期裁剪），收益为零。
+### 2.1 分库的连带面（必须同批处理）
 
-### 2.2 `FunctionalWAL` —— 有壳无芯
-
-- DI 绑定：`StorageModule.kt:51`（`WALProvider` → `FunctionalWAL`）；持有者 `StorageCoreFacade.kt:18`。
-- 调用形态：`StorageEngine.kt:611-621` begin（仅 LEGACY / CLOUD_TRANSITION）、`:643-651` commit、`:634-640` post-save PASSIVE checkpoint；CLOUD_ONLY 下整体停开（`:612`）。
-- **条目不承载数据字节**，`recover()` 仅记日志（`StorageEngine.kt:559-578` 注释"仅记录日志供监控"）。
-- ⇒ 耐久性完全由 Room 事务承担；该组件制造了"它在保护存档"的错觉。
-- 既有退役先例：`WalRetirementGuardTest`（自称"退役面静态守卫"）。
-
-### 2.3 归档表 —— 只写不读
-
-- DI：`StorageModule.kt:80-84`（`provideDataArchiver`）；持有者 `StorageEngine.kt:77`。
-- 写入：`DataArchiveScheduler.kt`（600s 周期）把溢出战斗日志与已故弟子搬出主表；归档行 `dataBlob` 是**可还原的全量载荷**。
-- 查询面零生产调用者，`ArchiveWriteOnlyGuardTest` 把"无读者"钉死为现状。
-- ⇒ 成本付了（写 + 180 天存储），收益没拿。
-
-### 2.4 `StorageMetrics` —— 只写不可读
-
-- 持有者：`StorageInfraFacade.kt:16`。
-- 8 个计数器**无任何 getter** ⇒ 存档失败率/耗时在线上完全不可见。
+| 面 | 说明 |
+|---|---|
+| 启动前快照 / 启动恢复 | 路径须随库名走（快照文件与恢复 marker 都在同目录） |
+| `saves/` 文件层 | `SaveFileManager` 的固定文件名（SS1 已去槽）落在账号空间内 |
+| `archives/*.arc` | 落在账号空间内 |
+| MMKV / SharedPreferences | **本批不动**；SS0 已清理旧台账键。若台账需随账号隔离，登记给 SS7 评估 |
 
 ---
 
@@ -56,26 +45,26 @@
 
 | # | 决策 | 依据 / 代价 |
 |---|---|---|
-| **D-1** | **`change_log` 赋责**：写入真实变更摘要（表名 + 主键 + 字段集），读面接**存档诊断**（设置页诊断入口 + `StorageMetrics` 上报） | 满足 `rules/design-plan-review.md` 第三节 YAGNI"每个新抽象必须至少有一个**当前**生产消费者"；诊断是真实需求（摸底报告指出"玩家丢档后查不出原因"） |
-| **D-2** | **`FunctionalWAL` 摘除**（解绑 DI + 摘调用点），事务编排归 Room | 规则：养一个"看起来在保护存档"的组件比没有更危险。已有 `WalRetirementGuardTest` 说明退役路径已铺好 |
-| **D-3** | **归档读面先给最小可用集**（列表 + 按 id 还原），消费者 = 存档诊断；SS4 的"恢复旧档"复用同一读面 | 两个消费者共用一面，避免各写一套读逻辑 |
-| **D-4** | **`StorageMetrics` 补 getter + 上报**，按 `rules/data-analytics.md` 三处同步 | 它是 SS4/SS5/SS7 验证"迁移成功/双路径对拍/云一致性"的前提，不是装饰 |
-| **D-5** | **不改保存/读档行为语义**：本批只动组件职责与观测面 | 保持每批独立可验收；行为改动归 SS3/SS5 |
-| **D-6** | **守卫测试一律"改语义"而非"放宽"**：`ArchiveWriteOnlyGuardTest`（归档有读者 ⇒ 原断言失效）、`WalRetirementGuardTest`（退役无残留引用） | detekt baseline 只缩不增；守卫放松等于埋雷 |
+| **D-1** | **`accountKey` = 账号标识经 SHA-256 截断**后的文件安全串；**不落明文标识到文件名** | 文件名会出现在备份/日志/文件管理器里，明文标识属不必要暴露 |
+| **D-2** | **目录结构** `filesDir/accounts/<accountKey>/…` + `accounts/.current` | 与 `cacheDir` 分离（清缓存不影响档）；账号维度可见可审计 |
+| **D-3** | **派生逻辑下沉 `:core/domain` 纯函数**（哈希/命名/合法性校验） | `rules/code-quality.md` §1.5 跨平台对等：iOS 侧复用同一套命名规则 |
+| **D-4** | **登出 = 清 `.current`，不删空间** | 单存档 + 账号隔离下删库等于删进度；换回来应还在 |
+| **D-5** | **无账号标识 ⇒ 不建库 + 引导登录** | 没有账号就没有隔离键；建"匿名空间"会在 SS8 落地后变成孤儿数据 |
+| **D-6** | **不需要任何存量迁移** | 删档（SS0）已使旧档全部失效；v1 的"分库后老玩家看不到档"窗口问题不存在 |
 
 ---
 
-## 4. 文件面与切片（≤10 文件/片）
+## 4. 文件面与切片
 
 | 片 | 允许改 | 禁止改 | 自检项 |
 |---|---|---|---|
-| **SS2-a** `change_log` 赋责 | `ChangeLogEntity.kt`、`ChangeLogDao.kt`、`ChangeLogPersistence.kt`、`StorageEngineSaveSupport.kt`（写入点） | 保存事务边界、`SaveValidator` | 摘要含表名 + 主键 + 字段集；`old/new` 不再是 null 占位；裁剪策略不变 |
-| **SS2-b** WAL 摘除 | `StorageModule.kt`（解绑）、`StorageCoreFacade.kt`、`StorageEngine.kt`（begin/commit/checkpoint 调用点）、`FunctionalWAL.kt` / `WALProvider.kt`（删或降级为纯日志并改名）、`WalRetirementGuardTest` | Room 事务结构、`StorageCircuitBreaker` | 启动/保存/读档三条链全绿；全仓无 `FunctionalWAL` 生产引用 |
-| **SS2-c** 归档读面 | `DataArchiver.kt`（查询族）、`ArchiveDaos.kt`、`ArchiveWriteOnlyGuardTest` | 归档**写入**策略（保留期/搬运时机） | 列表 + 还原可用；守卫按新职责改写 |
-| **SS2-d** Metrics getter + 上报 | `StorageMetrics.kt`、上报接线点、`rules/data-analytics.md` 要求的三处（事件定义/上报点/守卫测试） | 计数器语义 | 每个 getter 有消费者；守卫测试在册 |
-| **SS2-e** 诊断入口 | 设置页诊断入口（只读展示最近 N 次保存变更 + 关键计数器） | 存档主流程 | UI 不直写 Store；不新增对话框类型时可挂既有页 |
+| **SS2-a** 账号键纯函数 | `core/domain/.../account/AccountKey.kt`（**新**）＋ 单测 | Android API、`Context` | 纯函数、无 Android 依赖；非法输入有定义行为 |
+| **SS2-b** 数据空间路径 | `GameDatabase.kt`（库名 + 快照/恢复路径随库名）、`StorageModule.kt`（路径注入） | 建库/schema 基线 | 库名/快照名/恢复 marker 全在同一账号目录；默认固定名路径不再被使用 |
+| **SS2-c** 登出五件套 | `MainActivity.kt`（统一登出收敛）、`GameActivity.kt`（`onLogout`）、合规验证界面登出回调 | 登录状态机语义 | 三处逐字一致；不新增"只置位不复位"的一次性布尔标记（`rules/sdk-init-lifecycle.md` 原则 5） |
+| **SS2-d** 隔离守卫 | 新增 `AccountDataIsolationGuardTest`（以 `@Database` 实体清单为锚点） | 生产源 | 断言消息带操作指引；`intentionallyExcluded` 逐项注明理由 |
+| **SS2-e** 规范修正 | `rules/sdk-init-lifecycle.md:50`（删已退役行 + 登出清单升五件套） | 其它规范 | 改后跑 `node scripts/check-agent-instructions.mjs` |
 
-**共享面**：`StorageModule.kt`（与 SS1 冲突，见 §3.3）；`StorageEngine.kt`（与 SS3/SS5 都要改）⇒ 本批改完后冻结其"事务编排"段。
+**共享面**：`StorageModule.kt` **与 SS3 冲突**（SS3 解绑 `FunctionalWAL`）⇒ 按 ledger §4.3 **SS2 先、SS3 后**，禁并行编辑。
 
 ---
 
@@ -84,26 +73,26 @@
 ```powershell
 # 工作目录 = C:\Mnzm\XianxiaSectNative\android
 .\gradlew.bat compileReleaseKotlin --console=plain
-.\gradlew.bat :core:data:testReleaseUnitTest :app:testReleaseUnitTest --max-workers=1 --console=plain
-.\gradlew.bat :core:data:detekt :app:detekt --console=plain
-# 本批关键守卫
-.\gradlew.bat :core:data:testReleaseUnitTest --tests "*ArchiveWriteOnlyGuardTest*" --tests "*WalRetirementGuardTest*" --max-workers=1 --console=plain
-# 仓库根
+.\gradlew.bat :core:domain:testReleaseUnitTest :core:data:testReleaseUnitTest :app:testReleaseUnitTest --max-workers=1 --console=plain
+.\gradlew.bat :core:domain:detekt :core:data:detekt :app:detekt --console=plain
+# 登录生命周期守卫
+.\gradlew.bat :app:testReleaseUnitTest --tests "*LoginFlowStateMachineTest*" --tests "*ComplianceManagerSelfHealTest*" `
+  --tests "*SafeRunAfterSdkInitTest*" --tests "*SdkInitGuardTest*" --tests "*TapDBManagerInitGuardTest*" --max-workers=1 --console=plain
 node scripts/check-agent-instructions.mjs
 ```
 
-**提交前**：`git status` 只留本批改动。
+**真机冒烟**：A 账号建进度 → 登出 → B 账号登录（**不得看到 A 的进度**）→ 登出 → A 账号再登录（**进度仍在**）。
 
 ---
 
 ## 6. 登记项
 
-1. **跨批登记（SS4）**：归档读面的"按 id 还原"接口形态要在 SS2 冻结，SS4 只消费不改签名。
-2. **跨批登记（SS5/SS7）**：`StorageMetrics` 新增的计数器（脏集回退次数、增量/全量路径分布、云一致性差额）在各自批次追加，**本批只给 getter 与上报框架**。
-3. **风险**：`FunctionalWAL` 摘除会改启动路径 ⇒ 必须在报告里给出"摘除前后：启动 / 保存 / 读档 三条链"的对拍证据，不接受"应该无影响"。
+1. **跨批登记（SS7）**：MMKV 本批仍为**全局**；云上传账本是否也要 `accountKey` 维度，由 SS7 在收口台账键时一并评估。
+2. **跨批登记（SS8）**：本批只保证"无账号标识 ⇒ 不建库 + 引导登录"；**离线宽限（B1）与隐私政策双入口**归 SS8。
+3. **注意**：`rules/sdk-init-lifecycle.md` 的登出清单目前是**四件套**，本批改为**五件套**后，该规范文件与代码必须同时更新（规范是唯一真源）。
 
 ---
 
 ## 7. 一句话给执行者
 
-**四个半截组件一次收口：`change_log` 写真实变更并给诊断读它、`FunctionalWAL` 整组摘掉、归档表接上读面、`StorageMetrics` 补 getter 并上报——只动组件职责与观测面，不动保存/读档的行为语义。**
+**把"一份设备级数据库"改成"一个账号一个数据空间目录"，登出补成五件套（清 `.current` 但不删库），并用实体清单遍历的守卫证明换账号不串档——删档之后已无存量迁移问题，本批不需要任何兼容逻辑。**
