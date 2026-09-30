@@ -7,6 +7,8 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 
 ## 0. 当前状态（事件倒序，最新在上）
 
+- **2026-09-30 09:5x 看护轮#99：EQ-B4 校准收官信号——探针清理+方案文档回写**。dirty 仍 12 但组成变更：临时探针 `CalibrationProbe.kt` **已删**（一次性代码清理纪律落实✓）；新增 `docs/design/equipment-set-system-refactor-plan.md` 修改（校准结论回写方案 §13 数值口径的预期动作）。校准阶段结束，转报告前固化期。**§5 核验追加盯点：收官笔内不得出现 CalibrationProbe.kt**（一次性件，验证已清）。无报告。下轮：观察（预期报告落盘+门禁收尾）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（收尾期渐近）。**
+
 - **2026-09-30 09:4x 看护轮#98：EQ-B4 写入面全数落齐（四测试类+调 k+resolver 数值面）**。dirty 10→**12**：`EquipmentStatHotPathBenchmark`（新）压轴现身，四个正式测试类齐；新增主代码 `EquipStatResolver.kt` 修改（数值面正当写入——占比校准落点，核验时对照 S19/S20 既有锁定复核）。构建 36 产物/12 分钟（门禁节奏渐近）。无报告。下轮：实施期观察（预期门禁全套→报告落盘）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（门禁期渐近）。**
 
 - **2026-09-30 09:3x 看护轮#97：EQ-B4 正式测试类三缺一**。dirty 7→10：`EquipmentPowerParityTest`（新）、`EquipmentEconomyCalibrationTest`（新）、`EquipmentRarityGateTest`（改断言——B3 品阶门基础之上扩展，符合派发件「改断言」类处置）三写面现身；仅剩 `EquipmentStatHotPathBenchmark` 未落。构建 23 产物/12 分钟（测试循环活跃）。无报告。推送仍断（7897，本轮重试失败）。下轮：实施期观察（热路径基准→门禁全套→报告）；报告落盘 ⇒ §5 核验。**实时线 completed；装备线 EQ-B0/B1/B2/B3 accepted、EQ-B4 在途（测试面铺开期）。**
