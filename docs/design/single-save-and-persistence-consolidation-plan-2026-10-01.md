@@ -38,6 +38,15 @@
 | W11 | `AdFreeWhitelist` | **保留**（不属删档范围） |
 | W12 | 删档触发 | **新版本首次启动自动清 + 保留开发入口**（可重复重置） |
 
+**第三轮补充（邮件清理，M1–M4）**：
+
+| # | 议题 | 结果 |
+|---|---|---|
+| M1 | 内置运营邮件 | **删除 QQ 群邮件**（`BuiltinMailConfig` 中唯一的非节日邮件），**仅保留节日邮件**（28 封） |
+| M2 | 白名单福利邮件 | **删除**（`MailService.injectWhitelistBonus` + `GameEngineAdminOps.sendWhitelistBonus` + **4 个调用点**）；白名单只保留免广告特权（W11） |
+| M3 | 手动补偿邮件 | **保留** `injectAdminMail`（`source="admin"`，运营工具性质） |
+| M4 | 系统功能邮件 | 🔴 **必须保留**：`overflow`（仓库满转邮件）、`secret_realm`（秘境到期送达）——删了会直接丢物品；`nurture_pill_retirement` / `equipment_legacy_compensation` 属历史兼容补偿，**随 W7 逐条判定** |
+
 ### 0.5.3 对原方案的影响
 
 | 原内容 | 处置 |

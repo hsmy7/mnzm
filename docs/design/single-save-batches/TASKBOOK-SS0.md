@@ -21,6 +21,7 @@
 | 验收⑧ | **删档触发**：新版本首次启动自动清（`wipe_*_done` 标记幂等）+ 保留开发入口可重复触发（W12） |
 | 验收⑨ | **`SaveValidator` 28 条逐条判定**，产出处置表：为历史旧档数据写的删、为运行期完整性写的留（W7） |
 | 验收⑩ | **CI 守卫**：新增 `@Entity` / 列变更必须同批出现 `MIGRATION_*`，否则判红（铁律 17） |
+| 验收⑪ | **邮件清理（M1/M2/M3/M4）**：删 `BuiltinMailConfig` 的 QQ 群邮件（唯一非节日，29→**28** 封，只留节日）；删白名单福利邮件全链（`injectWhitelistBonus` + `sendWhitelistBonus` + **4 个调用点**）；**保留** `injectAdminMail`、`overflow`、`secret_realm` |
 | **不做** | **不删槽位维度**（SS1）；不碰 C++ 协议字段；不删 `SaveValidator` 的运行期完整性规则；不删 `SaveFileManager` 的原子写/`.bak` 轮转（那是崩溃应急，不是版本兼容） |
 
 ---
@@ -59,6 +60,21 @@
 - **主动删除**：用 `SaveBackend.delete(slot)` / `listAllArchives()` 删除当前登录账号的旧命名档（只能删当前账号，删除失败不阻断）。
 - ⇒ 旧命名常量与 `slotFromArchiveName` 的硬编码 `1..6`（`TapTapSaveBackend.kt:383`）随本批一并处理。
 
+### 2.6 邮件清理（M1–M4）
+
+| source | 位置 | 性质 | 处置 |
+|---|---|---|---|
+| `builtin`（QQ 群） | `BuiltinMailConfig.kt:26-36` `mail_qq_group_v4_0_03`（群号 1085248982，10 枚宝品储物袋） | 运营邮件 | **删**（29 → 28 封）；同批删 `BuiltinMailConfigTest.kt:135-141` 的 `builtinMailConfig_qqGroupMailExists` 断言 |
+| `builtin`（节日） | `BuiltinMailConfig.kt` 其余 **28 封**（2026×14 + 2027×14） | 运营邮件 | **保留**（本次唯一保留的运营邮件） |
+| `admin`（白名单福利） | `MailService.injectWhitelistBonus` + `GameEngineAdminOps.sendWhitelistBonus`（`:78`）+ **4 个调用点**：`SaveLoadViewModelNewGameOps.kt:111` / `RestartOps.kt:227` / `LoadOps.kt:209` / `CloudLoadOps.kt:197` | 白名单福利 | **删全链**（W11 只保留免广告特权，不再发福利邮件） |
+| `admin`（手动补偿） | `GameEngineAdminOps.kt:48-51` `injectAdminMail` | 运营工具 | **保留**（M3） |
+| `overflow` | `OverflowMailSender.kt:420` | 🔴 系统功能（仓库满转邮件） | **保留**（本质是防丢，不是运营内容） |
+| `secret_realm` | `SecretRealmService.kt:1137` | 🔴 系统功能（秘境到期送达） | **保留** |
+| `nurture_pill_retirement` | `NurturePillRetirementRule.kt:202` | 历史兼容补偿 | 随 W7 判定 |
+| `equipment_legacy_compensation` | `LegacyEquipmentCompensationRule.kt:226` | 历史兼容补偿 | 随 W7 判定 |
+
+**产品后果（须写进报告）**：删 QQ 群邮件等于取消游戏内**唯一的玩家社群引流入口**；白名单福利邮件删除后，白名单玩家只剩免广告特权、不再有每档一次的福利邮件。
+
 ---
 
 ## 3. 决策
@@ -89,6 +105,7 @@
 | **SS0-g** 残留清理 | 启动期残留扫描（备份/归档/台账/孤儿 schema） | 玩家档本体 | 清理清单写在报告里；幂等 |
 | **SS0-h** `SaveValidator` 判定 | 28 条规则逐条处置（删/留）+ 处置表 | 留用规则的语义 | 处置表逐条给理由 |
 | **SS0-i** CI 守卫 | 新增守卫：实体/列变更必须同批出现 `MIGRATION_*` | 其他 CI 步骤 | 守卫在干净检出下可运行 |
+| **SS0-j** 邮件清理 | `BuiltinMailConfig.kt`（删 QQ 群条目）、`BuiltinMailConfigTest.kt`（删对应断言）、`MailService.injectWhitelistBonus`（删方法）、`GameEngineAdminOps.kt`（删 `sendWhitelistBonus`）、**4 个调用点**（`SaveLoadViewModelNewGameOps` / `RestartOps` / `LoadOps` / `CloudLoadOps`）、相关测试 | `injectAdminMail`、`overflow`、`secret_realm`、节日邮件 28 封 | 删后 `mails.size == 28`；全仓零 `sendWhitelistBonus` / `injectWhitelistBonus` 引用 |
 
 **共享面**：`GameDatabase.kt` 与 `StorageModule.kt` 后续被 SS1/SS2/SS3 继续改 ⇒ 本批改完后**冻结**其"版本与建库"段。
 
