@@ -8,8 +8,11 @@
 //   - claimSectLevelRewardTx：7 天冷却校验先行；材料/储物袋/灵石/领取记录
 //     四项同事务；**凭据类**溢出 → 整体回滚零写入（不产邮件草稿）
 //   - purchaseMerchantRefreshTx / purchaseBreakthroughBonusTx：上限校验
-//     先于扣款（达上限不扣玉符）；玉符扣减绝对值语义；statusData 写回串
-//     与 Kotlin `Double.toString()` 逐值一致
+//     先于扣款（达上限不扣玉符）；玉符扣减走账本（SPEND_* 条目 + 派生
+//     缓存同事务双写）；statusData 写回串与 Kotlin `Double.toString()`
+//     逐值一致
+//   - 账本不变式：派生余额 == 期初条目 + Σdelta == 末条 balance_after；
+//     缓存漂移以账本为准重锚（回执 drift）；空账本兜底基准
 //   - 零 RNG：四事务全族不动 rngStates（签名级：API 不收 RngManager）
 //   - 信封级：execute 通道 success data 面 + failure 信封（Kotlin 回退臂契约）
 // ============================================================
@@ -114,6 +117,36 @@ protected:
     }
 
     const std::vector<Material>& materials() const { return core_->state().materials; }
+
+    // ── 玉符账本测试面（SS9）──────────────────────────────────────────
+
+    /// 开账：以 openingBalance 为期初余额写 OPENING_BALANCE 期初条目
+    /// （delta = balanceAfter = 期初余额，自含锚点；与 Kotlin
+    /// withStartupLedger 同语义）
+    void openLedger(int32_t openingBalance) {
+        auto& gd = core_->state().gameData;
+        gd.jadeSymbols = openingBalance;
+        const int32_t after = jade_tx::openJadeLedger(gd, 1'700'000'000'000LL);
+        ASSERT_EQ(openingBalance, after);
+        ASSERT_EQ(1u, gd.jadeLedger.size());
+        ASSERT_EQ(jade_tx::kJadeReasonOpeningBalance, gd.jadeLedger[0].reason);
+    }
+
+    const std::vector<gamecore::state::JadeLedgerEntry>& ledger() const {
+        return core_->state().gameData.jadeLedger;
+    }
+
+    /// 账本不变式：期初 + Σdelta == 末条 balance_after == 派生缓存
+    void expectLedgerInvariant() {
+        const auto& ld = ledger();
+        ASSERT_FALSE(ld.empty());
+        int32_t sum = 0;
+        for (const auto& e : ld) sum += e.delta;
+        EXPECT_EQ(sum, ld.back().balanceAfter)
+            << "Σdelta != 末条 balance_after（账本条目冗余失真）";
+        EXPECT_EQ(ld.back().balanceAfter, core_->state().gameData.jadeSymbols)
+            << "派生缓存 != 账本余额（同事务双写断裂）";
+    }
 
     std::vector<std::unique_ptr<FixedClock>> clocks_;
     std::vector<std::unique_ptr<ConsoleLogger>> loggers_;
@@ -247,42 +280,55 @@ TEST_F(JadeTxFixture, ClaimTxCapacityOverflowRollsBackEverything) {
     EXPECT_TRUE(core_->state().gameData.sectLevelClaimRecords.empty());
 }
 
-// ── JADE_PURCHASE_MERCHANT_REFRESH_TX（玉符扣减 + 刷新次数写回） ──────────
+// ── JADE_PURCHASE_MERCHANT_REFRESH_TX（账本落账扣减 + 刷新次数写回） ──────
 
 TEST_F(JadeTxFixture, MerchantRefreshTxDeductsJadeAndAccumulates) {
-    core_->state().gameData.jadeSymbols = 5;
+    openLedger(5);
     core_->state().gameData.merchantRefreshChances = 1;
 
-    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999);
+    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999,
+                                                      1'700'000'000'000LL);
 
     ASSERT_TRUE(r.base.ok);
     EXPECT_EQ(4, r.jadeSymbols);
     EXPECT_EQ(4, r.value);
+    EXPECT_FALSE(r.drift);
     EXPECT_EQ(4, core_->state().gameData.jadeSymbols);
     EXPECT_EQ(4, core_->state().gameData.merchantRefreshChances);
+    // 账本落账：一条 SPEND_MERCHANT_REFRESH（-1 / balance_after=4）
+    ASSERT_EQ(2u, ledger().size());
+    EXPECT_EQ(jade_tx::kJadeReasonSpendMerchantRefresh, ledger()[1].reason);
+    EXPECT_EQ(-1, ledger()[1].delta);
+    EXPECT_EQ(4, ledger()[1].balanceAfter);
+    EXPECT_EQ(1'700'000'000'000LL, ledger()[1].atEpochMs);
+    expectLedgerInvariant();
 }
 
 TEST_F(JadeTxFixture, MerchantRefreshTxLimitReachedDoesNotDeduct) {
-    core_->state().gameData.jadeSymbols = 5;
+    openLedger(5);
     core_->state().gameData.merchantRefreshChances = 999;
 
-    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999);
+    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999,
+                                                      1'700'000'000'000LL);
 
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ("LIMIT_REACHED", r.base.errorType);
     EXPECT_EQ(5, core_->state().gameData.jadeSymbols);   // 达上限不扣玉符
     EXPECT_EQ(999, core_->state().gameData.merchantRefreshChances);
+    EXPECT_EQ(1u, ledger().size());                       // 账本零新增
 }
 
 TEST_F(JadeTxFixture, MerchantRefreshTxInsufficientJadeZeroWrite) {
-    core_->state().gameData.jadeSymbols = 0;
+    openLedger(0);
     core_->state().gameData.merchantRefreshChances = 1;
 
-    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999);
+    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 1, 3, 999,
+                                                      1'700'000'000'000LL);
 
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ("INSUFFICIENT_JADE", r.base.errorType);
     EXPECT_EQ(0, core_->state().gameData.jadeSymbols);
+    EXPECT_EQ(1u, ledger().size());                       // 账本零新增
     EXPECT_EQ(1, core_->state().gameData.merchantRefreshChances);
 }
 
@@ -290,9 +336,10 @@ TEST_F(JadeTxFixture, MerchantRefreshTxInsufficientJadeZeroWrite) {
 
 TEST_F(JadeTxFixture, BreakthroughBonusTxWritesStatusData) {
     addDisciple("7", "甲七", true);
-    core_->state().gameData.jadeSymbols = 5;
+    openLedger(5);
 
-    const auto r1 = jade_tx::purchaseBreakthroughBonusTx(core_->state(), "7", 1, 0.15, 0.30);
+    const auto r1 = jade_tx::purchaseBreakthroughBonusTx(
+        core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL);
 
     ASSERT_TRUE(r1.base.ok);
     EXPECT_EQ(4, r1.jadeSymbols);
@@ -300,81 +347,147 @@ TEST_F(JadeTxFixture, BreakthroughBonusTxWritesStatusData) {
     const auto d = core_->state().disciples.materialize(*core_->state().disciples.rowOf("7"));
     EXPECT_EQ("0.15", d.statusData.at("adBreakthroughBonus"));
 
-    const auto r2 = jade_tx::purchaseBreakthroughBonusTx(core_->state(), "7", 1, 0.15, 0.30);
+    const auto r2 = jade_tx::purchaseBreakthroughBonusTx(
+        core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL + 1);
 
     ASSERT_TRUE(r2.base.ok);
     EXPECT_EQ(3, r2.jadeSymbols);
     EXPECT_EQ("0.3", r2.writtenValue);    // Kotlin Double.toString(0.3) 同串
+    // 账本：两条 SPEND_BREAKTHROUGH_BONUS，逐条 balance_after 递减
+    ASSERT_EQ(3u, ledger().size());
+    EXPECT_EQ(jade_tx::kJadeReasonSpendBreakthroughBonus, ledger()[1].reason);
+    EXPECT_EQ(-1, ledger()[1].delta);
+    EXPECT_EQ(4, ledger()[1].balanceAfter);
+    EXPECT_EQ(jade_tx::kJadeReasonSpendBreakthroughBonus, ledger()[2].reason);
+    EXPECT_EQ(-1, ledger()[2].delta);
+    EXPECT_EQ(3, ledger()[2].balanceAfter);
+    expectLedgerInvariant();
 }
 
 TEST_F(JadeTxFixture, BreakthroughBonusTxLimitReachedDoesNotDeduct) {
     addDisciple("7", "甲七", true);
-    core_->state().gameData.jadeSymbols = 5;
+    openLedger(5);
     {
         const auto seed = jade_tx::purchaseBreakthroughBonusTx(
-            core_->state(), "7", 1, 0.15, 0.30);
+            core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL);
         ASSERT_TRUE(seed.base.ok);
         const auto seed2 = jade_tx::purchaseBreakthroughBonusTx(
-            core_->state(), "7", 1, 0.15, 0.30);
+            core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL);
         ASSERT_TRUE(seed2.base.ok);
     }
     ASSERT_EQ(3, core_->state().gameData.jadeSymbols);
 
-    const auto r = jade_tx::purchaseBreakthroughBonusTx(core_->state(), "7", 1, 0.15, 0.30);
+    const auto r = jade_tx::purchaseBreakthroughBonusTx(
+        core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL);
 
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ("LIMIT_REACHED", r.base.errorType);
     EXPECT_EQ(3, core_->state().gameData.jadeSymbols);   // 达上限不扣玉符
+    EXPECT_EQ(3u, ledger().size());                       // 账本零新增
 }
 
 TEST_F(JadeTxFixture, BreakthroughBonusTxRejectsMissingOrDeadDisciple) {
-    core_->state().gameData.jadeSymbols = 5;
+    openLedger(5);
 
     const auto missing = jade_tx::purchaseBreakthroughBonusTx(
-        core_->state(), "404", 1, 0.15, 0.30);
+        core_->state(), "404", 1, 0.15, 0.30, 1'700'000'000'000LL);
     EXPECT_FALSE(missing.base.ok);
     EXPECT_EQ("DISCIPLE_NOT_FOUND", missing.base.errorType);
 
     addDisciple("8", "甲八", false);
     const auto dead = jade_tx::purchaseBreakthroughBonusTx(
-        core_->state(), "8", 1, 0.15, 0.30);
+        core_->state(), "8", 1, 0.15, 0.30, 1'700'000'000'000LL);
     EXPECT_FALSE(dead.base.ok);
     EXPECT_EQ("DISCIPLE_DEAD", dead.base.errorType);
     EXPECT_EQ(5, core_->state().gameData.jadeSymbols);   // 零写入
+    EXPECT_EQ(1u, ledger().size());                       // 账本零新增
 }
 
 TEST_F(JadeTxFixture, BreakthroughBonusTxInsufficientJadeZeroWrite) {
     addDisciple("7", "甲七", true);
-    core_->state().gameData.jadeSymbols = 0;
+    openLedger(0);
 
-    const auto r = jade_tx::purchaseBreakthroughBonusTx(core_->state(), "7", 1, 0.15, 0.30);
+    const auto r = jade_tx::purchaseBreakthroughBonusTx(
+        core_->state(), "7", 1, 0.15, 0.30, 1'700'000'000'000LL);
 
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ("INSUFFICIENT_JADE", r.base.errorType);
     const auto d = core_->state().disciples.materialize(*core_->state().disciples.rowOf("7"));
     EXPECT_TRUE(d.statusData.empty());
+    EXPECT_EQ(1u, ledger().size());                       // 账本零新增
 }
 
-// ── 零 RNG 全分区快照差分（四事务全族） ──────────────────────────────────
+// ── 玉符账本（SS9）：append 语义 / 期初开账 / 派生校验 / 兜底基准 ────────
 
-TEST_F(JadeTxFixture, ZeroRngFamilyLeavesRngStatesUntouched) {
+TEST_F(JadeTxFixture, LedgerOpeningBalanceEntryAnchorsDerivedBalance) {
+    // 新档开账：期初条目 delta = 期初余额、余额不变；派生 == 期初
+    openLedger(7);
+    EXPECT_EQ(7, core_->state().gameData.jadeSymbols);
+    ASSERT_EQ(1u, ledger().size());
+    EXPECT_EQ(jade_tx::kJadeReasonOpeningBalance, ledger()[0].reason);
+    EXPECT_EQ(7, ledger()[0].delta);
+    EXPECT_EQ(7, ledger()[0].balanceAfter);
+    expectLedgerInvariant();
+}
+
+TEST_F(JadeTxFixture, LedgerDriftReanchorsFromLedgerAndReports) {
+    openLedger(10);
+    // 模拟残留覆盖写：派生缓存被独立改写（账本末条仍为 10）
+    core_->state().gameData.jadeSymbols = 99;
+
+    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 3, 1, 999,
+                                                      1'700'000'000'000LL);
+
+    // 以账本为准：balance_after = 10 - 3 = 7（非 99-3），缓存被重锚，drift 上报
+    ASSERT_TRUE(r.base.ok);
+    EXPECT_TRUE(r.drift);
+    EXPECT_EQ(7, r.jadeSymbols);
+    EXPECT_EQ(7, core_->state().gameData.jadeSymbols);
+    ASSERT_EQ(2u, ledger().size());
+    EXPECT_EQ(-3, ledger()[1].delta);
+    EXPECT_EQ(7, ledger()[1].balanceAfter);
+    expectLedgerInvariant();
+}
+
+TEST_F(JadeTxFixture, LedgerEmptyFallbackBasesOnDerivedCache) {
+    // 未经开账的导入态（空账本 + 缓存 8）：首笔落账以缓存为基准建立账本。
+    // 此形态账本**无期初锚点**——Σdelta 恒等式不适用（首条即增量条目），
+    // 这正是正式路径必有 OPENING_BALANCE 期初条目的原因（SS9 开账语义）。
+    core_->state().gameData.jadeSymbols = 8;
+
+    const auto r = jade_tx::purchaseMerchantRefreshTx(core_->state(), 2, 1, 999,
+                                                      1'700'000'000'000LL);
+
+    ASSERT_TRUE(r.base.ok);
+    EXPECT_FALSE(r.drift);          // 空账本无可判定基准，不误报
+    EXPECT_EQ(6, core_->state().gameData.jadeSymbols);
+    ASSERT_EQ(1u, ledger().size());
+    EXPECT_EQ(-2, ledger()[0].delta);
+    EXPECT_EQ(6, ledger()[0].balanceAfter);
+    EXPECT_EQ(ledger().back().balanceAfter, core_->state().gameData.jadeSymbols);
+}
+
+TEST_F(JadeTxFixture, LedgerZeroRngFamilyLeavesRngStatesUntouched) {
     auto& st = core_->state();
     st.gameData.worldMapSects.push_back(playerSect(1, "我的宗门"));
-    st.gameData.jadeSymbols = 9;
+    openLedger(9);
     addDisciple("7", "甲七", true);
     const auto before = rngSnapshot();
 
     const auto up = jade_tx::upgradeSectLevelTx(st, 2, "中宗门");
     const auto claim = jade_tx::claimSectLevelRewardTx(
         st, 2, 1'700'000'000'000LL, {{"兽血·凡", 1, "BLOOD", 1}}, {}, 100);
-    const auto refresh = jade_tx::purchaseMerchantRefreshTx(st, 1, 3, 999);
-    const auto bonus = jade_tx::purchaseBreakthroughBonusTx(st, "7", 1, 0.15, 0.30);
+    const auto refresh = jade_tx::purchaseMerchantRefreshTx(st, 1, 3, 999,
+                                                            1'700'000'000'000LL);
+    const auto bonus = jade_tx::purchaseBreakthroughBonusTx(st, "7", 1, 0.15, 0.30,
+                                                            1'700'000'000'000LL);
 
     ASSERT_TRUE(up.base.ok);
     ASSERT_TRUE(claim.base.ok);
     ASSERT_TRUE(refresh.base.ok);
     ASSERT_TRUE(bonus.base.ok);
     EXPECT_EQ(before, rngSnapshot());
+    expectLedgerInvariant();
 }
 
 // ── 串格式基准（Java Double.toString 等价，Kotlin `newBonus.toString()`） ──
@@ -393,7 +506,7 @@ TEST_F(JadeTxFixture, JavaDoubleStringFormatBaseline) {
 
 TEST_F(JadeTxFixture, DispatchEnvelopeHappyAndFailure) {
     core_->state().gameData.worldMapSects.push_back(playerSect(1, "我的宗门"));
-    core_->state().gameData.jadeSymbols = 4;
+    openLedger(4);
 
     const auto okUpgrade = exec(action::SECT_LEVEL_UPGRADE_TX,
                                 {{"targetLevel", 2}, {"levelName", "中宗门"}});
@@ -409,18 +522,25 @@ TEST_F(JadeTxFixture, DispatchEnvelopeHappyAndFailure) {
     EXPECT_TRUE(core_->state().gameData.sectLevelClaimRecords.empty());
 
     const auto okRefresh = exec(action::JADE_PURCHASE_MERCHANT_REFRESH_TX,
-                                {{"cost", 1}, {"perJade", 3}, {"maxChances", 999}});
+                                {{"cost", 1}, {"perJade", 3}, {"maxChances", 999},
+                                 {"nowMs", 1'700'000'000'000LL}});
     EXPECT_EQ("success", okRefresh["status"].get<std::string>());
     EXPECT_EQ(3, okRefresh["data"]["jadeSymbols"].get<int32_t>());
     EXPECT_EQ(4, okRefresh["data"]["merchantRefreshChances"].get<int32_t>());
+    EXPECT_FALSE(okRefresh["data"]["drift"].get<bool>());
 
     addDisciple("7", "甲七", true);
     const auto okBonus = exec(action::JADE_PURCHASE_BREAKTHROUGH_BONUS_TX,
                               {{"discipleId", "7"}, {"cost", 1}, {"perJade", 0.15},
-                               {"maxBonus", 0.30}});
+                               {"maxBonus", 0.30}, {"nowMs", 1'700'000'000'000LL}});
     EXPECT_EQ("success", okBonus["status"].get<std::string>());
     EXPECT_EQ(2, okBonus["data"]["jadeSymbols"].get<int32_t>());
     EXPECT_EQ("0.15", okBonus["data"]["bonus"].get<std::string>());
+    // 账本：两笔扣费落账 + 派生缓存同事务双写
+    ASSERT_EQ(3u, ledger().size());
+    EXPECT_EQ(jade_tx::kJadeReasonSpendMerchantRefresh, ledger()[1].reason);
+    EXPECT_EQ(jade_tx::kJadeReasonSpendBreakthroughBonus, ledger()[2].reason);
+    expectLedgerInvariant();
 
     // 段外动作码 → NOT_IMPLEMENTED（本段边界不进 handleJadeTx）
     const auto outside = exec(1694, nlohmann::json::object());

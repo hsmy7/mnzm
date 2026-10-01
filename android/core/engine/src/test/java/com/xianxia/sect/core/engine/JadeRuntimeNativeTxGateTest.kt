@@ -4,6 +4,8 @@ import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.WriteGuardRule
 import kotlinx.coroutines.runBlocking
@@ -29,7 +31,7 @@ import javax.inject.Provider
  * - **平台读数参数化不改变行为**：跨天判定仍由 Kotlin 墙钟读数驱动（回拨不
  *   重置、同 tick 幂等语义在两臂一致）
  *
- * C++ 侧判定序/幂等/零写入语义由 GTest `jade_runtime_tx_test.cpp`（13 用例）逐位守护。
+ * C++ 侧判定序/幂等/零写入/账本落账语义由 GTest `jade_runtime_tx_test.cpp`（21 用例）逐位守护。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
@@ -77,14 +79,22 @@ class JadeRuntimeNativeTxGateTest {
         )
     }
 
-    /** 播种玉符持久化基线（对齐生产 onLoopStart 读快照语义）。 */
+    /** 播种玉符持久化基线（期初账本条目 + 派生缓存，对齐生产 withStartupLedger 语义）。 */
     private fun seedJade(total: Int, today: Int, accumMs: Long, dayAnchorMs: Long) {
         store.update {
             gameData = gameData.copy(
                 jadeSymbols = total,
                 jadeSymbolsToday = today,
                 jadeAccumMs = accumMs,
-                jadeDayAnchorMs = dayAnchorMs
+                jadeDayAnchorMs = dayAnchorMs,
+                jadeLedger = listOf(
+                    JadeLedgerEntry(
+                        atEpochMs = 1_700_000_000_000L,
+                        delta = total,
+                        reason = JadeLedgerReasons.OPENING_BALANCE,
+                        balanceAfter = total
+                    )
+                )
             )
         }
     }
@@ -135,7 +145,7 @@ class JadeRuntimeNativeTxGateTest {
         assertEquals(offState.jadeSymbolsToday, authoritativeState.jadeSymbolsToday)
         assertEquals(offState.jadeAccumMs, authoritativeState.jadeAccumMs)
         assertEquals(offState.jadeDayAnchorMs, authoritativeState.jadeDayAnchorMs)
-        assertEquals("checkpoint 绝对值覆盖写语义两臂一致", 33, authoritativeState.jadeSymbols)
+        assertEquals("checkpoint 不写余额（真源在账本）两臂一致", 33, authoritativeState.jadeSymbols)
     }
 
     @Test

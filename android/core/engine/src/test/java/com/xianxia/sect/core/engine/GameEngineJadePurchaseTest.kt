@@ -11,6 +11,8 @@ import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -110,9 +112,21 @@ class GameEngineJadePurchaseTest {
         }
     }
 
-    /** 播种玉符余额并从快照恢复运行时 totalCount（对齐生产 onLoopStart 语义）。 */
+    /** 播种玉符账本（期初条目 + 派生缓存，对齐生产 withStartupLedger 语义）。 */
     private fun seedJade(count: Int) {
-        store.update { gameData = gameData.copy(jadeSymbols = count) }
+        store.update {
+            gameData = gameData.copy(
+                jadeSymbols = count,
+                jadeLedger = listOf(
+                    JadeLedgerEntry(
+                        atEpochMs = 1_700_000_000_000L,
+                        delta = count,
+                        reason = JadeLedgerReasons.OPENING_BALANCE,
+                        balanceAfter = count
+                    )
+                )
+            )
+        }
         jadeService.onLoopStart()
     }
 
@@ -149,8 +163,10 @@ class GameEngineJadePurchaseTest {
         isSuccess(engine.purchaseBreakthroughBonus("1"))
 
         assertEquals("GameData 玉符应扣 1 枚", 4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals("运行时 totalCount 应同步为 4（防止 checkpoint 覆盖回涨）",
-            4, jadeService.runtimeState.value.total)
+        assertEquals("账本应落 SPEND_BREAKTHROUGH_BONUS 条目",
+            JadeLedgerReasons.SPEND_BREAKTHROUGH_BONUS,
+            store.gameDataSnapshot.jadeLedger.last().reason)
+        assertEquals("账本末条余额应为 4", 4, store.gameDataSnapshot.jadeLedger.last().balanceAfter)
         assertEquals("statusData 应写入 0.15",
             GameConfig.JadePurchase.BREAKTHROUGH_BONUS_PER_JADE.toString(), breakthroughBonusOf())
     }
@@ -189,14 +205,14 @@ class GameEngineJadePurchaseTest {
         assertEquals(0, insufficient.current)
         assertEquals(GameConfig.JadePurchase.COST, insufficient.required)
         assertEquals("余额不变", 0, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(0, jadeService.runtimeState.value.total)
+        assertEquals("账本仅期初一条（零落账）", 1, store.gameDataSnapshot.jadeLedger.size)
         assertTrue("失败时不得写入 statusData", breakthroughBonusOf() == null)
     }
 
     @Test
     fun `purchaseBreakthroughBonus - 扣减后checkpointNow玉符不回涨`() = runBlocking {
-        // 最高风险：JadeSymbolService 运行时 totalCount 以绝对值覆盖写 GameData.jadeSymbols，
-        // 若扣减未同步 totalCount，checkpoint 会把余额写回扣减前值（玉符回涨）
+        // checkpoint 只写今日计数/累计/日锚——余额真源在账本，不存在覆盖写通道
+        // （SS9 账本模型结构性消灭「旧运行时值写回扣减前余额」缺陷）
         seedDisciple()
         seedJade(5)
 
@@ -206,7 +222,7 @@ class GameEngineJadePurchaseTest {
         jadeService.checkpointNow()
 
         assertEquals("checkpoint 后玉符不得回涨", 4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals("运行时 totalCount 保持扣减后值", 4, jadeService.runtimeState.value.total)
+        assertEquals("账本末条余额保持扣减后值", 4, store.gameDataSnapshot.jadeLedger.last().balanceAfter)
     }
 
     @Test
@@ -270,7 +286,9 @@ class GameEngineJadePurchaseTest {
 
         assertEquals("1 次应变为 4 次", 4, store.gameDataSnapshot.merchantRefreshChances)
         assertEquals("玉符应扣 1 枚", 4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(4, jadeService.runtimeState.value.total)
+        assertEquals("账本应落 SPEND_MERCHANT_REFRESH 条目",
+            JadeLedgerReasons.SPEND_MERCHANT_REFRESH,
+            store.gameDataSnapshot.jadeLedger.last().reason)
     }
 
     @Test
@@ -305,7 +323,7 @@ class GameEngineJadePurchaseTest {
         assertEquals(0, insufficient.current)
         assertEquals(GameConfig.JadePurchase.COST, insufficient.required)
         assertEquals("次数不变", 1, store.gameDataSnapshot.merchantRefreshChances)
-        assertEquals(0, jadeService.runtimeState.value.total)
+        assertEquals("账本仅期初一条（零落账）", 1, store.gameDataSnapshot.jadeLedger.size)
     }
 
     @Test
@@ -319,7 +337,7 @@ class GameEngineJadePurchaseTest {
         jadeService.checkpointNow()
 
         assertEquals("checkpoint 后玉符不得回涨", 4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals("运行时 totalCount 保持扣减后值", 4, jadeService.runtimeState.value.total)
+        assertEquals("账本末条余额保持扣减后值", 4, store.gameDataSnapshot.jadeLedger.last().balanceAfter)
         assertEquals("刷新次数保持 4", 4, store.gameDataSnapshot.merchantRefreshChances)
     }
 }

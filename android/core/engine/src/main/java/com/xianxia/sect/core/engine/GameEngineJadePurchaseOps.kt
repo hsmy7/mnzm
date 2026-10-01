@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
@@ -12,7 +13,7 @@ import kotlinx.serialization.json.put
 import kotlin.coroutines.cancellation.CancellationException
 
 // GameEngineJadePurchaseOps.kt — 玉符购买玩法
-// （原子消耗 + sealed 结果 + 事务外 publish 模式）
+// （账本落账 + sealed 结果 + 事务外 publish 模式）
 
 /** 消耗玉符购买突破率加成结果 */
 sealed interface BreakthroughBonusResult {
@@ -41,12 +42,12 @@ sealed interface MerchantRefreshResult {
 /**
  * 消耗 1 玉符提高弟子突破率（每次 +0.15，上限 0.30 即最多 2 次玉符）。
  *
- * 校验顺序：弟子存在 → 存活 → 上限校验（先于 deduct，达上限不扣玉符）→ deduct → 写 statusData。
+ * 校验顺序：弟子存在 → 存活 → 上限校验（先于扣款，达上限不扣玉符）→ 落账扣减 → 写 statusData。
  * statusData key 为 "adBreakthroughBonus"（沿用旧档 key 以保兼容；当前语义为玉符加成，
  * 突破尝试后由 DiscipleBreakthroughHandler 清除重置，见其 performBreakthrough）。
  *
- * 玉符不足时提前返回且不写入任何状态（deduct 为唯一扣减点，绝对值覆盖写模型见
- * JadeSymbolService KDoc，守卫测试 JadeSymbolConsumptionGuardTest 约束）。
+ * 玉符不足时提前返回且不写入任何状态（账本落账语义见 JadeSymbolService KDoc，
+ * 守卫测试 JadeSymbolConsumptionGuardTest 约束）。
  *
  * @param discipleId 目标弟子 ID（字符串形式的整数）
  * @return [BreakthroughBonusResult] 三态结果
@@ -60,10 +61,9 @@ suspend fun GameEngine.purchaseBreakthroughBonus(discipleId: String): Breakthrou
         }
         try {
             val required = GameConfig.JadePurchase.COST
-            // batch-19 native 臂：玉符购买落账（JADE_PURCHASE_BREAKTHROUGH_BONUS_TX——
-            // 校验链（弟子存在/存活/上限**先于**扣款）+ 玉符绝对值扣减 + statusData 写回，零 RNG）。
-            // C++ 落账成功后立即重锚 JadeSymbolService 运行时 totalCount，
-            // 否则 checkpointNow 以旧绝对值覆盖写 → 玉符回涨（jade_tx.h 头注释红线）。
+            // native 臂：玉符购买落账（JADE_PURCHASE_BREAKTHROUGH_BONUS_TX——
+            // 校验链（弟子存在/存活/上限**先于**扣款）+ 账本 SPEND_BREAKTHROUGH_BONUS
+            // 落账 + statusData 写回，零 RNG）。余额权威在账本，Kotlin 以回执跟随。
             tryNativeJadeBreakthroughBonus(discipleId, required)?.let {
                 return@withEngineContext it
             }
@@ -81,7 +81,10 @@ suspend fun GameEngine.purchaseBreakthroughBonus(discipleId: String): Breakthrou
                 if (currentBonus >= GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX) {
                     return@updateAndReturn BreakthroughBonusResult.LimitReached(currentBonus)
                 }
-                if (!jadeSymbolService.deduct(this, required)) {
+                if (!jadeSymbolService.deduct(
+                        this, required, JadeLedgerReasons.SPEND_BREAKTHROUGH_BONUS
+                    )
+                ) {
                     return@updateAndReturn BreakthroughBonusResult.InsufficientJadeSymbols(
                         current = gameData.jadeSymbols,
                         required = required
@@ -121,9 +124,9 @@ suspend fun GameEngine.purchaseMerchantRefresh(): MerchantRefreshResult =
     engineContextDispatcher.withEngineContext {
         try {
             val required = GameConfig.JadePurchase.COST
-            // batch-19 native 臂：玉符购买落账（JADE_PURCHASE_MERCHANT_REFRESH_TX——
-            // 上限校验先于扣款 + 玉符绝对值扣减 + 刷新次数累加钳制，零 RNG）。
-            // 同 purchaseBreakthroughBonus：成功后重锚运行时 totalCount 防玉符回涨。
+            // native 臂：玉符购买落账（JADE_PURCHASE_MERCHANT_REFRESH_TX——
+            // 上限校验先于扣款 + 账本 SPEND_MERCHANT_REFRESH 落账 + 刷新次数
+            // 累加钳制，零 RNG）。同 purchaseBreakthroughBonus：余额权威在账本。
             tryNativeJadeMerchantRefresh(required)?.let {
                 return@withEngineContext it
             }
@@ -132,7 +135,10 @@ suspend fun GameEngine.purchaseMerchantRefresh(): MerchantRefreshResult =
                 if (gameData.merchantRefreshChances >= GameConfig.JadePurchase.MERCHANT_REFRESH_MAX) {
                     return@updateAndReturn MerchantRefreshResult.LimitReached
                 }
-                if (!jadeSymbolService.deduct(this, required)) {
+                if (!jadeSymbolService.deduct(
+                        this, required, JadeLedgerReasons.SPEND_MERCHANT_REFRESH
+                    )
+                ) {
                     return@updateAndReturn MerchantRefreshResult.InsufficientJadeSymbols(
                         current = gameData.jadeSymbols,
                         required = required
@@ -158,15 +164,11 @@ suspend fun GameEngine.purchaseMerchantRefresh(): MerchantRefreshResult =
         }
     }
 
-// ── batch-19 native 臂（玉符购买落账段下沉 C++，jade_tx.h） ───────────────
+// ── native 臂（玉符购买落账段下沉 C++，jade_tx.h 账本模型） ───────────────
 //
-// 🔴 绝对值覆盖写契约（CLAUDE.md 13.3 / jade_tx.h 头注释）：C++ 事务执行玉符
-// 扣减（`jadeSymbols -= cost`，校验链失败则零写入）。native 成功后**必须**
-// 调用 `JadeSymbolService.syncBalanceFromSnapshot()` 把运行时 totalCount 重锚
-// 到 C++ 权威余额，否则后续 checkpointNow/settleGrants 会以旧绝对值覆盖写
-// `GameData.jadeSymbols` → **玉符回涨**。两臂均把「重锚 + 立即发布 UI」作为
-// 成功路径的固定动作（顺序不可颠倒）。
-//
+// 玉符扣减走 C++ 账本：事务以账本末条 balance_after（O(1)）判定余额，落
+// SPEND_* 条目并同事务双写派生缓存。回执 total = 落账后余额（权威），
+// drift = 派生缓存与账本基准不一致（C++ 已以账本为准重锚，Log 上报）。
 // 门控降级契约：flag OFF / 桥未加载 / 镜像服务缺失（可空局部判空，handover
 // findings 13——测试 mock 未 stub `stateSyncServiceRef` 时返回 null 不得 NPE）/
 // 业务失败信封（上限已达/余额不足/弟子不存在等）→ 返回 null，由调用方走
@@ -175,7 +177,7 @@ suspend fun GameEngine.purchaseMerchantRefresh(): MerchantRefreshResult =
 /**
  * 玉符购买突破率加成 native 臂。
  *
- * @return 成功（C++ 已扣玉符 + 写 statusData + 已重锚余额）时返回
+ * @return 成功（C++ 已落账扣减 + 写 statusData）时返回
  *         [BreakthroughBonusResult.Success]；任一降级/失败返回 null
  *         （调用方回退 Kotlin 原路径 → 三态文案不变）
  */
@@ -194,10 +196,10 @@ private suspend fun GameEngine.tryNativeJadeBreakthroughBonus(
             put("cost", required)
             put("perJade", GameConfig.JadePurchase.BREAKTHROUGH_BONUS_PER_JADE)
             put("maxBonus", GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX)
+            put("nowMs", jadeSymbolService.wallClockNowMs())
         }
     ) ?: return null
-    // C++ 权威扣减已完成 → 重锚运行时余额（防玉符回涨）+ 清 1Hz 节流刷新 UI
-    jadeSymbolService.syncBalanceFromSnapshot()
+    // C++ 权威落账完成 → 清 1Hz 节流刷新 UI（余额读数随镜像更新）
     jadeSymbolService.publishJadeSymbolStateNow()
     DomainLog.i("GameEngine", "purchaseBreakthroughBonus: native applied (jade=${data})")
     return BreakthroughBonusResult.Success
@@ -206,7 +208,7 @@ private suspend fun GameEngine.tryNativeJadeBreakthroughBonus(
 /**
  * 玉符购买商人刷新 native 臂。
  *
- * @return 成功（C++ 已扣玉符 + 累加刷新次数 + 已重锚余额）时返回
+ * @return 成功（C++ 已落账扣减 + 累加刷新次数）时返回
  *         [MerchantRefreshResult.Success]；任一降级/失败返回 null
  *         （调用方回退 Kotlin 原路径 → 三态文案不变）
  */
@@ -221,10 +223,10 @@ private fun GameEngine.tryNativeJadeMerchantRefresh(required: Int): MerchantRefr
             put("cost", required)
             put("perJade", GameConfig.JadePurchase.MERCHANT_REFRESH_PER_JADE)
             put("maxChances", GameConfig.JadePurchase.MERCHANT_REFRESH_MAX)
+            put("nowMs", jadeSymbolService.wallClockNowMs())
         }
     ) ?: return null
-    // 同突破率加成臂：重锚运行时余额（防玉符回涨）+ 刷新 UI
-    jadeSymbolService.syncBalanceFromSnapshot()
+    // 同突破率加成臂：落账完成 → 清 1Hz 节流刷新 UI
     jadeSymbolService.publishJadeSymbolStateNow()
     DomainLog.i("GameEngine", "purchaseMerchantRefresh: native applied (jade=${data})")
     return MerchantRefreshResult.Success

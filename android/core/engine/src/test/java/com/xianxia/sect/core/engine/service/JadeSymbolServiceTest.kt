@@ -5,6 +5,8 @@ import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.engine.system.WallClock
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -53,7 +55,7 @@ class JadeSymbolServiceTest {
         assertEquals(1, store.gameDataSnapshot.jadeSymbols)
         assertEquals(1, store.gameDataSnapshot.jadeSymbolsToday)
         assertEquals(0L, store.gameDataSnapshot.jadeAccumMs)
-        assertEquals(1, service.runtimeState.value.total)
+        assertEquals(1, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test
@@ -193,7 +195,7 @@ class JadeSymbolServiceTest {
 
     @Test
     fun `checkpoint before onLoopStart does not overwrite persisted jade`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 5, jadeSymbolsToday = 2) }
+        store.update { gameData = seedJade(balance = 5, today = 2) }
         service.checkpointNow() // 未启动：跳过（防零值覆盖已持久化玉符）
         assertEquals(5, store.gameDataSnapshot.jadeSymbols)
         assertEquals(2, store.gameDataSnapshot.jadeSymbolsToday)
@@ -276,25 +278,25 @@ class JadeSymbolServiceTest {
     // ── 扣减（洗炼灵根消耗入口）──
 
     @Test
-    fun `deduct - 充足时同步递减 totalCount 与 GameData`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 5) }
+    fun `deduct - 充足时账本落账扣减并同步派生缓存`() {
+        store.update { gameData = seedJade(5) }
         service.onLoopStart()
 
-        val ok = store.updateAndReturn { service.deduct(this, 1) }
+        val ok = store.updateAndReturn { service.deduct(this, 1, JadeLedgerReasons.SPEND_MERCHANT_REFRESH) }
 
         assertTrue(ok)
         assertEquals(4, store.gameDataSnapshot.jadeSymbols)
-        // checkpoint 用运行时 totalCount 绝对值覆盖写——totalCount 未同步则玉符回涨
+        // checkpoint 只写今日计数/累计/日锚（余额真源在账本，无覆盖写）
         service.checkpointNow()
         assertEquals(4, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test
     fun `deduct - 余额不足返回 false 且状态不变`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 0) }
+        store.update { gameData = seedJade(0) }
         service.onLoopStart()
 
-        val ok = store.updateAndReturn { service.deduct(this, 1) }
+        val ok = store.updateAndReturn { service.deduct(this, 1, JadeLedgerReasons.SPEND_MERCHANT_REFRESH) }
 
         assertTrue(!ok)
         assertEquals(0, store.gameDataSnapshot.jadeSymbols)
@@ -304,11 +306,11 @@ class JadeSymbolServiceTest {
 
     @Test
     fun `deduct - 非正金额返回 false 且状态不变`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 5) }
+        store.update { gameData = seedJade(5) }
         service.onLoopStart()
 
-        assertTrue(!store.updateAndReturn { service.deduct(this, 0) })
-        assertTrue(!store.updateAndReturn { service.deduct(this, -3) })
+        assertTrue(!store.updateAndReturn { service.deduct(this, 0, JadeLedgerReasons.SPEND_MERCHANT_REFRESH) })
+        assertTrue(!store.updateAndReturn { service.deduct(this, -3, JadeLedgerReasons.SPEND_MERCHANT_REFRESH) })
         assertEquals(5, store.gameDataSnapshot.jadeSymbols)
         service.checkpointNow()
         assertEquals(5, store.gameDataSnapshot.jadeSymbols)
@@ -331,20 +333,20 @@ class JadeSymbolServiceTest {
     // ── 广告发放（玉符栏"+"按钮路径）──
 
     @Test
-    fun `grantFromAd - 正常发放 3 枚并同步 GameData 与运行时`() {
+    fun `grantFromAd - 正常发放 3 枚落账并同步派生缓存`() {
         service.onLoopStart()
 
         val ok = service.grantFromAd(3)
 
         assertTrue(ok)
-        assertEquals(3, service.runtimeState.value.total)
+        assertEquals(3, store.gameDataSnapshot.jadeSymbols)
         assertEquals(3, store.gameDataSnapshot.jadeSymbols)
         // 用户决策：广告玉符不计入每日 20 上限
         assertEquals(0, store.gameDataSnapshot.jadeSymbolsToday)
-        // checkpoint 绝对值覆盖写幂等：不回涨不丢失
+        // checkpoint 不写余额（真源在账本）：发放结果保持
         service.checkpointNow()
         assertEquals(3, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(3, service.runtimeState.value.total)
+        assertEquals(3, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test
@@ -355,7 +357,7 @@ class JadeSymbolServiceTest {
         service.grantFromAd(3)
 
         assertEquals(6, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(6, service.runtimeState.value.total)
+        assertEquals(6, store.gameDataSnapshot.jadeSymbols)
         service.checkpointNow()
         assertEquals(6, store.gameDataSnapshot.jadeSymbols)
     }
@@ -367,7 +369,7 @@ class JadeSymbolServiceTest {
         assertTrue(!service.grantFromAd(0))
         assertTrue(!service.grantFromAd(-3))
         assertEquals(0, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(0, service.runtimeState.value.total)
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
         service.checkpointNow()
         assertEquals(0, store.gameDataSnapshot.jadeSymbols)
     }
@@ -382,35 +384,35 @@ class JadeSymbolServiceTest {
 
         // publishJadeSymbolStateNow 清节流：剩余时间反映刚累计的 500ms
         assertEquals(INTERVAL - 500L, service.runtimeState.value.remainingMs)
-        assertEquals(3, service.runtimeState.value.total)
+        assertEquals(3, store.gameDataSnapshot.jadeSymbols)
     }
 
     // ── 懒重锚守卫（冷启动读档窗口竞态纵深防御）──
 
     @Test
-    fun `grantFromAd - 未 onLoopStart 时懒重锚并基于快照发放`() {
+    fun `grantFromAd - 未 onLoopStart 时基于快照落账发放`() {
         // 模拟"持久化余额已就位但循环从未启动"（冷启动读档窗口）：
-        // store 有 20，运行时 totalCount 仍是进程初值 0
-        store.update { gameData = gameData.copy(jadeSymbols = 20) }
+        // 账本语义下余额读快照账本（无内存态可漂移）
+        store.update { gameData = seedJade(20) }
 
         val ok = service.grantFromAd(3)
 
         assertTrue(ok)
-        // 懒重锚后基于快照 20 发放：20 + 3 = 23（不覆盖持久化余额）
+        // 基于快照账本 20 落账发放：20 + 3 = 23（不覆盖持久化余额）
         assertEquals(23, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(23, service.runtimeState.value.total)
+        assertEquals(23, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test
     fun `grantFromAd - 懒重锚后 checkpointNow 幂等不回涨`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 20) }
+        store.update { gameData = seedJade(20) }
 
         service.grantFromAd(3)
         service.checkpointNow()
 
-        assertEquals("checkpoint 绝对值写不回退", 23, store.gameDataSnapshot.jadeSymbols)
+        assertEquals("checkpoint 不写余额（真源在账本）", 23, store.gameDataSnapshot.jadeSymbols)
         assertEquals("今日计数不受广告发放影响", 0, store.gameDataSnapshot.jadeSymbolsToday)
-        assertEquals(23, service.runtimeState.value.total)
+        assertEquals(23, store.gameDataSnapshot.jadeSymbols)
     }
 
     // ── UI 节流 ──
@@ -428,6 +430,24 @@ class JadeSymbolServiceTest {
     }
 
     // ── 工具 ──
+
+    /**
+     * 账本期初播种：以 [balance] 为期初余额写 OPENING_BALANCE 条目 + 派生缓存
+     * （与 C++ openJadeLedger / Kotlin withStartupLedger 同语义）。
+     */
+    private fun seedJade(balance: Int, today: Int = 0): GameData {
+        val base = GameData().copy(jadeSymbols = balance, jadeSymbolsToday = today)
+        return base.copy(
+            jadeLedger = listOf(
+                JadeLedgerEntry(
+                    atEpochMs = 0L,
+                    delta = balance,
+                    reason = JadeLedgerReasons.OPENING_BALANCE,
+                    balanceAfter = balance
+                )
+            )
+        )
+    }
 
     /** 以 1s 粒度推进单调时钟 [ms] 毫秒（单 tick 远低于 10s 裁剪线）。 */
     private fun advance(ms: Long) {

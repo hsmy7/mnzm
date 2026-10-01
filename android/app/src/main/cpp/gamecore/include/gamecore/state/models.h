@@ -1190,6 +1190,18 @@ struct GameEventRecord {
     int64_t sequenceId = 0;
 };
 
+// ── JadeLedgerEntry（玉符账本条目，append-only） ─────────────────────
+// 玉符余额真源 = 期初条目 + Σdelta；条目冗余 balance_after 供 O(1) 读末条。
+// reason 取值（协议值，Kotlin JadeLedgerReasons 同名同步）：
+//   OPENING_BALANCE / GRANT_TIME / GRANT_AD /
+//   SPEND_MERCHANT_REFRESH / SPEND_BREAKTHROUGH_BONUS
+struct JadeLedgerEntry {
+    int64_t atEpochMs = 0;   // 落账墙钟（平台读数经参数传入；期初兜底条目为 0）
+    int32_t delta = 0;       // 变动量（正 = 发放/期初，负 = 消耗）
+    std::string reason;      // 落账来源（上方 reason 常量集）
+    int32_t balanceAfter = 0;  // 落账后余额（账本权威，独立于派生缓存）
+};
+
 // ── GameData（核心标量 + 简单集合字段） ─────────────────────────────
 struct GameData {
     // 基础/时间
@@ -1223,10 +1235,15 @@ struct GameData {
     // 招募
     int32_t recruitCountThisMonth = 0;
     // 玉符（墙钟货币）
+    // jadeSymbols = 账本求和的**派生缓存**（appendLedgerEntry 同事务双写；
+    // 独立赋值即绕过账本——守卫测试拦截）。余额真源 = jadeLedger 期初条目 +
+    // Σdelta；不一致时以账本为准并经回执 drift 上报。
     int32_t jadeSymbols = 0;
     int32_t jadeSymbolsToday = 0;
     int64_t jadeDayAnchorMs = 0;
     int64_t jadeAccumMs = 0;
+    // 玉符账本（append-only 流水，余额真源；新档首条目 = OPENING_BALANCE 期初）
+    std::vector<JadeLedgerEntry> jadeLedger;
     // 世界/关卡
     int32_t worldLevelLastRefreshMonth = 0;
     std::map<int32_t, int64_t> rngStates;   // partitionId → PCG state

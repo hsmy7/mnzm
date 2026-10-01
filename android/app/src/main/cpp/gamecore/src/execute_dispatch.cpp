@@ -2292,18 +2292,23 @@ nlohmann::json handleJadeTx(GameCore* core, int32_t actionId,
             const auto r = jade_tx::purchaseMerchantRefreshTx(
                 state, params.at("cost").get<int32_t>(),
                 params.at("perJade").get<int32_t>(),
-                params.at("maxChances").get<int32_t>());
+                params.at("maxChances").get<int32_t>(),
+                params.value("nowMs", static_cast<int64_t>(0)));
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"jadeSymbols", r.jadeSymbols},
-                       {"merchantRefreshChances", r.value}});
+                       {"merchantRefreshChances", r.value},
+                       {"drift", r.drift}});
         }
         case action::JADE_PURCHASE_BREAKTHROUGH_BONUS_TX: {
             const auto r = jade_tx::purchaseBreakthroughBonusTx(
                 state, params.at("discipleId").get<std::string>(),
                 params.at("cost").get<int32_t>(), params.at("perJade").get<double>(),
-                params.at("maxBonus").get<double>());
+                params.at("maxBonus").get<double>(),
+                params.value("nowMs", static_cast<int64_t>(0)));
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"jadeSymbols", r.jadeSymbols}, {"bonus", r.writtenValue}});
+            return ok({{"jadeSymbols", r.jadeSymbols},
+                       {"bonus", r.writtenValue},
+                       {"drift", r.drift}});
         }
         default:
             return fail("UNKNOWN_ACTION",

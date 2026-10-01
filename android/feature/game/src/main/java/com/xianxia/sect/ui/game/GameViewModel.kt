@@ -269,7 +269,8 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DialogType.None)
 
     /**
-     * 玉符运行时状态（1Hz 节流流；徽章数量与对话框红色倒计时的订阅源）。
+     * 玉符运行时状态（1Hz 节流流；对话框红色倒计时与今日计数/封顶态的订阅源）。
+     * 余额读数不在此流——统一读镜像 GameData.jadeSymbols（账本派生缓存）。
      * 源已 StateFlow + 1Hz 节流，无需 sample/distinctUntilChanged。
      */
     val jadeSymbolState: StateFlow<JadeSymbolRuntimeState> = gameEngine.jadeSymbolState
@@ -277,7 +278,7 @@ class GameViewModel @Inject constructor(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             JadeSymbolRuntimeState(
-                total = 0, today = 0,
+                today = 0,
                 remainingMs = GameConfig.Jade.INTERVAL_MS, capped = false
             )
         )

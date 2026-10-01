@@ -542,6 +542,10 @@ private class EngineTestEnv {
     // 默认 GameCoreBridge.isLoaded=false 使 loadNativeBaseline 首行短路，零副作用
     val mockGameEngineCore = mock<GameEngineCore>().also {
         org.mockito.kotlin.whenever(it.stateSyncServiceRef).thenReturn(mock())
+        // SS9：开局三臂的 withStartupLedger 经引擎墙钟取期初条目落账时刻——
+        // mock core 未 stub `wallClock` 时返回 null（Mockito 默认），须显式 stub
+        org.mockito.kotlin.whenever(it.wallClock)
+            .thenReturn(com.xianxia.sect.core.engine.system.WallClock { 1_700_000_000_000L })
     }
 
     val engine = GameEngine(

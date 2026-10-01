@@ -68,24 +68,28 @@ nlohmann::json invalidParams(const char* detail) {
 }
 
 /// 事务 5–8（玉符运行时，B2/w3-04）：语义见 jade_tx.h 事务 5–8 注。
+/// 落账墙钟 nowMs = 平台读数参数（C++ 不取时）；回执 drift = 派生缓存与
+/// 账本基准不一致（已以账本为准重锚，Kotlin 臂 Log 上报）。
 nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
                                    const nlohmann::json& p) {
     using namespace gamecore::system::jade_tx;
     auto& st = core.state();
     switch (actionId) {
         case action::JADE_RUNTIME_SETTLE_TX: {
-            int32_t total = 0, today = 0;
-            int64_t accumMs = 0;
-            if (!getInt(p, "total", &total) || !getInt(p, "today", &today) ||
-                !getInt64(p, "accumMs", &accumMs)) {
-                return invalidParams("settle requires total/today/accumMs");
+            int32_t today = 0;
+            int64_t accumMs = 0, nowMs = 0;
+            if (!getInt(p, "today", &today) ||
+                !getInt64(p, "accumMs", &accumMs) ||
+                !getInt64(p, "nowMs", &nowMs)) {
+                return invalidParams("settle requires today/accumMs/nowMs");
             }
-            const auto r = settleJadeGrantsTx(st, total, today, accumMs);
+            const auto r = settleJadeGrantsTx(st, today, accumMs, nowMs);
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"total", r.total},
                        {"today", r.today},
                        {"accumMs", r.accumMs},
-                       {"frozen", r.frozen}});
+                       {"frozen", r.frozen},
+                       {"drift", r.drift}});
         }
         case action::JADE_RUNTIME_DAY_RESET_TX: {
             int32_t today = 0;
@@ -100,31 +104,34 @@ nlohmann::json handleJadeRuntimeTx(GameCore& core, int32_t actionId,
                        {"crossedDay", r.crossedDay},
                        {"today", r.today},
                        {"accumMs", r.accumMs},
-                       {"dayAnchorMs", r.dayAnchorMs}});
+                       {"dayAnchorMs", r.dayAnchorMs},
+                       {"drift", r.drift}});
         }
         case action::JADE_RUNTIME_CHECKPOINT_TX: {
-            int32_t total = 0, today = 0;
+            int32_t today = 0;
             int64_t accumMs = 0, dayAnchorMs = 0;
-            if (!getInt(p, "total", &total) || !getInt(p, "today", &today) ||
+            if (!getInt(p, "today", &today) ||
                 !getInt64(p, "accumMs", &accumMs) ||
                 !getInt64(p, "dayAnchorMs", &dayAnchorMs)) {
-                return invalidParams("checkpoint requires total/today/accumMs/dayAnchorMs");
+                return invalidParams("checkpoint requires today/accumMs/dayAnchorMs");
             }
-            const auto r = jadeCheckpointTx(st, total, today, accumMs, dayAnchorMs);
+            const auto r = jadeCheckpointTx(st, today, accumMs, dayAnchorMs);
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
             return ok({{"total", r.total},
                        {"today", r.today},
                        {"accumMs", r.accumMs},
-                       {"dayAnchorMs", r.dayAnchorMs}});
+                       {"dayAnchorMs", r.dayAnchorMs},
+                       {"drift", r.drift}});
         }
         case action::JADE_RUNTIME_GRANT_AD_TX: {
-            int32_t amount = 0, totalBefore = 0;
-            if (!getInt(p, "amount", &amount) || !getInt(p, "totalBefore", &totalBefore)) {
-                return invalidParams("grantAd requires amount/totalBefore");
+            int32_t amount = 0;
+            int64_t nowMs = 0;
+            if (!getInt(p, "amount", &amount) || !getInt64(p, "nowMs", &nowMs)) {
+                return invalidParams("grantAd requires amount/nowMs");
             }
-            const auto r = grantJadeFromAdTx(st, amount, totalBefore);
+            const auto r = grantJadeFromAdTx(st, amount, nowMs);
             if (!r.base.ok) return fail(r.base.errorType, r.base.message);
-            return ok({{"total", r.total}});
+            return ok({{"total", r.total}, {"drift", r.drift}});
         }
         default:
             return fail("UNKNOWN_ACTION", "unhandled jade runtime action");

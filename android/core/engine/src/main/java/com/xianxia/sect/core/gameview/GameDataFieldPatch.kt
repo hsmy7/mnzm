@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
+import com.xianxia.sect.core.model.JadeLedgerEntry
 import com.xianxia.sect.core.model.LibrarySlot
 import com.xianxia.sect.core.model.MailClaimRecord
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -174,6 +175,7 @@ internal object GameDataFieldPatch {
         f("jadeSymbolsToday", { gd, el, j -> gd.jadeSymbolsToday = j.decodeFromJsonElement<Int>(el) }),
         f("jadeDayAnchorMs", { gd, el, j -> gd.jadeDayAnchorMs = j.decodeFromJsonElement<Long>(el) }),
         f("jadeAccumMs", { gd, el, j -> gd.jadeAccumMs = j.decodeFromJsonElement<Long>(el) }),
+        f("jadeLedger", { gd, el, j -> gd.jadeLedger = j.decodeFromJsonElement<List<JadeLedgerEntry>>(el) }),
         f("worldLevels", { gd, el, j -> gd.worldLevels = j.decodeFromJsonElement<List<WorldLevel>>(el) }),
         f("worldLevelLastRefreshMonth", { gd, el, j ->
             gd.worldLevelLastRefreshMonth = j.decodeFromJsonElement<Int>(el)

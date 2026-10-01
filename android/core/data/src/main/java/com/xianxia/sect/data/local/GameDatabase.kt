@@ -65,7 +65,7 @@ object GameDatabaseConfig {
      * 升级数据库版本时必须同步递增此常量、注册 `MIGRATION_(N-1)_N` 并更新
      * `MigrationRequiredGuardTest` 的实体清单基线（缺迁移 = 老库被 destructive 重建）。
      */
-    const val DATABASE_VERSION = 67
+    const val DATABASE_VERSION = 68
 
     /**
      * 判定是否应从启动前快照恢复（纯逻辑，无 I/O——独立测试覆盖）。
