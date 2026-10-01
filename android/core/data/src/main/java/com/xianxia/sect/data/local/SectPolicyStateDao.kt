@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SectPolicyStateDao {
-    @Query("SELECT * FROM sect_policy_state WHERE slot_id = :slotId")
-    suspend fun getBySlot(slotId: Int): SectPolicyState?
+    @Query("SELECT * FROM sect_policy_state ")
+    suspend fun get(): SectPolicyState?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(state: SectPolicyState)
@@ -15,12 +15,12 @@ interface SectPolicyStateDao {
     @Update
     suspend fun update(state: SectPolicyState)
 
-    @Query("SELECT * FROM sect_policy_state WHERE slot_id = :slotId")
-    fun observeBySlot(slotId: Int): Flow<SectPolicyState?>
+    @Query("SELECT * FROM sect_policy_state ")
+    fun observe(): Flow<SectPolicyState?>
 
     @Upsert
     suspend fun upsert(state: SectPolicyState)
 
-    @Query("DELETE FROM sect_policy_state WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
+    @Query("DELETE FROM sect_policy_state ")
+    suspend fun deleteAll()
 }

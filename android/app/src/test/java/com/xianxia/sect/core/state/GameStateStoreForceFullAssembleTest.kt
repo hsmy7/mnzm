@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.di.ApplicationScopeProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,8 +29,7 @@ class GameStateStoreForceFullAssembleTest {
 
     private fun store(): GameStateStoreImpl {
         val s = GameStateStoreImpl(
-            com.xianxia.sect.di.ApplicationScopeProvider(),
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
         s.unsafeAllowMainThreadUpdateForTest = true
         return s

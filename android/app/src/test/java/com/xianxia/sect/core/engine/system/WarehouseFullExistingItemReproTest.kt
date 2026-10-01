@@ -8,7 +8,6 @@ import com.xianxia.sect.core.overflow.OverflowMailDraft
 import com.xianxia.sect.core.overflow.OverflowMailHandler
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
-import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
@@ -45,7 +44,7 @@ class WarehouseFullExistingItemReproTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
+        stateStore = GameStateStoreImpl(scopeProvider)
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         handler = CollectHandler()

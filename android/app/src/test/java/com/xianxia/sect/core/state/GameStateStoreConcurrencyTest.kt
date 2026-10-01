@@ -18,7 +18,7 @@ import kotlin.concurrent.withLock
  *
  * 计划文档要求：100+ 协程高强度并发，验证状态不损坏。
  *
- * 注意：由于 GameStateStore 依赖 GameStateRepository 等注入组件，
+ * 注意：由于 GameStateStore 依赖 ApplicationScopeProvider 等注入组件，
  * 真实并发测试需通过 instrumented test 或集成测试执行。
  * 此处验证并发模式和数据完整性逻辑。
  */
@@ -80,7 +80,6 @@ class GameStateStoreConcurrencyTest {
     fun `GameData snapshot consistency under concurrent reads`() = runTest {
         val gameData = GameData(
             id = "test",
-            slotId = 1,
             sectName = "测试宗门",
             gameYear = 5,
             gameMonth = 6

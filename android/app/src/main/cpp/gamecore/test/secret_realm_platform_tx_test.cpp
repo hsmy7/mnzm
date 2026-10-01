@@ -315,7 +315,6 @@ TEST_F(SecretRealmPlatformTxFixture, ExecuteEnvelopeExpiredPathWithCloseDraft) {
     EXPECT_EQ(data["action"], "EXPIRED");
     ASSERT_TRUE(data.contains("secretRealmClose"));
     EXPECT_EQ(data["secretRealmClose"]["closed"], true);
-    EXPECT_EQ(data["secretRealmClose"]["slotId"], 0);
     EXPECT_EQ(data["secretRealmClose"]["memberIds"], nlohmann::json::array({"d1"}));
     // 背包快照六类协议面（Kotlin Json.decodeFromJsonElement<SecretRealmBackpack>）
     EXPECT_EQ(data["secretRealmClose"]["backpack"]["spiritStones"], 100);

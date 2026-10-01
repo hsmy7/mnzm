@@ -46,7 +46,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
                 plantYear = 1, plantMonth = 1
             )
         }
-        val seeds = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+        val seeds = listOf(Seed(id = "s1", name = "聚灵草种",
             rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3))
         val state = createState(plants = plants, seeds = seeds, gameYear = 4, gameMonth = 1)
         // 非零基线：预置已有收获记录（验证统计不被旧 data 引用覆盖清零）
@@ -78,7 +78,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
             )
         }
         // 单堆叠 quantity=300（真实大额种子场景）：避免 seeds.size 占槽位导致 maxSlots 溢出
-        val seeds = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+        val seeds = listOf(Seed(id = "s1", name = "聚灵草种",
             rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 300))
         val state = createState(plants = plants, seeds = seeds, gameYear = 4, gameMonth = 1)
         val inventorySystem = mock<InventorySystem>()
@@ -192,7 +192,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
     fun `processSpiritFieldHarvest - 锁定种子不用于自动续种，田收获后清空且种子数量不变`() = runTest {
         // 全系统"锁定=不可消耗"语义，自动续种不得绕过锁定保护
         val lockedSeed = Seed(
-            id = "s1", slotId = 1, name = "聚灵草种", rarity = 1,
+            id = "s1", name = "聚灵草种", rarity = 1,
             growTime = 36, yield = 5, quantity = 3, isLocked = true
         )
         val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",
@@ -234,7 +234,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
     fun `processSpiritFieldHarvest - 续种后 seedId 更新为实际消耗的种子堆叠`() = runTest {
         // 田 seedId 必须指向实际消耗的堆叠——悬空 seedId（其堆叠已被扣尽移除）会让
         // UI 按 seedId 查库存失败误显示存量 0、同种种子分组分裂
-        val seed = Seed(id = "s2", slotId = 1, name = "聚灵草种", rarity = 1,
+        val seed = Seed(id = "s2", name = "聚灵草种", rarity = 1,
             growTime = 36, yield = 5, quantity = 2, isLocked = false)
         val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "stale1",
             seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
@@ -248,7 +248,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
     @Test
     fun `processSpiritFieldHarvest - 跨宗门地块不收获不扣种子`() = runTest {
         // sectId 非本宗的田不收获（防扣本宗种子续种到异常田）
-        val seed = Seed(id = "s1", slotId = 1, name = "聚灵草种", rarity = 1,
+        val seed = Seed(id = "s1", name = "聚灵草种", rarity = 1,
             growTime = 36, yield = 5, quantity = 3, isLocked = false)
         val foreignPlant = SpiritFieldPlant(buildingInstanceId = "field_foreign", seedId = "p1",
             seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1,
@@ -270,7 +270,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
         val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
         val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "s1",
             seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
-        val existing = Seed(id = "s0", slotId = 1, name = "聚灵草种",
+        val existing = Seed(id = "s0", name = "聚灵草种",
             rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3)
         val state = createState(plants = listOf(plant), seeds = listOf(existing), gameYear = 4, gameMonth = 1)
         createProcessor(seedRoll = 2).processSpiritFieldHarvest(state)
@@ -337,7 +337,7 @@ class ProductionProcessorSettlementTest : ProductionProcessorTestBase() {
         // 溢出转邮件的聚灵草种也不在 seedStore 中 → 田应清空）
         val maxStack = InventoryConfig().getMaxStackSize("seed")
         val fullStacks = (1..50).map { i ->
-            Seed(id = "fs$i", slotId = 1, name = "云雾花种", rarity = 1,
+            Seed(id = "fs$i", name = "云雾花种", rarity = 1,
                 growTime = 36, yield = 4, quantity = maxStack)
         }
         val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",

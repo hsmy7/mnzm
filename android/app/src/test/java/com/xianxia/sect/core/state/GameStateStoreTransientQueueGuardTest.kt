@@ -41,8 +41,7 @@ class GameStateStoreTransientQueueGuardTest {
     @Before
     fun setUp() {
         stateStore = GameStateStoreImpl(
-            ApplicationScopeProvider(),
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
     }
 

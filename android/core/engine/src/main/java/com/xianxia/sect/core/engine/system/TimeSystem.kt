@@ -33,7 +33,7 @@ class TimeSystem @Inject constructor(
     }
 
     @Suppress("UnusedParameter") // phasesToSettle: 对拍基准时间驱动器（DiffTimeTest 契约面）——签名即协议
-    override fun clearForSlot(slotId: Int) = Unit
+    override fun clearForSlot() = Unit
 
     // Kotlin 时间推进对拍基准已移入测试源集：TimeAdvanceBaseline.advancePhaseBaseline
     // （生产面零调用，保留生产类只会构成"形似 API 的死方法"误用面；见 W4 实施文档 §2.C）

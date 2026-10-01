@@ -133,7 +133,6 @@ class BootSequenceControllerTest {
         var onSuccessCalled = false
 
         val result = controller.boot(
-            slot = 1,
             onSuccess = { onSuccessCalled = true }
         )
 
@@ -179,7 +178,7 @@ class BootSequenceControllerTest {
             )
         }
 
-        val result = controller.boot(slot = 1, onSuccess = {})
+        val result = controller.boot(onSuccess = {})
 
         assertTrue("boot should succeed", result.isSuccess)
         assertTrue(
@@ -226,7 +225,7 @@ class BootSequenceControllerTest {
             )
         )
 
-        val result = controller.boot(slot = 1)
+        val result = controller.boot()
         assertTrue("boot should succeed", result.isSuccess)
 
         val gd = stateStore.gameData.value
@@ -255,7 +254,7 @@ class BootSequenceControllerTest {
             )
         )
 
-        val result = controller.boot(slot = 1)
+        val result = controller.boot()
         assertTrue("boot should succeed", result.isSuccess)
 
         assertEquals("残留 activeSectId 应净化回本宗", "", stateStore.gameData.value.activeSectId)
@@ -271,7 +270,7 @@ class BootSequenceControllerTest {
         stateStore.bootPhase.value = BootPhase.BOOT_COMPLETE
         var onSuccessCalled = false
 
-        val result = controller.boot(slot = 1, onSuccess = { onSuccessCalled = true })
+        val result = controller.boot(onSuccess = { onSuccessCalled = true })
 
         assertTrue("reload should succeed", result.isSuccess)
         assertTrue("onSuccess callback should be called", onSuccessCalled)
@@ -313,7 +312,6 @@ class BootSequenceControllerTest {
 
         // onPreloadResources 抛异常 → 触发 catch → recoverWithPartialData → 成功恢复
         val result = controller.boot(
-            slot = 1,
             onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = { onSuccessCalled = true },
             onError = { msg ->
@@ -354,7 +352,7 @@ class BootSequenceControllerTest {
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
         val progressValues = mutableListOf<Float>()
 
-        controller.boot(slot = 1, onProgress = { progressValues.add(it) })
+        controller.boot(onProgress = { progressValues.add(it) })
 
         assertTrue("onProgress should have been called multiple times", progressValues.size >= 6)
 
@@ -389,7 +387,7 @@ class BootSequenceControllerTest {
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
         var capturedMapData: MapPreloadData? = null
 
-        controller.boot(slot = 1, onMapReady = { capturedMapData = it })
+        controller.boot(onMapReady = { capturedMapData = it })
 
         assertNotNull("onMapReady should receive MapPreloadData", capturedMapData)
         capturedMapData?.let { data ->
@@ -421,7 +419,6 @@ class BootSequenceControllerTest {
         var onErrorCalled = false
 
         val result = controller.boot(
-            slot = 1,
             onSuccess = { onSuccessCalled = true },
             onError = { onErrorCalled = true }
         )
@@ -448,7 +445,6 @@ class BootSequenceControllerTest {
         disciplesFlow.value = listOf(Disciple())
 
         val result = controller.boot(
-            slot = 1,
             onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = {},
             onError = {}
@@ -472,7 +468,6 @@ class BootSequenceControllerTest {
 
         var onErrorCalled = false
         val result = controller.boot(
-            slot = 1,
             onPreloadResources = {},
             onSuccess = {},
             onError = { onErrorCalled = true }
@@ -493,7 +488,6 @@ class BootSequenceControllerTest {
 
         // 判据失败：不触发守卫（回归守卫——恢复前置条件未满足时不可启动守卫流程）
         val result = controller.boot(
-            slot = 1,
             onPreloadResources = { throw IllegalStateException("preload failure") },
             onSuccess = {},
             onError = {}

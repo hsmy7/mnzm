@@ -35,11 +35,11 @@ class ProductionSlotDataPortImpl @Inject constructor(
         withContext(Dispatchers.IO) { dao.deleteById(id) }
     }
 
-    override suspend fun deleteBySlot(slotId: Int) {
-        withContext(Dispatchers.IO) { dao.deleteBySlot(slotId) }
+    override suspend fun deleteAll() {
+        withContext(Dispatchers.IO) { dao.deleteAll() }
     }
 
-    override suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType) {
-        withContext(Dispatchers.IO) { dao.deleteBySlotAndBuildingType(slotId, buildingType) }
+    override suspend fun deleteByBuildingType(buildingType: BuildingType) {
+        withContext(Dispatchers.IO) { dao.deleteByBuildingType(buildingType) }
     }
 }

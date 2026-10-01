@@ -31,7 +31,6 @@ class StateEntitiesTest {
     @Test
     fun sectPolicyState_defaultConstruction() {
         val state = SectPolicyState()
-        assertEquals(1, state.slotId)
         assertEquals(SectPolicies(), state.sectPolicies)
         assertFalse(state.breakthroughAutoPillFocused)
         assertEquals(emptySet<Int>(), state.breakthroughAutoPillRootCounts)
@@ -71,7 +70,6 @@ class StateEntitiesTest {
     @Test
     fun productionState_defaultConstruction() {
         val state = ProductionState()
-        assertEquals(1, state.slotId)
         assertEquals(emptyList<SpiritFieldPlant>(), state.spiritFieldPlants)
         assertEquals(emptyList<String>(), state.unlockedRecipes)
         assertEquals(emptyList<String>(), state.unlockedManuals)
@@ -90,7 +88,6 @@ class StateEntitiesTest {
     @Test
     fun diplomacyState_defaultConstruction() {
         val state = DiplomacyState()
-        assertEquals(1, state.slotId)
         assertEquals(emptyList<SectRelation>(), state.sectRelations)
         assertEquals(emptyList<Alliance>(), state.alliances)
         assertEquals(3, state.playerAllianceSlots)
@@ -126,7 +123,6 @@ class StateEntitiesTest {
     @Test
     fun worldMapStateEntity_defaultConstruction() {
         val state = WorldMapStateEntity()
-        assertEquals(1, state.slotId)
         assertEquals(emptyList<WorldSect>(), state.worldMapSects)
         assertEquals(emptyMap<String, List<Disciple>>(), state.aiSectDisciples)
         assertEquals(emptyList<CultivatorCave>(), state.cultivatorCaves)
@@ -137,8 +133,6 @@ class StateEntitiesTest {
     @Test
     fun worldMapStateEntity_copy() {
         val original = WorldMapStateEntity()
-        val copied = original.copy(slotId = 2)
-        assertEquals(2, copied.slotId)
     }
 
     // ---- WorldMapState (non-entity) ----
@@ -250,7 +244,6 @@ class StateEntitiesTest {
     @Test
     fun patrolStateEntity_defaultConstruction() {
         val state = PatrolStateEntity()
-        assertEquals(1, state.slotId)
         assertEquals(emptyList<PatrolSlot>(), state.patrolSlots)
         assertEquals(PatrolConfig(), state.patrolConfig)
         assertEquals(emptyList<PatrolConfig>(), state.patrolConfigs)

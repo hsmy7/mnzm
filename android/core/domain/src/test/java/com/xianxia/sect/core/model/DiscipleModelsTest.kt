@@ -11,7 +11,6 @@ class DiscipleModelsTest {
     fun discipleAttributes_defaultConstruction() {
         val attrs = DiscipleAttributes()
         assertEquals("", attrs.discipleId)
-        assertEquals(0, attrs.slotId)
         assertEquals(50, attrs.intelligence)
         assertEquals(50, attrs.charm)
         assertEquals(50, attrs.comprehension)
@@ -29,7 +28,6 @@ class DiscipleModelsTest {
     fun discipleAttributes_customConstruction() {
         val attrs = DiscipleAttributes(
             discipleId = "d1",
-            slotId = 1,
             intelligence = 80,
             morality = 90
         )
@@ -52,7 +50,6 @@ class DiscipleModelsTest {
     fun discipleCombatStats_defaultConstruction() {
         val stats = DiscipleCombatStats()
         assertEquals("", stats.discipleId)
-        assertEquals(0, stats.slotId)
         assertEquals(120, stats.baseHp)
         assertEquals(60, stats.baseMp)
         assertEquals(24, stats.baseAttack)
@@ -234,7 +231,6 @@ class DiscipleModelsTest {
     fun discipleCore_defaultConstruction() {
         val core = DiscipleCore()
         assertNotNull(core.id)
-        assertEquals(0, core.slotId)
         assertEquals("", core.name)
         assertEquals("", core.surname)
         assertEquals(9, core.realm)
@@ -293,7 +289,6 @@ class DiscipleModelsTest {
     fun discipleEquipment_defaultConstruction() {
         val equip = DiscipleEquipment()
         assertEquals("", equip.discipleId)
-        assertEquals(0, equip.slotId)
         assertEquals("", equip.headId)
         assertEquals("", equip.bodyId)
         assertEquals("", equip.handsId)
@@ -338,7 +333,6 @@ class DiscipleModelsTest {
     fun discipleExtended_defaultConstruction() {
         val ext = DiscipleExtended()
         assertEquals("", ext.discipleId)
-        assertEquals(0, ext.slotId)
         assertEquals(emptyList<String>(), ext.manualIds)
         assertEquals(emptyMap<String, Int>(), ext.manualMasteries)
         assertEquals(emptyMap<String, String>(), ext.statusData)

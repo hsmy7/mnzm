@@ -19,59 +19,59 @@ import kotlinx.coroutines.flow.Flow
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface DiscipleDao {
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 ORDER BY realm ASC, cultivation DESC")
-    fun getAllAlive(slotId: Int): Flow<List<Disciple>>
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 ORDER BY realm ASC, cultivation DESC")
+    fun getAllAlive(): Flow<List<Disciple>>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId ORDER BY realm ASC, cultivation DESC")
-    fun getAll(slotId: Int): Flow<List<Disciple>>
+    @Query("SELECT * FROM disciples ORDER BY realm ASC, cultivation DESC")
+    fun getAll(): Flow<List<Disciple>>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Disciple?
+    @Query("SELECT * FROM disciples WHERE id = :id")
+    suspend fun getById(id: String): Disciple?
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND status = :status AND isAlive = 1")
-    suspend fun getByStatus(slotId: Int, status: DiscipleStatus): List<Disciple>
+    @Query("SELECT * FROM disciples WHERE status = :status AND isAlive = 1")
+    suspend fun getByStatus(status: DiscipleStatus): List<Disciple>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
-    suspend fun getAllAliveSync(slotId: Int): List<Disciple>
+    @Query("SELECT * FROM disciples WHERE isAlive = 1")
+    suspend fun getAllAliveSync(): List<Disciple>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Disciple>
+    @Query("SELECT * FROM disciples ")
+    suspend fun getAllSync(): List<Disciple>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY cultivation " +
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 AND realm = :realm ORDER BY cultivation " +
         "DESC")
-    fun getAliveByRealm(slotId: Int, realm: Int): Flow<List<Disciple>>
+    fun getAliveByRealm(realm: Int): Flow<List<Disciple>>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm BETWEEN :minRealm AND " +
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 AND realm BETWEEN :minRealm AND " +
         ":maxRealm ORDER BY realm ASC")
-    fun getAliveByRealmRange(slotId: Int, minRealm: Int, maxRealm: Int): Flow<List<Disciple>>
+    fun getAliveByRealmRange(minRealm: Int, maxRealm: Int): Flow<List<Disciple>>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND isAlive = 1")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Disciple>
+    @Query("SELECT * FROM disciples WHERE name LIKE '%' || :keyword || '%' AND isAlive = 1")
+    suspend fun searchByName(keyword: String): List<Disciple>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND discipleType = :type ORDER BY realm " +
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 AND discipleType = :type ORDER BY realm " +
         "ASC")
-    fun getByDiscipleType(slotId: Int, type: String): Flow<List<Disciple>>
+    fun getByDiscipleType(type: String): Flow<List<Disciple>>
 
-    @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
-    fun getAliveCount(slotId: Int): Flow<Int>
+    @Query("SELECT COUNT(*) FROM disciples WHERE isAlive = 1")
+    fun getAliveCount(): Flow<Int>
 
     /**
      * 同步存活弟子计数：存档列表/元数据查询专用——
      * 避免全表物化 getAllAliveSync().size（数千弟子时上万行全量对象）。
      */
-    @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
-    fun getAliveCountSync(slotId: Int): Int
+    @Query("SELECT COUNT(*) FROM disciples WHERE isAlive = 1")
+    fun getAliveCountSync(): Int
 
-    @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm")
-    suspend fun getCountByRealm(slotId: Int, realm: Int): Int
+    @Query("SELECT COUNT(*) FROM disciples WHERE isAlive = 1 AND realm = :realm")
+    suspend fun getCountByRealm(realm: Int): Int
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND status = :status ORDER BY realm DESC " +
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 AND status = :status ORDER BY realm DESC " +
         "LIMIT :limit")
-    suspend fun getByStatusWithLimit(slotId: Int, status: DiscipleStatus, limit: Int): List<Disciple>
+    suspend fun getByStatusWithLimit(status: DiscipleStatus, limit: Int): List<Disciple>
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm <= :maxRealm ORDER BY realm " +
+    @Query("SELECT * FROM disciples WHERE isAlive = 1 AND realm <= :maxRealm ORDER BY realm " +
         "DESC, cultivation DESC")
-    fun getDisciplesForBattle(slotId: Int, maxRealm: Int): Flow<List<Disciple>>
+    fun getDisciplesForBattle(maxRealm: Int): Flow<List<Disciple>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(disciple: Disciple)
@@ -88,27 +88,21 @@ interface DiscipleDao {
     @Update
     suspend fun updateAll(disciples: List<Disciple>)
 
-    @Query("SELECT id FROM disciples WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
-
     @Delete
     suspend fun delete(disciple: Disciple)
 
-    @Query("DELETE FROM disciples WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM disciples WHERE id = :id")
+    suspend fun deleteById(id: String)
 
 
-    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
-    suspend fun getDeadBySlotSync(slotId: Int): List<Disciple>
+    @Query("SELECT * FROM disciples WHERE isAlive = 0")
+    suspend fun getDeadSync(): List<Disciple>
 
-    @Query("DELETE FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
-    suspend fun deleteDeadBySlot(slotId: Int)
+    @Query("DELETE FROM disciples WHERE isAlive = 0")
+    suspend fun deleteDead()
 
-    @Query("DELETE FROM disciples WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
-
-    @Query("DELETE FROM disciples")
-    suspend fun deleteAllGlobal()
+    @Query("DELETE FROM disciples ")
+    suspend fun deleteAll()
 
     @Transaction
     suspend fun updateBatch(disciples: List<Disciple>) {

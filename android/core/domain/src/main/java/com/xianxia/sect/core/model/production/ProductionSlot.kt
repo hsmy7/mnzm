@@ -19,7 +19,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
 @Serializable
 @Entity(
     tableName = "production_slots",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["buildingId", "slotIndex"]),
         Index(value = ["buildingType"]),
@@ -33,9 +33,6 @@ data class ProductionSlot(
     val id: String = java.util.UUID.randomUUID().toString(),
 
     @Transient
-    @ColumnInfo(name = "slot_id")
-    var slotId: Int = 0,
-
     @ProtoNumber(2)
     val slotIndex: Int = 0,
     @ProtoNumber(3)

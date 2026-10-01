@@ -28,7 +28,7 @@ class GameStateStoreLoadRaceTest {
         Disciple(id = id.toString(), name = name, realm = 5, realmLayer = 1)
 
     private fun store(): GameStateStoreImpl {
-        val s = GameStateStoreImpl(ApplicationScopeProvider(), testGameStateRepository())
+        val s = GameStateStoreImpl(ApplicationScopeProvider())
         // 测试模式：允许主线程调用 update（Robolectric 单元测试专用）
         s.unsafeAllowMainThreadUpdateForTest = true
         return s

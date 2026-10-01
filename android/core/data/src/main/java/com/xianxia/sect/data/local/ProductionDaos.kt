@@ -13,14 +13,14 @@ import kotlinx.coroutines.flow.Flow
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface BuildingSlotDao {
-    @Query("SELECT * FROM building_slots WHERE slot_id = :slotId AND buildingId = :buildingId ORDER BY slotIndex")
-    fun getByBuilding(slotId: Int, buildingId: String): Flow<List<BuildingSlot>>
+    @Query("SELECT * FROM building_slots WHERE buildingId = :buildingId ORDER BY slotIndex")
+    fun getByBuilding(buildingId: String): Flow<List<BuildingSlot>>
 
-    @Query("SELECT * FROM building_slots WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<BuildingSlot>>
+    @Query("SELECT * FROM building_slots ")
+    fun getAll(): Flow<List<BuildingSlot>>
 
-    @Query("SELECT * FROM building_slots WHERE slot_id = :slotId AND buildingId = :buildingId")
-    suspend fun getByBuildingSync(slotId: Int, buildingId: String): List<BuildingSlot>
+    @Query("SELECT * FROM building_slots WHERE buildingId = :buildingId")
+    suspend fun getByBuildingSync(buildingId: String): List<BuildingSlot>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(slot: BuildingSlot)
@@ -37,14 +37,11 @@ interface BuildingSlotDao {
     @Update
     suspend fun updateAll(slots: List<BuildingSlot>)
 
-    @Query("SELECT id FROM building_slots WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
-
     @Delete
     suspend fun delete(slot: BuildingSlot)
 
-    @Query("DELETE FROM building_slots WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM building_slots ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM building_slots")
     suspend fun deleteAllGlobal()
@@ -55,17 +52,17 @@ interface BuildingSlotDao {
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface RecipeDao {
-    @Query("SELECT * FROM recipes WHERE slot_id = :slotId AND isUnlocked = 1")
-    fun getUnlocked(slotId: Int): Flow<List<Recipe>>
+    @Query("SELECT * FROM recipes WHERE isUnlocked = 1")
+    fun getUnlocked(): Flow<List<Recipe>>
 
-    @Query("SELECT * FROM recipes WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<Recipe>>
+    @Query("SELECT * FROM recipes ")
+    fun getAll(): Flow<List<Recipe>>
 
-    @Query("SELECT * FROM recipes WHERE slot_id = :slotId AND type = :type AND isUnlocked = 1")
-    fun getByType(slotId: Int, type: RecipeType): Flow<List<Recipe>>
+    @Query("SELECT * FROM recipes WHERE type = :type AND isUnlocked = 1")
+    fun getByType(type: RecipeType): Flow<List<Recipe>>
 
-    @Query("SELECT * FROM recipes WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Recipe?
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    suspend fun getById(id: String): Recipe?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(recipe: Recipe)
@@ -82,11 +79,11 @@ interface RecipeDao {
     @Update
     suspend fun updateAll(recipes: List<Recipe>)
 
-    @Query("SELECT id FROM recipes WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    @Query("SELECT id FROM recipes ")
+    suspend fun getIdsBySlot(): List<String>
 
-    @Query("DELETE FROM recipes WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM recipes ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM recipes")
     suspend fun deleteAllGlobal()

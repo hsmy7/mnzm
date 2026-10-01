@@ -61,12 +61,6 @@ class GameSystemInterfaceTest {
     }
 
     @Test
-    fun gameSystem_clearForSlot_isNoOp() = runBlocking {
-        val system = TestGameSystem()
-        system.clearForSlot(1)
-    }
-
-    @Test
     fun gameSystem_onMonthlyEvent_isNoOp() = runBlocking {
         val system = TestGameSystem()
         val state = mock(MutableGameState::class.java)

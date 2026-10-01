@@ -65,7 +65,6 @@ class MailEntityTest {
     fun mailEntity_defaultConstruction() {
         val mail = MailEntity()
         assertNotNull(mail.id)
-        assertEquals(0, mail.slotId)
         assertEquals("builtin", mail.source)
         assertEquals("reward", mail.mailType)
         assertEquals("", mail.title)
@@ -86,7 +85,6 @@ class MailEntityTest {
     fun mailEntity_parameterizedConstruction() {
         val mail = MailEntity(
             id = "mail1",
-            slotId = 3,
             source = "system",
             mailType = "notice",
             title = "系统通知",
@@ -101,7 +99,6 @@ class MailEntityTest {
             remoteMailId = "remote1"
         )
         assertEquals("mail1", mail.id)
-        assertEquals(3, mail.slotId)
         assertEquals("system", mail.source)
         assertEquals("notice", mail.mailType)
         assertEquals("系统通知", mail.title)

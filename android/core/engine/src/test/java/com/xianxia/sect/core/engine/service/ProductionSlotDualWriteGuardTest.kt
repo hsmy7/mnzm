@@ -116,7 +116,6 @@ class ProductionSlotDualWriteGuardTest {
                     status = ProductionSlotStatus.WORKING
                 )
             ),
-            slotId = 1
         )
         val coordinator = ProductionCoordinator(
             repository = repository,
@@ -417,7 +416,6 @@ class ProductionSlotDualWriteGuardTest {
                     autoRestartEnabled = true
                 )
             ),
-            slotId = 1
         )
         // 镜像 productionSlots 为空（玩家已通过只清镜像的入口释放了 A——分叉场景）
         assertTrue("镜像生产槽应为空（分叉前提）", store.latestGameData.productionSlots.isEmpty())
@@ -487,7 +485,7 @@ class ProductionSlotDualWriteGuardTest {
      */
     private suspend fun newProcessorWithHerbSlot(): ProductionProcessor {
         val repository = newRepository()
-        repository.restoreSlots(listOf(emptyHerbSlot()), slotId = 1)
+        repository.restoreSlots(listOf(emptyHerbSlot()))
         return newProcessor(repository)
     }
 

@@ -34,7 +34,7 @@ class InventorySystemDeathMaterializeTest {
     @Before
     fun setUp() {
         store = FakeAtomicStateStore()
-        store.update { gameData = GameData(slotId = 1) }
+        store.update { gameData = GameData() }
         store.persistentDiscipleTables.writeAllowed = true
         val wallet = com.xianxia.sect.core.wallet.SpiritStoneWallet(
             stateStore = store,

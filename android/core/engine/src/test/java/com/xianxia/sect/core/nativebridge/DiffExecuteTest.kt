@@ -78,7 +78,7 @@ class DiffExecuteTest {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
         val instanceJson = """
-            {"id":"eq-1","slotId":0,"name":"木剑","setId":"lietian","part":"WEAPON",
+            {"id":"eq-1","name":"木剑","setId":"lietian","part":"WEAPON",
              "growth":{"level":1,"exp":0,
                        "affix":{"mainStat":{"stat":"ATTACK","value":10.0},
                                 "subStats":[{"stat":"DEFENSE","value":3.0}],
@@ -113,7 +113,7 @@ class DiffExecuteTest {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
         val instanceJson = """
-            {"id":"eq-1","slotId":0,"name":"木剑","setId":"lietian","part":"WEAPON",
+            {"id":"eq-1","name":"木剑","setId":"lietian","part":"WEAPON",
              "growth":{"level":1,"exp":0,
                        "affix":{"mainStat":{"stat":"ATTACK","value":10.0},"subStats":[],"subRolls":[]}},
              "meta":{"rarity":1,"minRealm":9,"description":"","isLocked":false},

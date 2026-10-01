@@ -59,7 +59,7 @@ internal fun SaveLoadViewModel.loadGameInternal(saveSlot: SaveSlot, fromCloudLoa
     }
 
     Log.i(SaveLoadViewModelConstants.TAG,
-        "=== loadGame BEGIN === slot=${saveSlot.slot}, sectName=${saveSlot.sectName}, " +
+        "=== loadGame BEGIN === sectName=${saveSlot.sectName}, " +
         "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
     val startTime = System.currentTimeMillis()
 
@@ -100,7 +100,7 @@ internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, sta
 
         performGarbageCollection()
 
-        Log.d(SaveLoadViewModelConstants.TAG, "Starting to load save data for slot ${saveSlot.slot}")
+        Log.d(SaveLoadViewModelConstants.TAG, "Starting to load save data")
         val loadStartTime = System.currentTimeMillis()
 
         val saveData = loadSaveDataForSlot(saveSlot = saveSlot, loadStartTime = loadStartTime)
@@ -108,13 +108,12 @@ internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, sta
             return
         }
 
-        val effectiveSlot = saveSlot.slot
-        applyLoadedSaveToEngine(saveData = saveData, effectiveSlot = effectiveSlot)
+        applyLoadedSaveToEngine(saveData = saveData)
 
         // 建筑占地重叠/越界迁移由 BootSequenceController Step 3.5 执行
         //（Step 3 归一化+fixup 之后；云端路径同样生效）
 
-        performLoadBoot(effectiveSlot = effectiveSlot, startTime = startTime)
+        performLoadBoot(startTime = startTime)
     } catch (e: CancellationException) {
         Log.w(SaveLoadViewModelConstants.TAG, "loadGame cancelled")
         throw e
@@ -137,11 +136,11 @@ internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, sta
 }
 
 /**读档数据加载：超时保护 + 空档守卫 */
-@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+@Suppress("TooGenericExceptionCaught", "UnusedParameter") // saveSlot 留存调用契约；单档链内已无槽语义
 internal suspend fun SaveLoadViewModel.loadSaveDataForSlot(saveSlot: SaveSlot, loadStartTime: Long): SaveData? {
     val saveData = withTimeoutOrNull(60_000L) {
         try {
-            val data = persistenceFacade.storageFacade.load(saveSlot.slot).getOrNull()
+            val data = persistenceFacade.storageFacade.load().getOrNull()
             Log.d(SaveLoadViewModelConstants.TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
             data
         } catch (e: CancellationException) { throw e }
@@ -153,14 +152,14 @@ internal suspend fun SaveLoadViewModel.loadSaveDataForSlot(saveSlot: SaveSlot, l
     if (saveData == null) {
         val elapsed = System.currentTimeMillis() - loadStartTime
         Log.e(SaveLoadViewModelConstants.TAG,
-            "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
+            "=== loadGame FAILED === timeout or null, elapsed=${elapsed}ms")
         showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
     }
     return saveData
 }
 
 /**
- * 读档数据应用：setCurrentSlot + loadData。
+ * 读档数据应用：loadData。
  *
  * RNG 分区恢复已收敛到 `GameStateStoreImpl.loadFromSnapshot` 锁内（状态 + RNG
  * 原子切换），此处不重复 restoreStates。AI 宗门 RNG 亦不在此播种：其真源 =
@@ -169,10 +168,9 @@ internal suspend fun SaveLoadViewModel.loadSaveDataForSlot(saveSlot: SaveSlot, l
  * `initForSlot` 的语义由 native 承接，Kotlin 侧 `AISectDiscipleManager.rng`
  * 直接委托同一分区（委托模式经 `NativeBackedRng(9)`，回退模式经 `AI_SECT`）。
  */
-internal suspend fun SaveLoadViewModel.applyLoadedSaveToEngine(saveData: SaveData, effectiveSlot: Int) {
-    persistenceFacade.storageFacade.setCurrentSlot(effectiveSlot)
+internal suspend fun SaveLoadViewModel.applyLoadedSaveToEngine(saveData: SaveData) {
     gameEngine.loadData(
-        gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
+        gameData = saveData.gameData,
         disciples = saveData.disciples,
         equipmentInstances = saveData.equipmentInstances,
         manualStacks = saveData.manualStacks,
@@ -189,11 +187,10 @@ internal suspend fun SaveLoadViewModel.applyLoadedSaveToEngine(saveData: SaveDat
 }
 
 /**读档启动序列：BootSequenceController.boot + 福利注入 */
-internal suspend fun SaveLoadViewModel.performLoadBoot(effectiveSlot: Int, startTime: Long): Boolean {
+internal suspend fun SaveLoadViewModel.performLoadBoot(startTime: Long): Boolean {
     // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
     // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
     val bootResult = persistenceFacade.bootSequenceController.boot(
-        slot = effectiveSlot,
         onPreloadResources = { preloadGameResources() },
         onProgress = { progress ->
             loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START + progress * (
@@ -279,13 +276,13 @@ internal fun SaveLoadViewModel.cancelSaveLoad() {
         pendingAction = null) }
 }
 
-internal fun SaveLoadViewModel.setPendingSave(slot: Int) {
-    pendingSlotFlow.value = slot
+internal fun SaveLoadViewModel.setPendingSave() {
+    pendingSlotFlow.value = 1
     pendingActionFlow.value = "save"
 }
 
-internal fun SaveLoadViewModel.setPendingLoad(slot: Int) {
-    pendingSlotFlow.value = slot
+internal fun SaveLoadViewModel.setPendingLoad() {
+    pendingSlotFlow.value = 1
     pendingActionFlow.value = "load"
 }
 

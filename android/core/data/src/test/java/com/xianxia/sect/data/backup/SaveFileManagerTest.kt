@@ -49,11 +49,10 @@ class SaveFileManagerTest {
 
     @Test
     fun `valid CRC32C passes verification`() {
-        val slot = 1
         val payload = "test-payload-data".encodeToByteArray()
-        writeValidSavFile(slot, payload)
+        writeValidSavFile(payload)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("SUCCESS 状态", BackupStatus.SUCCESS, result.status)
         assertNotNull("payload 非空", result.payload)
         assertArrayEquals("payload 内容一致", payload, result.payload)
@@ -62,21 +61,20 @@ class SaveFileManagerTest {
 
     @Test
     fun `corrupted sav falls back to bak`() {
-        val slot = 2
         val payload = "original-data".encodeToByteArray()
         val bakPayload = "backup-data".encodeToByteArray()
 
         // 写入合法 .sav
-        writeValidSavFile(slot, payload)
+        writeValidSavFile(payload)
         // 写入合法 .bak
-        writeValidBakFile(slot, bakPayload)
+        writeValidBakFile(bakPayload)
         // 破坏 .sav（覆盖一个字节）
-        val savFile = getSavFile(slot)
+        val savFile = getSavFile()
         val corrupted = savFile.readBytes()
         corrupted[16] = (corrupted[16].toInt() xor 0xFF).toByte() // 翻转 payload 首字节
         savFile.writeBytes(corrupted)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
         assertNotNull("从 bak 恢复的 payload 非空", result.payload)
         assertArrayEquals("payload 内容为 bak 数据", bakPayload, result.payload)
@@ -93,18 +91,17 @@ class SaveFileManagerTest {
      */
     @Test
     fun `readOnly bak recovery leaves sav untouched`() {
-        val slot = 6
         val payload = "primary-data".encodeToByteArray()
         val bakPayload = "backup-data".encodeToByteArray()
-        writeValidSavFile(slot, payload)
-        writeValidBakFile(slot, bakPayload)
-        val savFile = getSavFile(slot)
+        writeValidSavFile(payload)
+        writeValidBakFile(bakPayload)
+        val savFile = getSavFile()
         val corrupted = savFile.readBytes()
         corrupted[16] = (corrupted[16].toInt() xor 0xFF).toByte()
         savFile.writeBytes(corrupted)
         val savBytesBefore = savFile.readBytes()
 
-        val result = manager.readWithFallback(slot, readOnly = true)
+        val result = manager.readWithFallback(readOnly = true)
         assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
         assertArrayEquals("只读路径仍返回 bak 数据", bakPayload, result.payload)
         assertFalse("只读不得把未尝试的写回报成修复失败", result.repairFailed)
@@ -115,71 +112,67 @@ class SaveFileManagerTest {
         )
 
         // 对照面：默认非只读 ⇒ 必须写回（同夹具同破坏，唯一差异是 readOnly）
-        val writable = manager.readWithFallback(slot)
+        val writable = manager.readWithFallback()
         assertEquals("对照：非只读同样 RECOVERED", BackupStatus.RECOVERED, writable.status)
         assertFalse("对照：非只读的写回成功", writable.repairFailed)
         assertFalse(
             "对照面失效——非只读也没写回，则上面的只读断言是空转",
             savBytesBefore.contentEquals(savFile.readBytes())
         )
-        assertEquals("对照：写回后 .sav 自身即合法档", BackupStatus.SUCCESS, manager.readWithFallback(slot).status)
+        assertEquals("对照：写回后 .sav 自身即合法档", BackupStatus.SUCCESS, manager.readWithFallback().status)
     }
 
     @Test
     fun `both files corrupted returns CORRUPTED`() {
-        val slot = 3
         val payload = "data".encodeToByteArray()
 
         // 写入并破坏 .sav
-        writeValidSavFile(slot, payload)
-        val savFile = getSavFile(slot)
+        writeValidSavFile(payload)
+        val savFile = getSavFile()
         savFile.writeBytes(byteArrayOf(0, 0, 0, 0)) // 完全破坏
 
         // 写入并破坏 .bak
-        writeValidBakFile(slot, payload)
-        val bakFile = getBakFile(slot)
+        writeValidBakFile(payload)
+        val bakFile = getBakFile()
         bakFile.writeBytes(byteArrayOf(0, 0, 0, 0)) // 完全破坏
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("CORRUPTED 状态", BackupStatus.CORRUPTED, result.status)
         assertNull("payload 为空", result.payload)
     }
 
     @Test
     fun `truncated file fails CRC32C`() {
-        val slot = 4
         val payload = "test".encodeToByteArray()
-        writeValidSavFile(slot, payload)
+        writeValidSavFile(payload)
 
         // 截断文件（去掉 payload 后半部分）
-        val savFile = getSavFile(slot)
+        val savFile = getSavFile()
         val truncated = savFile.readBytes().copyOfRange(0, 18) // 只有头部 + 2 字节 payload
         savFile.writeBytes(truncated)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("CRC32C 检测到截断", BackupStatus.CORRUPTED, result.status)
     }
 
     @Test
     fun `invalid magic fails verification`() {
-        val slot = 5
         val payload = "data".encodeToByteArray()
-        writeValidSavFile(slot, payload)
+        writeValidSavFile(payload)
 
         // 破坏 Magic 字节
-        val savFile = getSavFile(slot)
+        val savFile = getSavFile()
         val corrupted = savFile.readBytes()
         corrupted[0] = 0x00 // 破坏 Magic（有效值为 0x58）
         savFile.writeBytes(corrupted)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("Magic 不匹配", BackupStatus.CORRUPTED, result.status)
     }
 
     @Test
     fun `tmp cleanup removes stale tmp files`() {
-        val slot = 6
-        val tmpFile = File(tempFolder.root, "saves/slot_${slot}.sav.tmp")
+        val tmpFile = File(tempFolder.root, "saves/save.sav.tmp")
         tmpFile.writeBytes(byteArrayOf(1, 2, 3))
         // 修改文件时间为 10 分钟前（超过 5 分钟的阈值）
         tmpFile.setLastModified(System.currentTimeMillis() - 10 * 60 * 1000L)
@@ -191,8 +184,7 @@ class SaveFileManagerTest {
 
     @Test
     fun `tmp cleanup preserves recent temp files`() {
-        val slot = 7
-        val tmpFile = File(tempFolder.root, "saves/slot_${slot}.sav.tmp")
+        val tmpFile = File(tempFolder.root, "saves/save.sav.tmp")
         tmpFile.writeBytes(byteArrayOf(1, 2, 3))
         // 修改文件时间为 1 分钟前（不超过 5 分钟的阈值）
         tmpFile.setLastModified(System.currentTimeMillis() - 60 * 1000L)
@@ -205,12 +197,11 @@ class SaveFileManagerTest {
 
     @Test
     fun `verifySlot detects valid and missing files`() {
-        val slot = 8
         val payload = "verify-test".encodeToByteArray()
-        writeValidSavFile(slot, payload)
+        writeValidSavFile(payload)
 
         // 只有 .sav，无 .bak
-        val integrity = manager.verifySlot(slot)
+        val integrity = manager.verify()
         assertTrue("primary 存在", integrity.primaryExists)
         assertFalse("backup 不存在", integrity.backupExists)
         assertTrue("primary 校验有效", integrity.primaryValid == true)
@@ -218,8 +209,7 @@ class SaveFileManagerTest {
 
     @Test
     fun `no files returns CORRUPTED`() {
-        val slot = 99
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("无文件时返回 CORRUPTED", BackupStatus.CORRUPTED, result.status)
     }
 
@@ -231,9 +221,8 @@ class SaveFileManagerTest {
         assertTrue("重复初始化后备份目录仍存在", File(tempFolder.root, "saves").exists())
 
         // 重复初始化后文件操作仍正常（slot 须在 0..DEFAULT_MAX_SLOTS 内）
-        val slot = 5
-        writeValidSavFile(slot, "after-reinit".encodeToByteArray())
-        val result = manager.readWithFallback(slot)
+        writeValidSavFile("after-reinit".encodeToByteArray())
+        val result = manager.readWithFallback()
         assertEquals("重复初始化后文件操作正常", BackupStatus.SUCCESS, result.status)
     }
 
@@ -244,8 +233,8 @@ class SaveFileManagerTest {
             saveSerializer = SaveSerializer { data -> data.gameData.sectName.encodeToByteArray() }
         )
 
-        assertThrows(IllegalStateException::class.java) { uninitialized.readWithFallback(1) }
-        assertThrows(IllegalStateException::class.java) { uninitialized.atomicWrite(1, mockSaveData()) }
+        assertThrows(IllegalStateException::class.java) { uninitialized.readWithFallback() }
+        assertThrows(IllegalStateException::class.java) { uninitialized.atomicWrite(mockSaveData()) }
     }
 
     // ============================================================
@@ -255,13 +244,12 @@ class SaveFileManagerTest {
     @Test
     fun `legacy 0x0100 header with CRC32 read on sdk 34 passes`() {
         // 旧格式无算法标识（如 API<34 设备写入的文件）→ 双算法探测（CRC32 命中）
-        val slot = 2
         val payload = "legacy-crc32-payload".encodeToByteArray()
-        val file = getSavFile(slot)
+        val file = getSavFile()
         file.parentFile?.mkdirs()
         file.writeBytes(buildLegacyHeader(payload, useCrc32c = false) + payload)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals(BackupStatus.SUCCESS, result.status)
         assertArrayEquals(payload, result.payload)
     }
@@ -269,13 +257,12 @@ class SaveFileManagerTest {
     @Test
     fun `legacy 0x0100 header with CRC32C read on sdk 34 passes`() {
         // 同设备旧格式（API≥34 写 CRC32C）兼容
-        val slot = 3
         val payload = "legacy-crc32c-payload".encodeToByteArray()
-        val file = getSavFile(slot)
+        val file = getSavFile()
         file.parentFile?.mkdirs()
         file.writeBytes(buildLegacyHeader(payload, useCrc32c = true) + payload)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals(BackupStatus.SUCCESS, result.status)
         assertArrayEquals(payload, result.payload)
     }
@@ -283,16 +270,15 @@ class SaveFileManagerTest {
     @Test
     fun `new format with unknown algorithm byte rejected`() {
         // 0x0101 + 未知算法标识 → 判损坏（安全侧）
-        val slot = 4
         val payload = "bad-algo".encodeToByteArray()
-        val file = getSavFile(slot)
+        val file = getSavFile()
         file.parentFile?.mkdirs()
         val header = buildValidHeader(payload)
         header[4] = 0x01; header[5] = 0x01 // 升级为 0x0101
         header[11] = 0x02 // 未知算法标识
         file.writeBytes(header + payload)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals(BackupStatus.CORRUPTED, result.status)
     }
 
@@ -300,26 +286,24 @@ class SaveFileManagerTest {
     fun `unknown future format version rejected`() {
         // C7 修复：任意未来版本（0xFFFF）即使 CRC 正确也必须判损坏，
         // 防止格式演进后旧 App 按当前格式静默误解析新文件
-        val slot = 10
         val payload = "future-format".encodeToByteArray()
-        val file = getSavFile(slot)
+        val file = getSavFile()
         file.parentFile?.mkdirs()
         val header = buildValidHeader(payload)
         header[4] = 0xFF.toByte(); header[5] = 0xFF.toByte() // 未来版本 0xFFFF（CRC 仍正确）
         file.writeBytes(header + payload)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals(BackupStatus.CORRUPTED, result.status)
     }
 
     @Test
     fun `new format roundtrip write then read succeeds`() {
         // 0x0101 写入（sdk 34 → CRC32C + 算法标识）→ 读取精确校验通过
-        val slot = 5
-        val writeResult = manager.atomicWrite(slot, mockSaveData())
+        val writeResult = manager.atomicWrite(mockSaveData())
         assertTrue(writeResult is StorageResult.Success)
 
-        val read = manager.readWithFallback(slot)
+        val read = manager.readWithFallback()
         assertEquals(BackupStatus.SUCCESS, read.status)
     }
 
@@ -330,42 +314,40 @@ class SaveFileManagerTest {
     @Test
     fun `oversized payload writes main sav and returns Skipped`() {
         // payload 超限：主保存必执行，备份跳过并如实返回 Skipped
-        val slot = 0
         val bigManager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> ByteArray(MAX_BACKUP_SIZE_BYTES + 1) }
         ).also { it.initialize(tempFolder.root) }
 
-        val result = bigManager.atomicWrite(slot, mockSaveData())
+        val result = bigManager.atomicWrite(mockSaveData())
 
         assertTrue("应返回 Skipped，实际 $result", result is StorageResult.Skipped)
-        assertTrue("主 .sav 必须存在", getSavFile(slot).exists())
-        assertFalse("备份 .bak 不写入", getBakFile(slot).exists())
+        assertTrue("主 .sav 必须存在", getSavFile().exists())
+        assertFalse("备份 .bak 不写入", getBakFile().exists())
     }
 
     @Test
     fun `first save writes sav only and second save rotates previous sav into bak`() {
         // 语义（审计 §12-B 修正）：.bak = **前一版本**快照，而非"同一 payload 再写一遍"。
         // 首次保存没有"前一版本"可轮转 ⇒ 只有 .sav；第二次保存才产生 .bak。
-        val slot = 6
-        val first = manager.atomicWrite(slot, mockSaveData())
+        val first = manager.atomicWrite(mockSaveData())
         assertTrue("首次应 Success，实际 $first", first is StorageResult.Success)
-        assertTrue("主 .sav 存在", getSavFile(slot).exists())
-        assertFalse("首次保存不产生 .bak（无前一版本可轮转）", getBakFile(slot).exists())
-        val firstSavBytes = getSavFile(slot).readBytes()
+        assertTrue("主 .sav 存在", getSavFile().exists())
+        assertFalse("首次保存不产生 .bak（无前一版本可轮转）", getBakFile().exists())
+        val firstSavBytes = getSavFile().readBytes()
 
         // 第二次保存（另一 payload）⇒ .bak 必须逐字节等于第一次的 .sav
         val secondManager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }
-        val second = secondManager.atomicWrite(slot, mockSaveData())
+        val second = secondManager.atomicWrite(mockSaveData())
         assertTrue("第二次应 Success，实际 $second", second is StorageResult.Success)
         assertArrayEquals(
             ".bak 应为第一次保存的原始字节（真备份 = 前一版本）",
             firstSavBytes,
-            getBakFile(slot).readBytes()
+            getBakFile().readBytes()
         )
 
-        val reread = secondManager.readWithFallback(slot)
+        val reread = secondManager.readWithFallback()
         assertEquals("读取 SUCCESS（读的是 .sav）", BackupStatus.SUCCESS, reread.status)
         assertArrayEquals("读取到第二版内容", "第二版:测试宗".encodeToByteArray(), reread.payload)
     }
@@ -373,19 +355,18 @@ class SaveFileManagerTest {
     @Test
     fun `rotated bak recovers previous save when current sav is corrupted`() {
         // 轮转的实际价值：.sav 损坏时可退回**上一存档点**（旧实现 .bak ≡ .sav，退不回去）
-        val slot = 5
-        manager.atomicWrite(slot, mockSaveData())
-        val v1SavBytes = getSavFile(slot).readBytes()
+        manager.atomicWrite(mockSaveData())
+        val v1SavBytes = getSavFile().readBytes()
 
         val v2Manager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }
-        v2Manager.atomicWrite(slot, mockSaveData())
-        assertArrayEquals(".bak 已轮转为 v1", v1SavBytes, getBakFile(slot).readBytes())
+        v2Manager.atomicWrite(mockSaveData())
+        assertArrayEquals(".bak 已轮转为 v1", v1SavBytes, getBakFile().readBytes())
 
         // 破坏 .sav（合法头之外全垃圾）⇒ 回退 .bak 并修复 .sav
-        getSavFile(slot).writeBytes(ByteArray(64) { 0x7F })
-        val recovered = v2Manager.readWithFallback(slot)
+        getSavFile().writeBytes(ByteArray(64) { 0x7F })
+        val recovered = v2Manager.readWithFallback()
         assertEquals("应从轮转 .bak 恢复", BackupStatus.RECOVERED, recovered.status)
         assertArrayEquals("恢复内容 = v1（上一存档点）", "测试宗".encodeToByteArray(), recovered.payload)
         assertFalse("修复 .sav 应成功", recovered.repairFailed)
@@ -398,19 +379,18 @@ class SaveFileManagerTest {
     @Test
     fun `atomicWrite overwrites existing sav without delete window`() {
         // 覆盖已有 .sav 时先试无 delete 的 rename 原子覆盖，.sav 全程存在
-        val slot = 2
-        manager.atomicWrite(slot, mockSaveData())
-        val firstRead = manager.readWithFallback(slot)
+        manager.atomicWrite(mockSaveData())
+        val firstRead = manager.readWithFallback()
         assertEquals("首次写入 SUCCESS", BackupStatus.SUCCESS, firstRead.status)
 
         // 覆盖写入（已有 .sav 的场景）
         val overwriteManager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }
-        val second = overwriteManager.atomicWrite(slot, mockSaveData())
+        val second = overwriteManager.atomicWrite(mockSaveData())
         assertTrue("覆盖写入应 Success，实际 $second", second is StorageResult.Success)
 
-        val reread = overwriteManager.readWithFallback(slot)
+        val reread = overwriteManager.readWithFallback()
         assertEquals("覆盖后读取 SUCCESS", BackupStatus.SUCCESS, reread.status)
         assertArrayEquals("读取到第二版内容", "第二版:测试宗".encodeToByteArray(), reread.payload)
     }
@@ -421,12 +401,11 @@ class SaveFileManagerTest {
 
     @Test
     fun `backup recovered but sav repair failure signaled`() {
-        val slot = 3
         val bakPayload = "backup-payload".encodeToByteArray()
-        writeValidBakFile(slot, bakPayload)
+        writeValidBakFile(bakPayload)
 
         // .sav 损坏
-        val savFile = getSavFile(slot)
+        val savFile = getSavFile()
         savFile.parentFile?.mkdirs()
         savFile.writeBytes(byteArrayOf(0, 0, 0, 0))
 
@@ -435,7 +414,7 @@ class SaveFileManagerTest {
         savFile.mkdirs()
         File(savFile, "blocker").writeBytes(byteArrayOf(1))
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
         assertArrayEquals("payload 为 bak 数据", bakPayload, result.payload)
         assertTrue("修复失败必须如实标记", result.repairFailed)
@@ -443,21 +422,20 @@ class SaveFileManagerTest {
 
     @Test
     fun `backup recovered with successful repair - repairFailed false`() {
-        val slot = 4
         val bakPayload = "repairable-payload".encodeToByteArray()
-        writeValidSavFile(slot, "corrupted-old".encodeToByteArray())
-        writeValidBakFile(slot, bakPayload)
+        writeValidSavFile("corrupted-old".encodeToByteArray())
+        writeValidBakFile(bakPayload)
         // 破坏 .sav 但保留可覆盖路径（copyTo 能成功）
-        val savFile = getSavFile(slot)
+        val savFile = getSavFile()
         val corrupted = savFile.readBytes()
         corrupted[16] = (corrupted[16].toInt() xor 0xFF).toByte()
         savFile.writeBytes(corrupted)
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
         assertFalse("修复成功 repairFailed 应为 false", result.repairFailed)
         // .sav 已被 .bak 覆盖修复
-        val reread = manager.readWithFallback(slot)
+        val reread = manager.readWithFallback()
         assertEquals("修复后 .sav 可直读", BackupStatus.SUCCESS, reread.status)
     }
 
@@ -485,14 +463,14 @@ class SaveFileManagerTest {
     // 辅助方法：直接构造合法备份文件
     // ============================================================
 
-    private fun writeValidSavFile(slot: Int, payload: ByteArray) {
-        val file = getSavFile(slot)
+    private fun writeValidSavFile(payload: ByteArray) {
+        val file = getSavFile()
         file.parentFile?.mkdirs()
         file.writeBytes(buildValidHeader(payload) + payload)
     }
 
-    private fun writeValidBakFile(slot: Int, payload: ByteArray) {
-        val file = getBakFile(slot)
+    private fun writeValidBakFile(payload: ByteArray) {
+        val file = getBakFile()
         file.parentFile?.mkdirs()
         file.writeBytes(buildValidHeader(payload) + payload)
     }
@@ -545,8 +523,8 @@ class SaveFileManagerTest {
         return crc.value.toInt()
     }
 
-    private fun getSavFile(slot: Int) = File(tempFolder.root, "saves/slot_${slot}.sav")
-    private fun getBakFile(slot: Int) = File(tempFolder.root, "saves/slot_${slot}.bak")
+    private fun getSavFile() = File(tempFolder.root, "saves/save.sav")
+    private fun getBakFile() = File(tempFolder.root, "saves/save.bak")
 
     // ═══════════════════════════════════════════════════════════
     // 删除 tombstone——跨 DB/文件原子删除守卫
@@ -554,28 +532,26 @@ class SaveFileManagerTest {
 
     @Test
     fun `tombstone - mark makes slot deleted and clear restores`() {
-        val slot = 1
-        assertFalse("初始无 tombstone", manager.isSlotDeleted(slot))
+        assertFalse("初始无 tombstone", manager.isDeleted())
 
-        manager.markSlotDeleted(slot)
-        assertTrue("标记后判定已删", manager.isSlotDeleted(slot))
+        manager.markDeleted()
+        assertTrue("标记后判定已删", manager.isDeleted())
 
-        manager.clearSlotDeleted(slot)
-        assertFalse("清除后不再判定已删", manager.isSlotDeleted(slot))
+        manager.clearDeleted()
+        assertFalse("清除后不再判定已删", manager.isDeleted())
     }
 
     @Test
     fun `tombstone - deleteSlot removes sav bak and tombstone`() {
-        val slot = 1
-        writeValidSavFile(slot, "payload".encodeToByteArray())
-        manager.markSlotDeleted(slot)
-        assertTrue("标记后 sav 存在", getSavFile(slot).exists())
+        writeValidSavFile("payload".encodeToByteArray())
+        manager.markDeleted()
+        assertTrue("标记后 sav 存在", getSavFile().exists())
 
-        manager.deleteSlot(slot)
-        manager.clearSlotDeleted(slot)
+        manager.deleteFiles()
+        manager.clearDeleted()
 
-        assertFalse("sav 已删", getSavFile(slot).exists())
-        assertFalse("tombstone 已清", manager.isSlotDeleted(slot))
+        assertFalse("sav 已删", getSavFile().exists())
+        assertFalse("tombstone 已清", manager.isDeleted())
     }
 
     @Test
@@ -584,19 +560,18 @@ class SaveFileManagerTest {
             data.gameData.sectName.encodeToByteArray()
         })
         // 未初始化时不抛异常（读路径守卫：备份恢复前查询 tombstone 必须安全）
-        assertFalse("未初始化返回 false", uninitialized.isSlotDeleted(1))
+        assertFalse("未初始化返回 false", uninitialized.isDeleted())
     }
 
     @Test
     fun `tombstone - clearSlotDeleted is idempotent when already cleared`() {
         // save 成功后无条件清除 tombstone——无残留时清除必须无副作用（幂等）
-        val slot = 1
-        manager.clearSlotDeleted(slot)
-        assertFalse("无 tombstone 时清除无副作用", manager.isSlotDeleted(slot))
+        manager.clearDeleted()
+        assertFalse("无 tombstone 时清除无副作用", manager.isDeleted())
 
-        manager.markSlotDeleted(slot)
-        manager.clearSlotDeleted(slot)
-        manager.clearSlotDeleted(slot)
-        assertFalse("重复清除幂等", manager.isSlotDeleted(slot))
+        manager.markDeleted()
+        manager.clearDeleted()
+        manager.clearDeleted()
+        assertFalse("重复清除幂等", manager.isDeleted())
     }
 }

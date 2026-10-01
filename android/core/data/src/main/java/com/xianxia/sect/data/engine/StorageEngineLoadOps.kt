@@ -27,30 +27,30 @@ private const val LOW_MEMORY_THRESHOLD_MB = StorageEngine.LOW_MEMORY_THRESHOLD_M
 /**
  * DB 命中路径：删除 tombstone 守卫 + 读档指标 + 缓存清理 + 完整性校验。
  */
-internal suspend fun StorageEngine.handleDbDataHit(slot: Int, dbData: SaveData): StorageResult<SaveData> {
+internal suspend fun StorageEngine.handleDbDataHit(dbData: SaveData): StorageResult<SaveData> {
     // DB 命中路径同样查删除 tombstone——delete() 在"tombstone 已写、DB 事务未提交"
     // 窗口崩溃时 DB 数据完整，直接走 DB 路径会复活已删存档，
     // 与文件残留窗口的"已删"语义不一致
-    if (saveFileManager.isSlotDeleted(slot)) {
-        Log.w(TAG, "槽位 $slot 存在删除 tombstone 但 DB 有数据（删除中断），清理为已删")
-        clearSlotDataQuietly(slot)
+    if (saveFileManager.isDeleted()) {
+        Log.w(TAG, "存在删除 tombstone 但 DB 有数据（删除中断），清理为已删")
+        clearResidualDataQuietly()
         return StorageResult.failure(
             StorageError.SLOT_EMPTY, "该槽位存档已删除"
         )
     }
     infra.storageMetrics.recordLoad()
-    clearCacheForSlot(slot)
+    clearCacheForSlot()
     // 完整性校验 + 损坏备份恢复
-    val validated = validateDbData(slot, dbData)
+    val validated = validateDbData(dbData)
     if (validated.isSuccess) infra.circuitBreaker.recordSuccess("load")
     return validated
 }
 
 /** 缓存命中尝试（命中时记录指标与进度，返回数据；未命中返回 null）。 */
 @Suppress("ReturnCount") // 管线多级校验（基础校验/规则校验）早退，守卫风格
-internal suspend fun StorageEngine.tryCacheLoad(slot: Int): SaveData? {
+internal suspend fun StorageEngine.tryCacheLoad(): SaveData? {
     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
-    val cachedData = loadFromCache(slot) ?: return null
+    val cachedData = loadFromCache() ?: return null
     // 缓存命中同样过校验管线（缓存内容来自保存路径，多数已处理，
     // 但防异常数据窗口）；Corrupted 视为未命中回落 DB
     if (!validateSaveData(cachedData)) return null
@@ -60,7 +60,7 @@ internal suspend fun StorageEngine.tryCacheLoad(slot: Int): SaveData? {
 
     infra.storageMetrics.recordCacheHit()
     infra.storageMetrics.recordLoad()
-    Log.d(TAG, "Cache hit for slot $slot")
+    Log.d(TAG, "Cache hit")
     // 缓存路径物化兜底——旧版本写入的缓存可能含引用式袋条目（payload 空），
     // 取回（没收）等路径会复制/丢失物品；物化幂等（payload 非空跳过，扣减仅首次）
     val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
@@ -103,47 +103,47 @@ internal suspend fun StorageEngine.tryCacheLoad(slot: Int): SaveData? {
  * 修复后数据仅缓存（读锁内无法升级写锁持久化，下次保存时自动持久化）。
  */
 @Suppress("ReturnCount")  // 校验结果分派（通过/修复/损坏→恢复），多 return 为守卫风格
-internal suspend fun StorageEngine.validateDbData(slot: Int, dbData: SaveData): StorageResult<SaveData> {
+internal suspend fun StorageEngine.validateDbData(dbData: SaveData): StorageResult<SaveData> {
     val integrityResult = SaveValidator.validate(dbData)
     when (integrityResult) {
         is IntegrityResult.Passed -> {
-            updateCacheAfterSave(slot, dbData)
+            updateCacheAfterSave(dbData)
             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
             return StorageResult.success(dbData)
         }
         is IntegrityResult.Repaired -> {
-            Log.w(TAG, "存档完整性修复 (slot=$slot): ${integrityResult.details.size} 项")
+            Log.w(TAG, "存档完整性修复: ${integrityResult.details.size} 项")
             integrityResult.details.forEach { Log.i(TAG, "  → $it") }
             val repairedData = integrityResult.data
-            SaveValidatorFixes.logRepairStatus(slot, integrityResult.details.size, persisted = false)
-            updateCacheAfterSave(slot, repairedData)
+            SaveValidatorFixes.logRepairStatus(integrityResult.details.size, persisted = false)
+            updateCacheAfterSave(repairedData)
             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
             return StorageResult.success(repairedData)
         }
         is IntegrityResult.Corrupted -> {
-            Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
+            Log.e(TAG, "存档数据损坏: ${integrityResult.details.size} 项")
             integrityResult.details.forEach { Log.e(TAG, "  → $it") }
-            val restored = restoreFromBackup(slot)
+            val restored = restoreFromBackup()
             if (restored != null) return restored
             _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
                 "存档损坏且备份恢复失败: ${integrityResult.details.size} 项问题")
             return StorageResult.failure(
                 StorageError.SLOT_CORRUPTED,
-                "存档校验失败且备份不可用 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
+                "存档校验失败且备份不可用: ${integrityResult.details.joinToString("; ")}"
             )
         }
     }
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.loadFromCache(slot: Int): SaveData? = withContext(Dispatchers.IO) {
+internal suspend fun StorageEngine.loadFromCache(): SaveData? = withContext(Dispatchers.IO) {
     try {
-        val gameDataKey = CacheKey.forGameData(slot)
+        val gameDataKey = CacheKey.forGameData()
         core.cache.getOrNull<SaveData>(gameDataKey)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to load from cache for slot $slot", e)
+        Log.w(TAG, "Failed to load from cache", e)
         null
     }
 }
@@ -154,21 +154,21 @@ internal suspend fun StorageEngine.loadFromCache(slot: Int): SaveData? = withCon
  *       否则在无事务包裹的并行读取中可能出现数据不一致。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.loadFromDatabase(slot: Int): SaveData? {
+internal suspend fun StorageEngine.loadFromDatabase(): SaveData? {
     return try {
-        loadFromDatabaseInternal(slot, loadHeavyData = true)
+        loadFromDatabaseInternal(loadHeavyData = true)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.e(TAG, "Failed to load from database for slot $slot", e)
+        Log.e(TAG, "Failed to load from database", e)
         null
     }
 }
 
-internal suspend fun StorageEngine.loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData? {
-    val gameData = core.database.gameDataDao().getGameDataSync(slot) ?: return null
-    val source = if (loadHeavyData) loadMergedGameData(gameData, slot) else gameData
-    return buildAndValidateSaveData(slot, source, loadHeavyData)
+internal suspend fun StorageEngine.loadFromDatabaseInternal(loadHeavyData: Boolean = false): SaveData? {
+    val gameData = core.database.gameDataDao().getGameDataSync() ?: return null
+    val source = if (loadHeavyData) loadMergedGameData(gameData) else gameData
+    return buildAndValidateSaveData(source, loadHeavyData)
 }
 
 /**
@@ -179,21 +179,20 @@ internal suspend fun StorageEngine.loadFromDatabaseInternal(slot: Int, loadHeavy
  * 注意：buildSaveDataFromDatabase 内部用 async {} 并行读表，不能放入 withTransaction
  *（Room withTransaction 要求内部 DAO 调用在同一线程，与 async 不兼容）。
  */
-internal suspend fun StorageEngine.loadMergedGameData(gameData: GameData, slot: Int): GameData {
-    return core.database.withTransaction { mergeHeavyData(gameData, slot) }
+internal suspend fun StorageEngine.loadMergedGameData(gameData: GameData): GameData {
+    return core.database.withTransaction { mergeHeavyData(gameData) }
 }
 
 /**
  * 构建 → 校验：校验失败仅记录告警不阻断。
  */
 internal suspend fun StorageEngine.buildAndValidateSaveData(
-    slot: Int,
     source: GameData,
     loadHeavyData: Boolean
 ): SaveData? {
-    val saveData = buildSaveDataFromDatabase(slot, source)
+    val saveData = buildSaveDataFromDatabase(source)
     if (!validateSaveData(saveData)) {
-        logValidationFailure(slot, source, loadHeavyData)
+        logValidationFailure(source, loadHeavyData)
     }
     return saveData
 }
@@ -202,11 +201,11 @@ internal suspend fun StorageEngine.buildAndValidateSaveData(
  * 校验失败告警：重载合并路径与常规路径日志文案不同；
  * 字段取迁移前源数据（DB 行原值）。
  */
-internal fun StorageEngine.logValidationFailure(slot: Int, source: GameData, loadHeavyData: Boolean) {
+internal fun StorageEngine.logValidationFailure(source: GameData, loadHeavyData: Boolean) {
     if (loadHeavyData) {
-        Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
+        Log.w(TAG, "Save data validation failed after heavy data merge")
     } else {
-        Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${source.gameYear}, " +
+        Log.w(TAG, "Save data validation failed: gameYear=${source.gameYear}, " +
             "gameMonth=${source.gameMonth}, sectName='${source.sectName}'")
     }
 }
@@ -217,14 +216,14 @@ internal fun StorageEngine.logValidationFailure(slot: Int, source: GameData, loa
  * @return 验证后数据（Repaired 用修复后数据）；Corrupted 不可修复返回 null
  */
 @Suppress("ReturnCount") // 校验结果三态分派（Passed/Repaired/Corrupted），守卫风格
-internal fun StorageEngine.revalidateRestoredData(slot: Int, restoredData: SaveData): SaveData? {
-    val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
+internal fun StorageEngine.revalidateRestoredData(restoredData: SaveData): SaveData? {
+    val reValidation = CorruptedResultHandler.validateRestoredData(restoredData)
     if (reValidation is IntegrityResult.Repaired) {
-        Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
+        Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项")
         return reValidation.data
     }
     if (reValidation is IntegrityResult.Corrupted) {
-        Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+        Log.e(TAG, "备份恢复数据二次验证无法修复")
         return null
     }
     return restoredData

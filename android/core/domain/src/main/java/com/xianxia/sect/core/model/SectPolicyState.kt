@@ -3,20 +3,18 @@ package com.xianxia.sect.core.model
 import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.PrimaryKey
 import androidx.room.Ignore
-import androidx.room.Index
 import kotlinx.serialization.Serializable
 
 @Keep
 @Serializable
-@Entity(
-    tableName = "sect_policy_state",
-    primaryKeys = ["slot_id"],
-    indices = [Index(value = ["slot_id"], unique = true)]
-)
+@Entity(tableName = "sect_policy_state")
 data class SectPolicyState(
-    @ColumnInfo(name = "slot_id")
-    var slotId: Int = 1,
+    /** 单档单行标识：本表恒一行，主键恒 1 */
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    var id: Int = 1,
     var sectPolicies: SectPolicies = SectPolicies(),
     var breakthroughAutoPillFocused: Boolean = false,
     var breakthroughAutoPillRootCounts: Set<Int> = emptySet(),

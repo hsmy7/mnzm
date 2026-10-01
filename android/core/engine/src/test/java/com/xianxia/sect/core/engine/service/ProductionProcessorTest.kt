@@ -488,7 +488,7 @@ class ProductionProcessorTest : ProductionProcessorTestBase() {
             seedName = "聚灵草种", growTime = 36, expectedYield = 5,
             plantYear = 1, plantMonth = 1  // 种下未满 36 月
         )
-        val seedsBefore = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+        val seedsBefore = listOf(Seed(id = "s1", name = "聚灵草种",
             rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3))
         val state = createState(
             plants = listOf(plant),
@@ -533,7 +533,7 @@ class ProductionProcessorTest : ProductionProcessorTestBase() {
             seedName = "聚灵草种", growTime = 36, expectedYield = 5,
             plantYear = 1, plantMonth = 1
         )
-        val otherSeed = Seed(id = "s2", slotId = 1, name = "云雾花种",
+        val otherSeed = Seed(id = "s2", name = "云雾花种",
             rarity = 1, growTime = 36, yield = 4, quantity = 3)
         val state = createState(
             plants = listOf(plant),
@@ -555,7 +555,7 @@ class ProductionProcessorTest : ProductionProcessorTestBase() {
             seedName = "聚灵草种", growTime = 36, expectedYield = 5,
             plantYear = 1, plantMonth = 1
         )
-        val sameSeed = Seed(id = "s2", slotId = 1, name = "聚灵草种",
+        val sameSeed = Seed(id = "s2", name = "聚灵草种",
             rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 2)
         val state = createState(
             plants = listOf(plant),
@@ -587,7 +587,7 @@ class ProductionProcessorTest : ProductionProcessorTestBase() {
             plantYear = 1, plantMonth = 1
         )
         val seeds = listOf(
-            Seed(id = "seed1", slotId = 1, name = "聚灵草种",
+            Seed(id = "seed1", name = "聚灵草种",
                 rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 2)
             // 只有 2 颗，但 2 块田都需要续种 → 刚好够
         )

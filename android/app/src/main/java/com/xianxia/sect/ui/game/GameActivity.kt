@@ -91,7 +91,6 @@ class GameActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "GameActivity"
-        private const val KEY_CURRENT_SLOT = "current_slot"
         /**
          * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
          * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
@@ -231,7 +230,6 @@ class GameActivity : ComponentActivity() {
     // 新档埋点一次性标记：由 onCreate 启动参数写入，PLAYING 首次上报 #game_new_save 后消费置 false
     private var launchIsNewGame = false
     private var launchSectName = ""
-    private var launchSlot = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 渲染安全模式检测（必须在 super.onCreate() 前）
@@ -248,8 +246,7 @@ class GameActivity : ComponentActivity() {
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 
         // 启动参数解析
-        val launch = resolveLaunchIntent(savedInstanceState)
-        val slot = launch.slot
+        val launch = resolveLaunchIntent()
         val isNewGame = launch.isNewGame
         val sectName = launch.sectName
         val isCloudSaveLoad = launch.isCloudSaveLoad
@@ -257,13 +254,10 @@ class GameActivity : ComponentActivity() {
         val isGlesRendering = launch.isGlesRendering
         launchIsNewGame = isNewGame
         launchSectName = sectName
-        launchSlot = slot
 
         Log.d(
             TAG,
-            "Slot info: savedSlot=${savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1)}, " +
-                "intentSlot=${intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)}, " +
-                "finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName"
+                            "isNewGame=$isNewGame, sectName=$sectName"
         )
         Log.d(TAG, "ViewModel game loaded: ${saveLoadViewModel.isGameAlreadyLoaded()}")
 
@@ -276,7 +270,7 @@ class GameActivity : ComponentActivity() {
         AdFreeWhitelist.initialize(sessionManager.unionId)
 
         // 游戏初始化分发（新游戏/读档/云读档）
-        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
+        initializeGameIfNeeded(isNewGame, sectName, isCloudSaveLoad)
 
         // Vulkan 设备预热（Phase1）+ ASTC 图集预取在进入 Activity 即后台执行——
         // 与 boot 数据阶段并行，避免 PLAYING 时点才发起的预热与 surface 初始化竞速。
@@ -429,7 +423,6 @@ class GameActivity : ComponentActivity() {
                                     com.xianxia.sect.taptap.TapDBManager.trackEvent(
                                         com.xianxia.sect.core.util.AnalyticsEvents.GAME_NEW_SAVE,
                                         mapOf(
-                                            com.xianxia.sect.core.util.AnalyticsEvents.PROP_SLOT to launchSlot,
                                             com.xianxia.sect.core.util.AnalyticsEvents.PROP_SECT_NAME to launchSectName
                                         )
                                     )
@@ -660,17 +653,10 @@ class GameActivity : ComponentActivity() {
     /**
      * boot 失败逃生口：删除读档失败的槽位后回自动进入门户。
      *
-     * 失败槽位取当前会话的 `currentSlot`（applyLoadedSaveToEngine 在 boot 前已写入），
-     * `pendingSlot` 兜底（早于引擎写入即失败的路径）。删除走显式确认语义（按钮即确认），
-     * 删除后自动进入会落到下一最新档或自动新建——不删则同一档每次自动进入都复现失败。
-     * 仅本地槽位（≥1）可删；槽位无法判定时只回门户（行为等同旧「返回主菜单」）。
+     * 删除走显式确认语义（按钮即确认），删除后自动进入会自动新建。
      */
     private fun deleteFailedSlotAndRestart() {
-        val failedSlot = viewModel.gameData.value.currentSlot
-            .takeIf { it >= 1 } ?: saveLoadViewModel.pendingSlot.value
-        if (failedSlot != null && failedSlot >= 1) {
-            saveLoadViewModel.deleteSlot(failedSlot)
-        }
+        saveLoadViewModel.deleteSlot()
         navigateBackToMainMenu()
     }
 
@@ -754,14 +740,11 @@ class GameActivity : ComponentActivity() {
     }
 
     /** 从 savedInstanceState/intent 解析启动参数。 */
-    private fun resolveLaunchIntent(savedInstanceState: Bundle?): GameLaunchParams {
-        val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
-        val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
+    private fun resolveLaunchIntent(): GameLaunchParams {
         val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
         val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
         val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
         return GameLaunchParams(
-            slot = if (savedSlot >= 0) savedSlot else intentSlot,
             isNewGame = isNewGame,
             sectName = sectName,
             isCloudSaveLoad = isCloudSaveLoad,
@@ -772,7 +755,6 @@ class GameActivity : ComponentActivity() {
 
     /** 启动参数聚合。 */
     private data class GameLaunchParams(
-        val slot: Int,
         val isNewGame: Boolean,
         val sectName: String,
         val isCloudSaveLoad: Boolean,
@@ -782,7 +764,6 @@ class GameActivity : ComponentActivity() {
 
     /** 游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
     private fun initializeGameIfNeeded(
-        slot: Int,
         isNewGame: Boolean,
         sectName: String,
         isCloudSaveLoad: Boolean
@@ -794,7 +775,7 @@ class GameActivity : ComponentActivity() {
         saveLoadViewModel.resetSaveLoadState()
         Log.d(
             TAG,
-            "onCreate: Game not loaded, will initialize. slot=$slot, " +
+            "onCreate: Game not loaded, will initialize. " +
                 "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
         )
         lifecycleScope.launch {
@@ -804,32 +785,17 @@ class GameActivity : ComponentActivity() {
                         Log.d(TAG, "Loading cloud save from MainActivity")
                         saveLoadViewModel.loadFromCloudSave()
                     }
-                    isNewGame && slot >= 0 -> {
-                        Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
-                        saveLoadViewModel.startNewGame(sectName, slot)
-                    }
-                    slot >= 0 -> {
-                        Log.d(TAG, "Loading game from slot: $slot")
-                        saveLoadViewModel.loadGameFromSlot(slot)
-                    }
                     isNewGame -> {
-                        Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
-                        saveLoadViewModel.startNewGame(sectName = sectName)
+                        Log.d(TAG, "Starting new game: sectName=$sectName")
+                        saveLoadViewModel.startNewGame(sectName)
                     }
                     else -> {
-                        Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
-                        finish()
+                        Log.d(TAG, "Loading local save")
+                        saveLoadViewModel.loadGameFromLocalSlot()
                     }
                 }
             }, tag = "GameActivity_Init")
         }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        val currentSlot = viewModel.gameData.value?.currentSlot ?: -1
-        outState.putInt(KEY_CURRENT_SLOT, currentSlot)
-        Log.d(TAG, "onSaveInstanceState: currentSlot=$currentSlot")
     }
 
     override fun onPause() {
@@ -880,18 +846,17 @@ class GameActivity : ComponentActivity() {
      */
     private fun triggerBackgroundSaveIfEnabled() {
         if (!com.xianxia.sect.data.SaveTriggerFlag.saveOnBackground) return
-        val slot = viewModel.gameData.value?.currentSlot ?: -1
         val enabled = com.xianxia.sect.data.shouldAutoSave(
             flagOn = true,
-            hasActiveSlot = slot >= 1,
+            hasActiveSlot = saveLoadViewModel.isGameLoaded,
             engineLoaded = saveLoadViewModel.isGameLoaded
         )
         if (!enabled) {
-            Log.d(TAG, "onStop: 后台保存跳过（slot=$slot, loaded=${saveLoadViewModel.isGameLoaded}）")
+            Log.d(TAG, "onStop: 后台保存跳过（loaded=${saveLoadViewModel.isGameLoaded}）")
             return
         }
         saveLoadViewModel.saveOnBackground()
-        Log.i(TAG, "onStop: 已触发后台保存 slot=$slot")
+        Log.i(TAG, "onStop: 已触发后台保存")
     }
 
     override fun onResume() {

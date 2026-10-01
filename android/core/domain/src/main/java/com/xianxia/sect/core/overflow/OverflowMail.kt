@@ -5,7 +5,6 @@ package com.xianxia.sect.core.overflow
  * 溢出邮件草稿：由 [InventorySystem 各 addXxx] 的 Partial 分支产生，
  * 描述"仓库容量不足未入仓"的物品，供实现方组装为邮件通知玩家。
  *
- * @param slotId 存档槽位
  * @param source 物品来源（withTrackingSource 的 source 值，如 "battle"/"spirit_field"）
  * @param itemType 物品类型（与 MailAttachment.type 对齐：equipment/manual/pill/
  *   material/herb/seed/storageBag）
@@ -16,7 +15,6 @@ package com.xianxia.sect.core.overflow
  *   精确还原物品；缺省/未命中时由领取方回退随机生成（仅防丢失，不保证精确）
  */
 data class OverflowMailDraft(
-    val slotId: Int,
     val source: String,
     val itemType: String,
     val itemName: String,
@@ -37,7 +35,6 @@ data class OverflowMailDraft(
  */
 data class PersistedOverflowDraft(
     val id: String,
-    val slotId: Int,
     val source: String,
     val itemType: String,
     val itemName: String,
@@ -58,7 +55,6 @@ data class PersistedOverflowDraft(
  */
 data class PersistedDirectMailDraft(
     val id: String,
-    val slotId: Int,
     val payload: String,
     val createdAt: Long
 )
@@ -75,7 +71,7 @@ interface OverflowMailHandler {
     /**
      * 发送溢出邮件草稿。
      *
-     * 实现方应：按 (slotId, source) 分组合并为少量邮件、异步写入（不得在
+     * 实现方应：按 (source) 分组合并为少量邮件、异步写入（不得在
      * stateStore.update 事务内执行 suspend/Room 操作）、并在发送后通过
      * 容量通知通道提示玩家。
      *

@@ -233,11 +233,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
             inPlaceArm.lifeEvents[BASE_ID],
         )
         assertEquals(
-            "$label: slotIds 列净效果（全行臂恒 0 回写）",
-            fullRowArm.slotIds[BASE_ID],
-            inPlaceArm.slotIds[BASE_ID],
-        )
-        assertEquals(
             "$label: 稀疏列 deathYears 零触碰",
             fullRowArm.deathYears[BASE_ID],
             inPlaceArm.deathYears[BASE_ID],
@@ -256,7 +251,6 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
         it.insert(base)
         // 预置协议外/稀疏列，钉住两臂净效果（清空与否、触碰与否都要可比）
         it.lifeEvents[BASE_ID] = listOf("21岁：加入宗门", "22岁：试炼")
-        it.slotIds[BASE_ID] = 7
         it.deathYears[BASE_ID] = 0
     }
 

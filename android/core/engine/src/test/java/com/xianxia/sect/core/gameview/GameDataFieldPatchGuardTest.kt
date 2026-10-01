@@ -165,7 +165,6 @@ class GameDataFieldPatchGuardTest {
     fun `transient 运行态字段经镜像馈送同值（镜像不触碰 @Transient 面——b02 发现 11 根治）`() {
         val patched = feed(listOf(change("gameYear", 8)))
         val gd = patched.gameDataValue
-        assertEquals("镜像保留 slotId 现值（不再打回默认 0）", 3, gd.slotId)
         assertEquals(
             "镜像保留 aiBeastEncounterTargets 现值（不再清空）",
             mapOf("beast1" to "aiSectA"), gd.aiBeastEncounterTargets
@@ -247,9 +246,7 @@ class GameDataFieldPatchGuardTest {
     /** 非默认值密集的 gameData——让两臂在每个 wire 类别上都有可观察差异面 */
     private fun richGameData(): GameData = GameData().apply {
         id = "gd-rich"
-        slotId = 3
         sectName = "守一宗"
-        currentSlot = 2
         gameYear = RICH_GAME_YEAR
         gameMonth = 5
         gamePhase = 1

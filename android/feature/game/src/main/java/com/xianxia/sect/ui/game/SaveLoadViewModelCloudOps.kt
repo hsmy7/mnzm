@@ -262,8 +262,7 @@ internal suspend fun SaveLoadViewModel.handleCloudDownloadSuccess(result: TapClo
     // 直接以云会话槽位 0 加载进内存，本地 1..6 槽位零影响。
     // 云会话的本地落盘（如重启保存）落在 slot 0 云镜像，
     // UI 槽位列表不暴露。
-    persistenceFacade.storageFacade.setCurrentSlot(StorageConstants.CLOUD_SAVE_SLOT)
-    val bootResult = applyCloudSaveToEngine(reconciled, StorageConstants.CLOUD_SAVE_SLOT)
+    val bootResult = applyCloudSaveToEngine(reconciled)
     if (bootResult.isSuccess) {
         cloudSaveOperationStateFlow.value = CloudSaveOperationState.Success("云存档下载成功")
         cloudSaveInfoFlow.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
@@ -283,7 +282,7 @@ internal fun SaveLoadViewModel.resetCloudSaveOperationState() {
  * 从 saveGame 拆分。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun SaveLoadViewModel.saveToCloudViaSlot() {
+internal fun SaveLoadViewModel.saveToCloud() {
     viewModelScope.launch(ioDispatcher.dispatcher) {
         resetCloudSaveOperationState()
         setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
@@ -354,6 +353,6 @@ internal fun SaveLoadViewModel.mergeCloudSlot(
  */
 internal suspend fun SaveLoadViewModel.createSaveDataFromSnapshot(snapshot:
     com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {
-    val sessionMails = readSlotMails(persistenceFacade.storageFacade.getCurrentSlot())
+    val sessionMails = readMails()
     return SaveDataTrimmer.trimSaveData(snapshot, sessionMails)
 }

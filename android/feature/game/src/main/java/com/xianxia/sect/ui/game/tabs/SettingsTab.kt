@@ -2,6 +2,7 @@
 package com.xianxia.sect.ui.game.tabs
 
 import android.app.Activity
+import com.xianxia.sect.ui.game.saveToCloud
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Process
@@ -933,8 +934,18 @@ internal fun SaveSlotDialog(
                 onDeleteClick = { deleteTarget = it },
                 onCloudSlotLoad = { saveLoadViewModel.loadCloudSlot(it) },
                 onSubmit = SaveSlotSubmitActions(
-                    onSave = { saveLoadViewModel.saveGame(it.toString()) },
-                    onLoad = { saveLoadViewModel.loadGameFromSlot(it) }
+                                        onSave = {
+                        val cloud = com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT
+                        if (it == cloud) saveLoadViewModel.saveToCloud() else saveLoadViewModel.saveGame()
+                    },
+                                        onLoad = {
+                        val cloud = com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT
+                        if (it == cloud) {
+                            saveLoadViewModel.downloadCloudSlotToLoad()
+                        } else {
+                            saveLoadViewModel.loadGameFromLocalSlot()
+                        }
+                    }
                 )
             )
         }
@@ -944,7 +955,7 @@ internal fun SaveSlotDialog(
         target = deleteTarget,
         onDismiss = { deleteTarget = null },
         onConfirm = {
-            saveLoadViewModel.deleteSlot(it)
+            saveLoadViewModel.deleteSlot()
             deleteTarget = null
         }
     )

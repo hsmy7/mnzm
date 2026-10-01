@@ -33,10 +33,10 @@ class WALDataClassesTest {
 
     @Test
     fun `RecoveryResult - success with empty sets`() {
-        val result = RecoveryResult(true, emptySet(), emptySet(), emptyList())
+        val result = RecoveryResult(true, 0, 0, emptyList())
         assertTrue(result.success)
-        assertTrue(result.recoveredSlots.isEmpty())
-        assertTrue(result.failedSlots.isEmpty())
+        assertEquals(0, result.recoveredCount)
+        assertEquals(0, result.failedCount)
         assertTrue(result.errors.isEmpty())
     }
 
@@ -44,25 +44,25 @@ class WALDataClassesTest {
     fun `RecoveryResult - success with recovered slots`() {
         val result = RecoveryResult(
             success = true,
-            recoveredSlots = setOf(1, 2, 3),
-            failedSlots = emptySet(),
+            recoveredCount = 3,
+            failedCount = 0,
             errors = emptyList()
         )
         assertTrue(result.success)
-        assertEquals(setOf(1, 2, 3), result.recoveredSlots)
+        assertEquals(3, result.recoveredCount)
     }
 
     @Test
     fun `RecoveryResult - partial failure`() {
         val result = RecoveryResult(
             success = false,
-            recoveredSlots = setOf(1, 2),
-            failedSlots = setOf(3),
-            errors = listOf("Slot 3 corrupted")
+            recoveredCount = 2,
+            failedCount = 1,
+            errors = listOf("recovery corrupted")
         )
         assertFalse(result.success)
-        assertEquals(setOf(3), result.failedSlots)
-        assertEquals(listOf("Slot 3 corrupted"), result.errors)
+        assertEquals(1, result.failedCount)
+        assertEquals(listOf("recovery corrupted"), result.errors)
     }
 
     // ==================== EnhancedWALStats ====================
@@ -100,13 +100,11 @@ class WALDataClassesTest {
     fun `TransactionRecord - constructor sets fields`() {
         val record = TransactionRecord(
             txnId = 1L,
-            slot = 3,
             operation = WALEntryType.BEGIN,
             startTime = 1000L
         )
         assertEquals(1L, record.txnId)
-        assertEquals(3, record.slot)
-        assertEquals(WALEntryType.BEGIN, record.operation)
+                assertEquals(WALEntryType.BEGIN, record.operation)
         assertEquals(1000L, record.startTime)
         assertEquals(TransactionStatus.ACTIVE, record.status)
         assertEquals("", record.checksum)
@@ -118,7 +116,6 @@ class WALDataClassesTest {
     fun `TransactionRecord - status transitions via compareAndSetStatus`() {
         val record = TransactionRecord(
             txnId = 1L,
-            slot = 1,
             operation = WALEntryType.BEGIN,
             startTime = 0L
         )
@@ -137,7 +134,6 @@ class WALDataClassesTest {
     fun `TransactionRecord - mutable checksum and gameEvent`() {
         val record = TransactionRecord(
             txnId = 5L,
-            slot = 2,
             operation = WALEntryType.COMMIT,
             startTime = 0L
         )
@@ -151,8 +147,8 @@ class WALDataClassesTest {
 
     @Test
     fun `TransactionRecord - statusRef is independent per record`() {
-        val record1 = TransactionRecord(1L, 1, WALEntryType.BEGIN, 0L)
-        val record2 = TransactionRecord(2L, 2, WALEntryType.BEGIN, 0L)
+        val record1 = TransactionRecord(1L, WALEntryType.BEGIN, 0L)
+        val record2 = TransactionRecord(2L, WALEntryType.BEGIN, 0L)
 
         record1.compareAndSetStatus(TransactionStatus.ACTIVE, TransactionStatus.COMMITTED)
         assertEquals(TransactionStatus.COMMITTED, record1.status)

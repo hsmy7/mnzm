@@ -11,7 +11,6 @@ import com.xianxia.sect.core.wallet.SpiritStoneOperation
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -37,8 +36,7 @@ class SpiritStoneWalletTest {
     @Before
     fun setUp() {
         stateStore = GameStateStoreImpl(
-            ApplicationScopeProvider(),
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         ledger = SpiritStoneLedger()

@@ -26,16 +26,15 @@ private val TAG = StorageEngine.TAG
 @Suppress("TooGenericExceptionCaught")
 internal suspend fun StorageEngine.restoreMissingHeavyKeysFromDomainTables(
     gameData: GameData,
-    slot: Int,
     missingKeys: Set<String>
 ): GameData {
     var worldMapEntity: com.xianxia.sect.core.model.WorldMapStateEntity? = null
     var diplomacyEntity: com.xianxia.sect.core.model.DiplomacyState? = null
     var productionEntity: com.xianxia.sect.core.model.ProductionState? = null
     try {
-        worldMapEntity = core.database.worldMapStateDao().getBySlot(slot)
-        diplomacyEntity = core.database.diplomacyStateDao().getBySlot(slot)
-        productionEntity = core.database.productionStateDao().getBySlot(slot)
+        worldMapEntity = core.database.worldMapStateDao().get()
+        diplomacyEntity = core.database.diplomacyStateDao().get()
+        productionEntity = core.database.productionStateDao().get()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

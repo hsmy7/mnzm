@@ -51,7 +51,7 @@ class DiscipleMergeCoverageTest {
      * 当新增主构造函数字段且结算不会修改它时，加到这里。
      */
     private val unchanging = setOf(
-        "id", "slotId",
+        "id",
         "name", "surname",
         "spiritRootType",
         "gender",

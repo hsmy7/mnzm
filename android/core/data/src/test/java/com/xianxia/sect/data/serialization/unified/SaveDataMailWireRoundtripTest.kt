@@ -33,7 +33,6 @@ class SaveDataMailWireRoundtripTest {
         /** 样本一（红线指定形态）：**含附件未领**——attachmentClaimed=false，附件 JSON 两条 */
         val MAIL_WITH_UNCLAIMED_ATTACHMENT = MailEntity(
             id = "mail-attach-unclaimed",
-            slotId = 3,
             source = "system",
             mailType = "compensation",
             title = "宗门补给",
@@ -52,7 +51,6 @@ class SaveDataMailWireRoundtripTest {
         /** 样本二：已读已领、无附件、全默认 sender/source/type */
         val MAIL_READ_AND_CLAIMED = MailEntity(
             id = "mail-read-claimed",
-            slotId = 3,
             title = "开宗贺礼",
             content = "已领取的开宗贺礼。",
             sendTime = T0 - 1000,
@@ -65,7 +63,6 @@ class SaveDataMailWireRoundtripTest {
         /** 样本三：未读未领、永久有效（expireTime=0）、带远端 id（溢出/直发链路形态） */
         val MAIL_PERMANENT_WITH_REMOTE_ID = MailEntity(
             id = "mail-overflow-remote",
-            slotId = 3,
             source = "overflow",
             mailType = "player",
             title = "跨宗来件",
@@ -79,7 +76,6 @@ class SaveDataMailWireRoundtripTest {
         /** 样本四：过期未被惰性清理（快照如实携带表内现状——30 天删除语义归 SR-5） */
         val MAIL_EXPIRED_NOT_YET_SWEPT = MailEntity(
             id = "mail-expired-resident",
-            slotId = 3,
             title = "过期滞留件",
             content = "过期删除是惰性清理，快照时可能仍在表内。",
             sendTime = T0 - 40L * 24 * 3600 * 1000,
@@ -90,7 +86,7 @@ class SaveDataMailWireRoundtripTest {
         )
 
         /** 样本五：近乎全默认（title/content 空、零时刻、未读）——默认值 wire 行为面 */
-        val MAIL_MINIMAL = MailEntity(id = "mail-minimal", slotId = 3)
+        val MAIL_MINIMAL = MailEntity(id = "mail-minimal")
 
         fun sampleMails(): List<MailEntity> = listOf(
             MAIL_WITH_UNCLAIMED_ATTACHMENT,
@@ -117,7 +113,6 @@ class SaveDataMailWireRoundtripTest {
 
     private fun assertMailFieldsEqual(expected: MailEntity, actual: MailEntity, label: String) {
         assertEquals("$label.id", expected.id, actual.id)
-        assertEquals("$label.slotId", expected.slotId, actual.slotId)
         assertEquals("$label.source", expected.source, actual.source)
         assertEquals("$label.mailType", expected.mailType, actual.mailType)
         assertEquals("$label.title", expected.title, actual.title)

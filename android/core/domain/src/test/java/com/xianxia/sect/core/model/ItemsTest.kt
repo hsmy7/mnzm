@@ -163,7 +163,6 @@ class ItemsTest {
     fun equipmentStack_defaultConstruction() {
         val stack = EquipmentStack()
         assertNotNull(stack.id)
-        assertEquals(0, stack.slotId)
         assertEquals("", stack.name)
         assertEquals(1, stack.rarity)
         assertEquals("", stack.description)
@@ -185,7 +184,6 @@ class ItemsTest {
     fun equipmentStack_customConstruction() {
         val stack = EquipmentStack(
             id = "test-id",
-            slotId = 1,
             name = "Test Sword",
             rarity = 3,
             description = "A test sword",
@@ -226,7 +224,6 @@ class ItemsTest {
     fun manualStack_defaultConstruction() {
         val stack = ManualStack()
         assertNotNull(stack.id)
-        assertEquals(0, stack.slotId)
         assertEquals("", stack.name)
         assertEquals(1, stack.rarity)
         assertEquals(ManualType.MIND, stack.type)

@@ -133,22 +133,14 @@ class StorageEngine @Inject constructor(
     internal val _progress = MutableStateFlow(EngineProgress(EngineProgress.Stage.IDLE, 0f))
     val progress: StateFlow<EngineProgress> = _progress.asStateFlow()
 
-    @Suppress("VariableNaming")
-    internal val _currentSlot = MutableStateFlow(1)
-    val currentSlot: StateFlow<Int> = _currentSlot.asStateFlow()
-
     // priority：保存优先级语义形参（调度器接管后保留 API 调用契约） // 异常显式包装进 Result 上抛, 非静默吞噬
     @Suppress("UnusedParameter", "TooGenericExceptionCaught")
-    suspend fun save(slot: Int, data: SaveData,
+    suspend fun save(data: SaveData,
         priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
-        if (!core.lockManager.isValidSlot(slot)) {
-            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
-        }
-
-        return core.lockManager.withWriteLockLight(slot) {
+        return core.lockManager.withWriteLockLight() {
             try {
                 // 熔断器保护保存主链路：连续失败（5 次）时熔断 30s 防雪崩重试
-                if (isSaveCircuitOpen(slot = slot)) {
+                if (isSaveCircuitOpen()) {
                     return@withWriteLockLight StorageResult.failure(
                         StorageError.SAVE_FAILED, "保存熔断中（存储连续失败），请稍后重试"
                     )
@@ -156,20 +148,20 @@ class StorageEngine @Inject constructor(
                 val startTime = System.currentTimeMillis()
 
                 // 保存前校验 + 清理 + 时间戳
-                val dataWithTimestamp = validateAndPrepareData(slot, data)
+                val dataWithTimestamp = validateAndPrepareData(data)
                     ?: return@withWriteLockLight StorageResult.failure(
                         StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
                     )
 
                 // 重试保存（OOM 短路）
-                val result = saveWithRetry(slot, dataWithTimestamp)
+                val result = saveWithRetry(dataWithTimestamp)
 
                 // 结果处理（备份/缓存/变更日志/失败恢复）——返回可能带 postSaveWarning 的结果
                 // （审计 §12-C：文件镜像/备份降级必须传到 UI，不得谎报"保存成功"）
-                val handled = handleSaveResult(slot, result, dataWithTimestamp)
+                val handled = handleSaveResult(result, dataWithTimestamp)
 
                 // 保存结果反馈熔断器（成功重置计数，失败累计）
-                recordSaveCircuitResult(slot = slot, result = handled)
+                recordSaveCircuitResult(result = handled)
 
                 handled.map { stats ->
                     val elapsed = System.currentTimeMillis() - startTime
@@ -178,14 +170,14 @@ class StorageEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: java.io.IOException) {
-                Log.e(TAG, "Save failed for slot $slot", e)
+                Log.e(TAG, "Save failed", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 // 保持原"先判 OOM 后判 IO"分类语义：IOException 携带 OOM cause 时仍归 OOM
                 val isOom = e.cause is OutOfMemoryError
                 val error = if (isOom) StorageError.OUT_OF_MEMORY else StorageError.IO_ERROR
                 StorageResult.failure(error, e.message ?: "Save failed", e)
             } catch (e: Exception) {
-                Log.e(TAG, "Save failed for slot $slot", e)
+                Log.e(TAG, "Save failed", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 // OutOfMemoryError 是 Error 非 Exception，不会被上方 catch (Exception) 接住；
                 // SerializationFailureException 的 cause 可能是 OOM——识别异常链使 save()
@@ -206,7 +198,7 @@ class StorageEngine @Inject constructor(
      *
      * @return 准备后的数据；校验拒绝损坏数据时返回 null
      */
-    private suspend fun validateAndPrepareData(slot: Int, data: SaveData): SaveData? {
+    private suspend fun validateAndPrepareData(data: SaveData): SaveData? {
         // ── 保存前完整性校验 ──
         var effectiveData = data
         if (storageConfig.enablePreSaveValidation) {
@@ -214,13 +206,13 @@ class StorageEngine @Inject constructor(
             val integrityResult = SaveValidator.validate(data)
             when (integrityResult) {
                 is IntegrityResult.Corrupted -> {
-                    Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
+                    Log.e(TAG, "拒绝保存损坏数据")
                     infra.storageMetrics.recordBackupFailure()
                     return null
                 }
                 is IntegrityResult.Repaired -> {
                     // 使用修复后的数据替换原始数据，确保修复持久化
-                    Log.w(TAG, "保存前校验修复 ${integrityResult.details.size} 项，使用修复后数据 slot=$slot")
+                    Log.w(TAG, "保存前校验修复 ${integrityResult.details.size} 项，使用修复后数据")
                     effectiveData = integrityResult.data
                 }
                 is IntegrityResult.Passed -> { /* 无操作 */ }
@@ -246,19 +238,18 @@ class StorageEngine @Inject constructor(
 
     /** 全量事务保存 + 重试（内存守卫已前置；OOM 类失败直接终止重试）。 */
     private suspend fun saveWithRetry(
-        slot: Int,
         dataWithTimestamp: SaveData
     ): StorageResult<SaveOperationStats> {
-        var result = performFullTransactionSave(slot, dataWithTimestamp)
+        var result = performFullTransactionSave(dataWithTimestamp)
         var retryCount = 0
         val maxRetries = storageConfig.maxRetryCount
         while (result.isFailure && retryCount < maxRetries) {
             // OOM 类失败重试无意义（内存不会在毫秒级恢复），直接终止
             if (result is StorageResult.Failure && result.error == StorageError.OUT_OF_MEMORY) break
             retryCount++
-            Log.w(TAG, "保存重试 ($retryCount/$maxRetries) slot=$slot")
+            Log.w(TAG, "保存重试 ($retryCount/$maxRetries)")
             kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
-            result = performFullTransactionSave(slot, dataWithTimestamp)
+            result = performFullTransactionSave(dataWithTimestamp)
         }
         return result
     }
@@ -266,53 +257,49 @@ class StorageEngine @Inject constructor(
 
 
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun load(slot: Int): StorageResult<SaveData> {
-        if (!core.lockManager.isValidSlot(slot)) {
-            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
-        }
-
-        return core.lockManager.withReadLockLight(slot) {
+    suspend fun load(): StorageResult<SaveData> {
+        return core.lockManager.withReadLockLight() {
             try {
                 // 读取入口熔断保护（连续 8 次失败熔断 15s）
                 if (!infra.circuitBreaker.allowRequest("load")) {
-                    Log.w(TAG, "读档熔断中（存储连续失败），拒绝本次读取 slot=$slot")
+                    Log.w(TAG, "读档熔断中（存储连续失败），拒绝本次读取")
                     return@withReadLockLight StorageResult.failure(
                         StorageError.LOAD_FAILED, "读档熔断中（存储连续失败），请稍后重试"
                     )
                 }
                 // 缓存命中优先
-                tryCacheLoad(slot)?.let {
+                tryCacheLoad()?.let {
                     infra.circuitBreaker.recordSuccess("load")
                     return@withReadLockLight StorageResult.success(it)
                 }
 
                 infra.storageMetrics.recordCacheMiss()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
-                val dbData = loadFromDatabase(slot)
+                val dbData = loadFromDatabase()
 
                 if (dbData != null) {
-                    return@withReadLockLight handleDbDataHit(slot = slot, dbData = dbData)
+                    return@withReadLockLight handleDbDataHit(dbData = dbData)
                 }
 
                 // ── 数据库无数据时尝试从备份文件恢复 ──
-                val restored = restoreFromBackup(slot)
+                val restored = restoreFromBackup()
                 if (restored != null) {
                     infra.circuitBreaker.recordSuccess("load")
                     return@withReadLockLight restored
                 }
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
-                StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
+                StorageResult.failure(StorageError.SLOT_EMPTY, "No data")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Load failed for slot $slot", e)
+                Log.e(TAG, "Load failed", e)
                 infra.circuitBreaker.recordFailure("load")
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Load failed", e)
             } catch (e: OutOfMemoryError) {
                 // OOM 是 Error 非 Exception，不会被上方 catch (Exception) 接住。
                 // 不尝试 restoreFromBackup：备份与主档同源同尺寸，恢复必然再 OOM
-                Log.e(TAG, "Load OOM for slot $slot（跳过备份恢复——备份同尺寸必再 OOM）", e)
+                Log.e(TAG, "Load OOM（跳过备份恢复——备份同尺寸必再 OOM）", e)
                 infra.circuitBreaker.recordFailure("load")
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "内存不足，读档失败")
                 StorageResult.failure(StorageError.LOAD_FAILED, "内存不足，读档失败", e)
@@ -335,45 +322,43 @@ class StorageEngine @Inject constructor(
      */
     // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // 备份恢复多失败路径，多 return 为守卫风格
-    internal suspend fun restoreFromBackup(
-        slot: Int
-    ): StorageResult<SaveData>? {
+    internal suspend fun restoreFromBackup(): StorageResult<SaveData>? {
         _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
         try {
             // 删除 tombstone 守卫——删除流程中途崩溃时（DB 已删/未删 + 文件残留），
             // 不复活已删存档；顺带清理残留数据
-            if (saveFileManager.isSlotDeleted(slot)) {
-                Log.w(TAG, "槽位 $slot 存在删除 tombstone，不执行备份恢复（已删存档）")
-                clearSlotDataQuietly(slot)
+            if (saveFileManager.isDeleted()) {
+                Log.w(TAG, "存在删除 tombstone，不执行备份恢复（已删存档）")
+                clearResidualDataQuietly()
                 return null
             }
             // readWithFallback 必须在 try 内：SaveFileManager 未初始化时抛
             // IllegalStateException，未初始化应降级为"无数据"而非上抛成 LOAD_FAILED。
             // SR-7：CLOUD_ONLY 下旧 .sav 只是**只读**应急源 ⇒ 传 readOnly，
             // 跳过"用 .bak 覆盖 .sav"的修复性写回（读到的数据与恢复流程逐字不变）。
-            val readResult = saveFileManager.readWithFallback(slot, readOnly = !writesLocalSaveFiles)
+            val readResult = saveFileManager.readWithFallback(readOnly = !writesLocalSaveFiles)
             if (readResult.status != com.xianxia.sect.data.backup.BackupStatus.SUCCESS &&
                 readResult.status != com.xianxia.sect.data.backup.BackupStatus.RECOVERED
             ) {
-                Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
+                Log.w(TAG, "备份文件不存在或损坏")
                 return null
             }
             var restoredData = serializationModule.deserializeSaveData(
                 readResult.payload ?: return StorageResult.failure(
-                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
+                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空"
                 )
             )
-            Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+            Log.w(TAG, "备份恢复成功 来源=${readResult.source}")
             // .sav 修复失败如实记录（数据有效，继续恢复流程）
             if (readResult.repairFailed) {
-                Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
+                Log.e(TAG, ".sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
             }
 
             // 备份恢复后二次验证：防止备份本身存在数据问题
-            restoredData = revalidateRestoredData(slot, restoredData)
+            restoredData = revalidateRestoredData(restoredData)
                 ?: return StorageResult.failure(
                     StorageError.SLOT_CORRUPTED,
-                    "备份恢复数据二次验证无法修复 (slot=$slot)"
+                    "备份恢复数据二次验证无法修复"
                 )
 
             infra.storageMetrics.recordBackupRestore()
@@ -388,22 +373,22 @@ class StorageEngine @Inject constructor(
             // 写库结果必须检查——低内存/编码失败导致的写库失败必须如实返回失败：
             // 否则 load 报成功、缓存与内存持有恢复数据，但 DB 仍是损坏数据，
             // 重启后再损坏、恢复循环丢进度
-            val restoreSave = performFullTransactionSave(slot, restoredData)
+            val restoreSave = performFullTransactionSave(restoredData)
             if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
-                Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
+                Log.e(TAG, "备份恢复写库失败: ${restoreSave.message}")
                 return StorageResult.failure(
                     StorageError.SLOT_CORRUPTED,
-                    "备份恢复写库失败 (slot=$slot): ${restoreSave.message}"
+                    "备份恢复写库失败: ${restoreSave.message}"
                 )
             }
-            clearCacheForSlot(slot)
-            updateCacheAfterSave(slot, restoredData)
+            clearCacheForSlot()
+            updateCacheAfterSave(restoredData)
             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
             return StorageResult.success(restoredData)
         } catch (e: CancellationException) {
             throw e // 取消穿透: 读档取消时中止备份恢复, 不误判"无备份可用"
         } catch (e: Exception) {
-            Log.e(TAG, "备份读取/反序列化失败 slot=$slot", e)
+            Log.e(TAG, "备份读取/反序列化失败", e)
             return null
         }
     }
@@ -411,16 +396,12 @@ class StorageEngine @Inject constructor(
 
 
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun delete(slot: Int): StorageResult<Unit> {
-        if (!core.lockManager.isValidSlot(slot)) {
-            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
-        }
+    suspend fun delete(): StorageResult<Unit> {
+        Log.i(TAG, "Deleting save")
 
-        Log.i(TAG, "Deleting slot $slot")
-
-        return core.lockManager.withWriteLockLight(slot) {
+        return core.lockManager.withWriteLockLight() {
             try {
-                clearCacheForSlot(slot)
+                clearCacheForSlot()
 
                 // 先写删除 tombstone——DB 事务与文件删除之间崩溃时，
                 // load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档。
@@ -428,55 +409,51 @@ class StorageEngine @Inject constructor(
                 // 但下面的 deleteSlot / clearSlotDeleted 仍照常执行——它们是删除动作，
                 // 目的是清掉升档前遗留的 .sav/.bak/.deleted；遗留文件不删会在日后
                 // DB 损坏时被 restoreFromBackup 当应急源复活，等于"删掉的档又回来"。
-                if (writesLocalSaveFiles) saveFileManager.markSlotDeleted(slot)
+                if (writesLocalSaveFiles) saveFileManager.markDeleted()
 
                 // 全表清理与 tombstone 路径**共用同一实现**（审计 §12-K：两处清单漂移
                 // 会让 tombstone 路径残留 27 表行）
-                clearAllSlotTables(slot)
+                clearAllTables()
 
-                clearCacheForSlot(slot)
-                saveFileManager.deleteSlot(slot)
+                clearCacheForSlot()
+                saveFileManager.deleteFiles()
                 // 删除流程完整完成后清除 tombstone（下一次 load 正常返回空档）
-                saveFileManager.clearSlotDeleted(slot)
+                saveFileManager.clearDeleted()
 
-                Log.i(TAG, "Deleted all data for slot $slot")
+                Log.i(TAG, "Deleted all data")
                 StorageResult.success(Unit)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Delete failed for slot $slot", e)
+                Log.e(TAG, "Delete failed", e)
                 StorageResult.failure(StorageError.DELETE_FAILED, e.message ?: "Delete failed", e)
             }
         }
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun hasData(slot: Int): Boolean {
-        if (!core.lockManager.isValidSlot(slot)) return false
-
+    suspend fun hasData(): Boolean {
         return try {
-            core.database.gameDataDao().existsBySlot(slot) != null
+            core.database.gameDataDao().existsAny() != null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "hasData check failed for slot $slot", e)
+            Log.e(TAG, "hasData check failed", e)
             false
         }
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun getSlotMetadata(slot: Int): SlotMetadata? {
-        if (!core.lockManager.isValidSlot(slot)) return null
-
+    suspend fun getMetadata(): SlotMetadata? {
         return try {
-            val meta = core.database.gameDataDao().getMetadataBySlot(slot) ?: return null
+            val meta = core.database.gameDataDao().getMetadata() ?: return null
             SlotMetadata(
-                slot = slot,
+            slot = 0,
                 timestamp = meta.lastSaveTime,
                 gameYear = meta.gameYear,
                 gameMonth = meta.gameMonth,
                 sectName = meta.sectName,
-                discipleCount = core.database.discipleDao().getAliveCountSync(slot),
+                discipleCount = core.database.discipleDao().getAliveCountSync(),
                 spiritStones = meta.spiritStones,
                 fileSize = 0,
                 customName = meta.sectName
@@ -484,7 +461,7 @@ class StorageEngine @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "getSlotMetadata failed for slot $slot", e)
+            Log.w(TAG, "getMetadata failed", e)
             null
         }
     }
@@ -506,42 +483,32 @@ class StorageEngine @Inject constructor(
             isEmpty = false
         ))
 
-        for (slot in 1..core.lockManager.getMaxSlots()) {
-            try {
-                slots.add(querySingleSlot(slot))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to query slot $slot, marking as load error (not empty)", e)
-                // 查询异常必须与"空档"区分（isLoadError 态）：损坏存档若伪装成空档，
-                // 用户会在读取界面点击创建新游戏而静默覆盖损坏数据
-                slots.add(
-                    SaveSlot(
-                        slot = slot,
-                        name = "",
-                        timestamp = 0L,
-                        gameYear = 1,
-                        gameMonth = 1,
-                        sectName = "",
-                        discipleCount = 0,
-                        spiritStones = 0L,
-                        isEmpty = false,
-                        isLoadError = true
-                    )
+        try {
+            slots.add(querySingleSlot())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to query save row, marking as load error (not empty)", e)
+            // 查询异常必须与"空档"区分（isLoadError 态）：损坏存档若伪装成空档，
+            // 用户会在读取界面点击创建新游戏而静默覆盖损坏数据
+            slots.add(
+                SaveSlot(
+                    slot = 0,
+                    name = "",
+                    timestamp = 0L,
+                    gameYear = 1,
+                    gameMonth = 1,
+                    sectName = "",
+                    discipleCount = 0,
+                    spiritStones = 0L,
+                    isEmpty = false,
+                    isLoadError = true
                 )
-            }
+            )
         }
 
         return slots
     }
-
-    fun setCurrentSlot(slot: Int) {
-        if (core.lockManager.isValidSlot(slot)) {
-            _currentSlot.value = slot
-        }
-    }
-
-    fun getCurrentSlot(): Int = _currentSlot.value
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startMaintenance() {
@@ -553,10 +520,10 @@ class StorageEngine @Inject constructor(
             scope.launch {
                 try {
                     val result = core.wal.recover()
-                    if (result.failedSlots.isNotEmpty()) {
-                        Log.w(TAG, "WAL recovery: failedSlots=${result.failedSlots}, errors=${result.errors}")
-                    } else if (result.recoveredSlots.isNotEmpty()) {
-                        Log.i(TAG, "WAL recovery: recoveredSlots=${result.recoveredSlots}")
+                                        if (result.failedCount > 0) {
+                        Log.w(TAG, "WAL recovery: failed=" + result.failedCount + ", errors=" + result.errors)
+                    } else if (result.recoveredCount > 0) {
+                        Log.i(TAG, "WAL recovery: recovered=" + result.recoveredCount)
                     } else {
                         Log.i(TAG, "WAL recovery: clean (no incomplete transactions)")
                     }
@@ -587,10 +554,10 @@ class StorageEngine @Inject constructor(
     // 前者: 异常源跨IO/SDK不可枚举; 后者: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标 // 防御兜底: 异常源跨IO/SDK不可枚举,
     // 降级继续+日志留痕, 非静默吞噬
     @Suppress("TooGenericExceptionCaught", "ThrowsCount")
-    private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
+    private suspend fun performFullTransactionSave(data: SaveData): StorageResult<SaveOperationStats> {
         // ── 内存守卫前置：低内存直接失败，不写 DB / 不写 WAL / 不写备份，避免内存态与 DB 脱节 ──
         if (availableMemoryMB() < LOW_MEMORY_THRESHOLD_MB) {
-            Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected for slot $slot")
+            Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected")
             return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
         }
 
@@ -601,7 +568,7 @@ class StorageEngine @Inject constructor(
         var txnId: Long? = null
         if (writesLocalSaveFiles) {
             try {
-                val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA)
+                val result = core.wal.beginTransaction(com.xianxia.sect.data.wal.WALEntryType.DATA)
                 if (result.isSuccess) txnId = result.getOrNull()
             } catch (e: CancellationException) {
                 throw e // 取消穿透: 取消时不再进入后续 DB 事务, WAL 无事务需回滚
@@ -612,7 +579,7 @@ class StorageEngine @Inject constructor(
 
         try {
             val writeResult = core.database.withTransaction {
-                writeAllDataToDatabase(slot, data)
+                writeAllDataToDatabase(data)
             }
             if (writeResult.isFailure) {
                 // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
@@ -626,7 +593,7 @@ class StorageEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Post-save checkpoint failed for slot $slot (non-fatal)", e)
+                Log.w(TAG, "Post-save checkpoint failed (non-fatal)", e)
             }
 
             // ── WAL 提交 ──

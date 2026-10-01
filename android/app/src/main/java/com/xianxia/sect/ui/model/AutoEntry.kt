@@ -9,13 +9,12 @@ import com.xianxia.sect.data.model.SaveSlot
  * `GameActivity` 的加载界面上（新档自动建档 / 老档自动读档 / 云档自动下载）。
  */
 sealed interface AutoEntry {
-    /** 本地有可读档：读时间戳最新的一档 */
-    data class LoadLocal(val slot: Int) : AutoEntry
+    /** 本地有可读档 */
+    data object LoadLocal : AutoEntry
 
-    /** 本地无可读档、云端有档：读云端（换机/重装场景，云会话加载不落本地槽位） */
     data object LoadCloud : AutoEntry
 
-    /** 本地云端均无档：自动新建（固定落 1 号槽，宗门名走引擎默认「青云宗」） */
+    /** 本地云端均无档：自动新建（宗门名走引擎默认「青云宗」） */
     data object CreateNew : AutoEntry
 }
 
@@ -32,9 +31,6 @@ sealed interface AutoEntry {
  */
 object AutoEntryResolver {
 
-    /** 本地槽位下界（slot 0 是云会话伪槽，永不参与本地判定） */
-    const val MIN_LOCAL_SLOT = 1
-
     /**
      * 是否存在可读的本地档——调用方据此决定是否发起云端存在性检查
      *（有本地档的玩家跳过云端查询，零网络等待）。
@@ -50,17 +46,16 @@ object AutoEntryResolver {
      *   失败/超时也落在此值）。仅当本地无可读档时才会消费该值。
      */
     fun resolve(slots: List<SaveSlot>, cloudHasSave: Boolean?): AutoEntry {
-        // 时间戳并列取槽位号小者（-slot 取最大 = 槽位号最小），损坏档同理
         loadableSlots(slots).maxWithOrNull(
-            compareBy({ it.timestamp }, { -it.slot })
-        )?.let { return AutoEntry.LoadLocal(it.slot) }
+            compareBy { it.timestamp }
+        )?.let { return AutoEntry.LoadLocal }
         if (cloudHasSave == true) return AutoEntry.LoadCloud
-        slots.filter { it.slot >= MIN_LOCAL_SLOT && it.isLoadError }
-            .maxWithOrNull(compareBy({ it.timestamp }, { -it.slot }))
-            ?.let { return AutoEntry.LoadLocal(it.slot) }
+        slots.filter { it.isLoadError }
+            .maxWithOrNull(compareBy { it.timestamp })
+            ?.let { return AutoEntry.LoadLocal }
         return AutoEntry.CreateNew
     }
 
     private fun loadableSlots(slots: List<SaveSlot>): List<SaveSlot> =
-        slots.filter { it.slot >= MIN_LOCAL_SLOT && !it.isEmpty && !it.isLoadError }
+        slots.filter { !it.isEmpty && !it.isLoadError }
 }

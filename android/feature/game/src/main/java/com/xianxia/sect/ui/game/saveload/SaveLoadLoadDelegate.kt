@@ -36,12 +36,13 @@ class SaveLoadLoadDelegate(
     interface UiCallbacks {
         fun showError(message: String)
         fun showSuccess(message: String)
-        fun onLoadComplete(slot: Int)
+        fun onLoadComplete()
         suspend fun onPreloadResources()
-        suspend fun setLoadingState(isLoading: Boolean, slot: Int, action: String?)
+        suspend fun setLoadingState(isLoading: Boolean, action: String?)
     }
 
-    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "UnusedParameter")
+    // saveSlot 留存调用契约（UI 侧仍传卡位实体）；单档链内已无槽语义
     suspend fun loadGame(saveSlot: SaveSlot): Boolean {
         if (stateStore.isLoading.value) {
             Log.w(TAG, "Already loading, ignoring loadGame request")
@@ -49,21 +50,21 @@ class SaveLoadLoadDelegate(
         }
 
         uiCallbacks?.let { cb ->
-            cb.setLoadingState(isLoading = true, slot = saveSlot.slot, action = "load")
+            cb.setLoadingState(isLoading = true, action = "load")
         }
 
         return try {
-            if (!stopLoopIfRunning(slot = saveSlot.slot)) {
+            if (!stopLoopIfRunning()) {
                 return false
             }
 
-            val saveData = loadSaveData(slot = saveSlot.slot)
+            val saveData = loadSaveData()
             if (saveData == null) {
                 uiCallbacks?.showError("读档超时或存档为空，请重试")
                 return false
             }
 
-            applyLoadedSave(saveData = saveData, effectiveSlot = saveSlot.slot)
+            applyLoadedSave(saveData = saveData)
 
             // 溢出迁移由 BootSequenceController Step 3.5 执行（须在
             // fixup/归一化之后；本 loadGame 为死代码，仅测试引用）
@@ -79,15 +80,15 @@ class SaveLoadLoadDelegate(
             uiCallbacks?.showError("读档错误：${e.message}")
             false
         } finally {
-            uiCallbacks?.setLoadingState(isLoading = false, slot = saveSlot.slot, action = null)
+            uiCallbacks?.setLoadingState(isLoading = false, action = null)
         }
     }
 
     /** 已加载场景下先停止旧游戏循环：玉符防回退 + 超时守卫 */
     @Suppress("ReturnCount")
-    private suspend fun stopLoopIfRunning(slot: Int): Boolean {
+    private suspend fun stopLoopIfRunning(): Boolean {
         if (stateStore.runState.value != RunState.PLAYING) return true
-        Log.i(TAG, "Game already loaded, will reload from slot $slot")
+        Log.i(TAG, "Game already loaded, will reload")
         // 玉符防回退：等待旧循环 finally 彻底完成（与
         // SaveLoadViewModel.performLoadToSlot 同因），非等待 stop 会让
         // checkpointNow 晚于快照替换、用旧运行时值覆盖新档玉符
@@ -103,10 +104,10 @@ class SaveLoadLoadDelegate(
 
     /** 读档数据加载：超时保护 + 空档守卫 */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    private suspend fun loadSaveData(slot: Int): SaveData? {
+    private suspend fun loadSaveData(): SaveData? {
         return withTimeoutOrNull(60_000L) {
             try {
-                storageFacade.load(slot).getOrNull()
+                storageFacade.load().getOrNull()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "Error loading save data: ${e.message}", e)
@@ -116,10 +117,9 @@ class SaveLoadLoadDelegate(
     }
 
     /** 读档数据应用：setCurrentSlot + loadData + 重数据加载 + 建筑尺寸修正 */
-    private suspend fun applyLoadedSave(saveData: SaveData, effectiveSlot: Int) {
-        storageFacade.setCurrentSlot(effectiveSlot)
+    private suspend fun applyLoadedSave(saveData: SaveData) {
         gameEngine.loadData(
-            gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
+            gameData = saveData.gameData,
             disciples = saveData.disciples,
             equipmentInstances = saveData.equipmentInstances,
             manualStacks = saveData.manualStacks,

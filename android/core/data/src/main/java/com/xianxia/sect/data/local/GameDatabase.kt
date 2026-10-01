@@ -65,7 +65,7 @@ object GameDatabaseConfig {
      * 升级数据库版本时必须同步递增此常量、注册 `MIGRATION_(N-1)_N` 并更新
      * `MigrationRequiredGuardTest` 的实体清单基线（缺迁移 = 老库被 destructive 重建）。
      */
-    const val DATABASE_VERSION = 66
+    const val DATABASE_VERSION = 67
 
     /**
      * 判定是否应从启动前快照恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -136,10 +136,11 @@ object GameDatabaseConfig {
         OverflowMailDraftEntity::class,
         DirectMailDraftEntity::class
     ],
-    // v66: 存量迁移链整体退役（SS0）——测试期主动删档，旧库（v65 及更早）在本版本
-    // 打开时无迁移路径，由 fallbackToDestructiveMigration 全量毁灭重建（前置 wiping
-    // 见 app 层 SaveWipeCoordinator）；此后新增 @Entity / 列变更必须同批注册
-    // MIGRATION_(N-1)_N，否则老库被静默重建——`MigrationRequiredGuardTest` 守卫
+    // v67: 槽位维度删除（SS1）——26 张表去 slot_id 列 + 复合主键改单主键。
+    // 无迁移路径（D-1：SS0 删档重置后不存在需要保护的旧库），v66 及更早的库
+    // 打开时由 fallbackToDestructiveMigration 全量毁灭重建；此后新增 @Entity /
+    // 列变更必须同批注册 MIGRATION_(N-1)_N，否则老库被静默重建——
+    // `MigrationRequiredGuardTest` 守卫
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 

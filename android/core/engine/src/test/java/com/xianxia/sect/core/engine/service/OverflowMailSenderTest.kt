@@ -82,14 +82,13 @@ class OverflowMailSenderTest {
     private fun sampleDrafts(n: Int = 1, source: String = "battle"): List<OverflowMailDraft> =
         (1..n).map { i ->
             OverflowMailDraft(
-                slotId = 1, source = source, itemType = "material",
+                source = source, itemType = "material",
                 itemName = "玄铁精$i", rarity = 2, quantity = i
             )
         }
 
     private fun sampleDirectMail(id: String = "mail_1"): MailEntity = MailEntity(
         id = id,
-        slotId = 1,
         source = "secret_realm",
         mailType = "secret_realm_close",
         title = "远古秘境已关闭",
@@ -109,8 +108,7 @@ class OverflowMailSenderTest {
     fun `buildOverflowMail - title content attachments and expiry`() {
         val now = 1_000_000L
         val mail = sender.buildOverflowMail(
-            slotId = 1,
-            source = "battle",
+                source = "battle",
             attachments = listOf(
                 MailAttachment(type = "material", name = "玄铁精", quantity = 3, rarity = 2),
                 MailAttachment(type = "pill", name = "下品培元丹", quantity = 2, rarity = 1)
@@ -123,8 +121,7 @@ class OverflowMailSenderTest {
         assertTrue(mail.content.contains("下品培元丹 ×2"))
         assertTrue(mail.attachments.contains("玄铁精"))
         assertTrue(mail.attachments.contains("下品培元丹"))
-        assertEquals(1, mail.slotId)
-        assertEquals("overflow", mail.mailType)
+                assertEquals("overflow", mail.mailType)
         assertEquals("天道意志", mail.senderName)
         assertTrue(mail.hasAttachment)
         assertTrue(mail.expireTime - now > 300L * 24 * 60 * 60 * 1000)
@@ -133,7 +130,7 @@ class OverflowMailSenderTest {
     @Test
     fun `buildOverflowMail - unknown source falls back to display name`() {
         val mail = sender.buildOverflowMail(
-            slotId = 1, source = "no_such_source",
+            source = "no_such_source",
             attachments = listOf(MailAttachment(type = "material", name = "玄铁精", quantity = 1, rarity = 2)),
             now = 1_000_000L
         )
@@ -144,7 +141,7 @@ class OverflowMailSenderTest {
     fun `overflow mail wording avoids reward framing`() {
         // 归还/没收类来源不是"奖励"：邮件文案统一用"来自「来源」的物品"口径
         val mail = sender.buildOverflowMail(
-            slotId = 1, source = "disciple_death",
+            source = "disciple_death",
             attachments = listOf(MailAttachment(type = "equipment", name = "青莲剑", quantity = 1, rarity = 3)),
             now = 1_000_000L
         )
@@ -225,7 +222,7 @@ class OverflowMailSenderTest {
     @Test
     fun `OverflowMailDraft carries overflow fields`() {
         val draft = OverflowMailDraft(
-            slotId = 1, source = "battle", itemType = "pill",
+            source = "battle", itemType = "pill",
             itemName = "回气丹", rarity = 1, quantity = 5
         )
         assertEquals("battle", draft.source)
@@ -253,8 +250,7 @@ class OverflowMailSenderTest {
         val persisted = captor.firstValue
         assertEquals("2 条草稿一次落盘", 2, persisted.size)
         assertEquals("id 已分配（UUID）", persisted.size, persisted.map { it.id }.toSet().size)
-        assertEquals("来源/槽位保真", "battle", persisted.first().source)
-        assertEquals("slotId 保真", 1, persisted.first().slotId)
+        assertEquals("来源保真", "battle", persisted.first().source)
         assertEquals(
             "createdAt 必须取自注入墙钟（SR-5：实现内零裸读系统钟，判据可复现）",
             pinnedNowMs,
@@ -339,37 +335,36 @@ class OverflowMailSenderTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `drain groups drafts by slot and source into single mails`() = kotlinx.coroutines.test.runTest {
+    fun `drain groups drafts by source into single mails`() = kotlinx.coroutines.test.runTest {
         val drafts = listOf(
-            PersistedOverflowDraft("a1", 1, "battle", "material", "玄铁精", 2, 3, 100L),
-            PersistedOverflowDraft("a2", 1, "battle", "pill", "回气丹", 1, 5, 101L),
-            PersistedOverflowDraft("a3", 2, "battle", "material", "玄铁精", 2, 1, 102L),
-            PersistedOverflowDraft("a4", 1, "forge", "material", "精铁", 2, 2, 103L)
+            PersistedOverflowDraft("a1", "battle", "material", "玄铁精", 2, 3, 100L),
+            PersistedOverflowDraft("a2", "battle", "pill", "回气丹", 1, 5, 101L),
+            PersistedOverflowDraft("a3", "battle", "material", "玄铁精", 2, 1, 102L),
+            PersistedOverflowDraft("a4", "forge", "material", "精铁", 2, 2, 103L)
         )
         whenever(mailRepo.getPersistedOverflowDraftsBlocking()).thenReturn(drafts)
         sender.drainPersistedDrafts()
 
-        // 3 组（slot=1/source=battle、slot=2/source=battle、slot=1/source=forge）→ 3 封邮件
+        // 2 组（source=battle、source=forge）→ 2 封邮件（槽维度退役后按 source 单键分组）
         // timeout 轮询：异步 drain 完成即返回（原 sleep 600ms 固定等待）
-        verify(mailRepo, timeout(2_000).times(3)).insertWithEnforceLimitAndDeleteDrafts(
+        verify(mailRepo, timeout(2_000).times(2)).insertWithEnforceLimitAndDeleteDrafts(
             any(), eq(1000), any(), any()
         )
         // 每组草稿 id 一并删除（原子事务）
         val captor = argumentCaptor<List<String>>()
-        verify(mailRepo, times(3)).insertWithEnforceLimitAndDeleteDrafts(
+        verify(mailRepo, times(2)).insertWithEnforceLimitAndDeleteDrafts(
             any(), any(), captor.capture(), any()
         )
         val deletedIdSets = captor.allValues.map { it.sorted() }
-        assertTrue("battle/slot1 组删 a1+a2", deletedIdSets.contains(listOf("a1", "a2")))
-        assertTrue("battle/slot2 组删 a3", deletedIdSets.contains(listOf("a3")))
-        assertTrue("forge/slot1 组删 a4", deletedIdSets.contains(listOf("a4")))
+        assertTrue("battle 组删 a1+a2+a3", deletedIdSets.contains(listOf("a1", "a2", "a3")))
+        assertTrue("forge 组删 a4", deletedIdSets.contains(listOf("a4")))
     }
 
     @Test
     fun `drain mail id is deterministic across replays`() = kotlinx.coroutines.test.runTest {
         val drafts = listOf(
-            PersistedOverflowDraft("a1", 1, "battle", "material", "玄铁精", 2, 3, 100L),
-            PersistedOverflowDraft("a2", 1, "battle", "pill", "回气丹", 1, 5, 101L)
+            PersistedOverflowDraft("a1", "battle", "material", "玄铁精", 2, 3, 100L),
+            PersistedOverflowDraft("a2", "battle", "pill", "回气丹", 1, 5, 101L)
         )
         whenever(mailRepo.getPersistedOverflowDraftsBlocking()).thenReturn(drafts)
 
@@ -396,17 +391,17 @@ class OverflowMailSenderTest {
 
     @Test
     fun `deterministic mail id ignores draft order`() {
-        val a = OverflowMailSender.deterministicOverflowMailId(1, "battle", listOf("a1", "a2"))
-        val b = OverflowMailSender.deterministicOverflowMailId(1, "battle", listOf("a2", "a1"))
-        val c = OverflowMailSender.deterministicOverflowMailId(2, "battle", listOf("a1", "a2"))
+        val a = OverflowMailSender.deterministicOverflowMailId("battle", listOf("a1", "a2"))
+        val b = OverflowMailSender.deterministicOverflowMailId("battle", listOf("a2", "a1"))
+        val c = OverflowMailSender.deterministicOverflowMailId("forge", listOf("a1", "a2"))
         assertEquals(a, b)
-        assertTrue("不同槽位/来源 id 不同", a != c)
+        assertTrue("不同来源 id 不同", a != c)
     }
 
     @Test
     fun `drain failure keeps draft rows for retry`() = kotlinx.coroutines.test.runTest {
         val drafts = listOf(
-            PersistedOverflowDraft("a1", 1, "battle", "material", "玄铁精", 2, 3, 100L)
+            PersistedOverflowDraft("a1", "battle", "material", "玄铁精", 2, 3, 100L)
         )
         whenever(mailRepo.getPersistedOverflowDraftsBlocking()).thenReturn(drafts)
         whenever(mailRepo.insertWithEnforceLimitAndDeleteDrafts(any(), any(), any(), any()))
@@ -424,7 +419,7 @@ class OverflowMailSenderTest {
     @Test
     fun `drain restores direct mail from payload and deletes draft`() = kotlinx.coroutines.test.runTest {
         val mail = sampleDirectMail("direct_1")
-        val draft = PersistedDirectMailDraft("direct_1", 1, json.encodeToString(mail), 100L)
+        val draft = PersistedDirectMailDraft("direct_1", json.encodeToString(mail), 100L)
         whenever(mailRepo.getPersistedDirectMailDraftsBlocking()).thenReturn(listOf(draft))
         sender.drainPersistedDrafts()
         // timeout 轮询：异步 drain 完成即返回（原 sleep 600ms）
@@ -438,7 +433,7 @@ class OverflowMailSenderTest {
     @Test
     fun `drain with corrupt direct mail payload deletes row to avoid infinite retry`() =
         kotlinx.coroutines.test.runTest {
-        val draft = PersistedDirectMailDraft("corrupt_1", 1, "{not-json", 100L)
+        val draft = PersistedDirectMailDraft("corrupt_1", "{not-json", 100L)
         whenever(mailRepo.getPersistedDirectMailDraftsBlocking()).thenReturn(listOf(draft))
         sender.drainPersistedDrafts()
         // timeout 等 delete 发生（= 异步 drain 完成）后再断言无插入（原 sleep 600ms）

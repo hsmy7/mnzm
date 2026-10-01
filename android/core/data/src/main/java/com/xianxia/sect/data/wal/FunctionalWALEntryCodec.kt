@@ -65,7 +65,7 @@ internal fun parseEntries(data: ByteArray): List<ParsedEntry> {
             val typeOrdinal = data[offset + 2].toInt() and 0xFF
             val type = WALEntryType.entries.getOrNull(typeOrdinal)
             // dataLength 仅在 type 合法时读取（头部字段）；非法时走重同步臂
-            val dataLength = if (type != null) readInt(data, offset + 23) else -1
+            val dataLength = if (type != null) readInt(data, offset + 19) else -1
             val entryEnd = offset + ENTRY_HEADER_SIZE + dataLength.coerceAtLeast(0) + CHECKSUM_SIZE
 
             if (type == null || dataLength < 0) {
@@ -76,8 +76,7 @@ internal fun parseEntries(data: ByteArray): List<ParsedEntry> {
             } else {
                 // 读取固定头部字段
                 val txnId = readLong(data, offset + 3)
-                val slotId = readInt(data, offset + 11)
-                val timestamp = readLong(data, offset + 15)
+                        val timestamp = readLong(data, offset + 11)
 
                 // 提取 data
                 val entryData = data.copyOfRange(
@@ -95,7 +94,7 @@ internal fun parseEntries(data: ByteArray): List<ParsedEntry> {
                 )
                 val valid = storedChecksum.contentEquals(computedChecksum)
 
-                entries.add(ParsedEntry(type, txnId, slotId, timestamp, entryData, valid))
+                entries.add(ParsedEntry(type, txnId, timestamp, entryData, valid))
 
                 offset = entryEnd
             }
@@ -111,14 +110,13 @@ internal fun parseEntries(data: ByteArray): List<ParsedEntry> {
 /**
  * 写入一条 WAL 条目。
  *
- * 格式: [magic(2B)] [type(1B)] [txnId(8B)] [slotId(4B)] [timestamp(8B)] [dataLen(4B)] [data(var)] [checksum(32B)]
+ * 格式: [magic(2B)] [type(1B)] [txnId(8B)] [timestamp(8B)] [dataLen(4B)] [data(var)] [checksum(32B)]
  * 校验和覆盖范围: magic 到 data 的全部字节。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 internal fun FunctionalWAL.writeEntry(
     type: WALEntryType,
     txnId: Long,
-    slotId: Int,
     data: ByteArray = ByteArray(0)
 ): Boolean {
     writeLock.withLock {
@@ -132,8 +130,7 @@ internal fun FunctionalWAL.writeEntry(
             dos.writeByte(MAGIC_BYTE_2.toInt())
             dos.writeByte(type.ordinal)
             dos.writeLong(txnId)
-            dos.writeInt(slotId)
-            dos.writeLong(timestamp)
+                        dos.writeLong(timestamp)
             dos.writeInt(data.size)
             dos.write(data)
             dos.flush()
@@ -152,7 +149,7 @@ internal fun FunctionalWAL.writeEntry(
             conditionalFlush(entryBytes.size + CHECKSUM_SIZE)
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write WAL entry: type=$type, txnId=$txnId, slot=$slotId", e)
+            Log.e(TAG, "Failed to write WAL entry: type=$type, txnId=$txnId", e)
             return false
         }
     }
@@ -173,7 +170,6 @@ internal fun FunctionalWAL.flushInternal() {
 internal data class ParsedEntry(
     val type: WALEntryType,
     val txnId: Long,
-    val slotId: Int,
     val timestamp: Long,
     val data: ByteArray,
     val valid: Boolean
@@ -184,7 +180,6 @@ internal data class ParsedEntry(
 
 /** 恢复过程中追踪的事务信息 */
 internal data class RecoveryTxnInfo(
-    val slotId: Int,
     val operation: WALEntryType?,
     val timestamp: Long
 )

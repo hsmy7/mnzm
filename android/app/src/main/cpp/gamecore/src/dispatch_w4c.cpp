@@ -171,7 +171,7 @@ nlohmann::json handleSecretRealmResidualTx(GameCore& core, int32_t actionId,
         }
         case action::SECRET_REALM_EXPIRY_GUARD_TX: {
             const auto r = secretRealmExpiryGuardTx(state);
-            nlohmann::json data = {{"expired", r.expired}, {"slotId", r.slotId}};
+            nlohmann::json data = {{"expired", r.expired}};
             data["memberIds"] = idArrayJson(r.memberIds);
             if (r.expired) {
                 nlohmann::json bp;

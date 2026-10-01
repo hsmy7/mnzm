@@ -272,7 +272,6 @@ class CloudPayloadSizeBenchTest {
         }
         return BattleLog(
             id = "battle-${UUID_PAD}${idx.toString().padStart(6, '0')}",
-            slotId = 1,
             timestamp = 1_700_000_000_000L + idx * 60_000L,
             year = idx % 50 + 1,
             month = idx % 12 + 1,

@@ -160,9 +160,7 @@ internal object GameViewDiscipleRows {
                 missing.joinToString(",")
         }
         val disciple = Disciple(
-            id = row.id,
-            slotId = 0, // 与 JSON 解码臂同口径：slotId 由 StorageEngine 落盘时赋值
-            name = row.name,
+            id = row.id,            name = row.name,
             surname = row.surname,
             realm = row.realm,
             realmLayer = row.realmLayer,
@@ -414,9 +412,7 @@ internal object GameViewDiscipleRows {
         val id = row.id.toIntOrNull() ?: return false
         return tables.patchExistingMirrorRow(id) {
             // 协议外瞬态列净效果（全行臂恒写：lifeEvents 空 / slotIds 0）
-            lifeEvents[id] = emptyList()
-            slotIds[id] = 0
-            applyBasicPatchColumns(id, row)
+            lifeEvents[id] = emptyList()            applyBasicPatchColumns(id, row)
             applyCombatPatchColumns(id, row)
             applyPillPatchColumns(id, row)
             applyEquipmentPatchColumns(id, row, json)

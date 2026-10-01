@@ -51,7 +51,7 @@ class InventoryFacadeConfiscateTest {
     @Before
     fun setUp() {
         store = FakeAtomicStateStore()
-        store.update { gameData = GameData(slotId = 1) }
+        store.update { gameData = GameData() }
         store.persistentDiscipleTables.writeAllowed = true
         ManualDatabase.initializeWithManuals(mapOf(
             "t1" to ManualDatabase.ManualTemplate(

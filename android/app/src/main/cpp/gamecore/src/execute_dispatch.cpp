@@ -1253,7 +1253,7 @@ nlohmann::json handleSecretRealmPlatformTx(GameCore* core, int32_t actionId,
     }
     if (out.closeDraft.has_value()) {
         nlohmann::json close = {{"closed", out.closeDraft->closed},
-                                {"slotId", out.closeDraft->slotId}};
+                                };
         close["memberIds"] = out.closeDraft->memberIds;
         nlohmann::json bp;
         gamecore::state::to_json(bp, out.closeDraft->backpack);

@@ -36,11 +36,11 @@ class SaveDataTrimmerMailTest {
     fun `trimSaveData carries mails snapshot into SaveData`() {
         val mails = listOf(
             MailEntity(
-                id = "mail-1", slotId = 2, title = "含附件未领",
+                id = "mail-1", title = "含附件未领",
                 hasAttachment = true, attachmentClaimed = false,
                 attachments = "[{\"type\":\"material\",\"name\":\"灵石\",\"quantity\":100}]"
             ),
-            MailEntity(id = "mail-2", slotId = 2, isRead = true, attachmentClaimed = true)
+            MailEntity(id = "mail-2", isRead = true, attachmentClaimed = true)
         )
 
         val saveData = SaveDataTrimmer.trimSaveData(snapshot(), mails)

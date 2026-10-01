@@ -122,14 +122,14 @@ internal fun MailService.buildRewardCardsFromAttachments(
     }
 }
 
-suspend fun MailService.deleteMail(mailId: String, slotId: Int) {
+suspend fun MailService.deleteMail(mailId: String) {
     // 使用原子条件删除替代读-改-写模式，消除 TOCTOU 竞态
-    mailRepo.deleteIfClaimed(slotId, mailId)
+    mailRepo.deleteIfClaimed(mailId)
 }
 
-suspend fun MailService.deleteAllReadAndClaimed(slotId: Int) {
+suspend fun MailService.deleteAllReadAndClaimed() {
     // 邮件唯一删除入口：玩家手动点击"删除已读"（已读且已领取，无资产丢失）
-    mailRepo.deleteAllReadAndClaimed(slotId)
+    mailRepo.deleteAllReadAndClaimed()
 }
 
 /**

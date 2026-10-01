@@ -45,7 +45,6 @@ class ArchivePayloadRoundTripTest {
 
     private fun richDisciple(): Disciple = Disciple(
         id = "disciple-dead-1",
-        slotId = 0,
         name = "林寒",
         surname = "林",
         realm = 5,
@@ -105,7 +104,6 @@ class ArchivePayloadRoundTripTest {
 
     private fun richBattleLog(): BattleLog = BattleLog(
         id = "battle-log-1",
-        slotId = 0,
         timestamp = 1_700_000_000_000L,
         year = 12,
         month = 7,
@@ -148,9 +146,8 @@ class ArchivePayloadRoundTripTest {
         val decoded = ProtobufConverters.decodeFromBase64(Disciple.serializer(), blob) {
             error("弟子归档载荷解码失败")
         }
-        // slotId 不入载荷（DiscipleSerializer 还原为 0）；其余字段逐字段等价
-        assertEquals(original.copy(slotId = 0), decoded)
-        // 非平凡字段抽查（防止整体 equals 因未来改动静默放宽）
+        // 其余字段逐字段等价
+        assertEquals(original, decoded)        // 非平凡字段抽查（防止整体 equals 因未来改动静默放宽）
         assertEquals("林寒", decoded.name)
         assertEquals(DiscipleStatus.DEAD, decoded.status)
         assertEquals("weapon_1", decoded.equipment.weaponId)

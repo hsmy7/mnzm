@@ -8,7 +8,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AlchemySlot(
     val id: String = java.util.UUID.randomUUID().toString(),
-    var slotId: Int = 0,
     val slotIndex: Int = 0,
     val recipeId: String? = null,
     val recipeName: String = "",
@@ -89,7 +88,6 @@ data class AlchemyResult(
 @Serializable
 data class ForgeSlot(
     val id: String = java.util.UUID.randomUUID().toString(),
-    var slotId: Int = 0,
     val slotIndex: Int = 0,
     val recipeId: String? = null,
     val recipeName: String = "",

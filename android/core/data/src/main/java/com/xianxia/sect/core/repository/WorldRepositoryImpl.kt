@@ -23,39 +23,39 @@ class WorldRepositoryImpl @Inject constructor(
 
     // ==================== BuildingSlot ====================
 
-    override fun getBuildingSlots(buildingId: String, slotId: Int): Flow<List<BuildingSlot>> =
-        buildingSlotDao.getByBuilding(slotId, buildingId)
+    override fun getBuildingSlots(buildingId: String): Flow<List<BuildingSlot>> =
+        buildingSlotDao.getByBuilding(buildingId)
 
-    override fun getAllBuildingSlots(slotId: Int): Flow<List<BuildingSlot>> =
-        buildingSlotDao.getAll(slotId)
+    override fun getAllBuildingSlots(): Flow<List<BuildingSlot>> =
+        buildingSlotDao.getAll()
 
-    override suspend fun getBuildingSlotsSync(buildingId: String, slotId: Int): List<BuildingSlot> =
-        buildingSlotDao.getByBuildingSync(slotId, buildingId)
+    override suspend fun getBuildingSlotsSync(buildingId: String): List<BuildingSlot> =
+        buildingSlotDao.getByBuildingSync(buildingId)
 
     // Dungeon methods removed
 
     // ==================== Recipe ====================
 
-    override fun getUnlockedRecipes(slotId: Int): Flow<List<Recipe>> =
-        recipeDao.getUnlocked(slotId)
+    override fun getUnlockedRecipes(): Flow<List<Recipe>> =
+        recipeDao.getUnlocked()
 
-    override fun getAllRecipes(slotId: Int): Flow<List<Recipe>> =
-        recipeDao.getAll(slotId)
+    override fun getAllRecipes(): Flow<List<Recipe>> =
+        recipeDao.getAll()
 
-    override fun getRecipesByType(type: RecipeType, slotId: Int): Flow<List<Recipe>> =
-        recipeDao.getByType(slotId, type)
+    override fun getRecipesByType(type: RecipeType): Flow<List<Recipe>> =
+        recipeDao.getByType(type)
 
-    override suspend fun getRecipeById(id: String, slotId: Int): Recipe? =
-        recipeDao.getById(slotId, id)
+    override suspend fun getRecipeById(id: String): Recipe? =
+        recipeDao.getById(id)
 
     // ==================== BattleLog ====================
 
-    override fun getRecentBattleLogs(limit: Int, slotId: Int): Flow<List<BattleLog>> =
-        battleLogDao.getRecent(slotId, limit)
+    override fun getRecentBattleLogs(limit: Int): Flow<List<BattleLog>> =
+        battleLogDao.getRecent(limit)
 
-    override fun getAllBattleLogs(slotId: Int): Flow<List<BattleLog>> =
-        battleLogDao.getAll(slotId)
+    override fun getAllBattleLogs(): Flow<List<BattleLog>> =
+        battleLogDao.getAll()
 
-    override suspend fun getBattleLogById(id: String, slotId: Int): BattleLog? =
-        battleLogDao.getById(slotId, id)
+    override suspend fun getBattleLogById(id: String): BattleLog? =
+        battleLogDao.getById(id)
 }

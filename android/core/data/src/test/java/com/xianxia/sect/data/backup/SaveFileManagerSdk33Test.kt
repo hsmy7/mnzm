@@ -28,12 +28,11 @@ class SaveFileManagerSdk33Test {
         val manager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> data.gameData.sectName.encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }
-        val slot = 1
 
-        val writeResult = manager.atomicWrite(slot, mockSaveData())
+        val writeResult = manager.atomicWrite(mockSaveData())
         assertTrue("sdk 33 写入应成功，实际 $writeResult", writeResult is StorageResult.Success)
 
-        val read = manager.readWithFallback(slot)
+        val read = manager.readWithFallback()
         assertEquals(BackupStatus.SUCCESS, read.status)
     }
 
@@ -44,7 +43,6 @@ class SaveFileManagerSdk33Test {
         val manager = SaveFileManager(
             saveSerializer = SaveSerializer { data -> data.gameData.sectName.encodeToByteArray() }
         ).also { it.initialize(tempFolder.root) }
-        val slot = 2
         val payload = "cross-api-crc32c".encodeToByteArray()
 
         // 模拟 API≥34 设备：0x0101 + algo=1 + java.util.zip.CRC32C 计算的校验值
@@ -63,12 +61,12 @@ class SaveFileManagerSdk33Test {
         header[13] = ((len shr 16) and 0xFF).toByte()
         header[14] = ((len shr 8) and 0xFF).toByte()
         header[15] = (len and 0xFF).toByte()
-        java.io.File(tempFolder.root, "saves/slot_$slot.sav").apply {
+        java.io.File(tempFolder.root, "saves/save.sav").apply {
             parentFile?.mkdirs()
             writeBytes(header + payload)
         }
 
-        val result = manager.readWithFallback(slot)
+        val result = manager.readWithFallback()
         assertEquals("API≥34 写的 CRC32C 文件在 API<34 应可读", BackupStatus.SUCCESS, result.status)
     }
 

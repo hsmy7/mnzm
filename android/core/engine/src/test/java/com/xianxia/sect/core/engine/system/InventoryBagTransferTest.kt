@@ -57,7 +57,7 @@ class InventoryBagTransferTest {
             )
         ))
         store = FakeAtomicStateStore()
-        store.update { gameData = GameData(slotId = 1) }
+        store.update { gameData = GameData() }
         overflowHandler = RecordingOverflowHandler()
         inventorySystem = InventorySystem(
             stateStore = store,

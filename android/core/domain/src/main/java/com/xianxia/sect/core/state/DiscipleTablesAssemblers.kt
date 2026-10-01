@@ -57,7 +57,6 @@ internal fun DiscipleTables.assembleCoreFields(id: Int, prev: Disciple?, dirtyGr
     val usage = resolveGroupPart(prev, dirtyGroups, AssembleGroup.USAGE, { it.usage }) { assembleUsage(id) }
     val disciple = Disciple(
         id = id.toString(),
-        slotId = slotIds.getOrDefault(id, 0),
         name = names.getOrDefault(id, ""),
         surname = surnames.getOrDefault(id, ""),
         realm = realms.getOrDefault(id, 9),

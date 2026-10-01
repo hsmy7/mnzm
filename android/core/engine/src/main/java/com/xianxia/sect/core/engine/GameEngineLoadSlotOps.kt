@@ -25,9 +25,9 @@ internal suspend fun GameEngine.restoreProductionSlotsForLoad(
     val safeProductionSlots = productionSlots.filterNotNull()
     val fixedProductionSlots = fixAlchemyForgeSlotCount(safeProductionSlots, alchemyCount, forgeCount)
     if (fixedProductionSlots.isNotEmpty()) {
-        productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
+        productionCoordinator.repository.restoreSlots(fixedProductionSlots)
     } else {
-        productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
+        productionCoordinator.repository.initializeAllSlots()
     }
 }
 

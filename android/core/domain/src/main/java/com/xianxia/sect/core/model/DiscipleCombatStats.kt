@@ -9,8 +9,6 @@ package com.xianxia.sect.core.model
 data class DiscipleCombatStats(
     var discipleId: String = "",
 
-    var slotId: Int = 0,
-
     var baseHp: Int = 120,
     var baseMp: Int = 60,
     var baseAttack: Int = 24,

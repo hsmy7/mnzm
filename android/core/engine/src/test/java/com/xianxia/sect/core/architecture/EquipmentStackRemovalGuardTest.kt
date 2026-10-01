@@ -83,8 +83,6 @@ class EquipmentStackRemovalGuardTest {
             to "读档装配物化",
         "core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineLoadOps.kt"
             to "读档链载体装配",
-        "core/data/src/main/java/com/xianxia/sect/data/GameStateRepository.kt"
-            to "仓储读档 shim（空载体喂存档链）",
         "core/engine/src/main/java/com/xianxia/sect/core/engine/domain/exploration/SecretRealmRuinsResolver.kt"
             to "遗迹奖励旧背包轨（同 SecretRealmModels，待 B4）",
         "core/engine/src/main/java/com/xianxia/sect/core/nativebridge/NativeGameState.kt"

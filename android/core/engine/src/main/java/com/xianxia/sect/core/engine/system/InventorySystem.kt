@@ -102,7 +102,7 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override fun clearForSlot(slotId: Int) {
+    override fun clearForSlot() {
         clear()
     }
 
@@ -218,9 +218,7 @@ class InventorySystem @Inject constructor(
         if (overflowMailSuppressed) return
         if (quantity <= 0) return
         overflowMailHandler.sendOverflowMails(listOf(
-            OverflowMailDraft(
-                slotId = stateStore.gameData.value.currentSlot,
-                source = source,
+            OverflowMailDraft(                source = source,
                 itemType = itemType,
                 itemName = itemName,
                 itemId = itemId,

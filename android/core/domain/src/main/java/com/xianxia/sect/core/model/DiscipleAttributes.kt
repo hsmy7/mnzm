@@ -7,8 +7,6 @@ package com.xianxia.sect.core.model
 data class DiscipleAttributes(
     var discipleId: String = "",
 
-    var slotId: Int = 0,
-
     var intelligence: Int = 50,
     var charm: Int = 50,
     var comprehension: Int = 50,

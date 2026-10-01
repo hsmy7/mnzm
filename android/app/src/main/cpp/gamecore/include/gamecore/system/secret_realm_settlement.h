@@ -61,7 +61,6 @@ struct SecretRealmCloseDraft {
     bool closed = false;                   // 本次月变是否实际发生秘境到期关闭
     std::vector<std::string> memberIds;    // gate release（Kotlin 纯内存注册表）
     state::SecretRealmBackpack backpack;   // 关闭邮件附件（清空前快照）
-    int32_t slotId = 0;                    // 邮件归属存档槽位（GameData.currentSlot）
 };
 
 /// 队伍 id 生成（确定性自增——Kotlin UUID，语义等价：仅保证唯一）

@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -30,8 +29,7 @@ class ExchangeSpiritStonesUseCaseTest {
     @Before
     fun setUp() {
         stateStore = GameStateStoreImpl(
-            ApplicationScopeProvider(),
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
         stateStore.unsafeAllowMainThreadUpdateForTest = true
         wallet = SpiritStoneWallet(

@@ -43,8 +43,7 @@ data class EquipmentStack(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ProtoNumber(100)
-    val slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -178,7 +177,7 @@ object LegacyEquipmentPrices {
  * 装备实例（装备重构 B3，方案 §3.5）：一行一实例、无堆叠、等级随实例单点。
  *
  * ## 存档编号（E1 冻结表，方案 §5.3 / `EquipmentProtoNumberFrozenTest`）
- * 保留 `id(1)/slotId(100)/name(2)/ownerId(16)/isEquipped(11)`；新增
+ * 保留 `id(1)/name(2)/ownerId(16)/isEquipped(11)`；slotId(100) 已随单存档改造退役；新增
  * `setId(60)/part(61)/growth(62)/meta(63)`；退役
  * `slot(3)/rarity(4)/description(7)/critChance(10)/nurtureLevel(13)/
  * nurtureProgress(14)/minRealm(15)/面板属性(50–56)`——旧档字节按未知字段
@@ -188,7 +187,7 @@ object LegacyEquipmentPrices {
 @Serializable
 @Entity(
     tableName = "equipment_instances",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["ownerId"]),
         Index(value = ["setId"]),
@@ -201,9 +200,7 @@ data class EquipmentInstance(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -299,7 +296,7 @@ enum class EquipmentSlot {
 @Serializable
 @Entity(
     tableName = "manual_stacks",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -314,9 +311,7 @@ data class ManualStack(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -391,7 +386,6 @@ data class ManualStack(
     fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null,
         isLearned: Boolean = true): ManualInstance = ManualInstance(
         id = id,
-        slotId = slotId,
         name = name,
         rarity = rarity,
         description = description,
@@ -428,7 +422,7 @@ data class ManualStack(
 @Serializable
 @Entity(
     tableName = "manual_instances",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -443,9 +437,7 @@ data class ManualInstance(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -594,7 +586,6 @@ data class ManualInstance(
 
     fun toStack(quantity: Int = 1): ManualStack = ManualStack(
         id = java.util.UUID.randomUUID().toString(),
-        slotId = slotId,
         name = name,
         rarity = rarity,
         description = description,
@@ -698,7 +689,7 @@ data class ManualSkill(
 @Serializable
 @Entity(
     tableName = "pills",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -713,9 +704,7 @@ data class Pill(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -896,7 +885,7 @@ data class PillEffect(
 @Serializable
 @Entity(
     tableName = "materials",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -910,9 +899,7 @@ data class Material(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -972,7 +959,7 @@ enum class MaterialCategory {
 @Serializable
 @Entity(
     tableName = "herbs",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -986,9 +973,7 @@ data class Herb(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -1016,7 +1001,7 @@ data class Herb(
 @Serializable
 @Entity(
     tableName = "seeds",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -1029,9 +1014,7 @@ data class Seed(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",
@@ -1075,8 +1058,7 @@ fun rebuildManualStacks(instances: List<ManualInstance>): List<ManualStack> {
 
 @Entity(
     tableName = "storage_bags",
-    primaryKeys = ["id", "slot_id"],
-    indices = [androidx.room.Index(value = ["slot_id"])]
+    primaryKeys = ["id"],
 )
 @Keep
 @Serializable
@@ -1086,9 +1068,7 @@ data class StorageBag(
     @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(name = "slot_id")
-    @ProtoNumber(100)
-    var slotId: Int = 0,
+    // reserved 100;（slotId 存档槽字段随单存档改造退役，禁复用）
 
     @ProtoNumber(2)
     override val name: String = "",

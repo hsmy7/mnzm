@@ -16,12 +16,12 @@ class EquipmentRepositoryImpl @Inject constructor(
 
     // ==================== EquipmentInstance ====================
 
-    override fun getEquipmentInstances(slotId: Int): Flow<List<EquipmentInstance>> =
-        equipmentInstanceDao.getAll(slotId)
+    override fun getEquipmentInstances(): Flow<List<EquipmentInstance>> =
+        equipmentInstanceDao.getAll()
 
-    override suspend fun getEquipmentInstanceById(id: String, slotId: Int): EquipmentInstance? =
-        equipmentInstanceDao.getById(slotId, id)
+    override suspend fun getEquipmentInstanceById(id: String): EquipmentInstance? =
+        equipmentInstanceDao.getById(id)
 
-    override suspend fun getEquipmentInstancesByOwner(discipleId: String, slotId: Int): List<EquipmentInstance> =
-        equipmentInstanceDao.getByOwner(slotId, discipleId)
+    override suspend fun getEquipmentInstancesByOwner(discipleId: String): List<EquipmentInstance> =
+        equipmentInstanceDao.getByOwner(discipleId)
 }

@@ -52,7 +52,7 @@ class CloudSaveCacheWriterTest {
         every { Log.i(any<String>(), any<String>()) } returns 0
         every { Log.d(any<String>(), any<String>()) } returns 0
         writer = CloudSaveCacheWriter(saveBackend, storageFacade, uploadLedger)
-        coEvery { storageFacade.save(any(), any()) } returns SaveResult.success(Unit)
+        coEvery { storageFacade.save(any()) } returns SaveResult.success(Unit)
     }
 
     @After
@@ -89,7 +89,7 @@ class CloudSaveCacheWriterTest {
 
         assertTrue(outcome is CloudSaveCacheWriter.Outcome.Written)
         assertEquals(2, (outcome as CloudSaveCacheWriter.Outcome.Written).targetSlot)
-        coVerify { storageFacade.save(2, any()) }
+        coVerify { storageFacade.save(any()) }
         verify { uploadLedger.adoptCloudState(2, 7L) }
         verify(exactly = 0) { uploadLedger.recordLocalSave(any()) }
     }
@@ -100,7 +100,7 @@ class CloudSaveCacheWriterTest {
 
         writer.downloadIntoCache(sourceSlot = 3, targetSlot = 3)
 
-        coVerify { storageFacade.save(3, any()) }
+        coVerify { storageFacade.save(any()) }
         verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
     }
 
@@ -119,14 +119,14 @@ class CloudSaveCacheWriterTest {
     // ── ② 跨槽（SR-6 存量单档迁移）──
 
     @Test
-    fun `跨槽迁移 - 落到目标空槽且不抄源槽序号`() = runTest {
+    fun `跨槽迁移 - 落到本地缓存且不抄源槽序号`() = runTest {
         stubDownload(0, saveId = 11L)
 
         val outcome = writer.downloadIntoCache(sourceSlot = 0, targetSlot = 4)
 
         assertEquals(4, (outcome as CloudSaveCacheWriter.Outcome.Written).targetSlot)
-        coVerify { storageFacade.save(4, any()) }
-        coVerify(exactly = 0) { storageFacade.save(0, any()) }
+        // 单档本地缓存：save 无槽位维度，一次落盘（源/目标槽断言随维度退役删除）
+        coVerify(exactly = 1) { storageFacade.save(any()) }
         verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
     }
 
@@ -142,7 +142,7 @@ class CloudSaveCacheWriterTest {
         val outcome = writer.downloadIntoCache(sourceSlot = 4, targetSlot = 4)
 
         assertEquals(CloudSaveCacheWriter.Outcome.ConflictPending, outcome)
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
         verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
     }
 
@@ -156,7 +156,7 @@ class CloudSaveCacheWriterTest {
             "本机此槽位有未上传的新进度，已停止从云端覆盖：请联网等待自动上传完成后重试",
             (outcome as CloudSaveCacheWriter.Outcome.Rejected).message
         )
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
     }
 
     @Test
@@ -178,13 +178,13 @@ class CloudSaveCacheWriterTest {
         val outcome = writer.downloadIntoCache(sourceSlot = 6, targetSlot = 6)
 
         assertTrue("高版本云档应正常落盘，实际 $outcome", outcome is CloudSaveCacheWriter.Outcome.Written)
-        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) { storageFacade.save(any()) }
     }
 
     @Test
     fun `落缓存失败 - 不收敛账本（IN1：账本只在缓存真的落盘后推进）`() = runTest {
         stubDownload(5, saveId = 9L)
-        coEvery { storageFacade.save(5, any()) } returns SaveResult.failure(
+        coEvery { storageFacade.save(any()) } returns SaveResult.failure(
             SaveError.SAVE_FAILED,
             "disk io error"
         )

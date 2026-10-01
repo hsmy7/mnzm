@@ -15,18 +15,18 @@ class DiscipleRepositoryImpl @Inject constructor(
         const val DEFAULT_SLOT_ID = 0
     }
 
-    override fun getDisciples(slotId: Int): Flow<List<Disciple>> =
-        discipleDao.getAll(slotId)
+    override fun getDisciples(): Flow<List<Disciple>> =
+        discipleDao.getAll()
 
-    override fun getAliveDisciples(slotId: Int): Flow<List<Disciple>> =
-        discipleDao.getAllAlive(slotId)
+    override fun getAliveDisciples(): Flow<List<Disciple>> =
+        discipleDao.getAllAlive()
 
-    override suspend fun getDiscipleById(id: String, slotId: Int): Disciple? =
-        discipleDao.getById(slotId, id)
+    override suspend fun getDiscipleById(id: String): Disciple? =
+        discipleDao.getById(id)
 
-    override suspend fun getDisciplesByStatus(status: DiscipleStatus, slotId: Int): List<Disciple> =
-        discipleDao.getByStatus(slotId, status)
+    override suspend fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> =
+        discipleDao.getByStatus(status)
 
-    override suspend fun getAllDisciplesSync(slotId: Int): List<Disciple> =
-        discipleDao.getAllAliveSync(slotId)
+    override suspend fun getAllDisciplesSync(): List<Disciple> =
+        discipleDao.getAllAliveSync()
 }

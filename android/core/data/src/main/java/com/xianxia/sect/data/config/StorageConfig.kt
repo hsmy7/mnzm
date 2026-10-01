@@ -33,9 +33,6 @@ class StorageConfig @Inject constructor(
         return keyValueStore
     }
 
-    val maxSlots: Int
-        get() = store().getInt("max_slots", DEFAULT_MAX_SLOTS)
-
     val maxBattleLogs: Int
         get() = store().getInt("max_battle_logs", DEFAULT_MAX_BATTLE_LOGS)
 
@@ -108,7 +105,6 @@ class StorageConfig @Inject constructor(
 
     companion object {
         const val PREFS_NAME = "storage_config"
-        const val DEFAULT_MAX_SLOTS = 6
         const val DEFAULT_MAX_BATTLE_LOGS = 500
         const val DEFAULT_MAX_SAVE_SIZE = 50L * 1024 * 1024L
         const val DEFAULT_MIN_MEMORY_RATIO = 0.15f

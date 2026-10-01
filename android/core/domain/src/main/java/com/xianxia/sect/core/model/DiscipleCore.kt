@@ -9,8 +9,6 @@ import com.xianxia.sect.core.GameConfig
 data class DiscipleCore(
     var id: String = java.util.UUID.randomUUID().toString(),
 
-    var slotId: Int = 0,
-
     var name: String = "",
     var surname: String = "",
     /** 境界等级：0=仙人(最高), 1=渡劫, 2=大乘, ..., 9=炼气(最低)。数字越小境界越高 */

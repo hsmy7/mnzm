@@ -95,7 +95,7 @@ class CloudSaveCacheWriter @Inject constructor(
             is PipelineResult.Ok -> pipeline.data
         }
 
-        val cacheResult = storageFacade.save(targetSlot, processed)
+        val cacheResult = storageFacade.save(processed)
         if (!cacheResult.isSuccess) {
             val cacheError = (cacheResult as? SaveResult.Failure)?.message ?: "本地缓存写入失败"
             Log.e(TAG, "cloud cache write FAILED: target=$targetSlot error=$cacheError")

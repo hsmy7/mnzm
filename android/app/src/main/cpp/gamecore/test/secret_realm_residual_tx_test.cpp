@@ -153,7 +153,6 @@ TEST_F(SecretRealmResidualTxFixture, ExpiryGuardClosesExpiredRealmWithDraft) {
     gd.secretRealmState.id = "sr-2";
     gd.secretRealmState.spawnYear = 10;
     gd.gameYear = 20;   // ≥ spawnYear + 5
-    gd.currentSlot = 2;
     gamecore::state::SecretRealmMemberState member;
     member.discipleId = "411";
     member.isDead = false;
@@ -171,9 +170,8 @@ TEST_F(SecretRealmResidualTxFixture, ExpiryGuardClosesExpiredRealmWithDraft) {
     EXPECT_EQ(gd.secretRealmCooldownYear, 20);
     // 背包清空（灵石入钱包——邮件通道留 Kotlin）
     EXPECT_EQ(gd.secretRealmSession.backpack.spiritStones, 0);
-    // 草稿：成员 + slotId + 背包快照（清空前）
+    // 草稿：成员 + 背包快照（清空前）
     ASSERT_EQ(data["memberIds"], json::array({"411"}));
-    EXPECT_EQ(data["slotId"], 2);
     ASSERT_TRUE(data.contains("backpack"));
     EXPECT_EQ(data["backpack"]["spiritStones"], 120);
     // 零 RNG

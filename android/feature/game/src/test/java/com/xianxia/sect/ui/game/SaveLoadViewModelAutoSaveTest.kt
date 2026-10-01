@@ -107,8 +107,8 @@ class SaveLoadViewModelAutoSaveTest {
             every { bootInProgress } returns MutableStateFlow(false)
         }
         coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
-        coEvery { storageFacade.getMailsForSlot(any()) } returns emptyList()
-        coEvery { storageFacade.save(any(), any()) } returns SaveResult.success(Unit)
+        coEvery { storageFacade.getMails() } returns emptyList()
+        coEvery { storageFacade.save(any()) } returns SaveResult.success(Unit)
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.isLoading } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
@@ -164,7 +164,7 @@ class SaveLoadViewModelAutoSaveTest {
             fireRealtimeTick()
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { storageFacade.save(1, any()) }
+            coVerify(exactly = 1) { storageFacade.save(any()) }
             assertEquals(
                 "现实节拍自动存档成功写消息栏常驻一行（带游戏内时间）",
                 "已自动存档 · 第3年5月",
@@ -179,7 +179,7 @@ class SaveLoadViewModelAutoSaveTest {
         fireRealtimeTick(count = REALTIME_TICKS_PER_INTERVAL - 1)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
         assertEquals(
             "未到点只累计，不落盘（节拍下限守卫）",
             REALTIME_AUTO_SAVE_INTERVAL_MS - REALTIME_AUTO_SAVE_POLL_MS,
@@ -194,7 +194,7 @@ class SaveLoadViewModelAutoSaveTest {
         fireRealtimeTick()
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
         assertEquals(
             "关闭态不得积累待触发窗",
             emptySet<AutoSaveTrigger>(),
@@ -210,7 +210,7 @@ class SaveLoadViewModelAutoSaveTest {
         viewModel.saveOnBackground()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { storageFacade.save(1, any()) }
+        coVerify(exactly = 1) { storageFacade.save(any()) }
         assertNull("后台保存成功不产生消息栏行（玩家已离场）", viewModel.autoSaveNotice.value)
     }
 
@@ -220,11 +220,11 @@ class SaveLoadViewModelAutoSaveTest {
 
         fireRealtimeTick()
         testScheduler.advanceTimeBy(1L) // 开窗但不等窗（窗 = 500ms）
-        viewModel.saveGame("1")
+        viewModel.saveGame()
         advanceUntilIdle()
 
         coVerify(exactly = 1) {
-            storageFacade.save(1, any())
+            storageFacade.save(any())
         }
         assertEquals(
             "手动保存已覆盖同一状态 ⇒ 自动窗必须作废",
@@ -241,7 +241,7 @@ class SaveLoadViewModelAutoSaveTest {
         fireRealtimeTick()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { storageFacade.save(1, any()) }
+        coVerify(exactly = 1) { storageFacade.save(any()) }
         coVerify(exactly = 0) { uploadQueue.enqueue(any(), any(), any()) }
     }
 
@@ -266,8 +266,8 @@ class SaveLoadViewModelAutoSaveTest {
             viewModel.saveOnBackground()
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { storageFacade.save(1, any()) }
-            coVerify(exactly = 1) { uploadQueue.enqueue(eq(1), any(), any()) }
+            coVerify(exactly = 1) { storageFacade.save(any()) }
+            coVerify(exactly = 1) { uploadQueue.enqueue(any(), any(), any()) }
             verify(exactly = 1) { uploadQueue.requestDrain() }
         }
 
@@ -275,7 +275,7 @@ class SaveLoadViewModelAutoSaveTest {
     fun `auto save failure lands on the persistent line, manual keeps the toast`() =
         runTest(testDispatcher) {
             SaveTriggerFlag.realtimeTick = true
-            coEvery { storageFacade.save(any(), any()) } returns
+            coEvery { storageFacade.save(any()) } returns
                 SaveResult.failure(SaveError.SLOT_EMPTY, "模拟落盘失败")
 
             fireRealtimeTick()
@@ -288,7 +288,7 @@ class SaveLoadViewModelAutoSaveTest {
             )
 
             viewModel.autoSaveNoticeFlow.value = null
-            viewModel.saveGame("1")
+            viewModel.saveGame()
             advanceUntilIdle()
             assertNull("手动口径失败仍走 snackbar，不占用自动存档行", viewModel.autoSaveNotice.value)
         }
@@ -326,7 +326,6 @@ class SaveLoadViewModelAutoSaveTest {
         saveVersion = 2,
         gameYear = year,
         gameMonth = month,
-        currentSlot = 1
     )
 
     private fun snapshot() = GameStateSnapshot(

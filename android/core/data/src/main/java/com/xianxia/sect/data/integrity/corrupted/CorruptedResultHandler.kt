@@ -29,23 +29,23 @@ object CorruptedResultHandler {
      * @return 二次验证后的 IntegrityResult（[IntegrityResult.Passed] 或 [IntegrityResult.Repaired]）
      *         若二次修复仍然 [IntegrityResult.Corrupted]，记录致命日志并返回原数据
      */
-    fun validateRestoredData(slot: Int, restoredData: SaveData): IntegrityResult {
-        Log.i(TAG, "对备份恢复数据执行二次验证 (slot=$slot)")
+    fun validateRestoredData(restoredData: SaveData): IntegrityResult {
+        Log.i(TAG, "对备份恢复数据执行二次验证")
         val result = SaveValidator.validate(restoredData)
         return when (result) {
             is IntegrityResult.Passed -> {
-                Log.i(TAG, "二次验证通过 (slot=$slot)")
+                Log.i(TAG, "二次验证通过")
                 result
             }
             is IntegrityResult.Repaired -> {
-                Log.w(TAG, "二次验证修复 ${result.details.size} 项 (slot=$slot)")
+                Log.w(TAG, "二次验证修复 ${result.details.size} 项")
                 result.details.forEach { detail ->
                     Log.i(TAG, "  备份修复: $detail")
                 }
                 result
             }
             is IntegrityResult.Corrupted -> {
-                Log.e(TAG, "备份恢复数据二次验证失败 (slot=$slot): ${result.details.size} 项")
+                Log.e(TAG, "备份恢复数据二次验证失败: ${result.details.size} 项")
                 result.details.forEach { detail ->
                     Log.e(TAG, "  备份问题: $detail")
                 }

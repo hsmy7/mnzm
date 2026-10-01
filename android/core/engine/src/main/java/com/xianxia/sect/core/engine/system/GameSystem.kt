@@ -13,7 +13,7 @@ interface GameSystem {
     fun initialize() {}
     fun release() {}
     fun clear() {}
-    fun clearForSlot(slotId: Int) { clear() }
+    fun clearForSlot() { clear() }
 
     /**
      * 月变事件（定时事件型系统使用）。

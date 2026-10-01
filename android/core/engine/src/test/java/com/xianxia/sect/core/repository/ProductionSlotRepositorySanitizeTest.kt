@@ -39,7 +39,7 @@ class ProductionSlotRepositorySanitizeTest {
         @Suppress("UNCHECKED_CAST")
         val dirtySlots = listOf<ProductionSlot?>(null, forgeSlot) as List<ProductionSlot>
 
-        repository.restoreSlots(dirtySlots, slotId = 1)
+        repository.restoreSlots(dirtySlots)
 
         assertEquals(1, repository.getSlots().size)
         assertEquals(1, repository.getSlotsByBuildingId("forge").size)

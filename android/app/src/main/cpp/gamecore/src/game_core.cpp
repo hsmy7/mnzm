@@ -523,7 +523,6 @@ std::string GameCore::settleMonth() {
         nlohmann::json bp;
         to_json(bp, c.backpack);
         env["secretRealmClose"]["backpack"] = std::move(bp);
-        env["secretRealmClose"]["slotId"] = c.slotId;
     }
     nlohmann::json logs = nlohmann::json::array();
     for (const auto& log : result.purchaseLogs) {

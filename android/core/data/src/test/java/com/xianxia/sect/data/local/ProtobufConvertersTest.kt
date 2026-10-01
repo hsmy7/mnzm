@@ -29,7 +29,6 @@ class ProtobufConvertersTest {
 
     private fun makeRow(key: String, data: ByteArray) =
         GameHeavyData(
-            slotId = 1,
             dataKey = GameHeavyData.chunkKey(keyPrefix, key),
             dataValue = data
         )
@@ -188,8 +187,7 @@ class ProtobufConvertersTest {
         val disciples = (0 until 110).map { Disciple(name = "d$it", cultivation = it.toDouble()) }
         val rows = mutableListOf<GameHeavyData>()
         ProtobufConverters.encodeDiscipleListIncremental(
-            disciples, 1, "test/recruitList"
-        ) { rows.addAll(it) }
+            disciples, "test/recruitList"        ) { rows.addAll(it) }
 
         // 反转块顺序模拟 DB 无序返回 + 字典序陷阱
         val decoded = ProtobufConverters.decodeDiscipleListFromRows(
@@ -207,12 +205,10 @@ class ProtobufConvertersTest {
         val disciples = (0 until 5).map { Disciple(name = "d$it", cultivation = it.toDouble()) }
         val rows = mutableListOf<GameHeavyData>()
         ProtobufConverters.encodeDiscipleListIncremental(
-            disciples, 1, "test/recruitList"
-        ) { rows.addAll(it) }
+            disciples, "test/recruitList"        ) { rows.addAll(it) }
         // 残留脏 key（非数值后缀，如溢出分块）不崩溃、不参与排序破坏
         rows.add(
             GameHeavyData(
-                slotId = 1,
                 dataKey = "test/recruitList/1_overflow",
                 dataValue = ByteArray(0)
             )
@@ -229,8 +225,7 @@ class ProtobufConvertersTest {
         val sects = (0 until 550).map { com.xianxia.sect.core.model.WorldSect(id = "s$it") }
         val rows = mutableListOf<GameHeavyData>()
         ProtobufConverters.encodeWorldSectListIncremental(
-            sects, 1, "test/worldMapSects"
-        ) { rows.addAll(it) }
+            sects, "test/worldMapSects"        ) { rows.addAll(it) }
 
         val decoded = ProtobufConverters.decodeWorldSectListFromRows(
             rows.reversed(), "test/worldMapSects"

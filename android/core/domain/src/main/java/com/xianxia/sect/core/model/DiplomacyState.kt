@@ -3,19 +3,17 @@ package com.xianxia.sect.core.model
 import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.Index
+import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Keep
 @Serializable
-@Entity(
-    tableName = "diplomacy_state",
-    primaryKeys = ["slot_id"],
-    indices = [Index(value = ["slot_id"], unique = true)]
-)
+@Entity(tableName = "diplomacy_state")
 data class DiplomacyState(
-    @ColumnInfo(name = "slot_id")
-    var slotId: Int = 1,
+    /** 单档单行标识：本表恒一行，主键恒 1 */
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    var id: Int = 1,
     var sectRelations: List<SectRelation> = emptyList(),
     var alliances: List<Alliance> = emptyList(),
     var playerAllianceSlots: Int = 3,

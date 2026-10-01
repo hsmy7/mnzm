@@ -316,14 +316,13 @@ object ProtobufConverters {
      */
     suspend fun encodeDiscipleListMapIncremental(
         value: Map<String, List<Disciple>>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = ListSerializer(Disciple.serializer())
         for ((sectName, disciples) in value) {
             val bytes = encodeToBlobInternal(serializer, disciples)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
         }
     }
 
@@ -346,14 +345,13 @@ object ProtobufConverters {
      */
     suspend fun encodeSectDetailMapIncremental(
         value: Map<String, SectDetail>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = SectDetail.serializer()
         for ((sectName, detail) in value) {
             val bytes = encodeToBlobInternal(serializer, detail)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
         }
     }
 
@@ -376,14 +374,13 @@ object ProtobufConverters {
      */
     suspend fun encodeExploredSectInfoMapIncremental(
         value: Map<String, ExploredSectInfo>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = ExploredSectInfo.serializer()
         for ((sectName, info) in value) {
             val bytes = encodeToBlobInternal(serializer, info)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
         }
     }
 
@@ -406,14 +403,13 @@ object ProtobufConverters {
      */
     suspend fun encodeSectScoutInfoMapIncremental(
         value: Map<String, SectScoutInfo>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = SectScoutInfo.serializer()
         for ((sectName, info) in value) {
             val bytes = encodeToBlobInternal(serializer, info)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, sectName), bytes))
         }
     }
 
@@ -436,14 +432,13 @@ object ProtobufConverters {
      */
     suspend fun encodeManualProficiencyMapIncremental(
         value: Map<String, List<ManualProficiencyData>>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = ListSerializer(ManualProficiencyData.serializer())
         for ((key, proficiencies) in value) {
             val bytes = encodeToBlobInternal(serializer, proficiencies)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, key), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, key), bytes))
         }
     }
 
@@ -466,14 +461,13 @@ object ProtobufConverters {
      */
     suspend fun encodeDiscipleListIncremental(
         value: List<Disciple>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = ListSerializer(Disciple.serializer())
         value.chunked(100).forEachIndexed { index, batch ->
             val bytes = encodeToBlobInternal(serializer, batch)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
         }
     }
 
@@ -497,14 +491,13 @@ object ProtobufConverters {
      */
     suspend fun encodeWorldSectListIncremental(
         value: List<WorldSect>,
-        slotId: Int,
         keyPrefix: String,
         writer: suspend (List<GameHeavyData>) -> Unit
     ) {
         val serializer = ListSerializer(WorldSect.serializer())
         value.chunked(50).forEachIndexed { index, batch ->
             val bytes = encodeToBlobInternal(serializer, batch)
-            writer(GameHeavyData.chunk(slotId, GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
+            writer(GameHeavyData.chunk(GameHeavyData.chunkKey(keyPrefix, index.toString()), bytes))
         }
     }
 

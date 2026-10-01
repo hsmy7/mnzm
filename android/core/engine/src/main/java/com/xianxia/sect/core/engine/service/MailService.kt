@@ -112,7 +112,6 @@ class MailService @Inject constructor(
         /** 白名单福利灵石：1000 万 */
     }
 
-    private val slotMutexes = mutableMapOf<Int, Mutex>()
 
     // 主动推送的邮件列表，避免 flatMapLatest 响应链失效
     private val _activeMails = MutableStateFlow<List<MailEntity>>(emptyList())
@@ -121,17 +120,15 @@ class MailService @Inject constructor(
     private val _unreadCount = MutableStateFlow(0)
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 
-    private var currentSlot: Int = -1
 
     /** Room flow 收集任务：溢出邮件（OverflowMailSender 直写 Room）等外部写入立即可见 */
     private var mailFlowJob: kotlinx.coroutines.Job? = null
 
-    internal suspend fun refreshActiveMails(slotId: Int) {
-        currentSlot = slotId
+    internal suspend fun refreshActiveMails() {
         // 决策项②：打开邮件列表前先清过期邮件（Room 失效通知会让随后的
         // flow 首值即为删除后的列表）
-        mailRepo.deleteExpiredMails(slotId, wallClock.currentTimeMillis())
-        _activeMails.value = mailRepo.getActiveMails(slotId).first()
+        mailRepo.deleteExpiredMails(wallClock.currentTimeMillis())
+        _activeMails.value = mailRepo.getActiveMails().first()
         _unreadCount.value = _activeMails.value.count { !it.isRead }
     }
 
@@ -139,25 +136,24 @@ class MailService @Inject constructor(
      * 启动 Room flow 持续收集（替代一次性快照）。
      * 溢出邮件等外部直写 Room 后，activeMails/unreadCount 自动更新，UI 立即可见。
      */
-    private fun startMailFlowCollector(slotId: Int) {
+    private fun startMailFlowCollector() {
         mailFlowJob?.cancel()
-        currentSlot = slotId
         mailFlowJob = scopeProvider.scope.launch {
             // 决策项②：收集前先清一次过期（此后插入路径 insertWithEnforceLimit
             // 每次写入顺带清理，删除触发的 Room 失效会自动重发列表）
-            mailRepo.deleteExpiredMails(slotId, wallClock.currentTimeMillis())
-            mailRepo.getActiveMails(slotId).collect { mails ->
+            mailRepo.deleteExpiredMails(wallClock.currentTimeMillis())
+            mailRepo.getActiveMails().collect { mails ->
                 _activeMails.value = mails
                 _unreadCount.value = mails.count { !it.isRead }
             }
         }
     }
 
-    private fun getMutex(slotId: Int): Mutex {
-        return slotMutexes.getOrPut(slotId) { Mutex() }
-    }
+    private val mailMutex = Mutex()
 
-    suspend fun loadBuiltinMails(slotId: Int) {
+    private fun getMutex(): Mutex = mailMutex
+
+    suspend fun loadBuiltinMails() {
         val now = wallClock.currentTimeMillis()
         BuiltinMailConfig.mails.forEach { builtinMail ->
             // 限时邮件：未到生效时间，暂不发放
@@ -170,13 +166,11 @@ class MailService @Inject constructor(
                     "deadline=${builtinMail.deadlineMs})")
                 return@forEach
             }
-            val existingMails = mailRepo.getActiveMails(slotId).first()
+            val existingMails = mailRepo.getActiveMails().first()
             val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
             if (!alreadyInserted) {
                 val entity = MailEntity(
-                    id = builtinMail.id,
-                    slotId = slotId,
-                    source = "builtin",
+                    id = builtinMail.id,                    source = "builtin",
                     mailType = builtinMail.mailType,
                     title = builtinMail.title,
                     content = builtinMail.content,
@@ -192,9 +186,9 @@ class MailService @Inject constructor(
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun claimAttachment(mailId: String, slotId: Int): ClaimResult {
-        return getMutex(slotId).withLock {
-            val (guardFailure, mail) = findClaimableMail(mailId, slotId)
+    suspend fun claimAttachment(mailId: String): ClaimResult {
+        return getMutex().withLock {
+            val (guardFailure, mail) = findClaimableMail(mailId)
             if (guardFailure != null || mail == null) return@withLock guardFailure ?: ClaimResult.MailNotFound
 
             val (preFailure, attachments) = parseAndCheckAttachmentCapacity(mailId, mail.attachments)
@@ -203,9 +197,7 @@ class MailService @Inject constructor(
             // 原子发放：物品入库 + 领取记录在同一 stateStore 事务中
             val (rewardCards, distributeError) = grantAttachments(
                 mail = mail,
-                attachments = attachments,
-                slotId = slotId
-            )
+                attachments = attachments,            )
             if (distributeError != null) return@withLock distributeError
             // w3-13 通道关闭配套（§2.80）：发放事务为非捕获（updateMirror）——领取
             // 写面经基线重建回导 C++（低频用户动作，O(状态) 一次性成本可接受）
@@ -220,15 +212,15 @@ class MailService @Inject constructor(
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Failed to mark mail $mailId as claimed in DB: ${e.message}", e)
             }
-            refreshActiveMails(slotId)
+            refreshActiveMails()
             ClaimResult.Success(attachments, rewardCards)
         }
     }
 
-    suspend fun markAllAsRead(slotId: Int): MarkAllReadResult {
-        return getMutex(slotId).withLock {
+    suspend fun markAllAsRead(): MarkAllReadResult {
+        return getMutex().withLock {
             val now = wallClock.currentTimeMillis()
-            val mails = mailRepo.getActiveMails(slotId).first()
+            val mails = mailRepo.getActiveMails().first()
 
             var claimedCount = 0
             var skippedCount = 0
@@ -237,7 +229,7 @@ class MailService @Inject constructor(
 
             mails.filter { !it.isRead || (it.hasAttachment && !it.attachmentClaimed) }.forEach { mail ->
                 if (mail.hasAttachment && !mail.attachmentClaimed) {
-                    when (val result = claimAttachmentInternal(mail, slotId, now)) {
+                    when (val result = claimAttachmentInternal(mail, now)) {
                         is ClaimResult.Success -> {
                             claimedCount++
                             allCards.addAll(result.cards)
@@ -257,7 +249,7 @@ class MailService @Inject constructor(
                 }
             }
 
-            refreshActiveMails(slotId)
+            refreshActiveMails()
             // w3-13 通道关闭配套（§2.80）：发放事务为非捕获（updateMirror）——发生
             // 领取即基线重建回导 C++（与单个领取同口径）
             if (claimedCount > 0) gameEngineCore?.rebaselineNativeMirror("邮件一键领取")
@@ -265,8 +257,8 @@ class MailService @Inject constructor(
         }
     }
 
-    suspend fun markAsRead(mailId: String, slotId: Int) {
-        val mail = mailRepo.getById(slotId, mailId) ?: return
+    suspend fun markAsRead(mailId: String) {
+        val mail = mailRepo.getById(mailId) ?: return
         if (!mail.isRead) {
             mailRepo.update(mail.copy(isRead = true))
         }
@@ -277,15 +269,15 @@ class MailService @Inject constructor(
      */
     suspend fun insertMail(mail: MailEntity) {
         mailRepo.insertWithEnforceLimit(mail, MAX_MAILS_PER_SLOT)
-        refreshActiveMails(mail.slotId)
+        refreshActiveMails()
     }
 
-    fun getActiveMails(slotId: Int): Flow<List<MailEntity>> {
-        return mailRepo.getActiveMails(slotId)
+    fun getActiveMails(): Flow<List<MailEntity>> {
+        return mailRepo.getActiveMails()
     }
 
-    fun getUnreadCount(slotId: Int): Flow<Int> {
-        return mailRepo.getUnreadCount(slotId)
+    fun getUnreadCount(): Flow<Int> {
+        return mailRepo.getUnreadCount()
     }
 
     /**
@@ -297,27 +289,27 @@ class MailService @Inject constructor(
      * 未领取附件绝不因读档/切档/重开而丢失。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun resetAndInitSlot(slotId: Int) {
-        getMutex(slotId).withLock {
-            DomainLog.i(TAG, "resetAndInitSlot for slot $slotId")
+    suspend fun resetAndInit() {
+        getMutex().withLock {
+            DomainLog.i(TAG, "resetAndInit")
             try {
-                loadBuiltinMails(slotId)
+                loadBuiltinMails()
                 // 根据存档数据恢复已领取状态
                 val claimedIds = stateStore.gameData.value.mailRecords.map { it.mailId }.toSet()
                 if (claimedIds.isNotEmpty()) {
-                    val mails = mailRepo.getActiveMails(slotId).first()
+                    val mails = mailRepo.getActiveMails().first()
                     mails.filter { it.id in claimedIds }.forEach { mail ->
                         mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
                     }
                 }
-                DomainLog.i(TAG, "resetAndInitSlot DONE for slot $slotId")
-                refreshActiveMails(slotId)
+                DomainLog.i(TAG, "resetAndInit DONE")
+                refreshActiveMails()
                 // Room flow 持续收集：溢出邮件等外部写入立即可见
-                startMailFlowCollector(slotId)
+                startMailFlowCollector()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                DomainLog.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
+                DomainLog.e(TAG, "Error in resetAndInit", e)
             }
         }
     }

@@ -109,7 +109,6 @@ class DiffStateTest {
     private fun GameData.applyGameDataScalarsPart1(): GameData = apply {
         id = "sect-1"
         sectName = "青云宗"
-        currentSlot = 1
         gameYear = 12
         gameMonth = 7
         gamePhase = 1

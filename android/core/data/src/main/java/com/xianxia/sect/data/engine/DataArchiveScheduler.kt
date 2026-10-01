@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.engine
 
 import android.util.Log
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.archive.ArchivedBattleLog
 import com.xianxia.sect.data.archive.ArchivedDisciple
 import com.xianxia.sect.core.model.BattleLog
@@ -25,10 +24,6 @@ data class ArchiveConfig(
     val battleLogHotCount: Int = 200,
     val deadDiscipleArchiveDelayMs: Long = 60_000L,
     val archiveRetentionMs: Long = 180L * 24 * 60 * 60 * 1000L,
-    // 审计 §12-F：原硬编码 `listOf(1,2,3,4,5)` **漏 slot 6**（该槽永不归档，数据无界增长），
-    // 与 DataPruningScheduler 的 `(0..DEFAULT_MAX_SLOTS)` 口径不一致。改为覆盖全部
-    // **本地存档槽** 1..DEFAULT_MAX_SLOTS；slot 0 是云档槽（本地无行）故不纳入。
-    val slotIds: List<Int> = (1..StorageConstants.DEFAULT_MAX_SLOTS).toList(),
     val enableAutoArchive: Boolean = true
 )
 
@@ -100,22 +95,17 @@ class DataArchiveScheduler @Inject constructor(
         var battleLogsCleaned = 0
         var disciplesCleaned = 0
 
-        for (slotId in config.slotIds) {
-            try {
-                // 归档与保存互斥：保存事务全量重写 battleLogs/disciples，
-                // 与归档读删交叉时会导致主表/归档表数据漂移，须持槽位写锁
-                core.lockManager.withWriteLockLight(slotId) {
-                    val logsResult = archiveBattleLogs(slotId)
-                    battleLogsArchived += logsResult
-
-                    val disciplesResult = archiveDeadDisciples(slotId)
-                    disciplesArchived += disciplesResult
-                }
-            } catch (e: CancellationException) {
-                throw e // 取消穿透: 归档取消时中止剩余槽位, 槽位写锁不跨取消持锁
-            } catch (e: Exception) {
-                Log.w(TAG, "Archive for slot $slotId failed: ${e.message}")
+        try {
+            // 归档与保存互斥：保存事务全量重写 battleLogs/disciples，
+            // 与归档读删交叉时会导致主表/归档表数据漂移，须持存档写锁
+            core.lockManager.withWriteLockLight() {
+                battleLogsArchived += archiveBattleLogs()
+                disciplesArchived += archiveDeadDisciples()
             }
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 归档取消时中止, 写锁不跨取消持锁
+        } catch (e: Exception) {
+            Log.w(TAG, "Archive failed: ${e.message}")
         }
 
         try {
@@ -162,19 +152,17 @@ class DataArchiveScheduler @Inject constructor(
      * "搬出主表"本身保留（主表保持精简），保留期由 [ArchiveConfig.archiveRetentionMs]
      * 控制，到期由 `deleteArchivedBefore` 清理。
      */
-    private suspend fun archiveBattleLogs(slotId: Int): Int {
-        val totalCount = database.battleLogDao().countBySlot(slotId)
+    private suspend fun archiveBattleLogs(): Int {
+        val totalCount = database.battleLogDao().countAll()
         if (totalCount <= config.battleLogHotCount) return 0
 
         val overflow = totalCount - config.battleLogHotCount
-        val toArchive = database.battleLogDao().getOldestBySlot(slotId, overflow)
+        val toArchive = database.battleLogDao().getOldest(overflow)
 
         if (toArchive.isEmpty()) return 0
 
         val archived = toArchive.map { log ->
-            ArchivedBattleLog(
-                slotId = slotId,
-                originalId = log.id,
+            ArchivedBattleLog(                originalId = log.id,
                 battleType = log.type.name,
                 result = log.result.name,
                 timestamp = log.timestamp,
@@ -187,7 +175,7 @@ class DataArchiveScheduler @Inject constructor(
         database.withTransaction {
             database.archivedBattleLogDao().insertAll(archived)
             for (log in toArchive) {
-                database.battleLogDao().deleteById(slotId, log.id)
+                database.battleLogDao().deleteById(log.id)
             }
         }
 
@@ -203,15 +191,13 @@ class DataArchiveScheduler @Inject constructor(
      * "搬出主表"本身保留（主表保持精简），保留期由 [ArchiveConfig.archiveRetentionMs]
      * 控制，到期由 `deleteArchivedBefore` 清理。
      */
-    private suspend fun archiveDeadDisciples(slotId: Int): Int {
-        val deadDisciples = database.discipleDao().getDeadBySlotSync(slotId)
+    private suspend fun archiveDeadDisciples(): Int {
+        val deadDisciples = database.discipleDao().getDeadSync()
 
         if (deadDisciples.isEmpty()) return 0
 
         val archived = deadDisciples.map { disciple ->
-            ArchivedDisciple(
-                slotId = slotId,
-                originalId = disciple.id,
+            ArchivedDisciple(                originalId = disciple.id,
                 name = disciple.name,
                 realm = disciple.realm,
                 dataBlob = encodeArchivedDiscipleBlob(disciple)
@@ -220,7 +206,7 @@ class DataArchiveScheduler @Inject constructor(
 
         database.withTransaction {
             database.archivedDiscipleDao().insertAll(archived)
-            database.discipleDao().deleteDeadBySlot(slotId)
+            database.discipleDao().deleteDead()
         }
 
         return archived.size

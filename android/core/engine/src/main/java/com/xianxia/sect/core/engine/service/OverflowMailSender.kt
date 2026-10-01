@@ -54,11 +54,11 @@ import com.xianxia.sect.core.overflow.PersistedOverflowDraft
  * 发送不丢资产；DB 草稿行消费失败保留行，下次 drain 重试（幂等 mailId）。
  *
  * ## 防抖批组
- * 草稿入队后 300ms 防抖单飞 drain：同一 (slotId, source) 的草稿合并为一封邮件
+ * 草稿入队后 300ms 防抖单飞 drain：同一 (source) 的草稿合并为一封邮件
  * （附件列表），一次战斗的多个溢出物品 = 1 封邮件，避免邮件轰炸。
  *
  * ## 幂等
- * 邮件 id = `UUID.nameUUIDFromBytes("overflow:$slotId:$source:${draftIds.sorted()}")`
+ * 邮件 id = `UUID.nameUUIDFromBytes("overflow:$source:${draftIds.sorted()}")`
  * ——同组草稿跨进程重放生成同 id，无重复邮件（REPLACE 覆盖）。
  */
 @GameService("OverflowMailSender")
@@ -133,9 +133,9 @@ class OverflowMailSender @Inject constructor(
          * 确定性邮件 id：同组草稿（按 id 排序）跨进程重放生成同 id —— 幂等，
          * 配合 mails 表 REPLACE 不产生重复邮件。
          */
-        internal fun deterministicOverflowMailId(slotId: Int, source: String, draftIds: List<String>): String =
+        internal fun deterministicOverflowMailId(source: String, draftIds: List<String>): String =
             java.util.UUID.nameUUIDFromBytes(
-                "overflow:$slotId:$source:${draftIds.sorted().joinToString(",")}".toByteArray()
+                "overflow:$source:${draftIds.sorted().joinToString(",")}".toByteArray()
             ).toString()
     }
 
@@ -190,7 +190,7 @@ class OverflowMailSender @Inject constructor(
             }
         } else {
             val draft = PersistedDirectMailDraft(
-                id = mail.id, slotId = mail.slotId,
+                id = mail.id,
                 payload = json.encodeToString(mail), createdAt = wallClock.currentTimeMillis()
             )
             if (!mailRepo.insertDirectMailDraftBlocking(draft)) {
@@ -215,8 +215,8 @@ class OverflowMailSender @Inject constructor(
         if (!directMails.isNullOrEmpty()) {
             for (mail in directMails) {
                 val draft = PersistedDirectMailDraft(
-                    id = mail.id, slotId = mail.slotId,
-                    payload = json.encodeToString(mail), createdAt = wallClock.currentTimeMillis()
+                        id = mail.id,
+                        payload = json.encodeToString(mail), createdAt = wallClock.currentTimeMillis()
                 )
                 if (!mailRepo.insertDirectMailDraftBlocking(draft)) {
                     unpublishedDirectMails.add(draft)
@@ -242,9 +242,7 @@ class OverflowMailSender @Inject constructor(
         val now = wallClock.currentTimeMillis()
         val persisted = drafts.map { d ->
             PersistedOverflowDraft(
-                id = java.util.UUID.randomUUID().toString(),
-                slotId = d.slotId,
-                source = d.source,
+                id = java.util.UUID.randomUUID().toString(),                source = d.source,
                 itemType = d.itemType,
                 itemName = d.itemName,
                 itemId = d.itemId,
@@ -333,16 +331,16 @@ class OverflowMailSender @Inject constructor(
         }
     }
 
-    /** 按 (slotId, source) 分组构建溢出邮件；每组一个原子事务"写 mails + 删草稿行" */
+    /** 按 (source) 分组构建溢出邮件；每组一个原子事务"写 mails + 删草稿行" */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private suspend fun drainPersistedOverflowDrafts(
         drafts: List<PersistedOverflowDraft>,
         now: Long
     ): Boolean {
         var anyWritten = false
-        val grouped = drafts.groupBy { it.slotId to it.source }
+        val grouped = drafts.groupBy { it.source }
         for ((key, group) in grouped) {
-            val (slotId, source) = key
+            val source = key
             val draftIds = group.map { it.id }.sorted()
             try {
                 val attachments = group.map { draft ->
@@ -355,8 +353,8 @@ class OverflowMailSender @Inject constructor(
                     )
                 }
                 val mail = buildOverflowMail(
-                    slotId, source, attachments, now,
-                    mailId = deterministicOverflowMailId(slotId, source, draftIds)
+                    source, attachments, now,
+                    mailId = deterministicOverflowMailId(source, draftIds)
                 )
                 // 原子：邮件写入 + 草稿行删除（崩溃只发生在事务前/后，重放不重复）
                 mailRepo.insertWithEnforceLimitAndDeleteDrafts(
@@ -367,7 +365,7 @@ class OverflowMailSender @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 // 失败组草稿行保留 DB，下次 drain 重试（幂等 mailId 保证不重复）
-                DomainLog.e(TAG, "溢出邮件写入失败 slotId=$slotId source=$source（草稿行保留重试）", e)
+                DomainLog.e(TAG, "溢出邮件写入失败 source=$source（草稿行保留重试）", e)
             }
         }
         return anyWritten
@@ -395,9 +393,7 @@ class OverflowMailSender @Inject constructor(
     }
 
     /** 构建溢出邮件（标题/内容清晰说明来源与原因）——internal 供单元测试直测 */
-    internal fun buildOverflowMail(
-        slotId: Int,
-        source: String,
+    internal fun buildOverflowMail(        source: String,
         attachments: List<MailAttachment>,
         now: Long,
         mailId: String = java.util.UUID.randomUUID().toString()
@@ -413,9 +409,7 @@ class OverflowMailSender @Inject constructor(
             append("\n\n（邮件自发送起 $MAIL_EXPIRE_DAYS 天内有效，逾期删除）\n——天道意志")
         }
         return MailEntity(
-            id = mailId,
-            slotId = slotId,
-            source = "overflow",
+            id = mailId,            source = "overflow",
             mailType = "overflow",
             title = "【仓库已满】来自「$sourceName」的物品已转入邮件",
             content = content,

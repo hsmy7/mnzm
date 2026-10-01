@@ -30,55 +30,55 @@ import kotlinx.coroutines.flow.Flow
 // Domain-level repository interfaces — engine depends on these, not on data module DAOs.
 
 interface DiscipleRepository {
-    fun getDisciples(slotId: Int = 0): Flow<List<Disciple>>
-    fun getAliveDisciples(slotId: Int = 0): Flow<List<Disciple>>
-    suspend fun getDiscipleById(id: String, slotId: Int = 0): Disciple?
-    suspend fun getDisciplesByStatus(status: DiscipleStatus, slotId: Int = 0): List<Disciple>
-    suspend fun getAllDisciplesSync(slotId: Int = 0): List<Disciple>
+    fun getDisciples(): Flow<List<Disciple>>
+    fun getAliveDisciples(): Flow<List<Disciple>>
+    suspend fun getDiscipleById(id: String): Disciple?
+    suspend fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple>
+    suspend fun getAllDisciplesSync(): List<Disciple>
 }
 
 interface WorldRepository {
-    fun getBuildingSlots(buildingId: String, slotId: Int = 0): Flow<List<BuildingSlot>>
-    fun getAllBuildingSlots(slotId: Int = 0): Flow<List<BuildingSlot>>
-    suspend fun getBuildingSlotsSync(buildingId: String, slotId: Int = 0): List<BuildingSlot>
-    fun getUnlockedRecipes(slotId: Int = 0): Flow<List<Recipe>>
-    fun getAllRecipes(slotId: Int = 0): Flow<List<Recipe>>
-    fun getRecipesByType(type: RecipeType, slotId: Int = 0): Flow<List<Recipe>>
-    suspend fun getRecipeById(id: String, slotId: Int = 0): Recipe?
-    fun getRecentBattleLogs(limit: Int = 50, slotId: Int = 0): Flow<List<BattleLog>>
-    fun getAllBattleLogs(slotId: Int = 0): Flow<List<BattleLog>>
-    suspend fun getBattleLogById(id: String, slotId: Int = 0): BattleLog?
+    fun getBuildingSlots(buildingId: String): Flow<List<BuildingSlot>>
+    fun getAllBuildingSlots(): Flow<List<BuildingSlot>>
+    suspend fun getBuildingSlotsSync(buildingId: String): List<BuildingSlot>
+    fun getUnlockedRecipes(): Flow<List<Recipe>>
+    fun getAllRecipes(): Flow<List<Recipe>>
+    fun getRecipesByType(type: RecipeType): Flow<List<Recipe>>
+    suspend fun getRecipeById(id: String): Recipe?
+    fun getRecentBattleLogs(limit: Int = 50): Flow<List<BattleLog>>
+    fun getAllBattleLogs(): Flow<List<BattleLog>>
+    suspend fun getBattleLogById(id: String): BattleLog?
 }
 
 @Suppress("TooManyFunctions") // 库存仓储契约：六类物品+钱包的查询/变更端口，函数数即仓储协议面
 interface InventoryRepository {
-    fun getManualStacks(slotId: Int = 0): Flow<List<ManualStack>>
-    suspend fun getManualStackById(id: String, slotId: Int = 0): ManualStack?
-    fun getManualInstances(slotId: Int = 0): Flow<List<ManualInstance>>
-    suspend fun getManualInstanceById(id: String, slotId: Int = 0): ManualInstance?
-    suspend fun getManualInstancesByOwner(discipleId: String, slotId: Int = 0): List<ManualInstance>
-    fun getPills(slotId: Int = 0): Flow<List<Pill>>
-    suspend fun getPillById(id: String, slotId: Int = 0): Pill?
-    fun getMaterials(slotId: Int = 0): Flow<List<Material>>
-    suspend fun getMaterialById(id: String, slotId: Int = 0): Material?
-    fun getMaterialsByCategory(category: MaterialCategory, slotId: Int = 0): Flow<List<Material>>
-    fun getSeeds(slotId: Int = 0): Flow<List<Seed>>
-    suspend fun getSeedById(id: String, slotId: Int = 0): Seed?
-    fun getHerbs(slotId: Int = 0): Flow<List<Herb>>
-    suspend fun getHerbById(id: String, slotId: Int = 0): Herb?
+    fun getManualStacks(): Flow<List<ManualStack>>
+    suspend fun getManualStackById(id: String): ManualStack?
+    fun getManualInstances(): Flow<List<ManualInstance>>
+    suspend fun getManualInstanceById(id: String): ManualInstance?
+    suspend fun getManualInstancesByOwner(discipleId: String): List<ManualInstance>
+    fun getPills(): Flow<List<Pill>>
+    suspend fun getPillById(id: String): Pill?
+    fun getMaterials(): Flow<List<Material>>
+    suspend fun getMaterialById(id: String): Material?
+    fun getMaterialsByCategory(category: MaterialCategory): Flow<List<Material>>
+    fun getSeeds(): Flow<List<Seed>>
+    suspend fun getSeedById(id: String): Seed?
+    fun getHerbs(): Flow<List<Herb>>
+    suspend fun getHerbById(id: String): Herb?
 }
 
 interface EquipmentRepository {
-    fun getEquipmentInstances(slotId: Int = 0): Flow<List<EquipmentInstance>>
-    suspend fun getEquipmentInstanceById(id: String, slotId: Int = 0): EquipmentInstance?
-    suspend fun getEquipmentInstancesByOwner(discipleId: String, slotId: Int = 0): List<EquipmentInstance>
+    fun getEquipmentInstances(): Flow<List<EquipmentInstance>>
+    suspend fun getEquipmentInstanceById(id: String): EquipmentInstance?
+    suspend fun getEquipmentInstancesByOwner(discipleId: String): List<EquipmentInstance>
 }
 
 interface GameDataRepository {
-    fun getGameData(slotId: Int = 0): Flow<GameData?>
-    suspend fun getGameDataSync(slotId: Int = 0): GameData?
+    fun getGameData(): Flow<GameData?>
+    suspend fun getGameDataSync(): GameData?
     suspend fun initializeNewGame(): GameData
-    suspend fun clearAllData(slotId: Int = 0)
+    suspend fun clearAllData()
 }
 
 /** Persistence port for ProductionSlotRepository — stays in engine, DAO access through this port. */
@@ -89,15 +89,15 @@ interface ProductionSlotDataPort {
     suspend fun updateAll(slots: List<ProductionSlot>)
     suspend fun insert(slot: ProductionSlot)
     suspend fun deleteById(id: String)
-    suspend fun deleteBySlot(slotId: Int)
-    suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
+    suspend fun deleteAll()
+    suspend fun deleteByBuildingType(buildingType: BuildingType)
 }
 
 /** Persistence port for GameHeavyData. */
 interface GameHeavyDataPort {
-    fun getLoadedKeys(slot: Int): List<String>
-    fun getByKey(slot: Int, key: String): GameHeavyData?
-    fun deleteByKey(slot: Int, key: String)
+    fun getLoadedKeys(): List<String>
+    fun getByKey(key: String): GameHeavyData?
+    fun deleteByKey(key: String)
 }
 
 /** Decodes heavy data rows from storage into typed game state. */
