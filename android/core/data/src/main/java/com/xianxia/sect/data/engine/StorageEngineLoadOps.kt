@@ -39,7 +39,7 @@ internal suspend fun StorageEngine.handleDbDataHit(dbData: SaveData): StorageRes
         )
     }
     infra.storageMetrics.recordLoad()
-    clearCacheForSlot()
+    clearSaveCache()
     // 完整性校验 + 损坏备份恢复
     val validated = validateDbData(dbData)
     if (validated.isSuccess) infra.circuitBreaker.recordSuccess("load")

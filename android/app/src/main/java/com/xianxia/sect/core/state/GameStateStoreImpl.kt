@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameHeavyData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -66,7 +67,13 @@ class GameStateStoreImpl @Inject constructor(
      * 默认 [NoopRngSnapshotPort] 供非注入测试环境使用；Hilt 注入真实实现
      * （App 层委托 GameRngManager）。
      */
-    private val rngSnapshotPort: RngSnapshotPort = NoopRngSnapshotPort
+    private val rngSnapshotPort: RngSnapshotPort = NoopRngSnapshotPort,
+    /**
+     * 保存脏集馈送口（SS5 增量落盘）：提交段把本事务触达的实体/heavy key
+     * 回传给跟踪器。镜像写入（applyDirty 系）与本地 Kotlin 写（update）都经
+     * 本提交段，单一捕获点双源覆盖。默认空实现供非注入测试环境使用。
+     */
+    private val saveDirtyRecorder: SaveDirtyRecorder = NoopSaveDirtyRecorder
 ) : GameStateStore {
 
     /**
@@ -892,6 +899,7 @@ class GameStateStoreImpl @Inject constructor(
         baseline: UpdateBaseline,
         flags: CommitFlags
     ): Boolean {
+        feedSaveDirtyRecorder(baseline)
         // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
         // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
         // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
@@ -910,6 +918,133 @@ class GameStateStoreImpl @Inject constructor(
         // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
         lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
         return disciplesNeedReassemble
+    }
+
+
+    /**
+     * 把本事务触达的持久化面变更回传给保存脏集跟踪器（SS5）。
+     *
+     * 引用比较短路：未触达的集合零成本（freeze 后 items 引用不变）。
+     * 行删除不在此馈送——增量路径每保存按「已落盘 id ↔ 快照 id」对账删除集。
+     * 弟子行经 changedIdTracker 非消费快照读取（dispatchAssemble 随后按原路径
+     * 消费，互不干扰）；容量拒绝（超大 id）不可精确回传 ⇒ 直接要求全量兜底。
+     */
+    private fun feedSaveDirtyRecorder(baseline: UpdateBaseline) {
+        feedGameDataDirty(baseline)
+        feedEntityStoresDirty(baseline)
+        feedDisciplesDirty()
+    }
+
+    /** gameData 面：heavy key（字段引用比较）+ 配方派生表（引用比较）。 */
+    private fun feedGameDataDirty(baseline: UpdateBaseline) {
+        val state = reusableMutableState
+        if (state.gameData === baseline.gameData) return
+        saveDirtyRecorder.recordHeavyKeys(heavyKeysOf(state.gameData, baseline.gameData))
+        if (state.gameData.unlockedRecipes !== baseline.gameData.unlockedRecipes) {
+            saveDirtyRecorder.recordTableRewrite(SaveDirtyTables.RECIPES)
+        }
+    }
+
+    /** 实体存储面：8 个 EntityStore + battleLogs（freeze 后 items 引用比较短路）。 */
+    private fun feedEntityStoresDirty(baseline: UpdateBaseline) {
+        val state = reusableMutableState
+        if (state.equipmentInstances.items !== baseline.equipmentInstances) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.EQUIPMENT_INSTANCES,
+                changedIds(baseline.equipmentInstances, state.equipmentInstances.items) { it.id }
+            )
+        }
+        if (state.manualStacks.items !== baseline.manualStacks) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.MANUAL_STACKS,
+                changedIds(baseline.manualStacks, state.manualStacks.items) { it.id }
+            )
+        }
+        if (state.manualInstances.items !== baseline.manualInstances) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.MANUAL_INSTANCES,
+                changedIds(baseline.manualInstances, state.manualInstances.items) { it.id }
+            )
+        }
+        if (state.pills.items !== baseline.pills) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.PILLS,
+                changedIds(baseline.pills, state.pills.items) { it.id }
+            )
+        }
+        if (state.materials.items !== baseline.materials) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.MATERIALS,
+                changedIds(baseline.materials, state.materials.items) { it.id }
+            )
+        }
+        if (state.herbs.items !== baseline.herbs) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.HERBS,
+                changedIds(baseline.herbs, state.herbs.items) { it.id }
+            )
+        }
+        if (state.seeds.items !== baseline.seeds) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.SEEDS,
+                changedIds(baseline.seeds, state.seeds.items) { it.id }
+            )
+        }
+        if (state.storageBags.items !== baseline.storageBags) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.STORAGE_BAGS,
+                changedIds(baseline.storageBags, state.storageBags.items) { it.id }
+            )
+        }
+        if (state.battleLogs !== baseline.battleLogs) {
+            saveDirtyRecorder.recordEntityUpserts(
+                SaveDirtyTables.BATTLE_LOGS,
+                changedIds(baseline.battleLogs, state.battleLogs) { it.id }
+            )
+        }
+    }
+
+    /** 弟子面：changedIdTracker 非消费快照；容量拒绝 ⇒ 全量兜底。 */
+    private fun feedDisciplesDirty() {
+        val tables = reusableMutableState.discipleTables
+        val changedIds = tables.changedIdTracker.snapshotChangedIds()
+        if (!tables.dirtyTracker.isDirty && changedIds.isEmpty()) return
+        if (tables.changedIdTracker.snapshotRejectedRecord()) {
+            // 容量拒绝：脏弟子集不可精确回传（超大 id 被拒录）⇒ 全量兜底
+            saveDirtyRecorder.recordRequiresFullWrite()
+            return
+        }
+        // 仅馈送快照中仍存在的行；已物理移除的行由增量保存的 id 对账删除
+        saveDirtyRecorder.recordEntityUpserts(
+            SaveDirtyTables.DISCIPLES,
+            changedIds.filter { tables.isAlive.contains(it) }.map(Int::toString)
+        )
+    }
+
+    /** gameData 引用变化时逐 heavy 字段比较引用（copy 语义保证未变字段共享引用）。 */
+    private fun heavyKeysOf(final: GameData, baseline: GameData): Set<String> = buildSet {
+        if (final.aiSectDisciples !== baseline.aiSectDisciples) {
+            add(GameHeavyData.KEY_AI_SECT_DISCIPLES)
+        }
+        if (final.sectDetails !== baseline.sectDetails) add(GameHeavyData.KEY_SECT_DETAILS)
+        if (final.exploredSects !== baseline.exploredSects) add(GameHeavyData.KEY_EXPLORED_SECTS)
+        if (final.scoutInfo !== baseline.scoutInfo) add(GameHeavyData.KEY_SCOUT_INFO)
+        if (final.manualProficiencies !== baseline.manualProficiencies) {
+            add(GameHeavyData.KEY_MANUAL_PROFICIENCIES)
+        }
+        if (final.recruitList !== baseline.recruitList) add(GameHeavyData.KEY_RECRUIT_LIST)
+        if (final.worldMapSects !== baseline.worldMapSects) add(GameHeavyData.KEY_WORLD_MAP_SECTS)
+    }
+
+    /** 事务前后内容变化的实体 id 集（实例替换即视为变化；幂等回写无害）。 */
+    private fun <T> changedIds(baseline: List<T>, final: List<T>, idOf: (T) -> String): Set<String> {
+        val baselineById = HashMap<String, T>(baseline.size)
+        for (item in baseline) baselineById[idOf(item)] = item
+        val changed = HashSet<String>()
+        for (item in final) {
+            if (baselineById[idOf(item)] !== item) changed.add(idOf(item))
+        }
+        return changed
     }
 
     /** ANR 诊断：记录锁内耗时超过阈值的 update 调用 */
@@ -1173,6 +1308,9 @@ class GameStateStoreImpl @Inject constructor(
         isSaving: Boolean
     ) {
         transactionLock.withLock {
+            // 状态整体替换：累积保存脏集作废（新状态与 DB 的对应关系由随后的
+            // 全量基线保存重建）
+            saveDirtyRecorder.resetForStateReplacement()
             // 读档前快照 RNG 状态——loadFromSnapshot 失败回滚（rollbackLoad）
             // 时同步恢复，保证状态与随机序列一致（状态/RNG 错配的确定性修复）
             val rngBaseline = rngSnapshotPort.snapshot()
@@ -1439,6 +1577,8 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun reset() {
         transactionLock.withLock {
+            // 状态整体替换：累积保存脏集作废（同 loadFromSnapshot 语义）
+            saveDirtyRecorder.resetForStateReplacement()
             // 版本号递增必须**最先**执行（clear 之前）——
             // 若在锁内末尾递增，排队中的增量组装可在 reset 获取锁前通过 gen 检查，
             // 与 clear 并发遍历表（组装出半截列表覆盖空列表）

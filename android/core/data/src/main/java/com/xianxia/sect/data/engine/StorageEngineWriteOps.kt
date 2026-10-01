@@ -8,22 +8,27 @@ import com.xianxia.sect.core.model.ProductionState
 import com.xianxia.sect.core.model.Recipe
 import com.xianxia.sect.core.model.SectPolicyState
 import com.xianxia.sect.core.model.WorldMapStateEntity
+import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.GameHeavyDataDao
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageResult
 import androidx.room.withTransaction
 
-// StorageEngine 的数据库写层:轻量游戏数据行 + 重数据增写 + 核心实体/域实体族
-// 写入与容量辅助。跨文件消费类内 internal 字段(同模块,行为零变更)。
+// StorageEngine 的全量写域（兜底路径）：heavy 全删全写 + 实体表整表清空重写 +
+// 域状态表回填 + 容量辅助。写入口接收者为 GameDatabase（与增量写面同口径，
+// 直测免引擎装配）；事务边界由调用方 performTransactionSave 承担。
+// 增量路径（默认）在 StorageEngineIncrementalWriteOps.kt（按域拆分惯例）。
 
 private val TAG = StorageEngine.TAG
 
 private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
 
-private const val LOW_MEMORY_THRESHOLD_MB = StorageEngine.LOW_MEMORY_THRESHOLD_MB
-
-internal suspend fun StorageEngine.writeAllDataToDatabase(data: SaveData): StorageResult<Unit> {
+/**
+ * 全量路径（兜底）：heavy 全删全写 + 实体表整表清空重写。
+ * 触发条件与计数见 resolveSavePath；正确性语义 = DB 终态与快照逐字段一致。
+ */
+internal suspend fun GameDatabase.writeAllDataToDatabase(data: SaveData): StorageResult<Unit> {
     Log.d(TAG, "writeAllDataToDatabase: " +
         "${data.disciples.size} disciples, " +
         "recruitList=${data.gameData.recruitList.size} unrecruited")
@@ -37,7 +42,7 @@ internal suspend fun StorageEngine.writeAllDataToDatabase(data: SaveData): Stora
         Log.w(TAG, "存档前检测到 sectName 为空")
     }
 
-    val heavyDao = core.database.gameHeavyDataDao()
+    val heavyDao = gameHeavyDataDao()
 
     // 重型数据清理/写入/轻量实体写入分别提取（行为逐行一致）
     clearHeavyDataByPrefix(heavyDao)
@@ -45,7 +50,7 @@ internal suspend fun StorageEngine.writeAllDataToDatabase(data: SaveData): Stora
 
     // ── 轻型 GameData（所有大型字段已清空，TypeConverter 编码近乎零开销）──
     val lightGameData = buildLightGameData(data)
-    core.database.withTransaction {
+    withTransaction {
         clearOldEntities(data)
         writeCoreEntities(data, lightGameData)
         writeDomainEntities(data)
@@ -64,7 +69,7 @@ internal fun heavyPrefixesToClear(allKeys: List<String>, skippedKeys: Set<String
     allKeys.filterNot { it in skippedKeys }
 
 /** 清除旧重型数据（按前缀批量删除；读档被跳过的 key 除外，见审计 §12-A）。 */
-internal suspend fun StorageEngine.clearHeavyDataByPrefix(heavyDao: GameHeavyDataDao) {
+internal suspend fun GameDatabase.clearHeavyDataByPrefix(heavyDao: GameHeavyDataDao) {
     val skipped = skippedHeavyKeys
     val prefixes = heavyPrefixesToClear(GameHeavyData.ALL_KEYS, skipped)
     if (skipped.isNotEmpty()) {
@@ -77,7 +82,10 @@ internal suspend fun StorageEngine.clearHeavyDataByPrefix(heavyDao: GameHeavyDat
 }
 
 /** 增量编码写入重型数据（每项编码完立即写入，立即释放 ByteArray）。 */
-internal suspend fun StorageEngine.writeHeavyDataIncremental(heavyDao: GameHeavyDataDao, data: SaveData) {
+internal suspend fun GameDatabase.writeHeavyDataIncremental(
+    heavyDao: GameHeavyDataDao,
+    data: SaveData
+) {
     ProtobufConverters.encodeDiscipleListMapIncremental(
         data.gameData.aiSectDisciples, GameHeavyData.KEY_AI_SECT_DISCIPLES
     ) { chunks -> heavyDao.upsertAll(chunks) }
@@ -108,8 +116,9 @@ internal suspend fun StorageEngine.writeHeavyDataIncremental(heavyDao: GameHeavy
 }
 
 /** 构建轻型 GameData（大型字段清空，TypeConverter 编码近乎零开销）。 */
-internal fun StorageEngine.buildLightGameData(data: SaveData): GameData =
-    data.gameData.copy(        id = "game_data",
+internal fun GameDatabase.buildLightGameData(data: SaveData): GameData =
+    data.gameData.copy(
+        id = "game_data",
         lastSaveTime = data.timestamp,
         aiSectDisciples = emptyMap(),
         sectDetails = emptyMap(),
@@ -120,34 +129,37 @@ internal fun StorageEngine.buildLightGameData(data: SaveData): GameData =
         worldMapSects = emptyList()
     )
 
-/** 清空槽位旧数据（先清后写，防止旧存档高 ID 行残留）。 */
-internal suspend fun StorageEngine.clearOldEntities(data: SaveData) {
-    core.database.discipleDao().deleteAll()
-    // 堆叠删表守卫：旧格式存档（stacksSerialized = false，如旧备份恢复）的
-    // 堆叠未进入 SaveData，此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，
-    // 重建结果以 upsert 合并。
-    if (data.stacksSerialized) {
-        core.database.manualStackDao().deleteAll()
+/** 清空实体表旧数据（先清后写，防止旧存档高 ID 行残留）——全量路径删侧。 */
+internal suspend fun GameDatabase.clearOldEntities(data: SaveData) {
+    discipleDao().deleteAll()
+    // 堆叠删表防线（SS5 降级为断言）：删档重置（SS0）后全部 SaveData 生产者
+    // 均置 stacksSerialized = true（快照构建/DB 构建/堆叠重建协调器三处），
+    // false 只能来自生产者回归——fail-fast 拒绝保存，不静默保留残留行。
+    // 增量路径为默认后，堆叠表每保存按 id 对账，旧"条件保留"分支的保护对象
+    // （无条件整表删除）已不存在。
+    check(data.stacksSerialized) {
+        "SaveData.stacksSerialized = false：堆叠数据未序列化却进入落盘链路" +
+            "（生产者回归），拒绝整表删除以防堆叠行被清空"
     }
-    core.database.equipmentInstanceDao().deleteAll()
-    core.database.manualInstanceDao().deleteAll()
-    core.database.pillDao().deleteAll()
-    core.database.materialDao().deleteAll()
-    core.database.herbDao().deleteAll()
-    core.database.seedDao().deleteAll()
-    core.database.storageBagDao().deleteAll()
-    core.database.battleLogDao().deleteAll()
-    core.database.recipeDao().deleteAll()
-    core.database.productionSlotDao().deleteAll()
-    // 邮件整对象替换的删侧（SR-1）：SaveData.mails 是槽位邮件的唯一真相——
-    // 旧档无该字段 ⇒ 快照空表 ⇒ 替换后表为空（方案明示单向兼容，与堆叠的
-    // stacksSerialized 条件保留语义**不同**，此处无条件删，交由写侧回填快照）。
-    core.database.mailDao().deleteAll()
+    manualStackDao().deleteAll()
+    equipmentInstanceDao().deleteAll()
+    manualInstanceDao().deleteAll()
+    pillDao().deleteAll()
+    materialDao().deleteAll()
+    herbDao().deleteAll()
+    seedDao().deleteAll()
+    storageBagDao().deleteAll()
+    battleLogDao().deleteAll()
+    recipeDao().deleteAll()
+    productionSlotDao().deleteAll()
+    // 邮件整对象替换的删侧（SR-1）：SaveData.mails 是邮件的唯一真相——
+    // 快照空表 ⇒ 替换后表为空（写侧回填快照，删侧无条件执行）。
+    mailDao().deleteAll()
 }
 
-/** 写入核心实体（轻型 GameData + 弟子/堆叠/实例/生产槽等）。 */
-internal suspend fun StorageEngine.writeCoreEntities(data: SaveData, lightGameData: GameData) {
-    core.database.gameDataDao().insert(lightGameData)
+/** 写入核心实体（轻型 GameData + 弟子/堆叠/实例/生产槽等）——全量路径。 */
+internal suspend fun GameDatabase.writeCoreEntities(data: SaveData, lightGameData: GameData) {
+    gameDataDao().insert(lightGameData)
 
     writeDisciples(data)
     writeStackedItems(data)
@@ -163,51 +175,52 @@ internal suspend fun StorageEngine.writeCoreEntities(data: SaveData, lightGameDa
  * `X.fromDisciple(...)` 派生（零外部输入）⇒ 纯冗余副本，已随迁移删除，
  * 内存侧的同名领域类不受影响（`DiscipleAggregate` 构造路径不经 DB）。
  */
-internal suspend fun StorageEngine.writeDisciples(data: SaveData) {
+internal suspend fun GameDatabase.writeDisciples(data: SaveData) {
     data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
-        core.database.discipleDao().upsertAll(batch)
+        discipleDao().upsertAll(batch)
     }
 }
 
 /** 堆叠/实例/日志族分批写入 */
-internal suspend fun StorageEngine.writeStackedItems(data: SaveData) {
+internal suspend fun GameDatabase.writeStackedItems(data: SaveData) {
     // 装备堆叠不写回（B3：equipment_stacks 表已 DROP；deprecated 载体仅作旧档
     // 补偿读取面，补偿置位后恒空——运行时装备一律 equipment_instances 一行一件）
-    data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it
+    data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { equipmentInstanceDao().upsertAll(it
         ) }
-    data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it) }
-    data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.manualInstanceDao().upsertAll(it
+    data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { manualStackDao().upsertAll(it) }
+    data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { manualInstanceDao().upsertAll(it
         ) }
-    data.pills.chunked(MAX_BATCH_SIZE).forEach { core.database.pillDao().upsertAll(it) }
-    data.materials.chunked(MAX_BATCH_SIZE).forEach { core.database.materialDao().upsertAll(it) }
-    data.herbs.chunked(MAX_BATCH_SIZE).forEach { core.database.herbDao().upsertAll(it) }
-    data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it) }
+    data.pills.chunked(MAX_BATCH_SIZE).forEach { pillDao().upsertAll(it) }
+    data.materials.chunked(MAX_BATCH_SIZE).forEach { materialDao().upsertAll(it) }
+    data.herbs.chunked(MAX_BATCH_SIZE).forEach { herbDao().upsertAll(it) }
+    data.seeds.chunked(MAX_BATCH_SIZE).forEach { seedDao().upsertAll(it) }
 
-    data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it) }
+    data.storageBags.chunked(MAX_BATCH_SIZE).forEach { storageBagDao().upsertAll(it) }
 
-    data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it) }
+    data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { battleLogDao().upsertAll(it) }
 }
 
 /** 生产槽与配方写入：空槽告警 + 分批 upsert + 解锁配方 */
-internal suspend fun StorageEngine.writeProductionSlotsAndRecipes(data: SaveData) {
+internal suspend fun GameDatabase.writeProductionSlotsAndRecipes(data: SaveData) {
     val productionSlotsToSave = data.productionSlots
     if (productionSlotsToSave.isEmpty()) {
         Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY — " +
             "data.productionSlots.size=${data.productionSlots.size}")
     }
     productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-        core.database.productionSlotDao().upsertAll(batch)
+        productionSlotDao().upsertAll(batch)
     }
 
     data.gameData.unlockedRecipes?.map { Recipe(it) }?.let { recipes ->
-        core.database.recipeDao().upsertAll(recipes)
+        recipeDao().upsertAll(recipes)
     }
 }
 
 /** 写入领域实体表（外交/生产状态/巡逻/世界地图/政策——Phase B 细粒度读取路径）。 */
-internal suspend fun StorageEngine.writeDomainEntities(data: SaveData) {
+internal suspend fun GameDatabase.writeDomainEntities(data: SaveData) {
     val gd = data.gameData
-    core.database.diplomacyStateDao().upsert(DiplomacyState(        sectRelations = gd.sectRelations,
+    diplomacyStateDao().upsert(DiplomacyState(
+        sectRelations = gd.sectRelations,
         alliances = gd.alliances,
         playerAllianceSlots = gd.playerAllianceSlots,
         playerProtectionEnabled = gd.playerProtectionEnabled,
@@ -217,23 +230,27 @@ internal suspend fun StorageEngine.writeDomainEntities(data: SaveData) {
         exploredSects = gd.exploredSects,
         scoutInfo = gd.scoutInfo
     ))
-    core.database.productionStateDao().upsert(ProductionState(        spiritFieldPlants = gd.spiritFieldPlants,
+    productionStateDao().upsert(ProductionState(
+        spiritFieldPlants = gd.spiritFieldPlants,
         unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
         unlockedManuals = gd.unlockedManuals ?: emptyList(),
         manualProficiencies = gd.manualProficiencies
     ))
-    core.database.patrolStateDao().upsert(PatrolStateEntity(        patrolSlots = gd.patrolSlots,
+    patrolStateDao().upsert(PatrolStateEntity(
+        patrolSlots = gd.patrolSlots,
         patrolConfig = gd.patrolConfig,
         patrolConfigs = gd.patrolConfigs,
         patrolBattleResultPopup = gd.patrolBattleResultPopup
     ))
-    core.database.worldMapStateDao().upsert(WorldMapStateEntity(        worldMapSects = gd.worldMapSects,
+    worldMapStateDao().upsert(WorldMapStateEntity(
+        worldMapSects = gd.worldMapSects,
         aiSectDisciples = gd.aiSectDisciples,
         cultivatorCaves = gd.cultivatorCaves,
         caveExplorationTeams = gd.caveExplorationTeams,
         worldLevels = gd.worldLevels
     ))
-    core.database.sectPolicyStateDao().upsert(SectPolicyState(        sectPolicies = gd.sectPolicies,
+    sectPolicyStateDao().upsert(SectPolicyState(
+        sectPolicies = gd.sectPolicies,
         breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
         breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
         autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,

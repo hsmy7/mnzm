@@ -19,6 +19,7 @@ import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
 
 
@@ -64,5 +65,12 @@ data class SaveData(
      * proto 号 56 = 本类现有最大 55+1（908f24180 升序口径），受
      * `ProtoNumberUniquenessTest` IN4 守卫 + mails=56 方向锁约束。
      */
-    @ProtoNumber(56) val mails: List<MailEntity> = emptyList()
+    @ProtoNumber(56) val mails: List<MailEntity> = emptyList(),
+    /**
+     * 本次保存的增量落盘脏集（SS5）。由存档快照构建点在引擎线程上随状态读取
+     * 原子捕获，随 SaveData 一路携带到存储引擎做路径判定；null = 该链路未捕获
+     * 脏集 ⇒ 存储引擎走全量兜底。进程内存活、不持久化（脏集不落 `.sav`/云载荷，
+     * @Transient 保证序列化字节面与本字段引入前逐位一致）。
+     */
+    @Transient val dirtySet: com.xianxia.sect.core.state.SaveDirtySet? = null
 )

@@ -20,6 +20,8 @@ class MailSnapshotWritePathGuardTest {
     private companion object {
         /** 单元测试工作目录 = 模块根（`android/core/data`） */
         const val WRITE_OPS_SRC = "src/main/java/com/xianxia/sect/data/engine/StorageEngineWriteOps.kt"
+        const val INCREMENTAL_OPS_SRC =
+            "src/main/java/com/xianxia/sect/data/engine/StorageEngineIncrementalWriteOps.kt"
         const val MAIL_OPS_SRC = "src/main/java/com/xianxia/sect/data/engine/StorageEngineMailOps.kt"
         const val FACADE_SRC = "src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt"
     }
@@ -27,14 +29,25 @@ class MailSnapshotWritePathGuardTest {
     @Test
     fun `writeAllDataToDatabase chain performs mail whole-object replacement`() {
         val src = File(WRITE_OPS_SRC).readText()
-        val clearFun = src.substringAfter("fun StorageEngine.clearOldEntities").substringBefore("\n}")
-        val coreWriteFun = src.substringAfter("fun StorageEngine.writeCoreEntities").substringBefore("\n}")
+        val clearFun = src.substringAfter("fun GameDatabase.clearOldEntities").substringBefore("\n}")
+        val coreWriteFun = src.substringAfter("fun GameDatabase.writeCoreEntities").substringBefore("\n}")
+        val incrementalSrc = File(INCREMENTAL_OPS_SRC).readText()
+        val incrementalFun = incrementalSrc
+            .substringAfter("fun GameDatabase.writeIncrementalDataToDatabase").substringBefore("\n}")
         val writeMailsFun = File(MAIL_OPS_SRC).readText()
-            .substringAfter("fun StorageEngine.writeMails").substringBefore("\n}")
+            .substringAfter("fun GameDatabase.writeMails").substringBefore("\n}")
 
         assertTrue(
-            "clearOldEntities 必须删 mails（整对象替换·删侧）",
+            "clearOldEntities 必须删 mails（整对象替换·删侧，全量路径）",
             clearFun.contains("mailDao().deleteAll()")
+        )
+        assertTrue(
+            "增量路径同样必须整对象替换 mails（删侧，SS5 双路径等价）",
+            incrementalFun.contains("mailDao().deleteAll()")
+        )
+        assertTrue(
+            "增量路径必须调用 writeMails（整对象替换·写侧，同外层事务）",
+            incrementalFun.contains("writeMails(data)")
         )
         assertTrue(
             "writeCoreEntities 必须调用 writeMails（整对象替换·写侧，同外层事务）",

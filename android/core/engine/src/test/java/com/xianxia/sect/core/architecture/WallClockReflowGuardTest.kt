@@ -203,7 +203,9 @@ class WallClockReflowGuardTest {
             "core:engine" to 39,
             // 68 → 66：SR-7 C3 删除存档密钥缓存死壳（SaveCryptoKeyCache 两处裸取时）
             // 后的实测值，按本守卫"只缩不增"纪律下调。
-            "core:data" to 66,
+            // 66 → 59：SS3 摘除 FunctionalWAL 整族（wal/ 三文件 7 处裸取时随删）后的
+            // 实测值；SS3 交付时 JVM 门禁未复跑本模块，漂移由 SS5 首次全量门禁抓出。
+            "core:data" to 59,
             "core:domain" to 9,
             "core:ui" to 0,
             "feature:game" to 25,

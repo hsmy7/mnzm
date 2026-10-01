@@ -122,4 +122,16 @@ object AnalyticsEvents {
     /** 归档弟子表行数 */
     const val PROP_STORAGE_ARCHIVE_DISCIPLE_ROWS = "storage_archive_disciple_rows"
 
+    /** 增量路径落盘次数（SS5 路径分布） */
+    const val PROP_STORAGE_INCREMENTAL_SAVE_COUNT = "storage_incremental_save_count"
+
+    /** 全量路径落盘次数（SS5 路径分布，含首保基线建立） */
+    const val PROP_STORAGE_FULL_SAVE_COUNT = "storage_full_save_count"
+
+    /** 脏集越界/溢出回退全量次数（SS5 异常回退） */
+    const val PROP_STORAGE_DIRTY_FALLBACK_COUNT = "storage_dirty_fallback_count"
+
+    /** 最近一次全量路径原因名（SS5 诊断归因） */
+    const val PROP_STORAGE_LAST_FULL_SAVE_REASON = "storage_last_full_save_reason"
+
 }

@@ -79,6 +79,14 @@ interface PillDao {
     @Query("DELETE FROM pills ")
     suspend fun deleteAll()
 
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM pills")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM pills WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Transaction
     suspend fun updateBatch(pills: List<Pill>) {
         updateAll(pills)
@@ -145,6 +153,14 @@ interface MaterialDao {
 
     @Query("DELETE FROM materials ")
     suspend fun deleteAll()
+
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM materials ")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM materials WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Query("DELETE FROM materials")
     suspend fun deleteAllGlobal()
@@ -213,6 +229,14 @@ interface SeedDao {
     @Query("DELETE FROM seeds ")
     suspend fun deleteAll()
 
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM seeds ")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM seeds WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Query("DELETE FROM seeds")
     suspend fun deleteAllGlobal()
 
@@ -279,6 +303,14 @@ interface HerbDao {
     @Query("DELETE FROM herbs ")
     suspend fun deleteAll()
 
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM herbs ")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM herbs WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Query("DELETE FROM herbs")
     suspend fun deleteAllGlobal()
 
@@ -310,4 +342,12 @@ interface StorageBagDao {
 
     @Query("DELETE FROM storage_bags ")
     suspend fun deleteAll()
+
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM storage_bags")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM storage_bags WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 }

@@ -104,6 +104,14 @@ interface DiscipleDao {
     @Query("DELETE FROM disciples ")
     suspend fun deleteAll()
 
+    /** 增量落盘 id 对账面（SS5）：已落盘 id 全量枚举（仅 id 列，不物化实体）。 */
+    @Query("SELECT id FROM disciples")
+    suspend fun getAllIds(): List<String>
+
+    /** 增量落盘 id 对账面（SS5）：删除集按 id 批删（调用方分批防 SQLite 变量上限）。 */
+    @Query("DELETE FROM disciples WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Transaction
     suspend fun updateBatch(disciples: List<Disciple>) {
         updateAll(disciples)

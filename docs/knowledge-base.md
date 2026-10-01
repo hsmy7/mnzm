@@ -123,14 +123,17 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ---
 
-## 存档槽位隔离
+## 增量落盘（真增量写）
 
-所有存档共享单 SQLite DB，通过 `slot_id` 列 + 复合主键 `(id, slot_id)` 隔离：
+保存从「全删全写」改为脏集驱动的双路径写（SS5）：
 
-- **所有实体必须使用 `primaryKeys = ["id", "slot_id"]`** — 例外会导致跨槽位 REPLACE 覆盖（StorageBag 在 v4.0.60 修复前就是唯一例外）
-- **`GameStateRepository`** — 维护 `currentSlotId`（@Volatile），跟踪当前操作的槽位。`flushDirtyState()` 写入时用此值
-- **`stateStore.resetForSlot(slotId)`** — 清空内存状态 + 清除仓库脏标记 + 设置当前槽位。`createNewGame` 和 `restartGameInternal` 中调用
-- **`writeAllDataToDatabase` 统一强制 slotId** — 所有实体写入 DB 前必须 `.copy(slotId = slot)`，确保内存中的默认值 0 不会写入错误的槽位
+- **脏集来源（单一捕获点）**：`GameStateStoreImpl.commitUpdateState` 在事务提交段把本次事务触达的实体 id / heavy key 回传给 `DirtySetTracker`（core:data）。镜像写入（`StateSyncService.applyDirty` 系，即 C++ 列级脏标记到达 Kotlin 的面）与本地 Kotlin 写（`stateStore.update`）都经该提交段，双源覆盖且零 C++ 触碰。行删除不馈送——增量保存每张行级表按「已落盘 id ↔ 快照 id」双向对账。
+- **脏集随 SaveData 携带**：`SaveFacadeImpl.getStateSnapshot`（引擎线程）在状态读取完成后 `captureDeltaForSave()` 原子取走脏集，经 `GameStateSnapshot.dirtySet` → `SaveDataTrimmer` 进入 `SaveData.dirtySet`（@Transient，不落 `.sav`/云载荷、不持久化）。
+- **路径判定**：`resolveSavePath`——无基线（进程首保/读档/删档/重置后）⇒ 全量基线建立；脏集缺失（如云档落盘）⇒ 全量兜底；脏集 upsert id ⊄ 快照 id 集（越界）或溢出 ⇒ 回退全量并计数（`StorageMetrics.recordDirtyFallback`），不得静默。
+- **增量路径**：变化行 upsert（只传脏 id）+ 删除集对账 deleteById + 未变 heavy key 跳过（不删不写）+ 变动 heavy key 整 key 重编码；轻量 game_data 行/5 张域状态表/邮件/生产槽恒整写，配方表仅在 `unlockedRecipes` 引用变化时整表重写。
+- **代序号结算**：保存飞行期间再次变更的条目不清除（`DirtySetTracker` 代序号），其新内容归下一次保存；保存失败整组回并累积区。
+- **防线降级为断言**：`stacksSerialized` 条件删除改为 `check`（生产者回归 fail-fast）；增量路径重编码前断言 heavy key 不在读档跳过集（`skippedHeavyKeys`，全量路径保留排除逻辑）。
+- **铁门**：`IncrementalSaveDualPathRoundTripTest`——同一内存状态增量/全量双路径落盘读回逐字段全等（新增/删除/修改三形状）。
 
 ---
 
@@ -677,7 +680,7 @@ fun watchAdForNewFeature() {
 | `#breakthrough_success` | 引擎 `DiscipleBreakthroughHandler` 突破成功 | realm, realm_layer, disciple_name | 自定义 |
 | `#breakthrough_first` | 突破成功首次（`FirstEventTracker` 去重） | realm | 自定义 |
 | `#ad_reward_claim` | 广告奖励验证通过（AdServiceImpl.onRewardVerify） | purpose, reward_name, reward_amount | 自定义 |
-| `#storage_metrics_report` | 存储维护调度周期聚合（StorageMetricsReporter，30 分钟节拍） | storage_save_count, storage_load_count, storage_cache_hit_count, storage_cache_miss_count, storage_backup_failure_count, storage_backup_restore_count, storage_backup_skipped_count, storage_jade_drift_count, storage_change_log_pending, storage_archive_battle_log_rows, storage_archive_disciple_rows | 自定义 |
+| `#storage_metrics_report` | 存储维护调度周期聚合（StorageMetricsReporter，30 分钟节拍） | storage_save_count, storage_load_count, storage_cache_hit_count, storage_cache_miss_count, storage_backup_failure_count, storage_backup_restore_count, storage_backup_skipped_count, storage_jade_drift_count, storage_change_log_pending, storage_archive_battle_log_rows, storage_archive_disciple_rows, storage_incremental_save_count, storage_full_save_count, storage_dirty_fallback_count, storage_last_full_save_reason | 自定义 |
 | `game_start` | GameActivity PLAYING（兼容旧事件） | sect_name, game_version | 兼容 |
 | `battle_end` | 引擎 `CaveExplorationProcessor`（兼容旧事件） | outcome, enemy_type, turns, team_size | 兼容 |
 

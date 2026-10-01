@@ -47,7 +47,9 @@ object SaveDataTrimmer {
             storageBags = snapshot.storageBags,
             mails = mails,
             // 正常保存路径恒为新格式：堆叠已序列化
-            stacksSerialized = true
+            stacksSerialized = true,
+            // SS5 增量落盘：快照构建点捕获的保存脏集随 SaveData 携带到存储引擎
+            dirtySet = snapshot.dirtySet
         )
     }
 }

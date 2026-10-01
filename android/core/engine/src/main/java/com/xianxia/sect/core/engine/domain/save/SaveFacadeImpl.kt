@@ -19,7 +19,13 @@ class SaveFacadeImpl @Inject constructor(
     private val gameRngManager: GameRngManager,
     private val jadeSymbolService: com.xianxia.sect.core.engine.service.JadeSymbolService,
     override val heavyDataPort: com.xianxia.sect.core.repository.GameHeavyDataPort,
-    override val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder
+    override val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder,
+    /**
+     * 保存脏集出口（SS5 增量落盘）：引擎线程、状态读取完成后原子取走累积脏集，
+     * 随快照携带到 SaveData。默认空出口恒返回 null ⇒ 保存链路走全量兜底。
+     */
+    private val saveDirtyDeltaSource: com.xianxia.sect.core.state.SaveDirtyDeltaSource =
+        com.xianxia.sect.core.state.NoopSaveDirtyDeltaSource
 ) : SaveFacade {
 
     /**
@@ -106,6 +112,19 @@ class SaveFacadeImpl @Inject constructor(
         // 导出 RNG 分区状态到 gameData，确保存档包含当前 PRNG 快照
         val exportedRng = gameRngManager.exportStates()
         val gd = stateStore.gameDataSnapshot
+        return buildSnapshot(gd, exportedRng)
+    }
+
+    /**
+     * 快照装配 + 保存脏集捕获。捕获必须晚于全部状态读取——与本方法同在引擎
+     * 线程串行执行，脏集与快照内容严格对应（捕获早于读取会把未入快照的变更
+     * 误标为已落盘）。
+     */
+    private fun buildSnapshot(
+        gd: com.xianxia.sect.core.model.GameData,
+        exportedRng: Map<Int, Long>
+    ): GameStateSnapshot {
+        val dirtySet = saveDirtyDeltaSource.captureDeltaForSave()
         return GameStateSnapshot(
             gameData = gd.copy(rngStates = exportedRng),
             disciples = stateStore.disciplesSnapshot,
@@ -119,7 +138,8 @@ class SaveFacadeImpl @Inject constructor(
             storageBags = stateStore.storageBagsSnapshot,
             battleLogs = stateStore.battleLogsSnapshot,
             alliances = gd.alliances,
-            productionSlots = productionCoordinator.repository.getSlots()
+            productionSlots = productionCoordinator.repository.getSlots(),
+            dirtySet = dirtySet
         )
     }
 

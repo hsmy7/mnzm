@@ -33,6 +33,27 @@ class StorageMetricsTest {
         assertEquals(1L, snapshot.backupFailureCount)
         assertEquals(1L, snapshot.backupRestoreCount)
         assertEquals(1L, snapshot.backupSkippedOversizeCount)
+        assertEquals(0L, snapshot.incrementalSaveCount)
+        assertEquals(0L, snapshot.fullSaveCount)
+        assertEquals(0L, snapshot.dirtyFallbackCount)
+        assertNull(snapshot.lastFullSaveReason)
+    }
+
+    @Test
+    fun `增量全量路径分布与脏集回退计数（SS5）`() {
+        val metrics = StorageMetrics()
+
+        metrics.recordIncrementalSave()
+        metrics.recordIncrementalSave()
+        metrics.recordFullSave()
+        metrics.recordDirtyFallback()
+        metrics.setLastFullSaveReason(FullSaveReason.DIRTY_OUT_OF_SNAPSHOT.name)
+
+        val snapshot = metrics.snapshot()
+        assertEquals(2L, snapshot.incrementalSaveCount)
+        assertEquals(1L, snapshot.fullSaveCount)
+        assertEquals(1L, snapshot.dirtyFallbackCount)
+        assertEquals("DIRTY_OUT_OF_SNAPSHOT", snapshot.lastFullSaveReason)
     }
 
     @Test
