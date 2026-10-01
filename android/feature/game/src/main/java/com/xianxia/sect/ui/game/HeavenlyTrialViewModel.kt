@@ -15,6 +15,8 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.state.CriticalSaveEventBus
+import com.xianxia.sect.core.state.CriticalSaveKind
 import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.beginCombat
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +33,10 @@ class HeavenlyTrialViewModel @Inject constructor(
     private val battleSystem: BattleSystem,
     val trialService: HeavenlyTrialService,
     /** 表现类随机源（天劫对手立绘选择等——不写状态，见 [PresentationRandom] KDoc） */
-    val presentationRandom: PresentationRandom
+    val presentationRandom: PresentationRandom,
+    // SS6：关键事件自动存档总线——首通奖励领取（唯一性里程碑）经此请求落盘；
+    // 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例
+    private val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) : BaseViewModel() {
 
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Panel)
@@ -170,6 +175,8 @@ class HeavenlyTrialViewModel @Inject constructor(
         gameEngine.launchOnEngine {
             when (val result = trialService.claimClearReward(levelIndex)) {
                 is ClaimClearRewardResult.Success -> {
+                    // 首通奖励领取 = 唯一性里程碑已写入状态（方案 §2.5），请求关键事件落盘
+                    criticalSaveEvents.notify(CriticalSaveKind.MILESTONE)
                     onCardsReady(result.cards)
                 }
                 is ClaimClearRewardResult.CapacityInsufficient -> {

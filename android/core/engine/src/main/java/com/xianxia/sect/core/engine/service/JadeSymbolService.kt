@@ -13,6 +13,7 @@ import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
+import com.xianxia.sect.core.state.CriticalSaveEventBus
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
@@ -100,7 +101,11 @@ class JadeSymbolService @Inject constructor(
     private val gameEngineCoreProvider: Provider<GameEngineCore>? = null,
     // SS3：账本↔派生缓存不一致计数接持久化遥测（StorageMetrics 实现，经 domain
     // 端口反向接线）；null（测试直构）⇒ 只保留 Log 通道。
-    private val persistenceTelemetry: PersistenceTelemetryPort? = null
+    private val persistenceTelemetry: PersistenceTelemetryPort? = null,
+    // SS6：关键事件自动存档总线（方案 §2.5）——玉符流水 append（涉钱类）经此
+    // 请求立即落盘；internal 供同包扩展（notifyMoneyLedgerChanged）消费；
+    // 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例。
+    internal val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) {
 
     // ── W4-B/B2 native 臂（平台效应回执化）────────────────────────────
@@ -343,12 +348,12 @@ class JadeSymbolService @Inject constructor(
         if (amount <= 0) return false
         if (ledgerBalance(state.gameData) < amount) return false
         state.gameData = appendLedger(state.gameData, -amount, reason)
+        notifyMoneyLedgerChanged()
         return true
     }
 
     /**
      * 广告玉符发放（观看激励视频奖励，用户决策：不计入每日 20 上限）。
-     *
      * 必须在引擎线程调用（调用方负责 launchOnEngine 派发，stateStore.update
      * 有主线程运行时守卫）。
      *
@@ -373,6 +378,7 @@ class JadeSymbolService @Inject constructor(
                 gameData = appendLedger(gameData, amount, JadeLedgerReasons.GRANT_AD)
             }
         }
+        notifyMoneyLedgerChanged()
         publishJadeSymbolStateNow()
         return true
     }
@@ -412,6 +418,7 @@ class JadeSymbolService @Inject constructor(
             logNativeDrift(reply, "settleGrants")
             todayCount = reply.intOrZero("today")
             accumMs = reply.longOrZero("accumMs")
+            notifyMoneyLedgerChanged()
             return
         }
         // Kotlin 原路径（回退臂，语义同 C++ 事务）
@@ -433,6 +440,7 @@ class JadeSymbolService @Inject constructor(
             gameData = appendLedger(gameData, toGrant, JadeLedgerReasons.GRANT_TIME)
                 .copy(jadeSymbolsToday = todayCount, jadeAccumMs = accumMs)
         }
+        notifyMoneyLedgerChanged()
     }
 
     /**

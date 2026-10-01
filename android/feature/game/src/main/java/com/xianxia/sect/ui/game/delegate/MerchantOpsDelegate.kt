@@ -9,6 +9,8 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.state.CriticalSaveEventBus
+import com.xianxia.sect.core.state.MONEY_SAVE_ACK_TIMEOUT_MS
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,12 +26,22 @@ import com.xianxia.sect.core.engine.refreshTravelingMerchantManual
 class MerchantOpsDelegate(
     private val gameEngine: GameEngine,
     private val onSuccess: (String) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    // SS6：关键事件自动存档总线——玉符购买成功后等待涉钱数据落盘（方案 §2.5 同步语义）；
+    // 默认值仅供测试直构（等待立即超时返回），生产由 GameVmDelegateServices 注入单例
+    private val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) {
 
     /** 消耗 1 玉符获取 3 次商人刷新次数（上限 999） */
-    suspend fun purchaseMerchantRefresh(): MerchantRefreshResult =
-        gameEngine.purchaseMerchantRefresh()
+    suspend fun purchaseMerchantRefresh(): MerchantRefreshResult {
+        val result = gameEngine.purchaseMerchantRefresh()
+        if (result is MerchantRefreshResult.Success) {
+            // 涉钱同步落盘承诺（方案 §2.5）：扣费流水已在引擎侧 append，
+            // 事件方法返回前挂起等待含本笔流水的保存完成（超时由节拍兜底）
+            criticalSaveEvents.awaitNextSaveCompletion(MONEY_SAVE_ACK_TIMEOUT_MS)
+        }
+        return result
+    }
 
     fun refreshTravelingMerchantManual() {
         gameEngine.launchOnEngine { gameEngine.refreshTravelingMerchantManual() }

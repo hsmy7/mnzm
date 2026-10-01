@@ -110,13 +110,73 @@ class SaveOrchestratorTest {
     }
 
     @Test
+    fun `ten critical events inside the merge window persist exactly once`() = runTest {
+        val rec = Recorder()
+        val orchestrator = SaveOrchestrator(scope = this, config = CONFIG, onFire = rec::onFire)
+
+        // 十连抽防风暴口径：500ms 窗内 10 次关键事件 → 恰好 1 次落盘
+        repeat(10) { orchestrator.submit(AutoSaveTrigger.CRITICAL_EVENT) }
+        runCurrent()
+        advanceTimeBy(WINDOW_MS + 1)
+        runCurrent()
+
+        assertEquals(
+            "合并窗内十次关键事件必须合并为一次落盘（方案 §2.5 防风暴）",
+            1,
+            rec.fired.size
+        )
+        assertEquals(
+            setOf(AutoSaveTrigger.CRITICAL_EVENT),
+            rec.fired.single().first
+        )
+    }
+
+    @Test
+    fun `money critical event flushes the window immediately and absorbs pending triggers`() = runTest {
+        val rec = Recorder()
+        val orchestrator = SaveOrchestrator(scope = this, config = CONFIG, onFire = rec::onFire)
+
+        orchestrator.submit(AutoSaveTrigger.REALTIME)
+        advanceTimeBy(WINDOW_MS / 2)
+        runCurrent()
+        orchestrator.submit(AutoSaveTrigger.CRITICAL_EVENT_MONEY)
+        runCurrent()
+
+        assertEquals(
+            "涉钱事件立即冲刷（不等合并窗，方案 §2.5 同步落盘语义）",
+            1,
+            rec.fired.size
+        )
+        assertEquals(
+            "窗内已积累的节拍触发随涉钱冲刷一并带走",
+            setOf(AutoSaveTrigger.REALTIME, AutoSaveTrigger.CRITICAL_EVENT_MONEY),
+            rec.fired.single().first
+        )
+
+        advanceTimeBy(WINDOW_MS * 4)
+        runCurrent()
+        assertEquals("冲刷后原窗口不得二次触发", 1, rec.fired.size)
+        assertTrue(orchestrator.pendingTriggers().isEmpty())
+    }
+
+    @Test
     fun `feedback mapping covers every trigger combination`() {
         assertEquals(SaveFeedback.AutoNotice, saveFeedbackFor(setOf(AutoSaveTrigger.REALTIME)))
         assertEquals(SaveFeedback.Silent, saveFeedbackFor(setOf(AutoSaveTrigger.BACKGROUND)))
+        assertEquals(SaveFeedback.AutoNotice, saveFeedbackFor(setOf(AutoSaveTrigger.CRITICAL_EVENT)))
+        assertEquals(
+            SaveFeedback.AutoNotice,
+            saveFeedbackFor(setOf(AutoSaveTrigger.CRITICAL_EVENT_MONEY))
+        )
         assertEquals(
             "含 onStop 的合并集按静默口径（玩家已离场）",
             SaveFeedback.Silent,
             saveFeedbackFor(setOf(AutoSaveTrigger.REALTIME, AutoSaveTrigger.BACKGROUND))
+        )
+        assertEquals(
+            "涉钱与普通关键事件合并仍按消息栏口径（玩家在场）",
+            SaveFeedback.AutoNotice,
+            saveFeedbackFor(setOf(AutoSaveTrigger.CRITICAL_EVENT, AutoSaveTrigger.CRITICAL_EVENT_MONEY))
         )
     }
 

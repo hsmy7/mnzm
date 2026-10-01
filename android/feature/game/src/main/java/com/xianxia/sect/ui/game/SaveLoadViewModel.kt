@@ -12,6 +12,7 @@ import com.xianxia.sect.core.engine.resetLifecycleState
 import com.xianxia.sect.core.engine.setPausedDirectOnEngine
 import com.xianxia.sect.core.engine.setSaveLoadFlags
 import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.core.state.CriticalSaveEventBus
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.data.cloud.UploadQueue
@@ -38,7 +39,10 @@ class SaveLoadViewModel @Inject constructor(
     internal val stateStore: GameStateStore,
     internal val resourcePreloader: ResourcePreloader,
     internal val persistenceFacade: PersistenceFacade,
-    internal val ioDispatcher: IoDispatcher
+    internal val ioDispatcher: IoDispatcher,
+    // 关键事件自动存档总线（方案 §2.5）：core 层事件点经此汇入编排器；
+    // 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例
+    internal val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -244,6 +248,15 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             persistenceFacade.saveBackend.conflicts.collect { event ->
                 pendingCloudConflictFlow.value = event
+            }
+        }
+
+        // 关键事件自动存档（方案 §2.5）：事件源在 core 层服务与各 ViewModel，经总线
+        // 汇入编排器（涉钱 → 立即冲刷，其余 → 500ms 合并窗）。触发前置门控与旗标
+        // 在 requestAutoSave 内统一判定。
+        viewModelScope.launch {
+            criticalSaveEvents.events.collect { kind ->
+                requestAutoSave(kind.toAutoSaveTrigger())
             }
         }
 

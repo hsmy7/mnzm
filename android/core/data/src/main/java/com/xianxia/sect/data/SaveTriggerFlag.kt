@@ -10,8 +10,9 @@ package com.xianxia.sect.data
  * 存档重构方案 §0 D6 明确拍板（"自动存档 = 游戏月月变钩子 + onStop … 本方案打开并接入云上传"，
  * 用户 2026-09-21），两个默认值即该拍板的落库形态。
  *
- * ## 频率口径（用户 2026-09-27 拍板：现实墙钟每 10 秒一存）
- * 触发源只保留两条：**现实墙钟节拍**（[realtimeTick]，每 10 现实秒）与 `onStop` 后台保存。
+ * ## 频率口径（用户 2026-09-27 拍板：现实墙钟每 10 秒一存；方案 §2.5：关键事件立即落盘）
+ * 触发源三条：**现实墙钟节拍**（[realtimeTick]，每 10 现实秒）、`onStop` 后台保存
+ * （[saveOnBackground]）与**关键事件**（[saveOnCriticalEvent]，涉钱/不可逆/里程碑）。
  * 历史上的"游戏月月变触发"（游戏月 = 3 旬 × 2000ms = 6 秒真实时间，2x 下 3 秒）
  * 已随 [autoSaveOnMonthChange] 停用：结算改现实时间连续化后，月界不再是进度完整点。
  * 现实节拍与游戏速度解耦 ⇒ 2x 下不会变成每 3 秒一存。
@@ -48,13 +49,22 @@ object SaveTriggerFlag {
      */
     @Volatile
     var realtimeTick: Boolean = true
+
+    /**
+     * 关键事件自动存档（方案 §2.5"关键事件立即落盘"）：涉钱（玉符流水 append）、
+     * 不可逆（寻访出货/碎片入账）、唯一性里程碑（天劫首通奖励/突破成功）发生时触发落盘。
+     *
+     * **默认开**；关 = 回滚臂（关键事件退回仅由现实节拍承担，丢失窗口回到 ≤10 秒）。
+     */
+    @Volatile
+    var saveOnCriticalEvent: Boolean = true
 }
 
 /**
- * 自动保存是否该落盘——**纯函数**，桌面/JVM 可直测（`onStop` 与月变两个触发点共用）。
+ * 自动保存是否该落盘——**纯函数**，桌面/JVM 可直测（节拍、`onStop` 与关键事件触发点共用）。
  *
- * 三个前置全部满足才保存：旗标开（灰度/回滚门控）、有有效槽位（无槽位无从落盘）、
+ * 三个前置全部满足才保存：旗标开（灰度/回滚门控）、已有存档数据空间（无数据无从落盘）、
  * 引擎已加载（未加载时快照无意义）。
  */
-fun shouldAutoSave(flagOn: Boolean, hasActiveSlot: Boolean, engineLoaded: Boolean): Boolean =
-    flagOn && hasActiveSlot && engineLoaded
+fun shouldAutoSave(flagOn: Boolean, hasSaveSpace: Boolean, engineLoaded: Boolean): Boolean =
+    flagOn && hasSaveSpace && engineLoaded

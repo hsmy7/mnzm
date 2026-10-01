@@ -7,7 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** 自动存档触发源（两条：现实墙钟节拍 + 后台保存；手动保存不入编排器——见 [SaveOrchestrator]）。 */
+/** 自动存档触发源（现实墙钟节拍 + 后台保存 + 关键事件；手动保存不入编排器——见 [SaveOrchestrator]）。 */
 enum class AutoSaveTrigger {
 
     /**
@@ -21,14 +21,26 @@ enum class AutoSaveTrigger {
     REALTIME,
 
     /** `onStop` 退到后台（审计 §16 #6 方案 A + D6） */
-    BACKGROUND
+    BACKGROUND,
+
+    /**
+     * 关键事件（涉钱/不可逆/唯一性，方案 §2.5）——500ms 合并窗语义：
+     * 寻访出货、碎片入账、里程碑等事件在窗内合并为一次落盘（十连十事件 → 一次写盘）。
+     */
+    CRITICAL_EVENT,
+
+    /**
+     * 涉钱关键事件（玉符流水 append，方案 §2.5"同步落盘"行）——立即冲刷语义：
+     * 取消待触发窗并立即落盘（窗内已积累的触发一并带走），把涉钱丢失窗口压到最小。
+     */
+    CRITICAL_EVENT_MONEY
 }
 
 /**
  * 合并触发集 → 保存链反馈口径（纯函数，JVM 直测）。
  *
  * 含 [AutoSaveTrigger.BACKGROUND] ⇒ [SaveFeedback.Silent]：玩家已离场，成功不提示；
- * 仅节拍触发 ⇒ [SaveFeedback.AutoNotice]：消息栏常驻一行。
+ * 其余（仅节拍或含关键事件）⇒ [SaveFeedback.AutoNotice]：消息栏常驻一行。
  */
 fun saveFeedbackFor(triggers: Set<AutoSaveTrigger>): SaveFeedback =
     if (AutoSaveTrigger.BACKGROUND in triggers) SaveFeedback.Silent else SaveFeedback.AutoNotice
@@ -37,12 +49,12 @@ fun saveFeedbackFor(triggers: Set<AutoSaveTrigger>): SaveFeedback =
  * 自动存档编排点（方案 §2"去抖合并：窗口内多触发合并为一次快照"）。
  *
  * 三条规则：
- * - [AutoSaveTrigger.REALTIME] 入队即开一个合并窗（[Config.mergeWindowMs]），窗内后续触发并入
- *   同一集合，窗到点**一次**回调 [onFire]——本类只做"同刻多源合并"，
- *   **不构成节流下限**（节拍下限由触发源自己的 10 秒间隔保证，见
- *   `SaveLoadViewModelAutoSaveOps.REALTIME_AUTO_SAVE_INTERVAL_MS`）；
- * - [AutoSaveTrigger.BACKGROUND] 取消窗口**立即**冲刷（含窗内已积累的节拍触发）：进程可能马上被杀，
- *   等窗等于不存；
+ * - [AutoSaveTrigger.REALTIME] 与 [AutoSaveTrigger.CRITICAL_EVENT] 入队即开一个合并窗
+ *   （[Config.mergeWindowMs]），窗内后续触发并入同一集合，窗到点**一次**回调 [onFire]——
+ *   本类只做"同刻多源合并"，**不构成节流下限**（节拍下限由触发源自己的 10 秒间隔保证，
+ *   见 `SaveLoadViewModelAutoSaveOps.REALTIME_AUTO_SAVE_INTERVAL_MS`）；
+ * - [AutoSaveTrigger.BACKGROUND] 与 [AutoSaveTrigger.CRITICAL_EVENT_MONEY] 取消窗口**立即**冲刷
+ *   （含窗内已积累的节拍触发）：进程可能马上被杀 / 涉钱数据要求最短丢失窗口，等窗等于不存；
  * - [invalidate] 丢弃待触发窗——手动保存/读档/重开已经（或将要）落一次全量快照，
  *   自动窗再存一次纯属重复（这就是"手动"在合并语义里的位置：手动即存 ⇒ 作废自动窗）。
  *
@@ -58,7 +70,7 @@ class SaveOrchestrator(
     private val onFire: suspend (Set<AutoSaveTrigger>) -> Unit
 ) {
 
-    /** [mergeWindowMs] = 0 ⇒ 月变也立即执行（测试与极端低频场景可用） */
+    /** [mergeWindowMs] = 0 ⇒ 触发即立即执行（测试与极端低频场景可用） */
     data class Config(val mergeWindowMs: Long = 500L)
 
     private val mutex = Mutex()
@@ -70,7 +82,7 @@ class SaveOrchestrator(
         scope.launch {
             mutex.withLock {
                 pending += trigger
-                if (trigger == AutoSaveTrigger.BACKGROUND) {
+                if (trigger == AutoSaveTrigger.BACKGROUND || trigger == AutoSaveTrigger.CRITICAL_EVENT_MONEY) {
                     windowJob?.cancel()
                     windowJob = null
                     fireLocked()

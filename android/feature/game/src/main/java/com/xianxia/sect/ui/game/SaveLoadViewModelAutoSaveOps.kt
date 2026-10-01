@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.state.CriticalSaveKind
 import com.xianxia.sect.data.SaveTriggerFlag
 import com.xianxia.sect.data.shouldAutoSave
 import com.xianxia.sect.ui.game.saveload.AUTO_SAVE_NOTICE_LABEL
@@ -66,19 +67,31 @@ internal suspend fun SaveLoadViewModel.onRealtimeAutoSaveTick() {
 }
 
 /**
- * 自动保存触发入口（现实墙钟节拍 / `onStop`）——旗标 + 已加载 + 引擎三前置齐备才入编排窗。
+ * 关键事件类别 → 自动存档触发映射（纯函数，JVM 直测）。
  *
- * 非挂起、任意线程可调：节拍来自 UI 层定时协程，`onStop` 来自主线程；
+ * 涉钱 → 立即冲刷；其余（寻访/不可逆消耗/里程碑）→ 500ms 合并窗（方案 §2.5 决策 D-3）。
+ */
+internal fun CriticalSaveKind.toAutoSaveTrigger(): AutoSaveTrigger =
+    if (this == CriticalSaveKind.MONEY) AutoSaveTrigger.CRITICAL_EVENT_MONEY
+    else AutoSaveTrigger.CRITICAL_EVENT
+
+/**
+ * 自动保存触发入口（现实墙钟节拍 / `onStop` / 关键事件）——旗标 + 已加载数据 + 引擎三前置齐备才入编排窗。
+ *
+ * 非挂起、任意线程可调：节拍来自 UI 层定时协程，`onStop` 来自主线程，
+ * 关键事件经 [com.xianxia.sect.core.state.CriticalSaveEventBus] 转发；
  * 排队与合并全部在 [SaveLoadViewModel.saveOrchestrator] 内。
  */
 internal fun SaveLoadViewModel.requestAutoSave(trigger: AutoSaveTrigger) {
     val flagOn = when (trigger) {
         AutoSaveTrigger.REALTIME -> SaveTriggerFlag.realtimeTick
         AutoSaveTrigger.BACKGROUND -> SaveTriggerFlag.saveOnBackground
+        AutoSaveTrigger.CRITICAL_EVENT, AutoSaveTrigger.CRITICAL_EVENT_MONEY ->
+            SaveTriggerFlag.saveOnCriticalEvent
     }
     if (!shouldAutoSave(
             flagOn = flagOn,
-            hasActiveSlot = isGameLoaded,
+            hasSaveSpace = isGameLoaded,
             engineLoaded = isGameLoaded
         )
     ) {

@@ -20,6 +20,7 @@ import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.state.CriticalSaveEventBus
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager
@@ -89,7 +90,13 @@ class RedeemCodeService @Inject constructor(
      * 4 层限流与清理起算共用同一时刻（收敛前分散 5 处裸读 `System.currentTimeMillis`）。
      * 默认 [SystemWallClock] 供测试直构，生产由 Hilt 注入 CalibratedWallClock。
      */
-    private val wallClock: WallClock = SystemWallClock
+    private val wallClock: WallClock = SystemWallClock,
+    /**
+     * SS6：关键事件自动存档总线——碎片入账（不可逆消耗，含满档自动升星）经此
+     * 请求落盘。internal 供 [RedeemCodeFragmentOps]（碎片入账域）使用；
+     * 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例。
+     */
+    internal val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) {
     companion object {
         /** internal 供 [RedeemCodeFragmentOps]（碎片入账域）复用同一日志标签。 */
