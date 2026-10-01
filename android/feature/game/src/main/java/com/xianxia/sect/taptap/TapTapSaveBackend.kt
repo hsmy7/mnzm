@@ -3,17 +3,14 @@ package com.xianxia.sect.taptap
 import android.content.Context
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.core.engine.system.CalibratedWallClock
 import com.xianxia.sect.data.cloud.ArbitrationVerdict
-import com.xianxia.sect.data.cloud.CloudSaveEntry
 import com.xianxia.sect.data.cloud.CloudSavePayload
 import com.xianxia.sect.data.cloud.SaveArbiter
 import com.xianxia.sect.data.cloud.SaveBackend
 import com.xianxia.sect.data.cloud.SaveBackendError
 import com.xianxia.sect.data.cloud.SaveBackendResult
 import com.xianxia.sect.data.cloud.SaveConflictEvent
-import com.xianxia.sect.data.cloud.CloudSaveSummary
 import com.xianxia.sect.data.cloud.UploadLedger
 import com.xianxia.sect.data.cloud.UploadReceipt
 import com.xianxia.sect.data.crypto.SavePayloadIntegrity
@@ -35,20 +32,20 @@ import javax.inject.Singleton
 /**
  * SaveBackend 的 TapTap 实现（方案 D4，SR-2）：**包装**既有 CloudSaveApi 反射桥
  * （[CloudSaveApiReflector]，SDK 探测/回调桥接/超时兜底全部复用，不重写——SR-0 §3.1），
- * 在其上一层门面化槽位语义（slot → `slot_N` 云端命名，SR-0 §3.4）与脏标志仲裁
- * （[SaveArbiter]，IN2 无时钟）。
+ * 在其上一层门面化单档云端命名与脏标志仲裁（[SaveArbiter]，IN2 无时钟）。
  *
- * - extra JSON 在现役协议（year/month/sect/disciples/stones/version）上新增 `saveId`
- *   （云端实际保存序号 W 的回带源；存量档无该字段 = W 未知 → 仲裁 U11 保守退化）；
- * - 槽位映射：slot 0 = 云会话单档 `mnzm_v2_save`，slot 1..6 = `mnzm_v2_slot_N`；
- *   单存档测试期删档（SS0）换用 v2 命名——旧命名（`mnzm_cloud_save`/`slot_N`）
- *   不再被本类识别（[slotFromArchiveName] 返回 null），旧云档自然失联；
+ * - extra JSON 在现役协议（year/month/sect/disciples/stones/version）上携带 `saveId`
+ *   （云端实际保存序号 W 的回带源；缺失 = W 未知 → 仲裁 U11 保守退化）；
+ * - 云端命名：单存档语义下全部操作定位唯一云档 `mnzm_v2_save`；
+ *   旧命名（`mnzm_cloud_save`/`slot_N`）与 v2 槽位命名（`mnzm_v2_slot_N`）均不在
+ *   本类读路径识别范围（[isLegacyArchiveName] 命中者由 TapCloudSaveManager
+ *   一次性清理尽力删除），旧云档自然失联；
  * - 操作互斥：类内 Mutex（对齐 TapCloudSaveManager.cloudOpLock 语义）；
- * 上传队列侧另有单飞 worker（全局串行 + 共享冷却），两层互斥不冲突；
+ *   上传队列侧另有单飞 worker（全局串行 + 共享冷却），两层互斥不冲突；
  * - IN3：本类是 feature 面唯一的云后端出口，UI 层只依赖 [SaveBackend] 接口；
  *   反射桥全路径无 TapTap SDK 编译期类型。
  */
-// TooManyFunctions：SaveBackend 端口五操作 + 错误/extra/槽位三映射 = 接口契约下界
+// TooManyFunctions：SaveBackend 端口操作 + 错误/extra 映射 = 接口契约下界
 // TooGenericExceptionCaught：防御兜底边界——异常源跨 IO/SDK 不可枚举，统一分类为
 // 类型化 SaveBackendError 上抛（classify），非静默吞噬
 @Suppress("TooManyFunctions", "TooGenericExceptionCaught")
@@ -77,14 +74,13 @@ class TapTapSaveBackend @Inject constructor(
     )
     override val conflicts: SharedFlow<SaveConflictEvent> = _conflicts
 
-    override suspend fun upload(slot: Int, saveData: SaveData, saveId: Long): SaveBackendResult<UploadReceipt> =
+    override suspend fun upload(saveData: SaveData, saveId: Long): SaveBackendResult<UploadReceipt> =
         opMutex.withLock {
             val api = CloudSaveApiReflector.resolve()
                 ?: return@withLock SaveBackendResult.Failure(
                     SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用，请确认已安装 TapTap 并登录"
                 )
-            val archiveName = archiveNameFor(slot)
-            DomainLog.i(TAG, "backend upload: slot=$slot archive=$archiveName saveId=$saveId")
+            DomainLog.i(TAG, "backend upload: archive=$ARCHIVE_NAME saveId=$saveId")
 
             // 序列化 + 尺寸红线（TapTap 单档 ≤10MB，SR-0 §2.2）
             val bytes = try {
@@ -92,7 +88,7 @@ class TapTapSaveBackend @Inject constructor(
             } catch (e: CancellationException) {
                 throw e // 取消穿透：不以序列化错误冒充
             } catch (e: Exception) {
-                DomainLog.e(TAG, "serialize failed for slot $slot", e)
+                DomainLog.e(TAG, "serialize failed", e)
                 return@withLock SaveBackendResult.Failure(SaveBackendError.SERIALIZATION, e.message ?: "序列化失败", e)
             }
             if (bytes.size > MAX_CLOUD_SAVE_SIZE_BYTES) {
@@ -102,7 +98,7 @@ class TapTapSaveBackend @Inject constructor(
                 )
             }
 
-            val tempFile = File(context.cacheDir, tempFileName(slot))
+            val tempFile = File(context.cacheDir, TEMP_FILE_NAME)
             try {
                 tempFile.parentFile?.mkdirs()
                 tempFile.writeBytes(bytes)
@@ -110,54 +106,53 @@ class TapTapSaveBackend @Inject constructor(
                 val signature = payloadSigner.sign(bytes)
                 val (summary, extra) = buildSummaryAndExtra(saveData, saveId, signature)
                 api.createOrUpdateArchive(
-                    archiveName = archiveName,
+                    archiveName = ARCHIVE_NAME,
                     summary = summary,
                     filePath = tempFile.absolutePath,
-                    uuid = null, // 按名查找（桥内 list 扫描）——多档语义下不缓存 UUID
+                    uuid = null, // 按名查找（桥内 list 扫描）——不缓存 UUID
                     extra = extra
                 )
-                DomainLog.i(TAG, "backend upload success: slot=$slot saveId=$saveId")
-                sampleCloudClockDrift(api, archiveName)
+                DomainLog.i(TAG, "backend upload success: saveId=$saveId")
+                sampleCloudClockDrift(api, ARCHIVE_NAME)
                 SaveBackendResult.Success(UploadReceipt(confirmedSaveId = saveId))
             } catch (e: CancellationException) {
                 throw e // 取消穿透：cloudOp 语义与 manager 一致
             } catch (e: Exception) {
-                DomainLog.e(TAG, "backend upload failed: slot=$slot", e)
+                DomainLog.e(TAG, "backend upload failed", e)
                 SaveBackendResult.Failure(classify(e), e.message ?: "上传失败", e)
             } finally {
                 if (tempFile.exists()) tempFile.delete()
             }
         }
 
-    override suspend fun download(slot: Int): SaveBackendResult<CloudSavePayload> = opMutex.withLock {
+    override suspend fun download(): SaveBackendResult<CloudSavePayload> = opMutex.withLock {
         val api = CloudSaveApiReflector.resolve()
             ?: return@withLock SaveBackendResult.Failure(
                 SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用，请确认已安装 TapTap 并登录"
             )
-        val archiveName = archiveNameFor(slot)
-        DomainLog.i(TAG, "backend download: slot=$slot archive=$archiveName")
+        DomainLog.i(TAG, "backend download: archive=$ARCHIVE_NAME")
 
         // IN2 仲裁：云端 W（extra.saveId）+ 本端账本 (L, C) —— 零时钟输入
-        val arbitration = arbitrateAgainstCloud(api, slot, archiveName)
+        val arbitration = arbitrateAgainstCloud(api, ARCHIVE_NAME)
         if (arbitration.conflict != null) return@withLock arbitration.conflict
 
-        val payload = when (val fetched = fetchAndDeserialize(api, slot, archiveName)) {
+        val payload = when (val fetched = fetchAndDeserialize(api, ARCHIVE_NAME)) {
             is SaveBackendResult.Success -> fetched.data
             is SaveBackendResult.Failure -> return@withLock fetched
         }
         // SR-5 验签：字节域 = 云端返回的载荷本体；签名取自上面同一次元数据查询
         // （零新增往返）。判据异常时按 P4 降级放行——载荷已反序列化成功这一点
-        // 如实登记：验签发生在解析之后，本批不承诺"未验签不解析"。
+        // 如实登记：验签发生在解析之后，本接口不承诺"未验签不解析"。
         val integrity = payloadSigner.verify(payload.bytes, arbitration.signature)
         if (integrity != SavePayloadIntegrity.VERIFIED && integrity != SavePayloadIntegrity.UNSIGNED) {
             DomainLog.w(
                 TAG,
-                "cloud payload integrity=$integrity slot=$slot expectedSigVer=" +
+                "cloud payload integrity=$integrity expectedSigVer=" +
                     SavePayloadSigner.SIGNATURE_VERSION +
                     " —— 按 P4 降级放行并显式留痕（不阻断玩家用档）"
             )
         }
-        DomainLog.i(TAG, "backend download success: slot=$slot W=${arbitration.cloudSaveId} " +
+        DomainLog.i(TAG, "backend download success: W=${arbitration.cloudSaveId} " +
             "verdict=${arbitration.verdict} integrity=$integrity")
         SaveBackendResult.Success(
             CloudSavePayload(payload.saveData, arbitration.cloudSaveId, arbitration.verdict, integrity)
@@ -206,7 +201,6 @@ class TapTapSaveBackend @Inject constructor(
     /** 云端元数据查询 + 脏标志仲裁（IN2 零时钟）；真冲突时发事件并携带 CONFLICT 结果 */
     private suspend fun arbitrateAgainstCloud(
         api: CloudSaveApi,
-        slot: Int,
         archiveName: String
     ): CloudArbitration {
         val rawInfo = try {
@@ -223,21 +217,20 @@ class TapTapSaveBackend @Inject constructor(
         val cloudSaveId = rawInfo?.extra?.let { parseSaveId(it) }
         val signature = parseSignature(rawInfo?.extra)
         val verdict = SaveArbiter.arbitrate(
-            lastLocalSaveId = uploadLedger.lastLocalSaveId(slot),
-            lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
+            lastLocalSaveId = uploadLedger.lastLocalSaveId(),
+            lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(),
             cloudSaveId = cloudSaveId
         )
         if (verdict != ArbitrationVerdict.CONFLICT) {
             return CloudArbitration(cloudSaveId, verdict, null, signature)
         }
         val conflict = SaveConflictEvent(
-            slot = slot,
-            lastLocalSaveId = uploadLedger.lastLocalSaveId(slot),
-            lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(slot),
+            lastLocalSaveId = uploadLedger.lastLocalSaveId(),
+            lastConfirmedCloudId = uploadLedger.lastConfirmedCloudId(),
             cloudSaveId = cloudSaveId,
             source = "download"
         )
-        DomainLog.w(TAG, "conflict on download: slot=$slot L=${conflict.lastLocalSaveId} " +
+        DomainLog.w(TAG, "conflict on download: L=${conflict.lastLocalSaveId} " +
             "C=${conflict.lastConfirmedCloudId} W=$cloudSaveId — 显式暴露给 UI，不静默覆盖")
         _conflicts.tryEmit(conflict)
         return CloudArbitration(
@@ -253,7 +246,6 @@ class TapTapSaveBackend @Inject constructor(
     /** 下载字节 → 反序列化（尺寸防御 50MB 对齐 manager）；失败返回 Failure 由调用方短路 */
     private suspend fun fetchAndDeserialize(
         api: CloudSaveApi,
-        slot: Int,
         archiveName: String
     ): SaveBackendResult<FetchedPayload> {
         val bytes = try {
@@ -274,59 +266,17 @@ class TapTapSaveBackend @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            DomainLog.e(TAG, "deserialize failed for slot $slot", e)
+            DomainLog.e(TAG, "deserialize failed", e)
             SaveBackendResult.Failure(SaveBackendError.SERIALIZATION, e.message ?: "反序列化失败", e)
         }
     }
 
-    override suspend fun list(): SaveBackendResult<List<CloudSaveEntry>> {
-        val api = CloudSaveApiReflector.resolve()
-            ?: return SaveBackendResult.Failure(SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用")
-        return try {
-            // SR-3 槽位列表数据源：一次 getArchiveList 往返，桥侧已带 extra/size——
-            // 摘要（extra JSON 协议）与保存序号 W 就地解析，免逐档查询往返
-            val entries = api.listAllArchives().mapNotNull { archive ->
-                slotFromArchiveName(archive.name)?.let { slot ->
-                    CloudSaveEntry(
-                        slot = slot,
-                        archiveName = archive.name,
-                        saveId = archive.extra?.let { parseSaveId(it) },
-                        sizeBytes = archive.sizeBytes,
-                        modifiedTimeMs = archive.modifiedTime * 1000,
-                        summary = parseSummary(archive.extra)
-                    )
-                }
-            }
-            SaveBackendResult.Success(entries)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            SaveBackendResult.Failure(classify(e), e.message ?: "列表查询失败", e)
-        }
-    }
-
-    override suspend fun delete(slot: Int): SaveBackendResult<Unit> {
-        val api = CloudSaveApiReflector.resolve()
-            ?: return SaveBackendResult.Failure(SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用")
-        return try {
-            val target = api.listAllArchives().firstOrNull { it.name == archiveNameFor(slot) }
-                ?: return SaveBackendResult.Failure(SaveBackendError.ARCHIVE_MISSING, "云存档不存在: slot=$slot")
-            api.deleteArchive(target.uuid)
-            DomainLog.i(TAG, "backend delete success: slot=$slot uuid=${target.uuid.take(8)}")
-            SaveBackendResult.Success(Unit)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            SaveBackendResult.Failure(classify(e), e.message ?: "删除失败", e)
-        }
-    }
-
-    override suspend fun currentCloudSaveId(slot: Int): SaveBackendResult<Long?> {
+    override suspend fun currentCloudSaveId(): SaveBackendResult<Long?> {
         val api = CloudSaveApiReflector.resolve() ?: return SaveBackendResult.Failure(
             SaveBackendError.SDK_UNAVAILABLE, "TapTap 云存档 SDK 不可用"
         )
         return try {
-            val rawInfo = api.queryArchiveInfo(archiveNameFor(slot))
+            val rawInfo = api.queryArchiveInfo(ARCHIVE_NAME)
             SaveBackendResult.Success(rawInfo?.extra?.let { parseSaveId(it) })
         } catch (e: CancellationException) {
             throw e
@@ -335,7 +285,7 @@ class TapTapSaveBackend @Inject constructor(
         }
     }
 
-    // ── 槽位/extra/错误映射（internal 供同模块单测） ──
+    // ── extra/错误映射与旧命名判定（internal 供同模块单测） ──
 
     companion object {
         /**
@@ -372,37 +322,30 @@ class TapTapSaveBackend @Inject constructor(
         private const val EXTRA_KEY_SIGNATURE = "sig"
         private const val EXTRA_KEY_SIGNATURE_VERSION = "sigVer"
 
-        /** 云会话单档名（与 TapCloudSaveManager.CLOUD_SAVE_ARCHIVE_NAME 一致；slot 0 = 云会话槽） */
-        internal const val SESSION_ARCHIVE_NAME = "mnzm_v2_save"
+        /** 唯一云档名（单存档语义：与 TapCloudSaveManager.CLOUD_SAVE_ARCHIVE_NAME 一致） */
+        internal const val ARCHIVE_NAME = "mnzm_v2_save"
 
-        /** v2 槽位命名前缀 */
-        private const val V2_SLOT_PREFIX = "mnzm_v2_slot_"
-
-        /** slot → 云端 archive 名：0 = 云会话单档，1..6 = mnzm_v2_slot_N */
-        internal fun archiveNameFor(slot: Int): String =
-            if (slot == StorageConstants.CLOUD_SAVE_SLOT) SESSION_ARCHIVE_NAME else "$V2_SLOT_PREFIX$slot"
-
-        /** 云端 archive 名 → slot；v2 槽位命名之外的命名（含旧协议 `mnzm_cloud_save`/`slot_N`）一律返回 null */
-        internal fun slotFromArchiveName(name: String): Int? = when {
-            name == SESSION_ARCHIVE_NAME -> StorageConstants.CLOUD_SAVE_SLOT
-            name.startsWith(V2_SLOT_PREFIX) ->
-                name.removePrefix(V2_SLOT_PREFIX).toIntOrNull()?.takeIf { it in 1..6 }
-            else -> null
-        }
+        /** 后端上传临时文件名（与 TapCloudSaveManager 的临时文件名空间分离，避免并发互踩） */
+        private const val TEMP_FILE_NAME = "cloud_save_backend_temp.dat"
 
         /**
-         * 是否为旧协议云档命名（SS0 删档重置前的 `mnzm_cloud_save` / `slot_N`）。
+         * 是否为退役云档命名——旧协议 `mnzm_cloud_save` / `slot_N`，以及 v2 时代的
+         * 槽位命名 `mnzm_v2_slot_N`（单存档坍缩后槽位命名全部退役）。
          * 命中者由 TapCloudSaveManager.oneTimeCleanup 主动删除（尽力而为）；
-         * 本类所有读路径对旧命名零识别，删除失败也不构成恢复路径。
+         * 本类所有读路径对退役命名零识别，删除失败也不构成恢复路径。
          */
         internal fun isLegacyArchiveName(name: String): Boolean = when {
             name == "mnzm_cloud_save" -> true
+            name == ARCHIVE_NAME -> false
             name.startsWith("slot_") ->
                 name.removePrefix("slot_").toIntOrNull()?.takeIf { it in 1..6 } != null
+            name.startsWith(RETIRED_V2_SLOT_PREFIX) ->
+                name.removePrefix(RETIRED_V2_SLOT_PREFIX).toIntOrNull()?.takeIf { it in 1..6 } != null
             else -> false
         }
 
-        internal fun tempFileName(slot: Int): String = "cloud_save_temp_slot_$slot.dat"
+        /** v2 时代槽位命名前缀（已退役，仅作旧云档清理的识别面） */
+        private const val RETIRED_V2_SLOT_PREFIX = "mnzm_v2_slot_"
 
         /** extra JSON → 云端保存序号 W；缺失/解析失败/0 = null（存量档 U11 保守退化） */
         // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null（W 未知由仲裁
@@ -424,44 +367,6 @@ class TapTapSaveBackend @Inject constructor(
             extra?.let { JSONObject(it).optString(EXTRA_KEY_SIGNATURE, "").takeIf { s -> s.isNotBlank() } }
         } catch (e: Exception) {
             null
-        }
-
-        /**
-         * extra JSON → 选档 UI 摘要（现役协议 year/month/sect/disciples/stones/version 直映射，
-         * SR-0 §3.4）。extra 缺失/解析失败/游戏字段全空 = null——列表卡退化为"有档无摘要"
-         * 展示（TapTap 元数据最终一致性延迟下常见，非错误，对齐 CloudSaveInfo
-         * .hasMeaningfulSummary 同纪律），不抛异常不阻断列表。
-         */
-        // 防御兜底: extra 内容跨服务端版本不可枚举, 解析失败降级 null, 非静默吞噬
-        @Suppress("TooGenericExceptionCaught", "SwallowedException")
-        internal fun parseSummary(extra: String?): CloudSaveSummary? {
-            if (extra.isNullOrBlank()) return null
-            return try {
-                val json = JSONObject(extra)
-                val sect = json.optString("sect", "")
-                val year = json.optInt("year", 0)
-                val month = json.optInt("month", 0)
-                val disciples = json.optInt("disciples", 0)
-                val stones = json.optLong("stones", 0L)
-                // 有档无真实摘要（全空）= null（TapTap 元数据最终一致性延迟常态，
-                // 对齐 CloudSaveInfo.hasMeaningfulSummary 同纪律）
-                val hasSummary = sect.isNotBlank() || year > 0 || month > 0 ||
-                    disciples > 0 || stones > 0L
-                if (!hasSummary) {
-                    null
-                } else {
-                    CloudSaveSummary(
-                        gameYear = year,
-                        gameMonth = month,
-                        sectName = sect,
-                        discipleCount = disciples,
-                        spiritStones = stones,
-                        appVersion = json.optString("version", "")
-                    )
-                }
-            } catch (e: Exception) {
-                null
-            }
         }
 
         /**

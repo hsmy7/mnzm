@@ -17,13 +17,13 @@ import org.junit.Test
  * 「读锁/写锁」实为同一把排他 Mutex：本测试锁定排他语义与
  * 全局锁独立可用两条契约。
  */
-class SlotLockManagerTest {
+class SaveLockManagerTest {
 
-    private lateinit var lockManager: SlotLockManager
+    private lateinit var lockManager: SaveLockManager
 
     @Before
     fun setUp() {
-        lockManager = SlotLockManager()
+        lockManager = SaveLockManager()
     }
 
     // ==================== withWriteLockLight ====================

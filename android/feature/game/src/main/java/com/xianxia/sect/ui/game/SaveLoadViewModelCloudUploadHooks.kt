@@ -47,7 +47,7 @@ internal suspend fun SaveLoadViewModel.maybeEnqueueCloudUploadAfterLocalSave(sav
         return
     }
     try {
-        persistenceFacade.uploadQueue.enqueue(com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT, saveData)
+        persistenceFacade.uploadQueue.enqueue(saveData)
         Log.i(SaveLoadViewModelConstants.TAG, "cloud upload enqueued mode=$mode")
     } catch (e: CancellationException) {
         throw e // 取消穿透：入队取消时中止，不以失败冒充

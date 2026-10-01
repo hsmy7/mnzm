@@ -2,107 +2,16 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import com.xianxia.sect.core.engine.loadData
-import com.xianxia.sect.data.integrity.IntegrityResult
-import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
-import com.xianxia.sect.taptap.TapCloudSaveManager
 import kotlinx.coroutines.*
 
-// ── 云读档流程（云档管线/云会话独立加载）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
-// batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
-
-/**云读档主流程。 */
-// 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-@Suppress("TooGenericExceptionCaught", "ReturnCount") // 云档多失败守卫（空数据/损坏/写入失败），多 return 为守卫风格
-internal suspend fun SaveLoadViewModel.performCloudLoad() {
-        try {
-            loadingProgressFlow.value = 0.1f
-            preloadPhaseFlow.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
-
-            // 与本地读档/保存的并发互斥由 loadGame/saveGame 的
-            // cloudDownloadLock 检查保证（本路径全程持有 cloudDownloadLock）
-            // ——不设 isLoading（挂起设置会引入纯 JVM 测试环境无法恢复的
-            // 协程挂起点，且主菜单场景循环未启动、isLoading 无冻结语义）
-
-            if (!isCloudSaveAvailable()) {
-                showError("请先登录 TapTap")
-                return
-            }
-
-            val result = persistenceFacade.tapCloudSaveManager.downloadSave()
-
-            when (result) {
-                is TapCloudSaveManager.CloudSaveResult.Success -> handleCloudLoadSuccess(result)
-                is TapCloudSaveManager.CloudSaveResult.NetworkError ->
-                    showError("网络错误: ${result.message}")
-                is TapCloudSaveManager.CloudSaveResult.AuthRequired ->
-                    showError("请先登录 TapTap 账号")
-                is TapCloudSaveManager.CloudSaveResult.SerializationError ->
-                    showError("存档数据异常: ${result.message}")
-                is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
-                    showError("云存档文件过大，无法下载")
-                is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
-                    showError("云存档不存在")
-                is TapCloudSaveManager.CloudSaveResult.VersionMismatch ->
-                    showError("云存档来自版本 ${result.cloudVersion}，当前版本 ${result.currentVersion} 不支持加载")
-                is TapCloudSaveManager.CloudSaveResult.UnknownError ->
-                    showError("未知错误: ${result.message}")
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-          catch (e: OutOfMemoryError) {
-            // 恶意/异常超大云档反序列化 OOM——OutOfMemoryError 不是
-            // Exception，不捕获会直接崩溃；降级为错误提示
-            Log.e(SaveLoadViewModelConstants.TAG, "云存档数据过大导致内存不足", e)
-            showError("云存档数据过大，内存不足，无法加载")
-        } catch (e: Exception) {
-            Log.e(SaveLoadViewModelConstants.TAG, "loadFromCloudSave failed", e)
-            showError("加载云存档失败: ${e.message}")
-        } finally {
-            cloudDownloadLock.set(false)
-        }
-}
-
-/** 云读档 Success 分支：管线 → 云会话独立加载 */
-@Suppress("ReturnCount") // 云档多失败守卫（空数据/损坏/写入失败），多 return 为守卫风格
-internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSaveManager.CloudSaveResult.Success) {
-    val saveData = result.saveData
-    if (saveData == null) {
-        showError("云存档数据为空")
-        return
-    }
-
-    // 云档管线与本地读档同语义——
-    // 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建
-    var processed = saveData
-    val validation = SaveValidator.validate(processed)
-    when (validation) {
-        is IntegrityResult.Corrupted -> {
-            showError("云存档数据损坏，无法加载")
-            return
-        }
-        is IntegrityResult.Repaired -> {
-            Log.w(SaveLoadViewModelConstants.TAG, "云存档完整性修复 ${validation.details.size} 项")
-            processed = validation.data
-        }
-        is IntegrityResult.Passed -> {}
-    }
-    processed = SaveDataReconciler.reconcileStacks(processed)
-
-    // 云存档为独立存档，读取不覆盖本地档——
-    // 直接加载进内存（无需覆盖确认；覆盖确认弹窗仅游戏主界面可渲染，
-    // 主菜单读档场景会永久卡死）
-    val bootResult = applyCloudSaveToEngine(processed)
-    if (bootResult.isFailure) {
-        showError("读取云存档失败: ${bootResult.exceptionOrNull()?.message}")
-    }
-}
+// ── 云档下载后的内存加载 + boot（自 SaveLoadViewModel 拆出）─────────────────────
 
 /**
  * 云下载后的内存加载 + boot。
  *
  * 云会话独立加载——下载快照只进内存加载，不写本地档；返回 [Result] 由
- * 调用方决定成功/失败反馈（主菜单云读档与游戏内云下载反馈通道不同）。
+ * 调用方决定成功/失败反馈（游戏内云下载反馈通道不同）。
  *
  * @return boot 结果；失败时消息可直接展示给玩家
  */
@@ -144,11 +53,10 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
             productionSlots = reconciled.productionSlots
         )
 
-        // SR-1：云恢复邮件整对象替换回表——本地邮件表替换为
-        // 下载快照的 mails，boot/会话期新邮件在其上叠加；否则下次保存/上传
-        // 会用本地残留旧表覆盖云邮件（换设备丢邮件 = 本批要根治的缺口）。
-        // 仅替换邮件表——云恢复全量落盘另有通道，此处不越界；
-        // 失败上抛由 performCloudLoad 统一报"加载云存档失败"。
+        // 邮件整对象替换回表——本地邮件表替换为下载快照的 mails，boot/会话期
+        // 新邮件在其上叠加；否则下次保存/上传会用本地残留旧表覆盖云邮件
+        //（换设备丢邮件 = 已根治的缺口）。仅替换邮件表——云恢复全量落盘另有通道
+        //（CloudSaveCacheWriter），此处不越界；失败上抛由调用方统一报错。
         persistenceFacade.storageFacade.replaceMails(
             reconciled.mails
         )

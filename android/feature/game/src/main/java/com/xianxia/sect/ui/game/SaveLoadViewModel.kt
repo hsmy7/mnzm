@@ -435,43 +435,6 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     /**
-     * 从云存档下载并加载游戏（主菜单云存档卡片入口）。
-     *
-     * 流程：
-     * 1. 设置加载进度反馈（loadingProgressFlow=0.1f, "正在同步云存档..."）
-     * 2. 下载云存档 (persistenceFacade.tapCloudSaveManager.downloadSave())
-     * 3. 写入本地存储 (persistenceFacade.storageFacade.save)
-     * 4. 走正常 BootSequenceController 启动流程
-     * 5. 失败时通过 showError() 展示错误
-     *
-     * 与 downloadFromCloudSave()（游戏内存档弹窗使用）不同，
-     * 此方法直接驱动 GameActivity 的 LoadingScreen 进度反馈。
-     */
-    @Suppress("ReturnCount") // 云读档多守卫（boot/重启/保存/云锁），多 return 为守卫风格
-    fun loadFromCloudSave() {
-        // boot/重启/保存进行中禁止云读档
-        if (isBootOperationBlocked()) return
-        if (isRestartingFlow.value) {
-            Log.w(TAG, "Restarting, ignoring cloud load request")
-            showError("游戏重置中，请稍后读取云存档")
-            return
-        }
-        if (saveLock.get()) {
-            Log.w(TAG, "Save in progress, ignoring cloud load request")
-            showError("正在保存中，请稍后读取云存档")
-            return
-        }
-        if (!cloudDownloadLock.compareAndSet(false, true)) {
-            Log.w(TAG, "Cloud load already in progress, ignoring")
-            return
-        }
-        viewModelScope.launch(ioDispatcher.dispatcher) {
-            // 云读档主流程
-            performCloudLoad()
-        }
-    }
-
-    /**
      * 暂停游戏循环（不保存）
      *
      * 仅停止游戏循环和后台结算工作，不触发存档。

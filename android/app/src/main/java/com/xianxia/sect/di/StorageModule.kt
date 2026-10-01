@@ -4,7 +4,7 @@ import android.content.Context
 import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.backup.SaveSerializer
 import com.xianxia.sect.data.compression.DataCompressor
-import com.xianxia.sect.data.concurrent.SlotLockManager
+import com.xianxia.sect.data.concurrent.SaveLockManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.engine.StorageCoreFacade
@@ -28,8 +28,8 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun provideSlotLockManager(): SlotLockManager {
-        return SlotLockManager()
+    fun provideSaveLockManager(): SaveLockManager {
+        return SaveLockManager()
     }
 
     @Provides
