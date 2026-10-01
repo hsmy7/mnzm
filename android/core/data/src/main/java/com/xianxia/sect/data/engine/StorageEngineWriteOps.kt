@@ -153,8 +153,6 @@ internal suspend fun StorageEngine.writeCoreEntities(data: SaveData, lightGameDa
     writeStackedItems(data)
     writeMails(data)
     writeProductionSlotsAndRecipes(data)
-
-    syncSlotMetadata(data)
 }
 
 /**

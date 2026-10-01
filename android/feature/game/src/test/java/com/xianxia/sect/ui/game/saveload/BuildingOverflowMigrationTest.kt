@@ -13,7 +13,7 @@ import org.junit.Test
 /**
  * 建筑占地×2 旧存档溢出迁移测试。
  *
- * 覆盖 [SaveLoadLoadDelegate.computeBuildingOverflowMigration] 的核心逻辑：
+ * 覆盖 core/engine `computeBuildingOverflowMigration`（经 BootSequenceController Step 3.5 消费）的核心逻辑：
  * - 边界越界 → 拆除 + 全额退款
  * - 重叠 → 造价低的被拆除
  * - 灵田优先保留（尺寸不变，最高优先级）
@@ -23,7 +23,7 @@ import org.junit.Test
 class BuildingOverflowMigrationTest {
 
     private lateinit var buildingConfigService: BuildingConfigService
-    private lateinit var delegate: SaveLoadLoadDelegate
+
 
     @Before
     fun setup() {
@@ -43,14 +43,6 @@ class BuildingOverflowMigrationTest {
             BuildingConfigModel(id = "tianshu_hall", displayName = "天枢殿",
                 buildingType = "ADMINISTRATION", cost = 15000, gridWidth = 6, gridHeight = 4)
         every { buildingConfigService.getBuildingConfigByDisplayName("未知建筑") } returns null
-
-        delegate = SaveLoadLoadDelegate(
-            gameEngine = mockk(),
-            gameEngineCore = mockk(),
-            storageFacade = mockk(),
-            stateStore = mockk(),
-            buildingConfigService = buildingConfigService,
-        )
     }
 
     // ── 辅助方法 ──
@@ -65,8 +57,16 @@ class BuildingOverflowMigrationTest {
         spiritStones: Long = 0
     ): com.xianxia.sect.core.engine.MigrationResult {
         val gd = GameData(placedBuildings = buildings, spiritStones = spiritStones)
-        return delegate.computeBuildingOverflowMigration(buildings, gd, buildingConfigService)
+        return compute(buildings, gd)
     }
+
+    private fun compute(
+        buildings: List<GridBuildingData>,
+        gd: GameData
+    ): com.xianxia.sect.core.engine.MigrationResult =
+        com.xianxia.sect.core.engine.computeBuildingOverflowMigration(
+            buildings, gd, buildingConfigService
+        )
 
     // ================================================================
     // 正常路径
@@ -224,7 +224,7 @@ class BuildingOverflowMigrationTest {
         var totalRefund = 0L
         val allFreed = mutableSetOf<String>()
         for ((_, sectBuildings) in groups) {
-            val r = delegate.computeBuildingOverflowMigration(sectBuildings, gd, buildingConfigService)
+            val r = compute(sectBuildings, gd)
             allKept.addAll(r.kept)
             allDemolished.addAll(r.demolished)
             totalRefund += r.totalRefund

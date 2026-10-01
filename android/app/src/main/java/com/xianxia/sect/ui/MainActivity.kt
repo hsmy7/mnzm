@@ -48,7 +48,7 @@ import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.facade.StorageFacade
-import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.unified.SaveInfo
 import com.xianxia.sect.taptap.TapTapAuthManager
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.taptap.LoginData
@@ -609,18 +609,18 @@ class MainActivity : ComponentActivity() {
                 showAutoEnterStorageError(storageInitError.value ?: AUTO_ENTER_STORAGE_ERROR_MESSAGE)
                 return@launch
             }
-            val slots = queryLocalSlots()
-            if (slots == null) {
+            val save = queryLocalSave()
+            if (save == null) {
                 showAutoEnterStorageError(AUTO_ENTER_STORAGE_ERROR_MESSAGE)
                 return@launch
             }
             // 有可读本地档的玩家跳过云端查询（零网络等待）；查询仅在换机/重装路径发生
-            val cloudHasSave = if (AutoEntryResolver.hasLoadableLocal(slots)) {
+            val cloudHasSave = if (AutoEntryResolver.hasLoadableLocal(save)) {
                 null
             } else {
                 queryCloudHasSave()
             }
-            when (AutoEntryResolver.resolve(slots, cloudHasSave)) {
+            when (AutoEntryResolver.resolve(save, cloudHasSave)) {
                 AutoEntry.LoadLocal -> launchGame()
                 AutoEntry.LoadCloud -> launchGame(cloudLoad = true)
                             AutoEntry.CreateNew -> launchGame(
@@ -656,15 +656,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 本地槽位快照；null = 整表查询失败（存储状态未知，调用方必须阻断而非降级） */
+    /** 本地单档摘要；null = 查询失败（存储状态未知，调用方必须阻断而非降级） */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/DB不可枚举, 上抛为阻断态而非静默降级
-    private suspend fun queryLocalSlots(): List<SaveSlot>? = withContext(ioDispatcher.dispatcher) {
+    private suspend fun queryLocalSave(): SaveInfo? = withContext(ioDispatcher.dispatcher) {
         try {
-            storageFacade.get().getSaveSlotsSuspend()
+            storageFacade.get().getSaveInfoSuspend()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "auto-enter: load save slots failed", e)
+            Log.e(TAG, "auto-enter: load save info failed", e)
             null
         }
     }
@@ -682,7 +682,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 携带存档参数启动游戏 Activity（槽位读档/自动新建/云存档读档 三选一） */
+    /** 携带存档参数启动游戏 Activity（本地读档/自动新建/云存档读档 三选一） */
     private fun launchGame(
         newGame: Boolean = false,
         sectName: String? = null,

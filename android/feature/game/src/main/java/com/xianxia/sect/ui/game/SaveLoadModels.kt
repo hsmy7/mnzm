@@ -11,7 +11,6 @@ package com.xianxia.sect.ui.game
 data class SaveLoadState(
     val isSaving: Boolean = false,
     val isLoading: Boolean = false,
-    val pendingSlot: Int? = null,
     val pendingAction: String? = null
 ) {
     val isBusy: Boolean get() = isSaving || isLoading

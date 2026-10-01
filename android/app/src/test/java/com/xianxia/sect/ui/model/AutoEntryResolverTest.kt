@@ -1,6 +1,6 @@
 package com.xianxia.sect.ui.model
 
-import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.unified.SaveInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,9 +21,7 @@ class AutoEntryResolverTest {
         timestamp: Long,
         isEmpty: Boolean = false,
         isLoadError: Boolean = false
-    ) = SaveSlot(
-        slot = 1,
-        name = "",
+    ) = SaveInfo(
         timestamp = timestamp,
         gameYear = 1,
         gameMonth = 1,
@@ -39,16 +37,16 @@ class AutoEntryResolverTest {
     @Test
     fun `本地有档时读本地`() {
         val entry = AutoEntryResolver.resolve(
-            listOf(save(300L)),
+            save(300L),
             cloudHasSave = true
         )
         assertEquals(AutoEntry.LoadLocal, entry)
     }
 
     @Test
-    fun `云伪槽与空槽不参与本地判定`() {
+    fun `空档不参与本地判定`() {
         val entry = AutoEntryResolver.resolve(
-            listOf(save(0L, isEmpty = true)),
+            save(0L, isEmpty = true),
             cloudHasSave = false
         )
         assertEquals(AutoEntry.CreateNew, entry)
@@ -59,7 +57,7 @@ class AutoEntryResolverTest {
     @Test
     fun `本地无档且云端有档时读云`() {
         val entry = AutoEntryResolver.resolve(
-            listOf(save(0L, isEmpty = true)),
+            save(0L, isEmpty = true),
             cloudHasSave = true
         )
         assertEquals(AutoEntry.LoadCloud, entry)
@@ -67,31 +65,22 @@ class AutoEntryResolverTest {
 
     @Test
     fun `本地无档且云端无档时自动新建`() {
-        val entry = AutoEntryResolver.resolve(emptyList(), cloudHasSave = false)
+        val entry = AutoEntryResolver.resolve(null, cloudHasSave = false)
         assertEquals(AutoEntry.CreateNew, entry)
     }
 
     @Test
     fun `云端未判定（查询超时或失败）按无云端档处理`() {
-        val entry = AutoEntryResolver.resolve(emptyList(), cloudHasSave = null)
+        val entry = AutoEntryResolver.resolve(null, cloudHasSave = null)
         assertEquals(AutoEntry.CreateNew, entry)
     }
 
     // ── 存档安全红线：损坏档 ──
 
     @Test
-    fun `有可读档时损坏档不参与选取`() {
-        val entry = AutoEntryResolver.resolve(
-            listOf(save(500L, isLoadError = true), save(300L)),
-            cloudHasSave = null
-        )
-        assertEquals(AutoEntry.LoadLocal, entry)
-    }
-
-    @Test
     fun `只剩损坏档且云端无档时交读档链处置而非静默新建`() {
         val entry = AutoEntryResolver.resolve(
-            listOf(save(500L, isLoadError = true)),
+            save(500L, isLoadError = true),
             cloudHasSave = false
         )
         assertEquals("损坏档必须交给读档链（修复或显式删档），不得自动新建覆盖", AutoEntry.LoadLocal, entry)
@@ -100,7 +89,7 @@ class AutoEntryResolverTest {
     @Test
     fun `只剩损坏档但云端有档时优先读云`() {
         val entry = AutoEntryResolver.resolve(
-            listOf(save(500L, isLoadError = true)),
+            save(500L, isLoadError = true),
             cloudHasSave = true
         )
         assertEquals(AutoEntry.LoadCloud, entry)
@@ -111,19 +100,17 @@ class AutoEntryResolverTest {
     @Test
     fun `有可读本地档时跳过云端查询`() {
         assertTrue(
-            AutoEntryResolver.hasLoadableLocal(listOf(save(100L)))
+            AutoEntryResolver.hasLoadableLocal(save(100L))
         )
     }
 
     @Test
     fun `本地无可读档时才发起云端查询`() {
         assertFalse(
-            AutoEntryResolver.hasLoadableLocal(listOf(save(0L, isEmpty = true)))
+            AutoEntryResolver.hasLoadableLocal(save(0L, isEmpty = true))
         )
         assertFalse(
-            AutoEntryResolver.hasLoadableLocal(
-                listOf(save(100L, isLoadError = true))
-            )
+            AutoEntryResolver.hasLoadableLocal(save(100L, isLoadError = true))
         )
     }
 }

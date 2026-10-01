@@ -84,18 +84,18 @@ internal fun SaveLoadViewModel.releaseRestartLocks() {
 /**
  * 重开保护性预存（SR-2，审计 §2 重开顺序缺陷修正）：重置引擎**前**把当前内存态落盘。
  *
- * 复用 [performRestartSave] 全链（当前态快照 → 槽位邮件 → SaveData → 带超时落盘 →
- * 损坏自愈 → 失败回滚 currentSlot）——预存与"重置后落新档"同一条代码路径，零新保存逻辑。
+ * 复用 [performRestartSave] 全链（当前态快照 → 邮件快照 → SaveData → 带超时落盘 →
+ * 损坏自愈）——预存与"重置后落新档"同一条代码路径，零新保存逻辑。
  *
  * @return true = 预存成功（可安全重置引擎）；false = 预存失败（**必须中止重置**：
  * 旧档此时仅存在于盘上，继续重置将以重置态覆写唯一副本；已如实提示）
  */
 internal suspend fun SaveLoadViewModel.protectivePreSaveBeforeRestart(): Boolean {
-    setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
+    setSaveLoadState(isSaving = true, pendingAction = "save")
     val success = try {
         performRestartSave()
     } finally {
-        setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        setSaveLoadState(isSaving = false, pendingAction = null)
     }
     if (!success) {
         Log.e(
@@ -139,11 +139,11 @@ internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {
 
         restartEngineAndReseed(sectName = sectName)
 
-        setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
+        setSaveLoadState(isSaving = true, pendingAction = "save")
 
         val saveSuccess = performRestartSave()
 
-        setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        setSaveLoadState(isSaving = false, pendingAction = null)
 
         if (saveSuccess) {
             Log.i(SaveLoadViewModelConstants.TAG, "=== restartGame SAVE SUCCESS ===")
@@ -161,11 +161,11 @@ internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {
     } catch (e: OutOfMemoryError) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame FAILED === OutOfMemoryError", e)
         showError("内存不足，重置失败。请关闭其他应用后重试。")
-        setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        setSaveLoadState(isSaving = false, pendingAction = null)
     } catch (e: Exception) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame FAILED === error=${e.message}", e)
         showError(e.message ?: "重置游戏失败")
-        setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        setSaveLoadState(isSaving = false, pendingAction = null)
     } finally {
         resetRestartState(wasRunning = wasRunning)
     }
@@ -255,10 +255,10 @@ internal suspend fun SaveLoadViewModel.performRestartSave(): Boolean {
                 "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
                 "disciples=${snapshot.disciples.size}")
 
-            // SR-1：重启预存从 mails 表读当前 slot 全量入快照
+            // SR-1：重启预存从 mails 表读全量入快照
             // （读失败经外层 catch 如实报失败）
-            val slotMails = readMails()
-            val saveData = buildRestartSaveData(snapshot = snapshot, mails = slotMails)
+            val sessionMails = readMails()
+            val saveData = buildRestartSaveData(snapshot = snapshot, mails = sessionMails)
             persistRestartSave(saveData = saveData)
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave OutOfMemoryError", e)
@@ -271,7 +271,7 @@ internal suspend fun SaveLoadViewModel.performRestartSave(): Boolean {
     }
 }
 
-/**重启存档数据组装：快照 + 槽位邮件快照 → SaveData（stacksSerialized 防旧堆叠泄漏；mails 必填见 SaveDataTrimmer） */
+/**重启存档数据组装：快照 + 邮件快照 → SaveData（stacksSerialized 防旧堆叠泄漏；mails 必填见 SaveDataTrimmer） */
 internal fun SaveLoadViewModel.buildRestartSaveData(
     snapshot: GameStateSnapshot,
     mails: List<com.xianxia.sect.core.model.MailEntity>
@@ -307,10 +307,10 @@ internal suspend fun SaveLoadViewModel.persistRestartSave(saveData: SaveData): B
     return when (success) {
         true -> {
             try {
-                saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
-                Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after restart save: ${e.message}", e)
+                Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh save info after restart save: ${e.message}", e)
             }
             Log.i(SaveLoadViewModelConstants.TAG, "performRestartSave success")
             true

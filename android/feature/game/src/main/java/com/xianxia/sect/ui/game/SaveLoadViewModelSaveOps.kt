@@ -16,8 +16,8 @@ internal fun SaveLoadViewModel.isCloudSaveAvailable(): Boolean = persistenceFaca
 // unifiedState（20Hz 锁竞争 + 50ms 采样延迟）→ 独立窄流直连（零延迟）
 
 /**
- * 槽位全量邮件快照读取（SR-1）：保存编排在快照构造前从 `mails` 表读当前 slot
- * 全量，注入 SaveData.mails（整对象替换语义——漏注入 = 空表抹邮件，故每个
+ * 单档全量邮件快照读取（SR-1）：保存编排在快照构造前从 `mails` 表读全量，
+ * 注入 SaveData.mails（整对象替换语义——漏注入 = 空表抹邮件，故每个
  * SaveData 构造点必须经此读取）。失败异常上抛，不做静默空表降级。
  */
 internal suspend fun SaveLoadViewModel.readMails(): List<com.xianxia.sect.core.model.MailEntity> =
@@ -57,7 +57,6 @@ internal fun SaveLoadViewModel.saveGame(
     // 第二次点击可穿过守卫注册并取消第一次保存；协程内
     // setSaveLoadState(isSaving=true) 为幂等重设
     stateStore.setSavingDirect(true)
-    pendingSlotFlow.value = 1
     pendingActionFlow.value = "save"
 
     Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame BEGIN === feedback=$feedback")
@@ -163,7 +162,7 @@ internal fun SaveLoadViewModel.checkLocalSaveGuards(): LocalSaveGuard {
  */
 internal fun SaveLoadViewModel.checkSaveMutexGuards(): LocalSaveGuard? {
     // 云存档操作进行中禁止本地保存——否则云下载落盘与本地保存
-    // 并发写同一槽位
+    // 并发写同一数据面
     if (cloudDownloadLock.get()) {
         Log.w(SaveLoadViewModelConstants.TAG, "Cloud save operation in progress, ignoring saveGame request")
         return LocalSaveGuard.Blocked("云存档操作进行中，请稍后保存")
@@ -192,7 +191,7 @@ internal fun SaveLoadViewModel.checkSaveMutexGuards(): LocalSaveGuard? {
 
 /**
  *本地保存主流程。
- * 快照 → 校验 → 保存 → 结果反馈 → 失败回滚 currentSlot。
+ * 快照 → 校验 → 保存 → 结果反馈。
  */
 // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 取消异常已前置分支处理, 泛型段为刻意终局兜底
 @Suppress("ThrowsCount", "TooGenericExceptionCaught")
@@ -200,7 +199,7 @@ internal suspend fun SaveLoadViewModel.performLocalSave(
     startTime: Long,
     feedback: SaveFeedback = SaveFeedback.Manual
 ) {
-    setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
+    setSaveLoadState(isSaving = true, pendingAction = "save")
 
     try {
         if (!waitForSaveLock(timeoutMs = 5000)) {
@@ -219,23 +218,23 @@ internal suspend fun SaveLoadViewModel.performLocalSave(
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === OutOfMemoryError", e)
                         reportSaveFailure(feedback, "内存不足，保存失败。请关闭其他应用后重试。")
-            try { saveSlotsFlow.value = persistenceFacade.storageFacade
-                .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
-                    .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after OOM", e2) }
+            try { saveInfoFlow.value = persistenceFacade.storageFacade
+                .getSaveInfoSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
+                    .e(SaveLoadViewModelConstants.TAG, "Failed to refresh save info after OOM", e2) }
         } catch (e: CancellationException) {
             Log.w(SaveLoadViewModelConstants.TAG, "saveGame cancelled")
                         throw e
         } catch (e: Exception) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === error=${e.message}", e)
                         reportSaveFailure(feedback, "保存失败: ${e.message}")
-            try { saveSlotsFlow.value = persistenceFacade.storageFacade
-                .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
-                    .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after save failure", e2) }
+            try { saveInfoFlow.value = persistenceFacade.storageFacade
+                .getSaveInfoSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
+                    .e(SaveLoadViewModelConstants.TAG, "Failed to refresh save info after save failure", e2) }
         } finally {
             saveLock.set(false)
         }
     } finally {
-        // NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
+        // NonCancellable 保证取消路径复位（详见 performLoadGame finally 注释）
         // 归属化复位：被取代的协程不复位标志
         resetOwnedLoadState("saveGame")
     }
@@ -259,8 +258,8 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
         return
     }
     // SR-1：从 mails 表读全量入快照（读失败上抛中止保存——空表降级 = 抹邮件）
-    val slotMails = readMails()
-    val saveData = trimSaveData(snapshot, slotMails)
+    val sessionMails = readMails()
+    val saveData = trimSaveData(snapshot, sessionMails)
 
     val saveResult = withTimeoutOrNull(30_000L) {
         persistenceFacade.storageFacade.save(saveData)
@@ -268,10 +267,10 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
 
     if (saveResult != null && saveResult.isSuccess) {
         try {
-            saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+            saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
         } catch (e: CancellationException) { throw e }
           catch (e: Exception) {
-            Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after successful save: ${e.message}", e)
+            Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh save info after successful save: ${e.message}", e)
         }
         // 后置步骤降级（.sav 镜像/备份未写入）必须如实提示，不得只报"保存成功"（审计 §12-C）
         val postSaveWarning = saveResult.warning
@@ -298,11 +297,40 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
             "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}",
         )
         try {
-            saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+            saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after save failure", e)
+            Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh save info after save failure", e)
+        }
+    }
+}
+
+/**
+ * 删除本地存档。
+ *
+ * 删除后刷新单档摘要，失败如实报错不静默。
+ * 调用面 = 存档弹窗删除确认弹窗的确认键（破坏性操作已在 UI 层显式确认）。
+ */
+// TooGenericExceptionCaught：防御兜底——删除链异常源跨 IO/DB 不可枚举，降级为错误提示+日志留痕
+@Suppress("TooGenericExceptionCaught")
+fun SaveLoadViewModel.deleteLocalSave() {
+    viewModelScope.launch(ioDispatcher.dispatcher) {
+        try {
+            when (val result = persistenceFacade.storageFacade.delete()) {
+                is com.xianxia.sect.data.unified.SaveResult.Failure -> {
+                    Log.w(SaveLoadViewModelConstants.TAG, "deleteLocalSave refused — ${result.message}")
+                    showError("删除存档失败: ${result.message}")
+                    return@launch
+                }
+                else -> Log.i(SaveLoadViewModelConstants.TAG, "save deleted")
+            }
+            refreshSaveInfo()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(SaveLoadViewModelConstants.TAG, "deleteLocalSave failed", e)
+            showError("删除存档失败: ${e.message}")
         }
     }
 }

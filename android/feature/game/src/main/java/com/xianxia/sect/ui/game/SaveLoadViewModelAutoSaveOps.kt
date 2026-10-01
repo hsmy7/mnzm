@@ -66,7 +66,7 @@ internal suspend fun SaveLoadViewModel.onRealtimeAutoSaveTick() {
 }
 
 /**
- * 自动保存触发入口（现实墙钟节拍 / `onStop`）——旗标 + 槽位 + 引擎三前置齐备才入编排窗。
+ * 自动保存触发入口（现实墙钟节拍 / `onStop`）——旗标 + 已加载 + 引擎三前置齐备才入编排窗。
  *
  * 非挂起、任意线程可调：节拍来自 UI 层定时协程，`onStop` 来自主线程；
  * 排队与合并全部在 [SaveLoadViewModel.saveOrchestrator] 内。
@@ -165,5 +165,3 @@ internal const val AUTO_SAVE_FAILED_PREFIX = "自动存档失败："
  */
 internal fun autoSaveNoticeText(gameYear: Int, gameMonth: Int, degraded: Boolean): String =
     "$AUTO_SAVE_NOTICE_LABEL · 第${gameYear}年${gameMonth}月" + if (degraded) "（备份未写入）" else ""
-
-internal const val MIN_AUTO_SAVE_SLOT = 1

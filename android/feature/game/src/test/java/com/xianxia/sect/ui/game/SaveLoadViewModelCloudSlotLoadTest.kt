@@ -129,12 +129,8 @@ class SaveLoadViewModelCloudSlotLoadTest {
         every { sessionManager.isLoggedIn } returns true
         coEvery { storageFacade.load() } returns
             SaveResult.failure(SaveError.SLOT_EMPTY, "no current save")
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns listOf(
-            com.xianxia.sect.data.model.SaveSlot(
-                slot = 0, name = "云存档", timestamp = 0L, gameYear = 0, gameMonth = 0,
-                sectName = "云存档", discipleCount = 0, spiritStones = 0L, isEmpty = false
-            )
-        )
+        coEvery { storageFacade.getSaveInfoSuspend() } returns
+            com.xianxia.sect.data.unified.SaveInfo(isEmpty = true)
         every { stateStore.isLoading } returns MutableStateFlow(false)
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)

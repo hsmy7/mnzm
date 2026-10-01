@@ -16,8 +16,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.taptap.TapCloudSaveManager
-import com.xianxia.sect.data.StorageConstants
-import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.unified.SaveInfo
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
@@ -109,10 +108,7 @@ class SaveLoadViewModel @Inject constructor(
     /** 启动序列阶段：UNINITIALIZED / DATA_READY / SYSTEMS_READY / MAP_READY / BOOT_COMPLETE */
     val bootPhase: StateFlow<BootPhase> get() = stateStore.bootPhase
 
-    internal val saveSlotsFlow = MutableStateFlow<List<SaveSlot>>(emptyList())
-
-    internal val pendingSlotFlow = MutableStateFlow<Int?>(null)
-    val pendingSlot: StateFlow<Int?> = pendingSlotFlow.asStateFlow()
+    internal val saveInfoFlow = MutableStateFlow<SaveInfo?>(null)
 
     internal val pendingActionFlow = MutableStateFlow<String?>(null)
     val pendingAction: StateFlow<String?> = pendingActionFlow.asStateFlow()
@@ -122,17 +118,11 @@ class SaveLoadViewModel @Inject constructor(
     val cloudSaveInfo: StateFlow<TapCloudSaveManager.CloudSaveInfo> = cloudSaveInfoFlow.asStateFlow()
 
     /**
-     * 存档槽位列表（slot 0 云存档槽位合并真实云存档信息）。
+     * 云端摘要（弹窗云存档卡数据源）。
      *
-     * StorageEngine.getSaveSlots() 的 slot 0 是硬编码全 0 占位（游戏内存档
-     * 对话框直接渲染会显示"第0年0月/弟子 0/灵石 0"）；此处用 [cloudSaveInfoFlow]
-     * （checkCloudSave/上传/下载维护的真实云端摘要）覆盖占位字段，使游戏内
-     * 展示与主菜单选择存档界面的云存档入口数据一致。
+     * [cloudSaveInfoFlow] 由 checkCloudSave/上传/下载维护真实云端摘要；
+     * 本地单档摘要独立走 [saveInfoFlow]，二者在存档弹窗各自成卡。
      */
-    val saveSlots: StateFlow<List<SaveSlot>> =
-        combine(saveSlotsFlow, cloudSaveInfoFlow) { slots, cloudInfo ->
-            mergeCloudSlot(slots, cloudInfo)
-        }.stateIn(viewModelScope, sharingStarted, emptyList())
     internal val cloudSaveInfoVersion = java.util.concurrent.atomic.AtomicInteger(0)
 
     internal val cloudSaveOperationStateFlow = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
@@ -180,13 +170,11 @@ class SaveLoadViewModel @Inject constructor(
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.isSaving,
         stateStore.isLoading,
-        pendingSlotFlow,
         pendingActionFlow
-    ) { isSaving, isLoading, slot, action ->
+    ) { isSaving, isLoading, action ->
         SaveLoadState(
             isSaving = isSaving,
             isLoading = isLoading,
-            pendingSlot = slot,
             pendingAction = action
         )
     }.stateIn(viewModelScope, sharingStarted, SaveLoadState())
@@ -205,21 +193,21 @@ class SaveLoadViewModel @Inject constructor(
     val restartVersion: StateFlow<Int> = restartVersionFlow.asStateFlow()
 
     init {
-        // 加载存档元数据 — 运行在 IO 调度器上，避免主线程等待 Room 查询
-        // 防御兜底: 存档槽读取失败重试一次后放弃(UI 显示空槽), IO/序列化异常不可枚举
+        // 加载存档摘要 — 运行在 IO 调度器上，避免主线程等待 Room 查询
+        // 防御兜底: 存档摘要读取失败重试一次后放弃(UI 显示空态), IO/序列化异常不可枚举
         @Suppress("TooGenericExceptionCaught")
         viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
-                saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
-                Log.e(TAG, "Failed to load save slots in init, retrying after delay", e)
+                Log.e(TAG, "Failed to load save info in init, retrying after delay", e)
                 delay(500)
                 try {
-                    saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                    saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
                 } catch (e: CancellationException) { throw e }
                   catch (e2: Exception) {
-                    Log.e(TAG, "Retry loading save slots also failed", e2)
+                    Log.e(TAG, "Retry loading save info also failed", e2)
                 }
             }
         }
@@ -292,7 +280,6 @@ class SaveLoadViewModel @Inject constructor(
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaveLoadFlags failed: ${e.message}") }
         }
-        pendingSlotFlow.value = null
         pendingActionFlow.value = null
     }
 
@@ -361,35 +348,33 @@ class SaveLoadViewModel @Inject constructor(
         gameEngineCore.registerActiveLoadJob(job)
     }
 
-    @Suppress("TooGenericExceptionCaught", "ReturnCount") // 云下载自包含入口多守卫（boot/重启/保存/云锁/加载），多 return 为守卫风格
-    /** 本地读档入口（单档）。云下载走 [downloadCloudSlotToLoad]。 */
-    fun loadGameFromLocalSlot() {
+    /** 本地读档入口（单档）。云下载走 [downloadCloudSaveToLoad]。 */
+    fun loadLocalSave() {
         // boot 进行中禁止读档
         if (isBootOperationBlocked()) return
-        // 从已缓存的存档元数据中查找本地存档行，兜底构造最小 SaveSlot
-        val saveSlot = saveSlotsFlow.value.firstOrNull { it.slot != StorageConstants.CLOUD_SAVE_SLOT }
-            ?: SaveSlot(1, "", 0L, 1, 1, "", 0, 0L)
-        loadGameInternal(saveSlot, fromCloudLoad = false)
+        // 单档摘要（三态在 SaveInfo 内承载，读档链按 storageFacade.load() 实际数据为准）
+        val saveInfo = saveInfoFlow.value ?: SaveInfo()
+        loadGameInternal(saveInfo, fromCloudLoad = false)
     }
 
     /** 云下载自包含入口（带 saveLoadState 管理 + 结果反馈）。 */
     // 守卫族多早退（ReturnCount）；CE 显式重抛（RethrowCaughtException）；
     // 下载链异常源跨 IO/SDK 不可枚举（TooGenericExceptionCaught）
     @Suppress("ReturnCount", "RethrowCaughtException", "TooGenericExceptionCaught")
-    fun downloadCloudSlotToLoad() {
+    fun downloadCloudSaveToLoad() {
         // boot 进行中禁止任何读档/云下载入口
         if (isBootOperationBlocked()) return
         // 云下载分支（带 saveLoadState 管理 + 结果反馈）
         run {
             // 云会话下载自包含入口：直接执行 performCloudDownload，不经过
             // downloadFromCloudSave 入口——协程开头即置位 isLoading，
-            // SaveSlotDialog 立即显示"读取中..."转圈，覆盖下载全程反馈。
+            // 存档弹窗立即显示"读取中..."转圈，覆盖下载全程反馈。
             //（若在 cloudSaveOperationStateFlow.first{} 之后才置位，下载最耗时的
             // 阶段无任何反馈；且本入口不能先置位再走 downloadFromCloudSave，
             // 其自身的 isLoading 守卫会拒绝）。
             // 互斥守卫与 downloadFromCloudSave 对齐（boot/重启/保存/云锁/加载）。
             if (isRestartingFlow.value) {
-                Log.w(TAG, "Restarting, ignoring cloud slot load request")
+                Log.w(TAG, "Restarting, ignoring cloud download load request")
                 showError("游戏重置中，请稍后读取云存档")
                 return
             }
@@ -410,8 +395,8 @@ class SaveLoadViewModel @Inject constructor(
             }
             viewModelScope.launch(ioDispatcher.dispatcher) {
                 resetCloudSaveOperationState()
-                // 立即置位：下载/加载全程 SaveSlotDialog 显示"读取中..."转圈
-                setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
+                // 立即置位：下载/加载全程存档弹窗显示"读取中..."转圈
+                setSaveLoadState(isLoading = true, pendingAction = "load")
                 try {
                     performCloudDownload()
                     // 等待云端操作完成（Downloading → Success/Error）
@@ -429,7 +414,7 @@ class SaveLoadViewModel @Inject constructor(
                 } finally {
                     // performCloudDownload 的 finally 已释放锁，此处幂等兜底
                     cloudDownloadLock.set(false)
-                    setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
+                    setSaveLoadState(isLoading = false, pendingAction = null)
                 }
             }
             return
@@ -443,10 +428,10 @@ class SaveLoadViewModel @Inject constructor(
      * 1. 设置加载进度反馈（loadingProgressFlow=0.1f, "正在同步云存档..."）
      * 2. 下载云存档 (persistenceFacade.tapCloudSaveManager.downloadSave())
      * 3. 写入本地存储 (persistenceFacade.storageFacade.save)
-     * 4. 调用 loadGameFromSlot(slot) 走正常 BootSequenceController 启动流程
+     * 4. 走正常 BootSequenceController 启动流程
      * 5. 失败时通过 showError() 展示错误
      *
-     * 与 downloadFromCloudSave()（游戏内 SaveSlotDialog 使用）不同，
+     * 与 downloadFromCloudSave()（游戏内存档弹窗使用）不同，
      * 此方法直接驱动 GameActivity 的 LoadingScreen 进度反馈。
      */
     @Suppress("ReturnCount") // 云读档多守卫（boot/重启/保存/云锁），多 return 为守卫风格
@@ -515,13 +500,13 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun refreshSaveSlots() {
+    fun refreshSaveInfo() {
         viewModelScope.launch {
             try {
-                saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
-                Log.e(TAG, "refreshSaveSlots failed", e)
+                Log.e(TAG, "refreshSaveInfo failed", e)
             }
         }
     }
@@ -575,7 +560,6 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         // 轻量同步清理：只清理内存状态，不等 I/O
-        pendingSlotFlow.value = null
         pendingActionFlow.value = null
         loadingProgressFlow.value = PROGRESS_START
 

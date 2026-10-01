@@ -2,7 +2,6 @@
 package com.xianxia.sect.ui.game.tabs
 
 import android.app.Activity
-import com.xianxia.sect.ui.game.saveToCloud
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Process
@@ -44,8 +43,8 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.render.ClarityMode
-import com.xianxia.sect.data.model.SaveSlot
-import com.xianxia.sect.data.cloud.CloudSaveEntry
+import com.xianxia.sect.data.unified.SaveInfo
+import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -60,18 +59,12 @@ import com.xianxia.sect.ui.game.SaveLoadState
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.cancelSaveLoad
 import com.xianxia.sect.ui.game.checkCloudSave
-import com.xianxia.sect.ui.game.deleteSlot
-import com.xianxia.sect.ui.game.loadCloudSlot
-import com.xianxia.sect.ui.game.queryCloudSlotEntries
+import com.xianxia.sect.ui.game.deleteLocalSave
 import com.xianxia.sect.ui.game.saveGame
-import com.xianxia.sect.ui.game.saveload.CloudSlotEntryCard
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.Locale
-import com.xianxia.sect.ui.game.cancelSaveLoad
-import com.xianxia.sect.ui.game.checkCloudSave
-import com.xianxia.sect.ui.game.saveGame
 import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.memory.MemoryBudgetView
 
@@ -179,7 +172,7 @@ internal fun SettingsTab(
 ) {
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
 
-    var showSaveSlotDialog by remember { mutableStateOf(false) }
+    var showSaveInfoDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
@@ -192,15 +185,15 @@ internal fun SettingsTab(
         gameData = gameData,
         viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
         actions = SettingsTabActions(
-            onSalaryClick = { showSalaryConfigDialog = true }, onSaveSlotClick = { showSaveSlotDialog = true },
+            onSalaryClick = { showSalaryConfigDialog = true }, onSaveInfoClick = { showSaveInfoDialog = true },
             onOtherSettingsClick = { showOtherSettingsDialog = true },
             onResetDisciplesClick = { showResetDisciplesConfirmDialog = true },
             onRestartClick = { showRestartConfirmDialog = true }, onExitClick = { showExitConfirmDialog = true })
     )
 
-    if (showSaveSlotDialog) {
-        SaveSlotDialog(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
-            onDismiss = { showSaveSlotDialog = false })
+    if (showSaveInfoDialog) {
+        SaveInfoDialog(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
+            onDismiss = { showSaveInfoDialog = false })
     }
 
     RestartConfirmDialog(visible = showRestartConfirmDialog, onDismiss = { showRestartConfirmDialog = false },
@@ -240,7 +233,7 @@ internal fun SettingsTab(
 /** 设置页触发动作集合：六个入口按钮 → 各自对话框打开回调 */
 private data class SettingsTabActions(
     val onSalaryClick: () -> Unit = {},
-    val onSaveSlotClick: () -> Unit = {},
+    val onSaveInfoClick: () -> Unit = {},
     val onOtherSettingsClick: () -> Unit = {},
     val onResetDisciplesClick: () -> Unit = {},
     val onRestartClick: () -> Unit = {},
@@ -288,7 +281,7 @@ private fun SettingsTabContent(
 
                 item {
                     SettingsDialogButtonsItem(onSalaryClick = actions.onSalaryClick,
-                        onSaveSlotClick = actions.onSaveSlotClick)
+                        onSaveInfoClick = actions.onSaveInfoClick)
                 }
 
                 item {
@@ -553,7 +546,7 @@ private fun SalaryConfigDialog(
 @Composable
 private fun SettingsDialogButtonsItem(
     onSalaryClick: () -> Unit,
-    onSaveSlotClick: () -> Unit
+    onSaveInfoClick: () -> Unit
 ) {
     Spacer(modifier = Modifier.height(4.dp))
     BoxWithConstraints {
@@ -617,7 +610,7 @@ private fun SettingsDialogButtonsItem(
                         .width(ButtonSizes.StandardWidth)
                         .height(ButtonSizes.StandardHeight)
                         .clip(RoundedCornerShape(4.dp))
-                        .clickableWithSound(onClick = onSaveSlotClick),
+                        .clickableWithSound(onClick = onSaveInfoClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -893,71 +886,61 @@ private fun PauseToggleButton(
 
 @Composable
 @Suppress("UnusedParameter") // viewModel: 弹窗/组件统一签名约定：保持调用点参数面一致并预留子组件扩展消费
-internal fun SaveSlotDialog(
+internal fun SaveInfoDialog(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
     onDismiss: () -> Unit
 ) {
-    val saveSlots by saveLoadViewModel.saveSlots.collectAsStateWithLifecycle()
+    val saveInfo by saveLoadViewModel.saveInfoFlow.collectAsStateWithLifecycle()
+    val cloudSaveInfo by saveLoadViewModel.cloudSaveInfo.collectAsStateWithLifecycle()
     val saveLoadState by saveLoadViewModel.saveLoadState.collectAsStateWithLifecycle()
     val isBusy = saveLoadState.isBusy
-    var selectedSlot by remember { mutableStateOf<Int?>(null) }
-    var deleteTarget by remember { mutableStateOf<Int?>(null) }
-    var cloudEntries by remember { mutableStateOf<List<CloudSaveEntry>>(emptyList()) }
+    var deleteConfirmShown by remember { mutableStateOf(false) }
     // ── 转圈动画状态（最少显示 1 秒；持状态对象传入最短显示时长 Effect） ──
     val showAnimation = remember { mutableStateOf(false) }
     val animationStartTime = remember { mutableLongStateOf(0L) }
     val operationLabel = remember { mutableStateOf("") }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
-    SaveSlotOpenRefreshEffect(saveLoadViewModel, onCloudEntries = { cloudEntries = it })
-    SaveSlotBusyMinDurationEffect(saveLoadState, showAnimation, animationStartTime, operationLabel)
+    SaveInfoOpenRefreshEffect(saveLoadViewModel)
+    SaveBusyMinDurationEffect(saveLoadState, showAnimation, animationStartTime, operationLabel)
     SaveLoadWatchdogEffect(saveLoadViewModel = saveLoadViewModel)
 
-    SaveSlotDialogContainer(saveLoadViewModel, isBusy, onDismiss) {
+    SaveInfoDialogContainer(saveLoadViewModel, isBusy, onDismiss) {
         if (showAnimation.value) {
-            SaveSlotBusyIndicator(operationLabel = operationLabel.value)
+            SaveBusyIndicator(operationLabel = operationLabel.value)
         }
         if (!showAnimation.value) {
-            SaveSlotEditableContent(
-                state = SaveSlotListState(
-                    saveSlots, cloudEntries, dateFormat, selectedSlot
+            SaveInfoContent(
+                state = SaveInfoContentState(
+                    saveInfo = saveInfo,
+                    cloudSaveInfo = cloudSaveInfo,
+                    dateFormat = dateFormat,
+                    isBusy = isBusy
                 ),
-                isBusy = isBusy,
-                onSlotClick = { selectedSlot = it },
-                onDeleteClick = { deleteTarget = it },
-                onCloudSlotLoad = { saveLoadViewModel.loadCloudSlot(it) },
-                onSubmit = SaveSlotSubmitActions(
-                                        onSave = {
-                        val cloud = com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT
-                        if (it == cloud) saveLoadViewModel.saveToCloud() else saveLoadViewModel.saveGame()
-                    },
-                                        onLoad = {
-                        val cloud = com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT
-                        if (it == cloud) {
-                            saveLoadViewModel.downloadCloudSlotToLoad()
-                        } else {
-                            saveLoadViewModel.loadGameFromLocalSlot()
-                        }
-                    }
+                actions = SaveInfoActions(
+                    onDelete = { deleteConfirmShown = true },
+                    onCloudDownload = { saveLoadViewModel.downloadCloudSaveToLoad() },
+                    onSave = { saveLoadViewModel.saveGame() },
+                    onLoad = { saveLoadViewModel.loadLocalSave() }
                 )
             )
         }
     }
 
-    DeleteSlotConfirmDialog(
-        target = deleteTarget,
-        onDismiss = { deleteTarget = null },
+    DeleteSaveConfirmDialog(
+        shown = deleteConfirmShown,
+        onDismiss = { deleteConfirmShown = false },
         onConfirm = {
-            saveLoadViewModel.deleteSlot()
-            deleteTarget = null
+            saveLoadViewModel.deleteLocalSave()
+            deleteConfirmShown = false
         }
     )
 }
 
 /** 弹窗容器：标题/取消动作 + 全屏内容列（忙碌中点外/取消 = 中止当前保存读取） */
 @Composable
-private fun SaveSlotDialogContainer(
+private fun SaveInfoDialogContainer(
     saveLoadViewModel: SaveLoadViewModel,
     isBusy: Boolean,
     onDismiss: () -> Unit,
@@ -972,7 +955,7 @@ private fun SaveSlotDialogContainer(
         mode = DialogMode.Large,
         dismissOnClickOutside = false,
         headerActions = {
-            SaveSlotCancelAction(isBusy = isBusy, onCancel = {
+            SaveInfoCancelAction(isBusy = isBusy, onCancel = {
                 saveLoadViewModel.cancelSaveLoad()
                 onDismiss()
             })
@@ -984,53 +967,74 @@ private fun SaveSlotDialogContainer(
     }
 }
 
-/** 列表区 + 操作按钮行（转圈动画未显示时的可编辑内容） */
+/** 弹窗内容区渲染入参（分组传参，控制 Composable 形参预算） */
+private data class SaveInfoContentState(
+    val saveInfo: SaveInfo?,
+    val cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo,
+    val dateFormat: SimpleDateFormat,
+    val isBusy: Boolean
+)
+
+/** 保存/读取/删除/云下载提交动作（分组传参，控制 Composable 形参预算） */
+private data class SaveInfoActions(
+    val onDelete: () -> Unit,
+    val onCloudDownload: () -> Unit,
+    val onSave: () -> Unit,
+    val onLoad: () -> Unit
+)
+
+/** 弹窗内容区：本地单档卡片 + 云存档入口卡 + 操作按钮行（单档语义，无选档步骤） */
 @Composable
-private fun ColumnScope.SaveSlotEditableContent(
-    state: SaveSlotListState,
-    isBusy: Boolean,
-    onSlotClick: (Int) -> Unit,
-    onDeleteClick: (Int) -> Unit,
-    onCloudSlotLoad: (Int) -> Unit,
-    onSubmit: SaveSlotSubmitActions
+private fun ColumnScope.SaveInfoContent(
+    state: SaveInfoContentState,
+    actions: SaveInfoActions
 ) {
-    SaveSlotContentList(
-        state = state,
-        onSlotClick = onSlotClick,
-        onDeleteClick = onDeleteClick,
-        onCloudSlotLoad = onCloudSlotLoad
-    )
-    SaveSlotActionRow(
-        selectedSlot = state.selectedSlot,
-        saveSlots = state.saveSlots,
-        isBusy = isBusy,
-        onSave = onSubmit.onSave,
-        onLoad = onSubmit.onLoad
+    LazyColumn(
+        modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item(key = "local_save", contentType = { "local_save" }) {
+            SaveInfoCard(
+                saveInfo = state.saveInfo,
+                onDeleteClick = if (state.saveInfo != null && !state.saveInfo.isEmpty &&
+                    !state.saveInfo.isLoadError
+                ) {
+                    actions.onDelete
+                } else {
+                    null
+                }
+            )
+        }
+        item(key = "cloud_save", contentType = { "cloud_save" }) {
+            CloudSaveEntryCard(
+                cloudInfo = state.cloudSaveInfo,
+                dateFormat = state.dateFormat,
+                onClick = actions.onCloudDownload
+            )
+        }
+    }
+    SaveActionRow(
+        hasLoadable = state.saveInfo != null && !state.saveInfo.isEmpty && !state.saveInfo.isLoadError,
+        isBusy = state.isBusy,
+        onSave = actions.onSave,
+        onLoad = actions.onLoad
     )
 }
 
-/** 保存/读取提交动作（分组传参，控制 Composable 形参预算） */
-private data class SaveSlotSubmitActions(
-    val onSave: (Int) -> Unit,
-    val onLoad: (Int) -> Unit
-)
-
-/** 打开弹窗时的刷新面：云摘要（slot 0 显示真实数据）+ 迁移扫描（阶段 A 纯本地零云请求）
- *  + 云槽位列表（LEGACY 短路零查询）。 */
+/** 打开弹窗时的刷新面：本地单档摘要 + 云摘要。 */
 @Composable
-private fun SaveSlotOpenRefreshEffect(
-    saveLoadViewModel: SaveLoadViewModel,
-    onCloudEntries: (List<CloudSaveEntry>) -> Unit
-) {
+private fun SaveInfoOpenRefreshEffect(saveLoadViewModel: SaveLoadViewModel) {
     LaunchedEffect(Unit) {
         saveLoadViewModel.checkCloudSave()
-        onCloudEntries(saveLoadViewModel.queryCloudSlotEntries())
+        saveLoadViewModel.refreshSaveInfo()
     }
 }
 
 /** 保存/读取转圈动画的最短显示时长（1 秒）——忙碌即显，收尾不足 1 秒补足 */
 @Composable
-private fun SaveSlotBusyMinDurationEffect(
+private fun SaveBusyMinDurationEffect(
     saveLoadState: SaveLoadState,
     showAnimation: MutableState<Boolean>,
     animationStartTime: MutableState<Long>,
@@ -1053,12 +1057,12 @@ private fun SaveSlotBusyMinDurationEffect(
 
 /** 删除存档确认（破坏性操作显式确认；文案与既有删除确认一致） */
 @Composable
-private fun DeleteSlotConfirmDialog(
-    target: Int?,
+private fun DeleteSaveConfirmDialog(
+    shown: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit
+    onConfirm: () -> Unit
 ) {
-    if (target == null) return
+    if (!shown) return
     StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "确认删除",
@@ -1066,63 +1070,8 @@ private fun DeleteSlotConfirmDialog(
         dismissLabel = "取消",
         onDismiss = onDismiss,
         confirmLabel = "删除",
-        onConfirm = { onConfirm(target) }
+        onConfirm = onConfirm
     )
-}
-
-/** 存档列表区渲染入参（分组传参，控制 Composable 形参预算） */
-private data class SaveSlotListState(
-    val saveSlots: List<SaveSlot>,
-    val cloudEntries: List<CloudSaveEntry>,
-    val dateFormat: SimpleDateFormat,
-    val selectedSlot: Int?
-)
-
-/** 对话框内容区：槽位列表 + 云槽位区 + 操作按钮 */
-@Composable
-private fun ColumnScope.SaveSlotContentList(
-    state: SaveSlotListState,
-    onSlotClick: (Int) -> Unit,
-    onDeleteClick: (Int) -> Unit,
-    onCloudSlotLoad: (Int) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier
-            .weight(1f)
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(state.saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
-            SaveSlotCard(
-                slot = slot,
-                isSelected = state.selectedSlot == slot.slot,
-                onClick = { onSlotClick(slot.slot) },
-                onDeleteClick = if (slot.slot != 0 && !slot.isEmpty) {
-                    { onDeleteClick(slot.slot) }
-                } else {
-                    null
-                }
-            )
-        }
-        // SR-3 云端槽位存档区（已登录 + 非 LEGACY 时非空；点击下载到本机槽并加载）
-        if (state.cloudEntries.isNotEmpty()) {
-            item(key = "cloud_slot_header", contentType = { "cloud_slot_header" }) {
-                Text(
-                    text = "云端槽位存档",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-            items(state.cloudEntries, key = { "cloud_${it.slot}" }, contentType = { "cloud_slot" }) { entry ->
-                CloudSlotEntryCard(
-                    entry = entry,
-                    dateFormat = state.dateFormat,
-                    onClick = { onCloudSlotLoad(entry.slot) }
-                )
-            }
-        }
-    }
 }
 
 /** 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复 */
@@ -1139,7 +1088,7 @@ private fun SaveLoadWatchdogEffect(saveLoadViewModel: SaveLoadViewModel) {
 
 /** 保存/读取中转圈指示 */
 @Composable
-private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
+private fun ColumnScope.SaveBusyIndicator(operationLabel: String) {
     Box(
         modifier = Modifier
             .weight(1f)
@@ -1164,14 +1113,13 @@ private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
     }
 }
 
-/** 保存/读取操作按钮行 */
+/** 保存/读取操作按钮行（单档语义：动作直接生效，无选档步骤） */
 @Composable
-private fun SaveSlotActionRow(
-    selectedSlot: Int?,
-    saveSlots: List<SaveSlot>,
+private fun SaveActionRow(
+    hasLoadable: Boolean,
     isBusy: Boolean,
-    onSave: (Int) -> Unit,
-    onLoad: (Int) -> Unit
+    onSave: () -> Unit,
+    onLoad: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -1179,25 +1127,22 @@ private fun SaveSlotActionRow(
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val saveEnabled = selectedSlot != null && !isBusy
-        SaveSlotActionButton(
+        SaveActionButton(
             label = "保存",
-            enabled = saveEnabled,
-            onClick = { selectedSlot?.let(onSave) }
+            enabled = !isBusy,
+            onClick = onSave
         )
-        val loadEnabled = selectedSlot != null && saveSlots.find { it
-            .slot == selectedSlot }?.isEmpty == false && !isBusy
-        SaveSlotActionButton(
+        SaveActionButton(
             label = "读取",
-            enabled = loadEnabled,
-            onClick = { selectedSlot?.let(onLoad) }
+            enabled = hasLoadable && !isBusy,
+            onClick = onLoad
         )
     }
 }
 
 /** 存档操作按钮：标准尺寸 + 背景图 + 可用态置灰 */
 @Composable
-private fun SaveSlotActionButton(
+private fun SaveActionButton(
     label: String,
     enabled: Boolean,
     onClick: () -> Unit
@@ -1233,7 +1178,7 @@ private fun SaveSlotActionButton(
 
 /** 标题栏取消动作：忙碌中显示"取消"按钮 */
 @Composable
-private fun SaveSlotCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
+private fun SaveInfoCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
     if (isBusy) {
         GameButton(
             text = "取消",
@@ -1242,27 +1187,18 @@ private fun SaveSlotCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
     }
 }
 
+/** 本地单档卡片（三态：有存档显示摘要 / 空档 / 读取失败） */
 @Composable
-internal fun SaveSlotCard(
-    slot: SaveSlot,
-    isSelected: Boolean,
-    onClick: () -> Unit,
+private fun SaveInfoCard(
+    saveInfo: SaveInfo?,
     onDeleteClick: (() -> Unit)? = null
 ) {
-    val borderColor = if (isSelected) Color.Black else GameColors.Border
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFFF0F0F0) else GameColors.PageBackground)
-            .border(
-                width = borderWidth,
-                color = borderColor,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .clickableWithSound { onClick() }
+            .background(GameColors.PageBackground)
+            .border(width = 1.dp, color = GameColors.Border, shape = RoundedCornerShape(8.dp))
             .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1274,7 +1210,7 @@ internal fun SaveSlotCard(
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = slot.displayName,
+                        text = "本地存档",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -1284,7 +1220,7 @@ internal fun SaveSlotCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 删除入口：本地非空存档显示（slot 0 云会话不在此删除）
+                    // 删除入口：本地非空存档显示
                     if (onDeleteClick != null) {
                         Text(
                             text = "✕",
@@ -1297,50 +1233,169 @@ internal fun SaveSlotCard(
                         )
                     }
                     Text(
-                        text = if (slot.isEmpty) "空" else slot.saveTime,
+                        text = when {
+                            saveInfo == null || saveInfo.isEmpty -> "空"
+                            saveInfo.isLoadError -> "读取失败"
+                            else -> saveInfo.saveTime
+                        },
                         fontSize = 12.sp,
                         color = Color.Black
                     )
                 }
             }
-            SaveSlotDetails(slot = slot)
+            SaveInfoDetails(saveInfo = saveInfo)
         }
     }
 }
 
-/** 存档详情：宗门/时间 + 弟子数/灵石（非空槽位） */
+/** 本地存档详情：宗门/时间 + 弟子数/灵石（非空档） */
 @Composable
-private fun ColumnScope.SaveSlotDetails(slot: SaveSlot) {
-    if (!slot.isEmpty) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+private fun ColumnScope.SaveInfoDetails(saveInfo: SaveInfo?) {
+    when {
+        saveInfo == null || saveInfo.isEmpty -> {
             Text(
-                text = slot.sectName,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Text(
-                text = slot.displayTime,
+                text = "暂无本地存档",
                 fontSize = 12.sp,
                 color = Color.Black
             )
         }
+        saveInfo.isLoadError -> {
+            Text(
+                text = "存档读取失败，请通过云端备份恢复或联系支持",
+                fontSize = 12.sp,
+                color = Color(0xFFE53935)
+            )
+        }
+        else -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = saveInfo.sectName,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = saveInfo.displayTime,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "弟子: ${saveInfo.discipleCount}",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = "灵石: ${saveInfo.spiritStones}",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+}
+
+/** 云存档入口卡（数据源 = cloudSaveInfo 真实云端摘要；点击走云下载读档） */
+@Composable
+private fun CloudSaveEntryCard(
+    cloudInfo: TapCloudSaveManager.CloudSaveInfo,
+    dateFormat: SimpleDateFormat,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF0F7FF))
+            .border(2.dp, Color(0xFF4A90E2), RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CloudEntryIcon()
+                CloudEntryText(cloudInfo = cloudInfo, dateFormat = dateFormat)
+            }
             Text(
-                text = "弟子: ${slot.discipleCount}",
+                text = if (cloudInfo.hasSaveData) "点击下载" else "暂无云存档",
+                fontSize = 12.sp,
+                color = Color(0xFF4A90E2),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+/** 云存档图标块（蓝底"云"，对齐既有云存档入口样式） */
+@Composable
+private fun CloudEntryIcon() {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFF4A90E2)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "云",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+/** 云存档摘要文本：宗门/年月/弟子灵石/云端保存时间（无云档时显示占位文案） */
+@Composable
+private fun CloudEntryText(
+    cloudInfo: TapCloudSaveManager.CloudSaveInfo,
+    dateFormat: SimpleDateFormat
+) {
+    Column {
+        Text(
+            text = if (cloudInfo.hasSaveData && cloudInfo.sectName.isNotBlank()) {
+                cloudInfo.sectName
+            } else {
+                "云存档"
+            },
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.Black
+        )
+        if (cloudInfo.hasSaveData) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "第${cloudInfo.gameYear}年 ${cloudInfo.gameMonth}月",
+                fontSize = 13.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "弟子: ${cloudInfo.discipleCount}  灵石: ${cloudInfo.spiritStones}",
                 fontSize = 12.sp,
                 color = Color.Black
             )
-            Text(
-                text = "灵石: ${slot.spiritStones}",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
+            if (cloudInfo.lastModifiedTime > 0) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "云端保存: ${dateFormat.format(java.util.Date(cloudInfo.lastModifiedTime))}",
+                    fontSize = 11.sp,
+                    color = Color(0xFF999999)
+                )
+            }
         }
     }
 }

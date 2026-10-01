@@ -15,8 +15,9 @@ import kotlinx.coroutines.launch
 
 // ── 云槽位下载落盘链（SR-3，方案 §2 读路径 CLOUD_TRANSITION 起）─────────────────────
 // 审计 §3/§12-I 修复面：云档下载不再只进内存——下载 → 校验 → 迁移 → 落本地缓存 →
-// 再走既有 boot 链。LEGACY 模式（默认）下本链整体拒绝：既有 slot 0 云会话路径
-//（SaveLoadViewModelCloudLoadOps/CloudOps）本批逐行零触碰（硬红线，模式门控隔离）。
+// 再走既有 boot 链。LEGACY 模式（默认）下本链整体拒绝：云会话路径
+//（SaveLoadViewModelCloudLoadOps/CloudOps）与本链模式门控隔离。
+// 云侧 slot_N 命名保留至 SS7 坍缩（派工册 §4 跨批约束）。
 
 /** 云槽位加载结果（loadCloudSlot 入口的反馈分流依据） */
 internal sealed interface CloudSlotLoadOutcome {
@@ -75,11 +76,11 @@ fun SaveLoadViewModel.resolveCloudConflict(keepLocal: Boolean) {
 }
 
 /**
- * 云槽位下载入口（公开扩展——GameActivity/app 面经此分发）。
+ * 云槽位下载入口（云侧通道，消费面 = [resolveCloudConflict] 冲突收口重跑下载）。
  *
  * CLOUD_TRANSITION+ 模式下：下载云端 slot_N 档 → 校验 → 迁移 → **落本地缓存槽 N**
- * （审计 §3/§12-I 修复面）→ 既有 boot 链。守卫族与 loadGameFromSlot(slot=0) 云下载
- * 入口对齐（boot/重启/保存/云锁/加载互斥）；真冲突时不置操作态，由冲突弹窗二选一
+ * （审计 §3/§12-I 修复面）→ 既有 boot 链。守卫族与云下载入口对齐
+ * （boot/重启/保存/云锁/加载互斥）；真冲突时不置操作态，由冲突弹窗二选一
  * 接管（禁止静默覆盖，方案 §2/IN2）。
  */
 // TooGenericExceptionCaught：防御兜底——下载/加载链异常源跨 IO/SDK 不可枚举，
@@ -110,8 +111,8 @@ fun SaveLoadViewModel.loadCloudSlot(slot: Int) {
     }
     viewModelScope.launch(ioDispatcher.dispatcher) {
         resetCloudSaveOperationState()
-        // 立即置位：下载/落盘/boot 全程加载反馈（与 slot 0 云下载入口同模式）
-        setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "load")
+        // 立即置位：下载/落盘/boot 全程加载反馈（与云下载入口同模式）
+        setSaveLoadState(isLoading = true, pendingAction = "load")
         try {
             val outcome = performCloudSlotLoad(slot)
             if (outcome === CloudSlotLoadOutcome.Completed) {
@@ -127,9 +128,9 @@ fun SaveLoadViewModel.loadCloudSlot(slot: Int) {
         } catch (e: Exception) {
             showError("云存档加载失败: ${e.message}")
         } finally {
-            // performCloudSlotLoad 的 finally 已释放锁，此处幂等兜底（同 slot 0 入口）
+            // performCloudSlotLoad 的 finally 已释放锁，此处幂等兜底（同云下载入口）
             cloudDownloadLock.set(false)
-            setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
+            setSaveLoadState(isLoading = false, pendingAction = null)
         }
     }
 }
@@ -146,7 +147,7 @@ internal suspend fun SaveLoadViewModel.performCloudSlotLoad(slot: Int): CloudSlo
         val mode = persistenceFacade.saveBackendModeProvider.current()
         if (mode == SaveBackendMode.LEGACY) {
             cloudSaveOperationStateFlow.value =
-                CloudSaveOperationState.Error("云存档槽位功能未开启")
+                CloudSaveOperationState.Error("云存档下载未开启")
             return CloudSlotLoadOutcome.Completed
         }
 

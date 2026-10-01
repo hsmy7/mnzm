@@ -14,8 +14,8 @@ import com.xianxia.sect.data.cloud.SaveBackendModeProvider
 import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
+import com.xianxia.sect.data.unified.SaveInfo
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
@@ -33,10 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
@@ -123,14 +120,10 @@ class SaveLoadViewModelLoadTest {
         // 返回 null 导致 NPE，显式 stub 为"当前无存档"
         coEvery { storageFacade.load() } returns
             SaveResult.failure(SaveError.SLOT_EMPTY, "no current save")
-        // 存档槽位列表 stub：与 StorageEngine.getSaveSlots() 一致，slot 0 为
-        // 全 0 占位（saveSlots 的 combine 派生会消费该列表，relaxed mock 的
-        // null 会让合并逻辑 NPE）
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns listOf(
-            SaveSlot(
-                slot = 0, name = "云存档", timestamp = 0L, gameYear = 0, gameMonth = 0,
-                sectName = "云存档", discipleCount = 0, spiritStones = 0L, isEmpty = false
-            )
+        // 本地单档摘要 stub：与 StorageEngine.getSaveInfo() 三态一致（有档态）
+        coEvery { storageFacade.getSaveInfoSuspend() } returns SaveInfo(
+            timestamp = 0L, gameYear = 1, gameMonth = 1,
+            sectName = "青云宗", discipleCount = 0, spiritStones = 0L, isEmpty = false
         )
         every { stateStore.isLoading } returns MutableStateFlow(false)
         // applyCloudSaveToEngine 置位 isLoading 时 setSaveLoadState 读
@@ -400,7 +393,7 @@ class SaveLoadViewModelLoadTest {
         // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
-        viewModel.downloadCloudSlotToLoad()
+        viewModel.downloadCloudSaveToLoad()
         advanceUntilIdle()
 
         // 下载必须实际执行（云会话自包含入口置位在前）；云会话独立加载不落盘
@@ -410,17 +403,17 @@ class SaveLoadViewModelLoadTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `downloadCloudSlotToLoad - isLoading set during download shows busy indicator`() = runTest(testDispatcher) {
+    fun `downloadCloudSaveToLoad - isLoading set during download shows busy indicator`() = runTest(testDispatcher) {
         // 用户实报场景：游戏内选择存档界面点云存档无"读取中..."转圈——isLoading
         // 若在下载完成后才置位则无反馈。协程开头立即置位（下载期间 pendingAction=load）。
         // 用永不完成的下载挂起协程，验证下载进行中 isLoading 已置位。
         val never = CompletableDeferred<TapCloudSaveManager.CloudSaveResult>()
         coEvery { tapCloudSaveManager.downloadSave() } coAnswers { never.await() }
 
-        viewModel.downloadCloudSlotToLoad()
+        viewModel.downloadCloudSaveToLoad()
         runCurrent()
 
-        // 下载挂起期间 isLoading 已置位（SaveSlotDialog 显示"读取中..."转圈）
+        // 下载挂起期间 isLoading 已置位（存档弹窗显示"读取中..."转圈）
         assertEquals("下载期间 isLoading 应置位（pendingAction=load）", "load", viewModel.pendingAction.value)
 
         never.complete(TapCloudSaveManager.CloudSaveResult.NetworkError("test"))
@@ -469,7 +462,7 @@ class SaveLoadViewModelLoadTest {
 
         viewModel.restartGame()
         advanceUntilIdle()
-        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        viewModel.loadLocalSave()
         advanceUntilIdle()
 
         coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
@@ -519,7 +512,7 @@ class SaveLoadViewModelLoadTest {
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
 
-        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        viewModel.loadLocalSave()
         // 注意：不能 advanceUntilIdle——虚拟时间推进会触发 performLoadToSlot 内
         // withTimeoutOrNull(60s) 超时提前结束 load 协程释放 loadLock；
         // runCurrent 只执行当前队列任务不推进虚拟时间，load 协程挂起在 gate.await()
@@ -591,7 +584,7 @@ class SaveLoadViewModelLoadTest {
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
         // 若回归（协程体捕获 job）此处会同步抛 UninitializedPropertyAccessException → 测试失败
-        unconfinedVm.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        unconfinedVm.loadLocalSave()
         runCurrent()
 
         coVerify { gameEngineCore.registerActiveLoadJob(any()) }
@@ -614,7 +607,7 @@ class SaveLoadViewModelLoadTest {
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
 
-        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        viewModel.loadLocalSave()
         runCurrent()  // 协程执行到 stopGameLoopAndWait 挂起（不推进虚拟时间）
 
         // wait 挂起期间读档零推进（storageFacade.load 是 stop 之后的第一个实质步骤）
@@ -636,7 +629,7 @@ class SaveLoadViewModelLoadTest {
         every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
 
-        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        viewModel.loadLocalSave()
         advanceUntilIdle()
 
         // 中止：不读档（showError 为 protected 无法直接断言，行为间接验证）
@@ -644,20 +637,12 @@ class SaveLoadViewModelLoadTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 云存档槽位（slot 0）合并：游戏内存档对话框显示真实云存档信息
+    // 云存档摘要流：存档弹窗云卡显示真实云存档信息
     // ──────────────────────────────────────────────────────────────────
-
-    /** 订阅 saveSlots 驱动 stateIn(WhileSubscribed) 生效，否则 value 停留在初始值 */
-    private fun TestScope.startCollectingSaveSlots() {
-        backgroundScope.launch(UnconfinedTestDispatcher(testDispatcher.scheduler)) {
-            viewModel.saveSlots.collect { }
-        }
-    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `saveSlots - cloud save exists shows real data on slot 0`() = runTest(testDispatcher) {
-        startCollectingSaveSlots()
+    fun `cloudSaveInfo - cloud save exists shows real summary`() = runTest(testDispatcher) {
         // 云端有存档：checkCloudSave 返回真实摘要（TapTap API extra 解析结果）
         coEvery { tapCloudSaveManager.checkCloudSave() } returns TapCloudSaveManager.CloudSaveInfo(
             hasSaveData = true,
@@ -674,35 +659,32 @@ class SaveLoadViewModelLoadTest {
         viewModel.checkCloudSave()
         advanceUntilIdle()
 
-        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
-        assertEquals("云存档槽位应显示宗门名", "青云宗", cloudSlot.sectName)
-        assertEquals("云存档槽位应显示游戏年份", 3, cloudSlot.gameYear)
-        assertEquals("云存档槽位应显示游戏月份", 5, cloudSlot.gameMonth)
-        assertEquals("云存档槽位应显示弟子数", 7, cloudSlot.discipleCount)
-        assertEquals("云存档槽位应显示灵石数", 1000L, cloudSlot.spiritStones)
-        assertEquals("云存档槽位应显示上次保存时间", 123456789L, cloudSlot.timestamp)
-        assertTrue("有云存档时槽位不应标记为空", !cloudSlot.isEmpty)
+        val cloudInfo = viewModel.cloudSaveInfo.value
+        assertTrue("有云存档时摘要应标记有档", cloudInfo.hasSaveData)
+        assertEquals("云存档摘要应显示宗门名", "青云宗", cloudInfo.sectName)
+        assertEquals("云存档摘要应显示游戏年份", 3, cloudInfo.gameYear)
+        assertEquals("云存档摘要应显示游戏月份", 5, cloudInfo.gameMonth)
+        assertEquals("云存档摘要应显示弟子数", 7, cloudInfo.discipleCount)
+        assertEquals("云存档摘要应显示灵石数", 1000L, cloudInfo.spiritStones)
+        assertEquals("云存档摘要应显示上次保存时间", 123456789L, cloudInfo.lastModifiedTime)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `saveSlots - no cloud save marks slot 0 empty`() = runTest(testDispatcher) {
-        startCollectingSaveSlots()
+    fun `cloudSaveInfo - no cloud save marks summary empty`() = runTest(testDispatcher) {
         coEvery { tapCloudSaveManager.checkCloudSave() } returns TapCloudSaveManager.CloudSaveInfo(false)
 
         viewModel.checkCloudSave()
         advanceUntilIdle()
 
-        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
-        assertTrue("无云存档时 slot 0 应标记为空", cloudSlot.isEmpty)
-        assertEquals("无云存档时槽位名保持云存档", "云存档", cloudSlot.sectName)
+        val cloudInfo = viewModel.cloudSaveInfo.value
+        assertTrue("无云存档时摘要应标记无档", !cloudInfo.hasSaveData)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `saveSlots - after upload to cloud slot 0 shows uploaded data`() = runTest(testDispatcher) {
-        startCollectingSaveSlots()
-        // 游戏快照：有真实游戏数据（上传后 slot 0 应立即反映，而非硬编码全 0 占位）
+    fun `cloudSaveInfo - after upload shows uploaded data`() = runTest(testDispatcher) {
+        // 游戏快照：有真实游戏数据（上传后摘要应立即反映上传结果）
         val snapshot = GameStateSnapshot(
             gameData = GameData(sectName = "青云宗", saveVersion = 2, gameYear = 3, gameMonth = 5, spiritStones = 888L),
             disciples = emptyList(),
@@ -722,12 +704,12 @@ class SaveLoadViewModelLoadTest {
         viewModel.uploadToCloudSave()
         advanceUntilIdle()
 
-        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
-        assertEquals("上传后云存档槽位应显示宗门名", "青云宗", cloudSlot.sectName)
-        assertEquals("上传后云存档槽位应显示年份", 3, cloudSlot.gameYear)
-        assertEquals("上传后云存档槽位应显示月份", 5, cloudSlot.gameMonth)
-        assertEquals("上传后云存档槽位应显示灵石数", 888L, cloudSlot.spiritStones)
-        assertTrue("上传后云存档槽位不应标记为空", !cloudSlot.isEmpty)
+        val cloudInfo = viewModel.cloudSaveInfo.value
+        assertTrue("上传后摘要应标记有档", cloudInfo.hasSaveData)
+        assertEquals("上传后摘要应显示宗门名", "青云宗", cloudInfo.sectName)
+        assertEquals("上传后摘要应显示年份", 3, cloudInfo.gameYear)
+        assertEquals("上传后摘要应显示月份", 5, cloudInfo.gameMonth)
+        assertEquals("上传后摘要应显示灵石数", 888L, cloudInfo.spiritStones)
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -751,7 +733,7 @@ class SaveLoadViewModelLoadTest {
     fun `loadGame rejected while boot in progress`() = runTest(testDispatcher) {
         every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
 
-        viewModel.loadGame(SaveSlot(1, "青云宗", 0L, 1, 1, "", 0, 0L))
+        viewModel.loadLocalSave()
 
         verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
     }
@@ -836,7 +818,7 @@ class SaveLoadViewModelLoadTest {
 
     // ──────────────────────────────────────────────────────────────────
     // 云下载/云读档加载反馈——isLoading 置位驱动存档弹窗的"转圈+读取中"
-    //（SaveSlotDialog/CloudSaveDialog 的 isBusy = isSaving||isLoading），覆盖下载与
+    //（存档弹窗/云存档弹窗的 isBusy = isSaving||isLoading），覆盖下载与
     // boot 全程，完成后复位。全屏加载页不参与（弹窗独立 Window + 遮罩盖住全屏）
     // ──────────────────────────────────────────────────────────────────
 
