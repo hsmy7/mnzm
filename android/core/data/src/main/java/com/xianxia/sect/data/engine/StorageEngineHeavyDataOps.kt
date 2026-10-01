@@ -20,7 +20,7 @@ import com.xianxia.sect.core.util.MaterializedBagResult
 import com.xianxia.sect.core.util.StorageBagMaterializer
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.unified.SaveInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
@@ -415,39 +415,26 @@ internal fun StorageEngine.quarantineCurrentDatabase() {
 }
 
 @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
-internal suspend fun StorageEngine.querySingleSlot(): SaveSlot {
+internal suspend fun StorageEngine.querySaveInfo(): SaveInfo {
     return try {
         val meta = core.database.gameDataDao().getMetadata()
         if (meta != null) {
-            SaveSlot(
-                slot = 0,
-                name = "Save",
+            SaveInfo(
                 timestamp = meta.lastSaveTime,
                 gameYear = meta.gameYear,
                 gameMonth = meta.gameMonth,
                 sectName = meta.sectName,
                 discipleCount = core.database.discipleDao().getAliveCountSync(),
                 spiritStones = meta.spiritStones,
-                isEmpty = false,
-                customName = meta.sectName,
+                isEmpty = false
             )
         } else {
-            SaveSlot(
-                slot = 0,
-                name = "",
-                timestamp = 0L,
-                gameYear = 1,
-                gameMonth = 1,
-                sectName = "",
-                discipleCount = 0,
-                spiritStones = 0L,
-                isEmpty = true
-            )
+            SaveInfo(isEmpty = true)
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.e(TAG, "querySingleSlot FAILED -- database may be unreachable or schema is mismatched",
+        Log.e(TAG, "querySaveInfo FAILED -- database may be unreachable or schema is mismatched",
             e)
         throw IllegalStateException("Failed to query save row: ${e.message}", e)
     }

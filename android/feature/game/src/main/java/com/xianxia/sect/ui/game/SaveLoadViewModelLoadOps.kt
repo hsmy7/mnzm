@@ -5,14 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.loadData
 import com.xianxia.sect.core.engine.setSaveLoadFlags
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.data.unified.SaveInfo
 import kotlinx.coroutines.*
 import com.xianxia.sect.core.engine.clearActiveLoadJob
 
 // ── 读档流程（守卫/循环停止/落库/启动序列/标志复位）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
-
-internal fun SaveLoadViewModel.loadGame(saveSlot: SaveSlot) = loadGameInternal(saveSlot, fromCloudLoad = false)
 
 /**
  * 读档内部入口——[fromCloudLoad]=true 时仅绕过
@@ -20,7 +18,7 @@ internal fun SaveLoadViewModel.loadGame(saveSlot: SaveSlot) = loadGameInternal(s
  * 其余守卫照常，绕过入口仅内部可达）。
  */
 @Suppress("ReturnCount") // 读档多守卫（云锁/重启/加载/保存/loadLock/内存），多 return 为守卫风格
-internal fun SaveLoadViewModel.loadGameInternal(saveSlot: SaveSlot, fromCloudLoad: Boolean) {
+internal fun SaveLoadViewModel.loadGameInternal(saveInfo: SaveInfo, fromCloudLoad: Boolean) {
     // boot 进行中禁止读档（云会话/其他入口 boot 进行时）
     if (isBootOperationBlocked()) return
     // 云存档操作进行中禁止本地读档——否则云读档下载期间点本地档会与
@@ -59,15 +57,15 @@ internal fun SaveLoadViewModel.loadGameInternal(saveSlot: SaveSlot, fromCloudLoa
     }
 
     Log.i(SaveLoadViewModelConstants.TAG,
-        "=== loadGame BEGIN === sectName=${saveSlot.sectName}, " +
-        "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
+        "=== loadGame BEGIN === sectName=${saveInfo.sectName}, " +
+        "year=${saveInfo.gameYear}, month=${saveInfo.gameMonth}")
     val startTime = System.currentTimeMillis()
 
     // job 身份由 perform* 内部 coroutineContext[Job] 自取，
     // 不经 lateinit 捕获（避免 IO worker 抢跑读未赋值 lateinit）
     val job = viewModelScope.launch(ioDispatcher.dispatcher) {
         // 读档主流程
-        performLoadToSlot(saveSlot, startTime)
+        performLoadGame(startTime)
     }
     gameEngineCore.registerActiveLoadJob(job)
 }
@@ -75,11 +73,12 @@ internal fun SaveLoadViewModel.loadGameInternal(saveSlot: SaveSlot, fromCloudLoa
 /**
  *读档主流程。
  * 读取存档 → 引擎加载 → RNG 恢复 → BootSequenceController 启动。
+ * 读档数据一律以 `storageFacade.load()` 实际落盘数据为准（入口摘要仅日志面）。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
+internal suspend fun SaveLoadViewModel.performLoadGame(startTime: Long) {
     try {
-        setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
+        setSaveLoadState(isLoading = true, pendingAction = "load")
 
         // 玉符防回退：loadData 前必须等待旧循环彻底停止——
         // boot Step 1 的 stopGameLoop 为非等待取消，旧循环 finally 的
@@ -103,7 +102,7 @@ internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, sta
         Log.d(SaveLoadViewModelConstants.TAG, "Starting to load save data")
         val loadStartTime = System.currentTimeMillis()
 
-        val saveData = loadSaveDataForSlot(saveSlot = saveSlot, loadStartTime = loadStartTime)
+        val saveData = loadSaveData(loadStartTime = loadStartTime)
         if (saveData == null) {
             return
         }
@@ -136,8 +135,8 @@ internal suspend fun SaveLoadViewModel.performLoadToSlot(saveSlot: SaveSlot, sta
 }
 
 /**读档数据加载：超时保护 + 空档守卫 */
-@Suppress("TooGenericExceptionCaught", "UnusedParameter") // saveSlot 留存调用契约；单档链内已无槽语义
-internal suspend fun SaveLoadViewModel.loadSaveDataForSlot(saveSlot: SaveSlot, loadStartTime: Long): SaveData? {
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+internal suspend fun SaveLoadViewModel.loadSaveData(loadStartTime: Long): SaveData? {
     val saveData = withTimeoutOrNull(60_000L) {
         try {
             val data = persistenceFacade.storageFacade.load().getOrNull()
@@ -243,7 +242,6 @@ internal suspend fun SaveLoadViewModel.resetOwnedLoadState(operation: String) {
         throw e
     } catch (e: Exception) {
         Log.w(SaveLoadViewModelConstants.TAG, "$operation: Failed to reset save/load state in finally block", e)
-        pendingSlotFlow.value = null
         pendingActionFlow.value = null
     }
 }
@@ -252,7 +250,6 @@ internal suspend fun SaveLoadViewModel.resetOwnedLoadState(operation: String) {
 internal suspend fun SaveLoadViewModel.setSaveLoadState(
     isSaving: Boolean? = null,
     isLoading: Boolean? = null,
-    pendingSlot: Int? = pendingSlotFlow.value,
     pendingAction: String? = pendingActionFlow.value
 ) {
     // Q-1：isSaving/isLoading 同步收敛到引擎原子入口（单事务设置两标志）
@@ -267,28 +264,11 @@ internal suspend fun SaveLoadViewModel.setSaveLoadState(
         }
     }
 
-    pendingSlotFlow.value = pendingSlot
     pendingActionFlow.value = pendingAction
 }
 
 internal fun SaveLoadViewModel.cancelSaveLoad() {
-    gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null,
-        pendingAction = null) }
-}
-
-internal fun SaveLoadViewModel.setPendingSave() {
-    pendingSlotFlow.value = 1
-    pendingActionFlow.value = "save"
-}
-
-internal fun SaveLoadViewModel.setPendingLoad() {
-    pendingSlotFlow.value = 1
-    pendingActionFlow.value = "load"
-}
-
-internal fun SaveLoadViewModel.clearPendingAction() {
-    pendingSlotFlow.value = null
-    pendingActionFlow.value = null
+    gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingAction = null) }
 }
 
 /**

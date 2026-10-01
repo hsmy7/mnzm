@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.engine
 
 import android.util.Log
-import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.archive.DataArchiver
@@ -12,13 +11,12 @@ import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.core.model.SaveVersion
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.StorageConstants
-import com.xianxia.sect.data.unified.SlotMetadata
+import com.xianxia.sect.data.unified.SaveInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -440,71 +438,37 @@ class StorageEngine @Inject constructor(
         }
     }
 
+    /**
+     * 存档摘要直读（StorageFacade 初始化完整性探测用）。
+     * 读取失败返回 null 并留痕（与既有行为一致：探测不阻断初始化）。
+     */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun getMetadata(): SlotMetadata? {
+    suspend fun readMetadata(): com.xianxia.sect.data.local.GameDataMetadataProjection? {
         return try {
-            val meta = core.database.gameDataDao().getMetadata() ?: return null
-            SlotMetadata(
-            slot = 0,
-                timestamp = meta.lastSaveTime,
-                gameYear = meta.gameYear,
-                gameMonth = meta.gameMonth,
-                sectName = meta.sectName,
-                discipleCount = core.database.discipleDao().getAliveCountSync(),
-                spiritStones = meta.spiritStones,
-                fileSize = 0,
-                customName = meta.sectName
-            )
+            core.database.gameDataDao().getMetadata()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "getMetadata failed", e)
+            Log.w(TAG, "readMetadata failed", e)
             null
         }
     }
 
+    /**
+     * 本地单档摘要（三态：有存档 / 空档 / 读取失败）。
+     * 查询异常必须与"空档"区分（isLoadError 态）：损坏存档若伪装成空档，
+     * 用户会在读取界面点击创建新游戏而静默覆盖损坏数据。
+     */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun getSaveSlots(): List<SaveSlot> {
-        val slots = mutableListOf<SaveSlot>()
-
-        // slot 0 = 云存档入口
-        slots.add(SaveSlot(
-            slot = StorageConstants.CLOUD_SAVE_SLOT,
-            name = "云存档",
-            timestamp = 0L,
-            gameYear = 0,
-            gameMonth = 0,
-            sectName = "云存档",
-            discipleCount = 0,
-            spiritStones = 0L,
-            isEmpty = false
-        ))
-
-        try {
-            slots.add(querySingleSlot())
+    suspend fun getSaveInfo(): SaveInfo {
+        return try {
+            querySaveInfo()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to query save row, marking as load error (not empty)", e)
-            // 查询异常必须与"空档"区分（isLoadError 态）：损坏存档若伪装成空档，
-            // 用户会在读取界面点击创建新游戏而静默覆盖损坏数据
-            slots.add(
-                SaveSlot(
-                    slot = 0,
-                    name = "",
-                    timestamp = 0L,
-                    gameYear = 1,
-                    gameMonth = 1,
-                    sectName = "",
-                    discipleCount = 0,
-                    spiritStones = 0L,
-                    isEmpty = false,
-                    isLoadError = true
-                )
-            )
+            SaveInfo(isLoadError = true)
         }
-
-        return slots
     }
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬

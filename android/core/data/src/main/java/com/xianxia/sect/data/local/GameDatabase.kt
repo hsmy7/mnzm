@@ -54,7 +54,7 @@ private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
 /** 启动前快照文件大小上限（200MB，防恶意/损坏超大快照占满磁盘） */
 private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
 
-/** 启动前快照 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
+/** 启动前快照 game_data 行数上限（game_data 恒单行；上限 64 防恶意行数膨胀） */
 private const val MAX_BACKUP_GAME_DATA_ROWS = 64
 
 
@@ -65,7 +65,7 @@ object GameDatabaseConfig {
      * 升级数据库版本时必须同步递增此常量、注册 `MIGRATION_(N-1)_N` 并更新
      * `MigrationRequiredGuardTest` 的实体清单基线（缺迁移 = 老库被 destructive 重建）。
      */
-    const val DATABASE_VERSION = 69
+    const val DATABASE_VERSION = 70
 
     /**
      * 判定是否应从启动前快照恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -122,7 +122,6 @@ object GameDatabaseConfig {
         BattleLog::class,
         ProductionSlot::class,
         ChangeLogEntity::class,
-        SaveSlotMetadata::class,
         ArchivedBattleLog::class,
         ArchivedDisciple::class,
         GameHeavyData::class,
@@ -136,16 +135,16 @@ object GameDatabaseConfig {
         OverflowMailDraftEntity::class,
         DirectMailDraftEntity::class
     ],
-    // v67: 槽位维度删除（SS1）——26 张表去 slot_id 列 + 复合主键改单主键。
-    // 无迁移路径（D-1：SS0 删档重置后不存在需要保护的旧库），v66 及更早的库
-    // 打开时由 fallbackToDestructiveMigration 全量毁灭重建；此后新增 @Entity /
-    // 列变更必须同批注册 MIGRATION_(N-1)_N，否则老库被静默重建——
+    // v70: 多档元数据表退役（SS4）——`save_slot_metadata` 整表删除，单档摘要
+    // 直接读 `game_data` 行。无迁移路径（SS0 删档重置后不存在需要保护的旧库），
+    // v69 及更早的库打开时由 fallbackToDestructiveMigration 全量毁灭重建；
+    // 新增 @Entity / 列变更必须同批注册 MIGRATION_(N-1)_N，否则老库被静默重建——
     // `MigrationRequiredGuardTest` 守卫
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
-@Suppress("TooManyFunctions") // Room 数据库契约面：27 个 abstract DAO 访问器 = Room 强制协议 + 数据库回调，
+@Suppress("TooManyFunctions") // Room 数据库契约面：25 个 abstract DAO 访问器 = Room 强制协议 + 数据库回调，
 // 函数数=注册 DAO 数，拆分即破坏 RoomDatabase 单元
 abstract class GameDatabase : RoomDatabase() {
 
@@ -164,7 +163,6 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun battleLogDao(): BattleLogDao
     abstract fun productionSlotDao(): ProductionSlotDao
     abstract fun changeLogDao(): ChangeLogDao
-    abstract fun saveSlotMetadataDao(): SaveSlotMetadataDao
 
     abstract fun archivedBattleLogDao(): ArchivedBattleLogDao
     abstract fun archivedDiscipleDao(): ArchivedDiscipleDao
@@ -798,8 +796,6 @@ abstract class GameDatabase : RoomDatabase() {
             }.maxByOrNull { it.name.substringAfterLast(".v").toIntOrNull() ?: -1 }
         }
 
-        /** 备份文件验证结果 */
-
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
         private fun executeSafely(db: SupportSQLiteDatabase, pragma: String) {
             try {
@@ -875,7 +871,7 @@ private fun readBackupInfo(backupFile: File): BackupValidation {
         Log.e(TAG, "快照文件行数读取失败: ${backupFile.absolutePath}", e)
         -1
     }
-    // game_data 行数上限（正常每槽一行 ≤ 7）
+    // game_data 行数上限（game_data 恒单行）
     if (rowCount > MAX_BACKUP_GAME_DATA_ROWS) {
         Log.w(TAG, "快照 game_data 行数异常 ($rowCount)，视为无效")
         return BackupValidation(false, -1, -1)

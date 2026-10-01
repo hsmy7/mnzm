@@ -106,7 +106,7 @@ class SaveLoadViewModelAutoSaveTest {
         every { persistenceFacade.bootSequenceController } returns mockk(relaxed = true) {
             every { bootInProgress } returns MutableStateFlow(false)
         }
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
+        coEvery { storageFacade.getSaveInfoSuspend() } returns com.xianxia.sect.data.unified.SaveInfo(isEmpty = true)
         coEvery { storageFacade.getMails() } returns emptyList()
         coEvery { storageFacade.save(any()) } returns SaveResult.success(Unit)
         every { stateStore.isSaving } returns MutableStateFlow(false)

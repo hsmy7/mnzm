@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import com.xianxia.sect.core.engine.loadData
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.model.SaveData
@@ -10,7 +9,7 @@ import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import kotlinx.coroutines.*
 
-// ── 云读档流程（云档管线/云会话独立加载/槽位归一）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
+// ── 云读档流程（云档管线/云会话独立加载）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
 
 /**云读档主流程。 */
@@ -90,9 +89,9 @@ internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSa
     }
     processed = SaveDataReconciler.reconcileStacks(processed)
 
-    // 云存档为独立存档，读取不覆盖任何本地槽位——
-    // 直接以云会话槽位 0 加载进内存（本地 1..6 槽位零影响，无需覆盖确认；
-    // 覆盖确认弹窗仅游戏主界面可渲染，主菜单读档场景会永久卡死）
+    // 云存档为独立存档，读取不覆盖本地档——
+    // 直接加载进内存（无需覆盖确认；覆盖确认弹窗仅游戏主界面可渲染，
+    // 主菜单读档场景会永久卡死）
     val bootResult = applyCloudSaveToEngine(processed)
     if (bootResult.isFailure) {
         showError("读取云存档失败: ${bootResult.exceptionOrNull()?.message}")
@@ -102,25 +101,15 @@ internal suspend fun SaveLoadViewModel.handleCloudLoadSuccess(result: TapCloudSa
 /**
  * 云下载后的内存加载 + boot。
  *
- * 云会话独立加载——[effectiveSlot] 为云会话槽位
- * [StorageConstants.CLOUD_SAVE_SLOT]，不落盘任何本地槽位；返回 [Result] 由
+ * 云会话独立加载——下载快照只进内存加载，不写本地档；返回 [Result] 由
  * 调用方决定成功/失败反馈（主菜单云读档与游戏内云下载反馈通道不同）。
- *
- * SR-3：[pendingSlot] 参数化存档弹窗的槽位回显（默认 0 = 既有云会话调用零变化；
- * 云槽位落盘链 SaveLoadViewModelCloudSlotOps 传目标槽 N）。
  *
  * @return boot 结果；失败时消息可直接展示给玩家
  */
 internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
     reconciled: SaveData
 ): Result<Unit> {
-    // 云档 slotId 为 @Transient 恒 0——只修 currentSlot
-    // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
-    // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正。
-    // 注（b02 发现 11 根治后口径精确化）：本处"恒 0"源于**存档序列化面**
-    // （@Transient 不入 JSON，云档解码必为 0）——与已根治的"镜像每旬重置"
-    // 是两个来源；镜像修复不影响本绕法必要性（云档侧恒 0 依旧成立）
-    // 玉符防回退：与 performLoadToSlot 同因——云下载替换快照前
+    // 玉符防回退：与 performLoadGame 同因——云下载替换快照前
     // 必须等待旧循环 finally 的玉符 checkpointNow 彻底完成，否则旧运行时值
     // 覆盖新档玉符四字段（cloudDownloadLock 已互斥 save/load，此处无并发洞）
     val stopped = gameEngineCore.stopGameLoopAndWait(SaveLoadViewModelConstants.GAME_LOOP_STOP_TIMEOUT_MS)
@@ -131,12 +120,12 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
     isTimeRunningFlow.value = false
     Log.d(SaveLoadViewModelConstants.TAG, "Game loop stopped for cloud download")
 
-    // 云会话加载全程保持 isLoading=true——驱动存档弹窗（SaveSlotDialog/
-    // CloudSaveDialog）的"转圈+读取中"反馈覆盖 boot 阶段；isLoading 不驱动
-    // 全屏加载页（游戏内弹窗独立窗口 + 遮罩会盖住全屏）
+    // 云会话加载全程保持 isLoading=true——驱动存档弹窗的"转圈+读取中"
+    // 反馈覆盖 boot 阶段；isLoading 不驱动全屏加载页（游戏内弹窗独立窗口
+    // + 遮罩会盖住全屏）
     loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START
     preloadPhaseFlow.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
-    setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
+    setSaveLoadState(isLoading = true, pendingAction = "load")
 
     try {
         gameEngine.loadData(
@@ -155,10 +144,10 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
             productionSlots = reconciled.productionSlots
         )
 
-        // SR-1：云恢复邮件整对象替换回表——云会话槽位（0）的邮件表替换为
+        // SR-1：云恢复邮件整对象替换回表——本地邮件表替换为
         // 下载快照的 mails，boot/会话期新邮件在其上叠加；否则下次保存/上传
         // 会用本地残留旧表覆盖云邮件（换设备丢邮件 = 本批要根治的缺口）。
-        // 仅替换邮件表——云恢复全量落盘归 SR-3（审计 §3/§12-I），此处不越界；
+        // 仅替换邮件表——云恢复全量落盘另有通道，此处不越界；
         // 失败上抛由 performCloudLoad 统一报"加载云存档失败"。
         persistenceFacade.storageFacade.replaceMails(
             reconciled.mails
@@ -166,7 +155,8 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
 
         // 与本地读档路径一致：AI 宗门 RNG 不在此播种——真源 = C++ GameCore::aiRng_，
         // 随 rngStates 9 号键（AI_SECT_MIRROR）续接归档态；旧档无该键时 native 侧按
-        // GameData.mapSeed + 6×31337 播种（原 initForSlot 语义，见 applyLoadedSaveToEngine KDoc）
+        // GameData.mapSeed + 6×31337 播种（AISectDiscipleManager.initForSlot 语义，
+        // 见 applyLoadedSaveToEngine KDoc）
 
         val bootResult = persistenceFacade.bootSequenceController.boot(
             onPreloadResources = { preloadGameResources() },
@@ -187,19 +177,7 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(
     } finally {
         // 复位加载标志（NonCancellable 保证取消路径也执行，对齐 C4 resetOwnedLoadState 模式）
         withContext(NonCancellable) {
-            setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
+            setSaveLoadState(isLoading = false, pendingAction = null)
         }
     }
 }
-
-/**
- * 云档槽位解析——slotId 与 currentSlot 同时修正为目标槽位。
- *
- * 云档 gameData.slotId 为 @Transient 恒 0、currentSlot 是上传时来源槽位
- *（与目标槽位无关）；loadFromSnapshot 内部用 gameData.slotId 设置仓库
- * 活跃槽位，只修 currentSlot 会导致 repository 脏写指向槽位 0。
- *
- * 云存档独立会话——[effectiveSlot] 恒为
- * [StorageConstants.CLOUD_SAVE_SLOT]（0），云会话数据落 slot 0 云镜像，
- * 本地 1..6 槽位零影响。
- */

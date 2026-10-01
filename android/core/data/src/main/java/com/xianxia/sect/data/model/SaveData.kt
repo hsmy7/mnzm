@@ -23,33 +23,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
 
 
 
-/**
- * 存档槽位列表项（元数据投影，三态：有存档 / 空档 / 读取失败）。
- *
- * [isEmpty] 与 [isLoadError] 互斥语义：空档 = 槽位无数据（可创建新游戏）；
- * 读取失败 = 槽位有数据但查询异常（数据库不可达/schema 不匹配等），
- * **不得**当作空档提供"点击创建"入口——损坏存档被空档伪装覆盖是数据丢失事故。
- */
-data class SaveSlot(
-    val slot: Int,
-    val name: String,
-    val timestamp: Long,
-    val gameYear: Int,
-    val gameMonth: Int,
-    val sectName: String,
-    val discipleCount: Int,
-    val spiritStones: Long,
-    val isEmpty: Boolean = false,
-    val customName: String = "",
-    val isLoadError: Boolean = false
-) {
-    val displayTime: String get() = "第${gameYear}年${gameMonth}月"
-    val saveTime: String
-        get() = if (timestamp > 0) java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
-            .format(java.util.Date(timestamp)) else "--"
-    val displayName: String get() = if (customName.isNotBlank()) customName else name
-}
-
 @Keep
 @Serializable
 data class SaveData(

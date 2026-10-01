@@ -643,12 +643,12 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * boot 失败逃生口：删除读档失败的槽位后回自动进入门户。
+     * boot 失败逃生口：删除读档失败的本地档后回自动进入门户。
      *
      * 删除走显式确认语义（按钮即确认），删除后自动进入会自动新建。
      */
     private fun deleteFailedSlotAndRestart() {
-        saveLoadViewModel.deleteSlot()
+        saveLoadViewModel.deleteLocalSave()
         navigateBackToMainMenu()
     }
 
@@ -783,7 +783,7 @@ class GameActivity : ComponentActivity() {
                     }
                     else -> {
                         Log.d(TAG, "Loading local save")
-                        saveLoadViewModel.loadGameFromLocalSlot()
+                        saveLoadViewModel.loadLocalSave()
                     }
                 }
             }, tag = "GameActivity_Init")

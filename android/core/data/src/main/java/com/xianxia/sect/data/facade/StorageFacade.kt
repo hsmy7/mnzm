@@ -8,9 +8,9 @@ import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.getMails
 import com.xianxia.sect.data.engine.replaceMails
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.model.SaveSlot
 
 import com.xianxia.sect.data.unified.SaveError
+import com.xianxia.sect.data.unified.SaveInfo
 import com.xianxia.sect.data.unified.SaveResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -98,7 +98,7 @@ class StorageFacade @Inject constructor(
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
             // this throws immediately, giving a clear error instead of silent failure.
             try {
-                val metadata = withContext(Dispatchers.IO) { engine.getMetadata() }
+                val metadata = withContext(Dispatchers.IO) { engine.readMetadata() }
                 Log.d(TAG, "Database integrity check passed (sect: ${metadata?.sectName ?: "empty"})")
             } catch (e: CancellationException) {
                 throw e
@@ -224,17 +224,22 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    // ==================== 槽位管理方法 ====================
+    // ==================== 单档摘要方法 ====================
 
+    /**
+     * 本地单档摘要（三态：有存档 / 空档 / 读取失败）。
+     * 引擎层异常在此收敛为 isLoadError 态而非空档——损坏存档伪装成空档
+     * 会被玩家"点击创建"静默覆盖（数据丢失红线）。
+     */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun getSaveSlotsSuspend(): List<SaveSlot> {
+    suspend fun getSaveInfoSuspend(): SaveInfo {
         return try {
-            engine.getSaveSlots()
+            engine.getSaveInfo()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlotsSuspend FAILED, returning empty list", e)
-            emptyList()
+            Log.e(TAG, "getSaveInfoSuspend FAILED, marking as load error (not empty)", e)
+            SaveInfo(isLoadError = true)
         }
     }
 

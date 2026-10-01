@@ -39,11 +39,11 @@ class ClearAllSlotTablesCoverageTest {
         val cleared = clearedDaoNames()
         val declared = declaredDaoNames()
 
-        // 防正则失配导致的"空集假绿"：本批（SR-7 v53）删 6 张零读者镜像表后
-        // 清单与声明面各为 26/27 ⇒ 阈值从 30 下调到 25（仍远高于任何可能的解析部分失配，
+        // 防正则失配导致的"空集假绿"：SS4 删 save_slot_metadata 表后清单与声明面
+        // 各为 24/25 ⇒ 阈值从 25 下调到 20（仍远高于任何可能的解析部分失配，
         // 且新增表时不必回调；下调本身由双向相等断言兜住，不会因为阈值宽松而漏判漂移）
-        assertTrue("清理清单解析结果异常（仅 ${cleared.size} 个 DAO）", cleared.size >= 25)
-        assertTrue("GameDatabase DAO 解析结果异常（仅 ${declared.size} 个）", declared.size >= 25)
+        assertTrue("清理清单解析结果异常（仅 ${cleared.size} 个 DAO）", cleared.size >= 20)
+        assertTrue("GameDatabase DAO 解析结果异常（仅 ${declared.size} 个）", declared.size >= 20)
 
         assertEquals(
             "删档清理清单必须与 @Database 槽位域 DAO 集合双向相等：" +

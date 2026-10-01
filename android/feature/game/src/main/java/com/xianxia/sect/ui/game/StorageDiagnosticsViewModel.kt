@@ -28,6 +28,7 @@ class StorageDiagnosticsViewModel @Inject constructor(
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     /** 拉取诊断快照；失败经统一错误通道提示，旧报告保留不清空 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 诊断读取异常源跨 IO/DB 不可枚举, 降级提示+留痕
     fun refresh() {
         if (_loading.value) return
         viewModelScope.launch {
@@ -37,6 +38,7 @@ class StorageDiagnosticsViewModel @Inject constructor(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                // 防御兜底: 诊断读取异常源跨 IO/DB 不可枚举, 降级为错误提示+旧报告保留
                 showError("存档诊断读取失败：${e.message ?: "未知错误"}")
             } finally {
                 _loading.value = false

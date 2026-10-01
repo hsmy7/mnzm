@@ -15,10 +15,10 @@ import com.xianxia.sect.core.engine.createNewGame
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 取消异常已前置分支处理, 泛型段为刻意终局兜底
 internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, startTime: Long) {
-    var needSlotRefresh = false
+    var needInfoRefresh = false
     var gameStarted = false
     try {
-        setSaveLoadState(isLoading = true, pendingSlot = 1, pendingAction = "newgame")
+        setSaveLoadState(isLoading = true, pendingAction = "newgame")
 
         loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START
 
@@ -36,7 +36,7 @@ internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, sta
 
         
         var saveSuccess = performInitialSaveForNewGame()
-        needSlotRefresh = true
+        needInfoRefresh = true
         if (!saveSuccess) {
             return
         }
@@ -55,15 +55,15 @@ internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, sta
         if (!gameStarted) {
             loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START
         }
-        if (needSlotRefresh) {
+        if (needInfoRefresh) {
             try {
-                saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
             } catch (e: CancellationException) {
                 // finally 清理路径不重抛：重抛会掩盖 try 体原始异常；协程取消由 Job 机制继续生效
-                Log.w(SaveLoadViewModelConstants.TAG, "startNewGame: slot refresh cancelled during cleanup", e)
+                Log.w(SaveLoadViewModelConstants.TAG, "startNewGame: save info refresh cancelled during cleanup", e)
             } catch (e: Exception) {
                 Log.w(SaveLoadViewModelConstants.TAG,
-                    "startNewGame: Failed to refresh save slots after completion: ${e.message}")
+                    "startNewGame: Failed to refresh save info after completion: ${e.message}")
             }
         }
     }
@@ -137,11 +137,11 @@ internal suspend fun SaveLoadViewModel.performSynchronousSave(): Boolean {
             }
             result.isSuccess -> {
                 try {
-                    saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                    saveInfoFlow.value = persistenceFacade.storageFacade.getSaveInfoSuspend()
                 } catch (e: CancellationException) { throw e }
                   catch (e: Exception) {
                     Log.e(SaveLoadViewModelConstants.TAG,
-                        "Failed to refresh slots after synchronous save: ${e.message}", e)
+                        "Failed to refresh save info after synchronous save: ${e.message}", e)
                 }
                 Log.i(SaveLoadViewModelConstants.TAG, "performSynchronousSave SUCCESS")
                 true

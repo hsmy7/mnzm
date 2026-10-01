@@ -4,15 +4,12 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameStateSnapshot
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.first
-import com.xianxia.sect.data.model.SaveSlot
 
 // ── 云存档流程（查询/上传/下载/操作状态机）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -188,7 +185,7 @@ internal suspend fun SaveLoadViewModel.performCloudDownload() {
             cloudSaveOperationStateFlow.value = CloudSaveOperationState.Downloading
 
             // 下载期间不设 isLoading——并发互斥由 loadGame/saveGame 的
-            // cloudDownloadLock 检查保证；云会话独立加载，不落盘本地槽位
+            // cloudDownloadLock 检查保证；云会话独立加载，不落盘本地档
             //（无需备份）
             val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
@@ -258,10 +255,9 @@ internal suspend fun SaveLoadViewModel.handleCloudDownloadSuccess(result: TapClo
     // 旧格式云存档无堆叠数据：从实例重建兜底
     val reconciled = SaveDataReconciler.reconcileStacks(processed)
 
-    // 云存档为独立存档，下载不覆盖任何本地槽位——
-    // 直接以云会话槽位 0 加载进内存，本地 1..6 槽位零影响。
-    // 云会话的本地落盘（如重启保存）落在 slot 0 云镜像，
-    // UI 槽位列表不暴露。
+    // 云存档为独立存档，下载不覆盖本地档——
+    // 直接加载进内存（云会话的本地落盘如重启保存走独立云镜像，
+    // 存档弹窗不将其渲染为本地档）。
     val bootResult = applyCloudSaveToEngine(reconciled)
     if (bootResult.isSuccess) {
         cloudSaveOperationStateFlow.value = CloudSaveOperationState.Success("云存档下载成功")
@@ -278,76 +274,7 @@ internal fun SaveLoadViewModel.resetCloudSaveOperationState() {
 }
 
 /**
- *slot=0 云保存流程（带 saveLoadState 管理 + 结果反馈）。
- * 从 saveGame 拆分。
- */
-@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun SaveLoadViewModel.saveToCloud() {
-    viewModelScope.launch(ioDispatcher.dispatcher) {
-        resetCloudSaveOperationState()
-        setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
-        try {
-            uploadToCloudSave()
-            // 等待云端操作完成（Uploading → Success/Error）
-            cloudSaveOperationStateFlow.first {
-                it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
-            }
-            when (val state = cloudSaveOperationStateFlow.value) {
-                is CloudSaveOperationState.Success -> {
-                    showSuccess(state.message)
-                    try {
-                        saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.w(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after cloud save", e)
-                    }
-                }
-                is CloudSaveOperationState.Error -> showError(state.message)
-                else -> {} // Idle 不应出现
-            }
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            showError("上传失败: ${e.message}")
-        } finally {
-            setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-        }
-    }
-}
-
-/**
- * 用真实云存档摘要覆盖 slot 0（云存档槽位）的硬编码占位字段。
- *
- * 无云存档时标记为空槽位（isEmpty=true），语义与主菜单选择存档界面的
- * "暂无云存档数据"一致；有云存档时展示宗门/年/月/弟子/灵石/保存时间。
- */
-internal fun SaveLoadViewModel.mergeCloudSlot(
-    slots: List<SaveSlot>,
-    cloudInfo: TapCloudSaveManager.CloudSaveInfo
-): List<SaveSlot> = slots.map { slot ->
-    if (slot.slot != StorageConstants.CLOUD_SAVE_SLOT) {
-        slot
-    } else {
-        SaveSlot(
-            slot = StorageConstants.CLOUD_SAVE_SLOT,
-            name = "云存档",
-            timestamp = cloudInfo.lastModifiedTime,
-            gameYear = cloudInfo.gameYear,
-            gameMonth = cloudInfo.gameMonth,
-            sectName = if (cloudInfo.hasSaveData && cloudInfo.sectName.isNotBlank()) {
-                cloudInfo.sectName
-            } else {
-                "云存档"
-            },
-            discipleCount = cloudInfo.discipleCount,
-            spiritStones = cloudInfo.spiritStones,
-            isEmpty = !cloudInfo.hasSaveData
-        )
-    }
-}
-
-/**
- * 云上传 SaveData 构造（SR-1）：从 mails 表读**会话槽位**（getCurrentSlot——
- * 云会话为 CLOUD_SAVE_SLOT=0、常规会话为所在档）全量邮件入快照。
+ * 云上传 SaveData 构造（SR-1）：从 mails 表读**会话邮件表**全量邮件入快照。
  * 云上传不走本地 save，邮件入云档只能在本构造点注入；读失败上抛 = 上传中止，
  * 不做空表静默降级。
  */

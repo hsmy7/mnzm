@@ -1,84 +1,69 @@
 package com.xianxia.sect.data.model
 
+import com.xianxia.sect.data.unified.SaveInfo
 import org.junit.Assert.*
 import org.junit.Test
 
-class SaveSlotTest {
+class SaveInfoTest {
 
     @Test
     fun `constructor sets all fields`() {
-        val slot = SaveSlot(
-            slot = 1,
-            name = "Save 1",
+        val save = SaveInfo(
             timestamp = 1700000000000L,
             gameYear = 5,
             gameMonth = 3,
             sectName = "青云宗",
             discipleCount = 42,
             spiritStones = 10000L,
-            isEmpty = false,
-            customName = "我的存档"
+            isEmpty = false
         )
-        assertEquals(1, slot.slot)
-        assertEquals("Save 1", slot.name)
-        assertEquals(1700000000000L, slot.timestamp)
-        assertEquals(5, slot.gameYear)
-        assertEquals(3, slot.gameMonth)
-        assertEquals("青云宗", slot.sectName)
-        assertEquals(42, slot.discipleCount)
-        assertEquals(10000L, slot.spiritStones)
-        assertFalse(slot.isEmpty)
-        assertEquals("我的存档", slot.customName)
+        assertEquals(1700000000000L, save.timestamp)
+        assertEquals(5, save.gameYear)
+        assertEquals(3, save.gameMonth)
+        assertEquals("青云宗", save.sectName)
+        assertEquals(42, save.discipleCount)
+        assertEquals(10000L, save.spiritStones)
+        assertFalse(save.isEmpty)
+        assertFalse(save.isLoadError)
     }
 
     @Test
     fun `isEmpty defaults to false`() {
-        val slot = SaveSlot(1, "Save 1", 0L, 1, 1, "", 0, 0L)
-        assertFalse(slot.isEmpty)
+        val save = SaveInfo()
+        assertFalse(save.isEmpty)
     }
 
     @Test
-    fun `customName defaults to empty string`() {
-        val slot = SaveSlot(1, "Save 1", 0L, 1, 1, "", 0, 0L)
-        assertEquals("", slot.customName)
+    fun `empty save has placeholder display fields`() {
+        val save = SaveInfo(isEmpty = true)
+        assertEquals("第1年1月", save.displayTime)
+        assertEquals("--", save.saveTime)
     }
 
     @Test
     fun `displayTime formats correctly`() {
-        val slot = SaveSlot(1, "Save 1", 0L, gameYear = 5, gameMonth = 8, "", 0, 0L)
-        assertEquals("第5年8月", slot.displayTime)
+        val save = SaveInfo(gameYear = 5, gameMonth = 8)
+        assertEquals("第5年8月", save.displayTime)
     }
 
     @Test
     fun `displayTime with year 1 month 1`() {
-        val slot = SaveSlot(1, "Save 1", 0L, gameYear = 1, gameMonth = 1, "", 0, 0L)
-        assertEquals("第1年1月", slot.displayTime)
+        val save = SaveInfo(gameYear = 1, gameMonth = 1)
+        assertEquals("第1年1月", save.displayTime)
     }
 
     @Test
     fun `saveTime formats timestamp`() {
-        val slot = SaveSlot(1, "Save 1", 1700000000000L, 1, 1, "", 0, 0L)
-        val saveTime = slot.saveTime
+        val save = SaveInfo(timestamp = 1700000000000L)
+        val saveTime = save.saveTime
         assertNotNull(saveTime)
         assertTrue(saveTime.isNotEmpty())
     }
 
     @Test
-    fun `displayName returns customName when not blank`() {
-        val slot = SaveSlot(1, "Save 1", 0L, 1, 1, "", 0, 0L, customName = "我的存档")
-        assertEquals("我的存档", slot.displayName)
-    }
-
-    @Test
-    fun `displayName returns name when customName is blank`() {
-        val slot = SaveSlot(1, "Save 1", 0L, 1, 1, "", 0, 0L, customName = "")
-        assertEquals("Save 1", slot.displayName)
-    }
-
-    @Test
-    fun `displayName returns name when customName is whitespace`() {
-        val slot = SaveSlot(1, "Save 1", 0L, 1, 1, "", 0, 0L, customName = "   ")
-        assertEquals("Save 1", slot.displayName)
+    fun `saveTime is placeholder when timestamp is zero`() {
+        val save = SaveInfo(timestamp = 0L)
+        assertEquals("--", save.saveTime)
     }
 }
 

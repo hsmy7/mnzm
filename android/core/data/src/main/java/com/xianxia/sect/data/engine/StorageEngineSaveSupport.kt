@@ -1,37 +1,19 @@
 package com.xianxia.sect.data.engine
 import android.util.Log
-import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.incremental.SaveDataChangeSummarizer
-import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageResult
 import kotlinx.coroutines.CancellationException
 import androidx.room.withTransaction
 
-// StorageEngine 的保存支撑域:槽位元数据同步/保存变更日志/
-// 缓存维护/熔断判定与保存结果处置。
+// StorageEngine 的保存支撑域:保存变更日志/缓存维护/熔断判定与保存结果处置。
 
 private val TAG = StorageEngine.TAG
 
 private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
 
 private const val LOW_MEMORY_THRESHOLD_MB = StorageEngine.LOW_MEMORY_THRESHOLD_MB
-
-internal suspend fun StorageEngine.syncSlotMetadata(data: SaveData) {
-    val gd = data.gameData
-    val metadata = SaveSlotMetadata(        sectName = gd.sectName,
-        gameYear = gd.gameYear,
-        gameMonth = gd.gameMonth,
-        gamePhase = gd.gamePhase,
-        spiritStones = gd.spiritStones,
-        spiritHerbs = gd.spiritHerbs,
-        sectCultivation = gd.sectCultivation,
-        lastSaveTime = data.timestamp,
-        discipleCount = data.disciples.count { it.isAlive }
-    )
-    core.database.saveSlotMetadataDao().upsert(metadata)
-}
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 internal suspend fun StorageEngine.logSaveChanges(previous: SaveData?, current: SaveData) {
@@ -236,7 +218,7 @@ internal suspend fun StorageEngine.clearResidualDataQuietly() {
  * 新增 Room 实体（`@Database(entities=…)`）时**必须**在此补一行 DAO 删除，
  * 否则删档/tombstone 会留下新表残行（`GameDatabase` 注册实体数 = 本清单唯一权威对照）。
  */
-@Suppress("LongMethod") // 27 个 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
+@Suppress("LongMethod") // 25 条 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
 internal suspend fun StorageEngine.clearAllTables() {
     core.database.withTransaction {
         core.database.gameDataDao().deleteAll()
@@ -253,7 +235,6 @@ internal suspend fun StorageEngine.clearAllTables() {
         core.database.productionSlotDao().deleteAll()
         core.database.battleLogDao().deleteAll()
         core.database.mailDao().deleteAll()
-        core.database.saveSlotMetadataDao().deleteAll()
         core.database.storageBagDao().deleteAll()
         core.database.gameHeavyDataDao().deleteAll()
         core.database.diplomacyStateDao().deleteAll()
