@@ -53,54 +53,26 @@ object StorageConstants {
     /** Room 批量操作默认批次大小 */
     const val DEFAULT_BATCH_SIZE = 200
     
-    // ==================== WAL (Write-Ahead Log) ====================
-    
-    /** WAL 目录名 */
+    // ==================== 历史遗留孤儿目录 ====================
+
+    /**
+     * 应用级事务日志目录名（组件已退役）——仅作启动后一次性孤儿目录清理的
+     * 定位常量，消费方：`DataPruningScheduler` 的 legacy 目录清理。
+     */
     const val WAL_DIR_NAME = "wal_v4"
-    
-    /** WAL 文件名 */
-    const val WAL_FILE_NAME = "transactions.wal"
-    
-    /** WAL 快照目录名 */
+
+    /** 历史版本快照目录名（组件已退役）——消费方同上 */
     const val SNAPSHOT_DIR_NAME = "snapshots"
-    
-    /** WAL 最大文件大小 (MB) - 超过后触发 compact */
-    const val MAX_WAL_SIZE_BYTES = 10L * 1024 * 1024  // 10MB
 
     /**
      * IN5 云档 payload 红线（字节）——方案 §3 IN5 要求"CI 构造老玩家样本档断言 ≤ 红线值"，
      * 定值来自 SR-0 实测（`docs/sr0-recon-report-2026-09-21.md`：最大档 0.29MB =
      * TapTap 10MB 硬上限的 2.8%，建议红线 2MB）。
      *
-     * 与 `MAX_WAL_SIZE_BYTES` 那种"平台硬上限"刻意分开：硬上限判红意味着玩家档已经撞到
-     * SDK 墙（太晚），红线留出 ~7 倍增长余量，长新字段/长日志的第一时间就判红。
+     * 红线留出 ~7 倍增长余量，长新字段/长日志的第一时间就判红。
      * 消费者：`CloudPayloadSizeBenchTest`（IN5 CI 守卫）。
      */
     const val CLOUD_PAYLOAD_RED_LINE_BYTES = 2_000_000L
-    
-    /** 单个快照最大大小 (MB) */
-    const val MAX_SNAPSHOT_SIZE_BYTES = 50L * 1024 * 1024  // 50MB
-    
-    /** 所有快照合计最大大小 (MB) */
-    const val MAX_TOTAL_SNAPSHOTS_SIZE_BYTES = 200L * 1024 * 1024  // 200MB
-    
-    /** 快照最大保留时间：12 小时 */
-    const val MAX_SNAPSHOT_AGE_MS = 12 * 60 * 60 * 1000L
-    
-    /** 最小保留快照数（即使过期也不清理） */
-    const val MIN_SNAPSHOTS_TO_KEEP = 3
-    
-    /** Checkpoint 操作间隔（每 N 次 commit 后执行） */
-    const val CHECKPOINT_INTERVAL = 100
-    
-    /** BufferedWALWriter buffer 大小 */
-    const val WAL_BUFFER_SIZE_BYTES = 64 * 1024  // 64KB
-    
-    /** BufferedWALWriter 自动 flush 间隔 */
-    const val WAL_FLUSH_INTERVAL_MS = 1000L  // 1秒
-    
-    /** BufferedWALWriter pending 数据强制 flush 阈值 */
-    const val WAL_MAX_PENDING_BYTES = 256 * 1024  // 256KB
 
     // ==================== Atomic Pipeline ====================
     

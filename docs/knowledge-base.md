@@ -677,6 +677,7 @@ fun watchAdForNewFeature() {
 | `#breakthrough_success` | 引擎 `DiscipleBreakthroughHandler` 突破成功 | realm, realm_layer, disciple_name | 自定义 |
 | `#breakthrough_first` | 突破成功首次（`FirstEventTracker` 去重） | realm | 自定义 |
 | `#ad_reward_claim` | 广告奖励验证通过（AdServiceImpl.onRewardVerify） | purpose, reward_name, reward_amount | 自定义 |
+| `#storage_metrics_report` | 存储维护调度周期聚合（StorageMetricsReporter，30 分钟节拍） | storage_save_count, storage_load_count, storage_cache_hit_count, storage_cache_miss_count, storage_backup_failure_count, storage_backup_restore_count, storage_backup_skipped_count, storage_jade_drift_count, storage_change_log_pending, storage_archive_battle_log_rows, storage_archive_disciple_rows | 自定义 |
 | `game_start` | GameActivity PLAYING（兼容旧事件） | sect_name, game_version | 兼容 |
 | `battle_end` | 引擎 `CaveExplorationProcessor`（兼容旧事件） | outcome, enemy_type, turns, team_size | 兼容 |
 
@@ -745,7 +746,7 @@ fun watchAdForNewFeature() {
 | 耗（汇） | 玉符购买类玩法 | 见 `GameConfig.JadePurchase`（消耗即扣、账本落账） | `GameEngineJadePurchaseOps.kt`、`jade_tx.h` 六事务、`JadeSymbolService.deduct`（回退臂） |
 
 **玉符账本模型（SS9：余额真源在 C++ `state.gameData.jadeLedger`）**：
-1. **余额 = 期初条目 + Σdelta**——`jadeLedger` 是 append-only 流水（条目冗余 `balanceAfter` 供 O(1) 读末条），`jadeSymbols` 是账本求和的**派生缓存**，由 C++ 玉符事务（`appendLedgerEntry`）同事务双写；两者不一致时以账本为准重锚并经回执 `drift` 上报（Log 通道；`StorageMetrics` getter 归 SS3）。扣费/发放路径余额检查读账本末条 `balanceAfter`（O(1)），不遍历账本（防双花复活 + O(n) 退化）
+1. **余额 = 期初条目 + Σdelta**——`jadeLedger` 是 append-only 流水（条目冗余 `balanceAfter` 供 O(1) 读末条），`jadeSymbols` 是账本求和的**派生缓存**，由 C++ 玉符事务（`appendLedgerEntry`）同事务双写；两者不一致时以账本为准重锚并经回执 `drift` 上报（`JadeSymbolService` 经 `PersistenceTelemetryPort` 计入 `StorageMetrics` 账本漂移计数，随 `#storage_metrics_report` 周期出报）。扣费/发放路径余额检查读账本末条 `balanceAfter`（O(1)），不遍历账本（防双花复活 + O(n) 退化）
 2. **唯一写入入口**——native 臂可用时购买/发放走 C++ 事务落账（`jade_tx.h` 六事务）；降级回退臂经 `JadeSymbolService`（`deduct(state, cost, reason)` / `grantFromAd` / `settleGrants` 内部 `appendLedger`，append 条目 + 缓存跟随）。禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)` / `copy(jadeLedger = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（正则覆盖 `jadeSymbols` + `jadeLedger` 双字段，白名单 = `JadeSymbolService.kt` 玩法写 + `GameDataFieldPatch.kt` 镜像写）自动拦截
 3. **消耗模式**（现存活参照：`GameEngineJadePurchaseOps` 商人刷新/购买系列）：`stateStore.updateAndReturn { 校验目标（先于扣费，达上限不扣玉符）→ deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
 4. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（order=23，启动时越界修正派生缓存）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围；其修复若致缓存与账本不一致，由下一次账本事务以账本为准重锚（账本为准语义）

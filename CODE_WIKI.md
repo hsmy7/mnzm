@@ -150,7 +150,6 @@ android/
 │   ├── data/serialization/           ← 序列化层 (ProtoBuf/JSON)
 │   ├── data/compression/             ← LZ4/Zstd 压缩
 │   ├── data/crypto/                  ← 加密
-│   ├── data/wal/                     ← WAL 日志
 │   ├── data/memory/                  ← DynamicMemoryManager
 │   ├── data/incremental/             ← ChangeTracker, ChangeLogPersistence
 │   └── core/repository/              ← 6 个 Repository 实现 (从 engine 移入)

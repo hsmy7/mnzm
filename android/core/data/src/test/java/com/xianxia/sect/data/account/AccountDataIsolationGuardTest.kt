@@ -45,8 +45,6 @@ class AccountDataIsolationGuardTest {
          *   加密密钥，设备级密钥材料（按账号轮换会破坏既有云档解密）；
          * - `core/CrashHandler.kt`（app 模块）：崩溃日志，设备级诊断数据；
          * - `engine/DataPruningScheduler.kt`：删除历史遗留孤儿目录（清理面，非存储面）；
-         * - `wal/FunctionalWAL.kt`：应用级事务 WAL 目录——SS3 已登记摘除，摘除前
-         *   保持设备级（其内容为临时重放日志，无账号维度数据）；
          * - MMKV/SharedPreferences（game_prefs、xianxia_session 等）：键值存储本批
          *   不动，是否随账号隔离由 SS7/SS8 评估（TASKBOOK-SS2 §6 登记）；
          * - `account/AccountSpaceManager.kt`：账号空间根目录（filesDir/accounts）的
@@ -57,7 +55,6 @@ class AccountDataIsolationGuardTest {
             "crypto/SecureKeyManager.kt",
             "crypto/SecureKeyFileStore.kt",
             "engine/DataPruningScheduler.kt",
-            "wal/FunctionalWAL.kt",
             "account/AccountSpaceManager.kt",
             "wipe/SaveWipeCoordinator.kt"
         )
