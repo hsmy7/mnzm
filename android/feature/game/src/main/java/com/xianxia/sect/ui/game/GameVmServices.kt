@@ -12,6 +12,7 @@ import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.state.CriticalSaveEventBus
 import com.xianxia.sect.ui.game.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.data.SessionManager
@@ -47,5 +48,8 @@ class GameVmDelegateServices @Inject constructor(
     val gachaFacade: GachaFacade,
     val ioDispatcher: IoDispatcher,
     val sessionManager: SessionManager,
-    val gpuTierDetector: GpuTierDetector
+    val gpuTierDetector: GpuTierDetector,
+    // SS6：关键事件自动存档总线（方案 §2.5）——delegate 侧涉钱等待与事件通知共用同一单例；
+    // 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例
+    val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 )

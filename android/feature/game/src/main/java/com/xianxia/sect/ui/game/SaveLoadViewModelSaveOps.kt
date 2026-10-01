@@ -234,6 +234,9 @@ internal suspend fun SaveLoadViewModel.performLocalSave(
             saveLock.set(false)
         }
     } finally {
+        // 关键事件涉钱等待方的应答信号（成功/失败/等锁超时都发——语义是"保存链已走完"，
+        // 失败结果由等待方超时兜底与节拍重试承担）；置于最外层 finally 保证取消路径同样发出
+        criticalSaveEvents.notifySaveCompleted()
         // NonCancellable 保证取消路径复位（详见 performLoadGame finally 注释）
         // 归属化复位：被取代的协程不复位标志
         resetOwnedLoadState("saveGame")

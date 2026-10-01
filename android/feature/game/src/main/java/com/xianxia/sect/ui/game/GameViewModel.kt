@@ -142,7 +142,8 @@ class GameViewModel @Inject constructor(
     val planting = PlantingDelegate(gameEngine)
     val disciple = DiscipleDelegate(
         gameEngine,
-        dispatcher = delegateServices.ioDispatcher.dispatcher
+        dispatcher = delegateServices.ioDispatcher.dispatcher,
+        criticalSaveEvents = delegateServices.criticalSaveEvents
     )
     val navigation = NavigationDelegate(
         gameEngine, coreServices.gameEngineCore,
@@ -177,7 +178,12 @@ class GameViewModel @Inject constructor(
     val autoAssign = AutoAssignDelegate(gameEngine)
     val guide = GuideDelegate(gameEngine)
     val road = RoadDelegate(gameEngine, ::showError)
-    val merchant = MerchantOpsDelegate(gameEngine, onSuccess = ::showSuccess, onError = ::showError)
+    val merchant = MerchantOpsDelegate(
+        gameEngine,
+        onSuccess = ::showSuccess,
+        onError = ::showError,
+        criticalSaveEvents = delegateServices.criticalSaveEvents
+    )
     val battleRewards = BattleRewardDelegate(gameEngine)
     val mission = MissionDelegate(gameEngine, onError = ::showError)
     val lifeEvents = LifeEventsDelegate(gameEngine, delegateServices.discipleFacade)

@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.domain.gacha.GachaFacade
 import com.xianxia.sect.core.engine.domain.gacha.GachaGrantResult
 import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.RewardSelectedItem
+import com.xianxia.sect.core.state.CriticalSaveKind
 import com.xianxia.sect.core.util.DomainLog
 
 // ── 兑换码角色碎片入账域（自 RedeemCodeService 拆出） ────────────────────────
@@ -26,6 +27,7 @@ internal fun RedeemCodeService.isKnownCharacterTemplate(templateId: String?): Bo
 
 /**
  * 单条角色碎片入账：一律经 [GachaFacade.grantFragments]，本域不写碎片账本。
+ * 入账成功（含满 100 自动升星）即请求关键事件落盘（方案 §2.5 不可逆消耗类）。
  *
  * @param templateId 角色模板 id（调用方已校验存在于 [CharacterTemplateDb]）
  * @param quantity 碎片数量，非正值按 1 发放
@@ -34,6 +36,7 @@ internal suspend fun RedeemCodeService.grantFragmentReward(templateId: String, q
     val result = gachaFacade.grantFragments(templateId, quantity.coerceAtLeast(1))
     if (result is GachaGrantResult.Granted) {
         DomainLog.i(TAG, "Fragment granted via gacha facade: template=$templateId, quantity=$quantity")
+        criticalSaveEvents.notify(CriticalSaveKind.IRREVERSIBLE_CONSUME)
     } else {
         DomainLog.w(TAG, "Fragment grant not completed: template=$templateId, quantity=$quantity, result=$result")
     }

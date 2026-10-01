@@ -15,6 +15,8 @@ import com.xianxia.sect.core.engine.toggleFollowDisciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.state.CriticalSaveEventBus
+import com.xianxia.sect.core.state.MONEY_SAVE_ACK_TIMEOUT_MS
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,10 @@ class DiscipleDelegate(
     /** internal：同包操作族扩展（GearOps/LifecycleOps）消费——TMF 收敛外移 */
     internal val gameEngine: GameEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    // SS6：关键事件自动存档总线——玉符购买成功后等待涉钱数据落盘（方案 §2.5 同步语义）；
+    // internal：同文件顶层扩展（purchaseBreakthroughBonus）消费；
+    // 默认值仅供测试直构（等待立即超时返回），生产由 GameVmDelegateServices 注入单例
+    internal val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) {
     fun toggleFollowDisciple(discipleId: String) {
         // W4-A·w3-01：关注切换事务化（C++ 真相先行 + Kotlin 回退臂，
@@ -120,5 +126,12 @@ class DiscipleDelegate(
 }
 
 /** 消耗 1 玉符提高弟子突破率（上限 0.30 即最多 2 次；突破尝试后自动清除重置） */
-suspend fun DiscipleDelegate.purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
-    gameEngine.purchaseBreakthroughBonus(discipleId)
+suspend fun DiscipleDelegate.purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult {
+    val result = gameEngine.purchaseBreakthroughBonus(discipleId)
+    if (result is BreakthroughBonusResult.Success) {
+        // 涉钱同步落盘承诺（方案 §2.5）：扣费流水已在引擎侧 append，
+        // 事件方法返回前挂起等待含本笔流水的保存完成（超时由节拍兜底）
+        criticalSaveEvents.awaitNextSaveCompletion(MONEY_SAVE_ACK_TIMEOUT_MS)
+    }
+    return result
+}

@@ -7,6 +7,8 @@ import com.xianxia.sect.core.engine.domain.gacha.GachaPoolConfig
 import com.xianxia.sect.core.engine.domain.gacha.GachaPoolSpec
 import com.xianxia.sect.core.engine.domain.gacha.GachaPullResult
 import com.xianxia.sect.core.model.GachaHistoryEntry
+import com.xianxia.sect.core.state.CriticalSaveEventBus
+import com.xianxia.sect.core.state.CriticalSaveKind
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,9 @@ class GachaViewModel @Inject constructor(
     private val gachaFacade: GachaFacade,
     gachaPoolConfig: GachaPoolConfig,
     ioDispatcher: IoDispatcher,
+    // SS6：关键事件自动存档总线——出货回执（不可逆随机结果）经此请求落盘；
+    // 默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例
+    private val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) : BaseViewModel() {
 
     /** 保底进度：池 id → 已抽次数（主界面进度条 x 端） */
@@ -98,6 +103,8 @@ class GachaViewModel @Inject constructor(
             is GachaPullResult.Success -> {
                 _showcase.value = GachaPullShowcase(result, anchorStarMap)
                 _resultToken.value += 1
+                // 出货 = 不可逆随机结果已入镜像账本（方案 §2.5），请求关键事件落盘
+                criticalSaveEvents.notify(CriticalSaveKind.GACHA)
             }
 
             is GachaPullResult.Failure -> {

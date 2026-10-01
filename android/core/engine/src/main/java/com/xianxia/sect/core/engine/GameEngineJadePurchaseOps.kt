@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.service.notifyMoneyLedgerChanged
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.nativebridge.ActionIds
@@ -199,8 +200,9 @@ private suspend fun GameEngine.tryNativeJadeBreakthroughBonus(
             put("nowMs", jadeSymbolService.wallClockNowMs())
         }
     ) ?: return null
-    // C++ 权威落账完成 → 清 1Hz 节流刷新 UI（余额读数随镜像更新）
+    // C++ 权威落账完成 → 清 1Hz 节流刷新 UI（余额读数随镜像更新）+ 涉钱事件请求立即落盘
     jadeSymbolService.publishJadeSymbolStateNow()
+    jadeSymbolService.notifyMoneyLedgerChanged()
     DomainLog.i("GameEngine", "purchaseBreakthroughBonus: native applied (jade=${data})")
     return BreakthroughBonusResult.Success
 }
@@ -226,8 +228,9 @@ private fun GameEngine.tryNativeJadeMerchantRefresh(required: Int): MerchantRefr
             put("nowMs", jadeSymbolService.wallClockNowMs())
         }
     ) ?: return null
-    // 同突破率加成臂：落账完成 → 清 1Hz 节流刷新 UI
+    // 同突破率加成臂：落账完成 → 清 1Hz 节流刷新 UI + 涉钱事件请求立即落盘
     jadeSymbolService.publishJadeSymbolStateNow()
+    jadeSymbolService.notifyMoneyLedgerChanged()
     DomainLog.i("GameEngine", "purchaseMerchantRefresh: native applied (jade=${data})")
     return MerchantRefreshResult.Success
 }

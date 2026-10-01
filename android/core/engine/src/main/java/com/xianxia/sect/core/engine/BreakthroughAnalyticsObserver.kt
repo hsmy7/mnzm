@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.state.CriticalSaveEventBus
+import com.xianxia.sect.core.state.CriticalSaveKind
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.util.AnalyticsEvents
 import com.xianxia.sect.core.util.AnalyticsTracker
@@ -26,7 +28,10 @@ object NoopAnalyticsTracker : AnalyticsTracker {
  */
 @Singleton
 class BreakthroughAnalyticsObserver @Inject constructor(
-    private val analyticsTracker: AnalyticsTracker
+    private val analyticsTracker: AnalyticsTracker,
+    // SS6：关键事件自动存档总线——突破（渡劫）成功的 Kotlin 镜像差分消费点经此
+    // 请求落盘；默认值仅供测试直构（无人订阅 = 事件零副作用），生产由 Hilt 注入单例。
+    private val criticalSaveEvents: CriticalSaveEventBus = CriticalSaveEventBus()
 ) {
     private var baseline: Map<Int, Int> = emptyMap()
 
@@ -35,13 +40,15 @@ class BreakthroughAnalyticsObserver @Inject constructor(
         baseline = snapshotOf(tables)
     }
 
-    /** 镜像后对拍增量：新增成功次数逐条上报（属性 = 突破后快照） */
+    /** 镜像后对拍增量：新增成功次数逐条上报（属性 = 突破后快照）；有新增即请求关键事件落盘 */
     fun reportNewBreakthroughs(tables: DiscipleTables) {
+        var hasNewBreakthrough = false
         for (id in tables.ids) {
             val before = baseline[id] ?: 0
             val after = tables.breakthroughCounts.getOrDefault(id, 0)
             val delta = after - before
             if (delta <= 0) continue
+            hasNewBreakthrough = true
             repeat(delta) {
                 analyticsTracker.trackEvent(
                     AnalyticsEvents.BREAKTHROUGH_SUCCESS,
@@ -52,6 +59,10 @@ class BreakthroughAnalyticsObserver @Inject constructor(
                     )
                 )
             }
+        }
+        if (hasNewBreakthrough) {
+            // 突破成功 = 唯一性里程碑已入镜像（方案 §2.5），请求关键事件落盘
+            criticalSaveEvents.notify(CriticalSaveKind.MILESTONE)
         }
         baseline = snapshotOf(tables)
     }

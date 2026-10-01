@@ -32,22 +32,30 @@ class SaveTriggerFlagTest {
     }
 
     @Test
-    fun `no save when flag is off regardless of other preconditions`() {
-        assertFalse(shouldAutoSave(flagOn = false, hasActiveSlot = true, engineLoaded = true))
+    fun `critical event auto-save is on by default per plan 2-5`() {
+        assertTrue(
+            "默认必须为 true（方案 §2.5 关键事件立即落盘；关闭态仅作回滚臂保留）",
+            SaveTriggerFlag.saveOnCriticalEvent
+        )
     }
 
     @Test
-    fun `no save without an active slot`() {
-        assertFalse(shouldAutoSave(flagOn = true, hasActiveSlot = false, engineLoaded = true))
+    fun `no save when flag is off regardless of other preconditions`() {
+        assertFalse(shouldAutoSave(flagOn = false, hasSaveSpace = true, engineLoaded = true))
+    }
+
+    @Test
+    fun `no save without existing save data space`() {
+        assertFalse(shouldAutoSave(flagOn = true, hasSaveSpace = false, engineLoaded = true))
     }
 
     @Test
     fun `no save when engine is not loaded`() {
-        assertFalse(shouldAutoSave(flagOn = true, hasActiveSlot = true, engineLoaded = false))
+        assertFalse(shouldAutoSave(flagOn = true, hasSaveSpace = true, engineLoaded = false))
     }
 
     @Test
     fun `save only when all three preconditions hold`() {
-        assertTrue(shouldAutoSave(flagOn = true, hasActiveSlot = true, engineLoaded = true))
+        assertTrue(shouldAutoSave(flagOn = true, hasSaveSpace = true, engineLoaded = true))
     }
 }

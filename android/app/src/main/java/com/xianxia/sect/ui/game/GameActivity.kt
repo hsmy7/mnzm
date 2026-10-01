@@ -840,7 +840,7 @@ class GameActivity : ComponentActivity() {
         if (!com.xianxia.sect.data.SaveTriggerFlag.saveOnBackground) return
         val enabled = com.xianxia.sect.data.shouldAutoSave(
             flagOn = true,
-            hasActiveSlot = saveLoadViewModel.isGameLoaded,
+            hasSaveSpace = saveLoadViewModel.isGameLoaded,
             engineLoaded = saveLoadViewModel.isGameLoaded
         )
         if (!enabled) {
