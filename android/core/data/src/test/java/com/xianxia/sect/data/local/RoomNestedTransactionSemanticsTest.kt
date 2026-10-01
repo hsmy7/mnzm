@@ -76,11 +76,11 @@ class RoomNestedTransactionSemanticsTest {
     /** 复刻内层调用点形状：`StorageEngineWriteOps.writeAllDataToDatabase:55` 的独立 `withTransaction`。 */
     private suspend fun innerProbeWrite(key: String, payload: String) {
         db.withTransaction {
-            dao.upsert(GameHeavyData(slotId = SLOT, dataKey = key, dataValue = payload.toByteArray()))
+            dao.upsert(GameHeavyData(dataKey = key, dataValue = payload.toByteArray()))
         }
     }
 
-    private fun exists(key: String): Boolean = dao.getByKey(SLOT, key) != null
+    private fun exists(key: String): Boolean = dao.getByKey(key) != null
 
     // ==================== 1. 基线：嵌套成功 ⇒ 双写均提交 ====================
 
@@ -88,7 +88,7 @@ class RoomNestedTransactionSemanticsTest {
     fun `nested transaction merges into outer - success commits both`() {
         kotlinx.coroutines.runBlocking {
             db.withTransaction {
-                dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(1)))
+                dao.upsert(GameHeavyData(dataKey = KEY_OUTER, dataValue = byteArrayOf(1)))
                 println("[txn-probe] outer thread=${Thread.currentThread().name}")
                 innerProbeWrite(KEY_NESTED, "nested")
                 println("[txn-probe] inner thread=${Thread.currentThread().name}")
@@ -107,7 +107,7 @@ class RoomNestedTransactionSemanticsTest {
             try {
                 db.withTransaction {
                     innerProbeWrite(KEY_NESTED, "nested")
-                    dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(2)))
+                    dao.upsert(GameHeavyData(dataKey = KEY_OUTER, dataValue = byteArrayOf(2)))
                     error("outer-fail")
                 }
                 fail("外层异常应穿透")
@@ -126,9 +126,9 @@ class RoomNestedTransactionSemanticsTest {
         kotlinx.coroutines.runBlocking {
             try {
                 db.withTransaction {
-                    dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(3)))
+                    dao.upsert(GameHeavyData(dataKey = KEY_OUTER, dataValue = byteArrayOf(3)))
                     db.withTransaction {
-                        dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_NESTED, dataValue = byteArrayOf(4)))
+                        dao.upsert(GameHeavyData(dataKey = KEY_NESTED, dataValue = byteArrayOf(4)))
                         error("inner-fail")
                     }
                 }
@@ -147,17 +147,17 @@ class RoomNestedTransactionSemanticsTest {
     fun `swallowed nested failure keeps outer writes discards nested writes only`() {
         kotlinx.coroutines.runBlocking {
             db.withTransaction {
-                dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_OUTER, dataValue = byteArrayOf(5)))
+                dao.upsert(GameHeavyData(dataKey = KEY_OUTER, dataValue = byteArrayOf(5)))
                 try {
                     db.withTransaction {
-                        dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_NESTED, dataValue = byteArrayOf(6)))
+                        dao.upsert(GameHeavyData(dataKey = KEY_NESTED, dataValue = byteArrayOf(6)))
                         error("inner-swallowed")
                     }
                 } catch (e: IllegalStateException) {
                     assertEquals("inner-swallowed", e.message)
                     // 有意吞掉：观察 2.7 savepoint 语义
                 }
-                dao.upsert(GameHeavyData(slotId = SLOT, dataKey = KEY_POST, dataValue = byteArrayOf(7)))
+                dao.upsert(GameHeavyData(dataKey = KEY_POST, dataValue = byteArrayOf(7)))
             }
         }
         assertNotNull("外层早于内层的写应保留", exists(KEY_OUTER))

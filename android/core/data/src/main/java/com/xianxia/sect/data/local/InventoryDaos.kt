@@ -17,40 +17,40 @@ import kotlinx.coroutines.flow.Flow
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface PillDao {
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND quantity > 0")
-    fun getAll(slotId: Int): Flow<List<Pill>>
+    @Query("SELECT * FROM pills WHERE quantity > 0")
+    fun getAll(): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Pill>
+    @Query("SELECT * FROM pills ")
+    suspend fun getAllSync(): List<Pill>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Pill?
+    @Query("SELECT * FROM pills WHERE id = :id")
+    suspend fun getById(id: String): Pill?
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY rarity DESC")
-    fun getByCategory(slotId: Int, category: PillCategory): Flow<List<Pill>>
+    @Query("SELECT * FROM pills WHERE category = :category AND quantity > 0 ORDER BY rarity DESC")
+    fun getByCategory(category: PillCategory): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND targetRealm = :realm AND quantity > 0 ORDER BY rarity DESC")
-    fun getByTargetRealm(slotId: Int, realm: Int): Flow<List<Pill>>
+    @Query("SELECT * FROM pills WHERE targetRealm = :realm AND quantity > 0 ORDER BY rarity DESC")
+    fun getByTargetRealm(realm: Int): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+    @Query("SELECT * FROM pills WHERE rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
         "DESC, name ASC")
-    fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Pill>>
+    fun getByMinRarity(minRarity: Int): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Pill>
+    @Query("SELECT * FROM pills WHERE name LIKE '%' || :keyword || '%' AND quantity > 0")
+    suspend fun searchByName(keyword: String): List<Pill>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND breakthroughChance > 0 AND targetRealm = :realm AND " +
+    @Query("SELECT * FROM pills WHERE breakthroughChance > 0 AND targetRealm = :realm AND " +
         "quantity > 0 ORDER BY breakthroughChance DESC")
-    fun getBreakthroughPillsForRealm(slotId: Int, realm: Int): Flow<List<Pill>>
+    fun getBreakthroughPillsForRealm(realm: Int): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND extendLife > 0 AND quantity > 0 ORDER BY extendLife DESC")
-    fun getLifeExtensionPills(slotId: Int): Flow<List<Pill>>
+    @Query("SELECT * FROM pills WHERE extendLife > 0 AND quantity > 0 ORDER BY extendLife DESC")
+    fun getLifeExtensionPills(): Flow<List<Pill>>
 
-    @Query("SELECT * FROM pills WHERE slot_id = :slotId AND revive = 1 AND quantity > 0")
-    fun getRevivePills(slotId: Int): Flow<List<Pill>>
+    @Query("SELECT * FROM pills WHERE revive = 1 AND quantity > 0")
+    fun getRevivePills(): Flow<List<Pill>>
 
-    @Query("SELECT SUM(quantity) FROM pills WHERE slot_id = :slotId AND category = :category")
-    suspend fun getTotalQuantityByCategory(slotId: Int, category: PillCategory): Int
+    @Query("SELECT SUM(quantity) FROM pills WHERE category = :category")
+    suspend fun getTotalQuantityByCategory(category: PillCategory): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(pill: Pill)
@@ -67,23 +67,17 @@ interface PillDao {
     @Update
     suspend fun updateAll(pills: List<Pill>)
 
-    @Query("SELECT id FROM pills WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
-
     @Delete
     suspend fun delete(pill: Pill)
 
-    @Query("DELETE FROM pills WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM pills WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM pills WHERE slot_id = :slotId AND quantity <= 0")
-    suspend fun deleteEmpty(slotId: Int): Int
+    @Query("DELETE FROM pills WHERE quantity <= 0")
+    suspend fun deleteEmpty(): Int
 
-    @Query("DELETE FROM pills WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
-
-    @Query("DELETE FROM pills")
-    suspend fun deleteAllGlobal()
+    @Query("DELETE FROM pills ")
+    suspend fun deleteAll()
 
     @Transaction
     suspend fun updateBatch(pills: List<Pill>) {
@@ -96,31 +90,31 @@ interface PillDao {
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface MaterialDao {
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND quantity > 0")
-    fun getAll(slotId: Int): Flow<List<Material>>
+    @Query("SELECT * FROM materials WHERE quantity > 0")
+    fun getAll(): Flow<List<Material>>
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Material>
+    @Query("SELECT * FROM materials ")
+    suspend fun getAllSync(): List<Material>
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Material?
+    @Query("SELECT * FROM materials WHERE id = :id")
+    suspend fun getById(id: String): Material?
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY " +
+    @Query("SELECT * FROM materials WHERE category = :category AND quantity > 0 ORDER BY " +
         "rarity DESC")
-    fun getByCategory(slotId: Int, category: MaterialCategory): Flow<List<Material>>
+    fun getByCategory(category: MaterialCategory): Flow<List<Material>>
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY " +
+    @Query("SELECT * FROM materials WHERE rarity >= :minRarity AND quantity > 0 ORDER BY " +
         "rarity DESC, name ASC")
-    fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Material>>
+    fun getByMinRarity(minRarity: Int): Flow<List<Material>>
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Material>
+    @Query("SELECT * FROM materials WHERE name LIKE '%' || :keyword || '%' AND quantity > 0")
+    suspend fun searchByName(keyword: String): List<Material>
 
-    @Query("SELECT SUM(quantity) FROM materials WHERE slot_id = :slotId AND category = :category")
-    suspend fun getTotalQuantityByCategory(slotId: Int, category: MaterialCategory): Int
+    @Query("SELECT SUM(quantity) FROM materials WHERE category = :category")
+    suspend fun getTotalQuantityByCategory(category: MaterialCategory): Int
 
-    @Query("SELECT * FROM materials WHERE slot_id = :slotId AND quantity > 0 ORDER BY category, rarity DESC")
-    fun getAllGroupedByCategory(slotId: Int): Flow<List<Material>>
+    @Query("SELECT * FROM materials WHERE quantity > 0 ORDER BY category, rarity DESC")
+    fun getAllGroupedByCategory(): Flow<List<Material>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(material: Material)
@@ -137,20 +131,20 @@ interface MaterialDao {
     @Update
     suspend fun updateAll(materials: List<Material>)
 
-    @Query("SELECT id FROM materials WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    @Query("SELECT id FROM materials ")
+    suspend fun getIdsBySlot(): List<String>
 
     @Delete
     suspend fun delete(material: Material)
 
-    @Query("DELETE FROM materials WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM materials WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM materials WHERE slot_id = :slotId AND quantity <= 0")
-    suspend fun deleteEmpty(slotId: Int): Int
+    @Query("DELETE FROM materials WHERE quantity <= 0")
+    suspend fun deleteEmpty(): Int
 
-    @Query("DELETE FROM materials WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM materials ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM materials")
     suspend fun deleteAllGlobal()
@@ -166,28 +160,28 @@ interface MaterialDao {
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface SeedDao {
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND quantity > 0")
-    fun getAll(slotId: Int): Flow<List<Seed>>
+    @Query("SELECT * FROM seeds WHERE quantity > 0")
+    fun getAll(): Flow<List<Seed>>
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Seed>
+    @Query("SELECT * FROM seeds ")
+    suspend fun getAllSync(): List<Seed>
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Seed?
+    @Query("SELECT * FROM seeds WHERE id = :id")
+    suspend fun getById(id: String): Seed?
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+    @Query("SELECT * FROM seeds WHERE rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
         "DESC, growTime ASC")
-    fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Seed>>
+    fun getByMinRarity(minRarity: Int): Flow<List<Seed>>
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND growTime <= :maxGrowTime AND quantity > 0 ORDER BY " +
+    @Query("SELECT * FROM seeds WHERE growTime <= :maxGrowTime AND quantity > 0 ORDER BY " +
         "growTime ASC")
-    fun getByMaxGrowTime(slotId: Int, maxGrowTime: Int): Flow<List<Seed>>
+    fun getByMaxGrowTime(maxGrowTime: Int): Flow<List<Seed>>
 
-    @Query("SELECT * FROM seeds WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Seed>
+    @Query("SELECT * FROM seeds WHERE name LIKE '%' || :keyword || '%' AND quantity > 0")
+    suspend fun searchByName(keyword: String): List<Seed>
 
-    @Query("SELECT SUM(quantity) FROM seeds WHERE slot_id = :slotId")
-    suspend fun getTotalQuantity(slotId: Int): Int
+    @Query("SELECT SUM(quantity) FROM seeds ")
+    suspend fun getTotalQuantity(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(seed: Seed)
@@ -204,20 +198,20 @@ interface SeedDao {
     @Update
     suspend fun updateAll(seeds: List<Seed>)
 
-    @Query("SELECT id FROM seeds WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    @Query("SELECT id FROM seeds ")
+    suspend fun getIdsBySlot(): List<String>
 
     @Delete
     suspend fun delete(seed: Seed)
 
-    @Query("DELETE FROM seeds WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM seeds WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM seeds WHERE slot_id = :slotId AND quantity <= 0")
-    suspend fun deleteEmpty(slotId: Int): Int
+    @Query("DELETE FROM seeds WHERE quantity <= 0")
+    suspend fun deleteEmpty(): Int
 
-    @Query("DELETE FROM seeds WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM seeds ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM seeds")
     suspend fun deleteAllGlobal()
@@ -233,27 +227,27 @@ interface SeedDao {
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface HerbDao {
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND quantity > 0")
-    fun getAll(slotId: Int): Flow<List<Herb>>
+    @Query("SELECT * FROM herbs WHERE quantity > 0")
+    fun getAll(): Flow<List<Herb>>
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Herb>
+    @Query("SELECT * FROM herbs ")
+    suspend fun getAllSync(): List<Herb>
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Herb?
+    @Query("SELECT * FROM herbs WHERE id = :id")
+    suspend fun getById(id: String): Herb?
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND category = :category AND quantity > 0 ORDER BY rarity DESC")
-    fun getByCategory(slotId: Int, category: String): Flow<List<Herb>>
+    @Query("SELECT * FROM herbs WHERE category = :category AND quantity > 0 ORDER BY rarity DESC")
+    fun getByCategory(category: String): Flow<List<Herb>>
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
+    @Query("SELECT * FROM herbs WHERE rarity >= :minRarity AND quantity > 0 ORDER BY rarity " +
         "DESC, name ASC")
-    fun getByMinRarity(slotId: Int, minRarity: Int): Flow<List<Herb>>
+    fun getByMinRarity(minRarity: Int): Flow<List<Herb>>
 
-    @Query("SELECT * FROM herbs WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%' AND quantity > 0")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Herb>
+    @Query("SELECT * FROM herbs WHERE name LIKE '%' || :keyword || '%' AND quantity > 0")
+    suspend fun searchByName(keyword: String): List<Herb>
 
-    @Query("SELECT SUM(quantity) FROM herbs WHERE slot_id = :slotId AND category = :category")
-    suspend fun getTotalQuantityByCategory(slotId: Int, category: String): Int
+    @Query("SELECT SUM(quantity) FROM herbs WHERE category = :category")
+    suspend fun getTotalQuantityByCategory(category: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(herb: Herb)
@@ -270,20 +264,20 @@ interface HerbDao {
     @Update
     suspend fun updateAll(herbs: List<Herb>)
 
-    @Query("SELECT id FROM herbs WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    @Query("SELECT id FROM herbs ")
+    suspend fun getIdsBySlot(): List<String>
 
     @Delete
     suspend fun delete(herb: Herb)
 
-    @Query("DELETE FROM herbs WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM herbs WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM herbs WHERE slot_id = :slotId AND quantity <= 0")
-    suspend fun deleteEmpty(slotId: Int): Int
+    @Query("DELETE FROM herbs WHERE quantity <= 0")
+    suspend fun deleteEmpty(): Int
 
-    @Query("DELETE FROM herbs WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM herbs ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM herbs")
     suspend fun deleteAllGlobal()
@@ -296,11 +290,11 @@ interface HerbDao {
 
 @Dao
 interface StorageBagDao {
-    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId AND quantity > 0")
-    suspend fun getAll(slotId: Int): List<StorageBag>
+    @Query("SELECT * FROM storage_bags WHERE quantity > 0")
+    suspend fun getAll(): List<StorageBag>
 
-    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): StorageBag?
+    @Query("SELECT * FROM storage_bags WHERE id = :id")
+    suspend fun getById(id: String): StorageBag?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(storageBag: StorageBag)
@@ -311,9 +305,9 @@ interface StorageBagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(storageBags: List<StorageBag>)
 
-    @Query("SELECT * FROM storage_bags WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<StorageBag>
+    @Query("SELECT * FROM storage_bags ")
+    suspend fun getAllSync(): List<StorageBag>
 
-    @Query("DELETE FROM storage_bags WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM storage_bags ")
+    suspend fun deleteAll()
 }

@@ -25,7 +25,6 @@ class AlchemySystemTest {
     fun alchemySlot_defaultConstruction() {
         val slot = AlchemySlot()
         assertNotNull(slot.id)
-        assertEquals(0, slot.slotId)
         assertEquals(0, slot.slotIndex)
         assertNull(slot.recipeId)
         assertEquals("", slot.recipeName)
@@ -186,7 +185,6 @@ class AlchemySystemTest {
     fun forgeSlot_defaultConstruction() {
         val slot = ForgeSlot()
         assertNotNull(slot.id)
-        assertEquals(0, slot.slotId)
         assertEquals(0, slot.slotIndex)
         assertNull(slot.recipeId)
         assertEquals("", slot.recipeName)

@@ -90,21 +90,21 @@ internal fun SaveLoadViewModel.releaseRestartLocks() {
  * @return true = 预存成功（可安全重置引擎）；false = 预存失败（**必须中止重置**：
  * 旧档此时仅存在于盘上，继续重置将以重置态覆写唯一副本；已如实提示）
  */
-internal suspend fun SaveLoadViewModel.protectivePreSaveBeforeRestart(slot: Int, previousSlot: Int): Boolean {
-    setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
+internal suspend fun SaveLoadViewModel.protectivePreSaveBeforeRestart(): Boolean {
+    setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
     val success = try {
-        performRestartSave(slot = slot, previousSlot = previousSlot)
+        performRestartSave()
     } finally {
         setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
     }
     if (!success) {
         Log.e(
             SaveLoadViewModelConstants.TAG,
-            "=== restartGame ABORTED === protective pre-save failed (slot=$slot), old save preserved"
+            "=== restartGame ABORTED === protective pre-save failed, old save preserved"
         )
         showError("重置中止：预存当前进度失败，原存档已保留，请重试")
     } else {
-        Log.i(SaveLoadViewModelConstants.TAG, "restartGame: protective pre-save OK (slot=$slot)")
+        Log.i(SaveLoadViewModelConstants.TAG, "restartGame: protective pre-save OK")
     }
     return success
 }
@@ -114,9 +114,7 @@ internal suspend fun SaveLoadViewModel.protectivePreSaveBeforeRestart(slot: Int,
  * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {
-    var previousSlot = 1
-    try {
+internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {    try {
         isRestartingFlow.value = true
 
         if (!stopLoopForRestart(wasRunning = wasRunning)) {
@@ -127,50 +125,45 @@ internal suspend fun SaveLoadViewModel.performRestartGame(wasRunning: Boolean) {
 
         val currentData = gameEngine.gameData.value
         val sectName = currentData.sectName.ifBlank { "QingYunSect" }
-        val currentSlot = currentData.currentSlot.let { if (it >= 0) it else 1 }
-        previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
 
         Log.i(SaveLoadViewModelConstants.TAG,
-            "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
+            "=== restartGame BEGIN === sectName=$sectName")
 
-        persistenceFacade.storageFacade.setCurrentSlot(currentSlot)
 
         // SR-2 修复（审计 §2 重开顺序缺陷，先预存 → 后重置 → 再落新档）：
         // 旧实现先 restartEngineAndReseed（内存态被引擎重置覆盖）后落新档——若重置后
         // 落盘前被杀/失败，旧档被重置态覆写。保护性预存复用 performRestartSave 全链
         //（快照/邮件/落盘/超时/损坏自愈/槽位回滚）；预存失败 = 中止重置：此时引擎
         // 未动、旧档仍在盘上，如实提示后玩家可直接重试。
-        if (!protectivePreSaveBeforeRestart(slot = currentSlot, previousSlot = previousSlot)) return
+        if (!protectivePreSaveBeforeRestart()) return
 
-        restartEngineAndReseed(sectName = sectName, currentSlot = currentSlot)
+        restartEngineAndReseed(sectName = sectName)
 
-        setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
+        setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
 
-        val saveSuccess = performRestartSave(slot = currentSlot, previousSlot = previousSlot)
+        val saveSuccess = performRestartSave()
 
         setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
 
         if (saveSuccess) {
-            Log.i(SaveLoadViewModelConstants.TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
+            Log.i(SaveLoadViewModelConstants.TAG, "=== restartGame SAVE SUCCESS ===")
             restartVersionFlow.value++
             showSuccess("游戏已重置")
         } else {
-            Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame SAVE FAILED === slot=$currentSlot")
+            Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame SAVE FAILED ===")
             showError("游戏已重置，但保存失败，请手动保存")
         }
 
-        performRestartBoot(currentSlot = currentSlot)
+        performRestartBoot()
     } catch (e: CancellationException) {
         Log.w(SaveLoadViewModelConstants.TAG, "restartGame cancelled")
         throw e
     } catch (e: OutOfMemoryError) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame FAILED === OutOfMemoryError", e)
-        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
         showError("内存不足，重置失败。请关闭其他应用后重试。")
         setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
     } catch (e: Exception) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== restartGame FAILED === error=${e.message}", e)
-        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
         showError(e.message ?: "重置游戏失败")
         setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
     } finally {
@@ -194,12 +187,12 @@ internal suspend fun SaveLoadViewModel.stopLoopForRestart(wasRunning: Boolean): 
 }
 
 /**引擎重置 + RNG 重新播种 */
-internal suspend fun SaveLoadViewModel.restartEngineAndReseed(sectName: String, currentSlot: Int) {
+internal suspend fun SaveLoadViewModel.restartEngineAndReseed(sectName: String) {
     // initSystemSeed 与 AISectDiscipleManager.initForSlot 由
     // restartGameSuspend 在引擎上下文内执行（播种在引擎线程、生成世界前
     // 完成），此处不得在 UI 协程重复执行——重复播种属全局 RNG 分区的
     // 跨线程竞争点
-    gameEngine.restartGameSuspend(sectName, currentSlot)
+    gameEngine.restartGameSuspend(sectName)
     Log.d(
         SaveLoadViewModelConstants.TAG,
         "restartGame: engine restarted, RNG seeded on engine thread " +
@@ -208,10 +201,9 @@ internal suspend fun SaveLoadViewModel.restartEngineAndReseed(sectName: String, 
 }
 
 /**重启后启动序列：BootSequenceController.boot + 福利注入 */
-internal suspend fun SaveLoadViewModel.performRestartBoot(currentSlot: Int): Boolean {
+internal suspend fun SaveLoadViewModel.performRestartBoot(): Boolean {
     // BootSequenceController 统一处理生命周期、游戏循环重启、地图生成
     val bootResult = persistenceFacade.bootSequenceController.boot(
-        slot = currentSlot,
         onPreloadResources = { preloadGameResources() },
         onProgress = { progress ->
             loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START + progress * (
@@ -249,14 +241,13 @@ internal suspend fun SaveLoadViewModel.resetRestartState(wasRunning: Boolean) {
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.performRestartSave(slot: Int, previousSlot: Int): Boolean {
+internal suspend fun SaveLoadViewModel.performRestartSave(): Boolean {
     return withContext(ioDispatcher.dispatcher) {
         try {
             val snapshot = gameEngine.buildSaveSnapshot()
             if (snapshot.gameData.sectName.isBlank()) {
                 Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave: gameData not initialized")
-                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                return@withContext false
+                        return@withContext false
             }
 
             Log.d(SaveLoadViewModelConstants.TAG,
@@ -265,19 +256,17 @@ internal suspend fun SaveLoadViewModel.performRestartSave(slot: Int, previousSlo
                 "disciples=${snapshot.disciples.size}")
 
             // SR-1：重启预存从 mails 表读当前 slot 全量入快照
-            // （读失败经外层 catch 如实报失败并回滚 currentSlot）
-            val slotMails = readSlotMails(slot)
+            // （读失败经外层 catch 如实报失败）
+            val slotMails = readMails()
             val saveData = buildRestartSaveData(snapshot = snapshot, mails = slotMails)
-            persistRestartSave(slot = slot, previousSlot = previousSlot, saveData = saveData)
+            persistRestartSave(saveData = saveData)
         } catch (e: OutOfMemoryError) {
-            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave OutOfMemoryError for slot $slot", e)
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            false
+            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave OutOfMemoryError", e)
+                false
         } catch (e: CancellationException) { throw e }
           catch (e: Exception) {
-            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave error for slot $slot", e)
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            false
+            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave error", e)
+                false
         }
     }
 }
@@ -310,9 +299,9 @@ internal fun SaveLoadViewModel.buildRestartSaveData(
 
 /**重启存档落盘：超时保护 + 结果分派 + 损坏自愈 */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.persistRestartSave(slot: Int, previousSlot: Int, saveData: SaveData): Boolean {
+internal suspend fun SaveLoadViewModel.persistRestartSave(saveData: SaveData): Boolean {
     val success = withTimeoutOrNull(30_000L) {
-        persistenceFacade.storageFacade.save(slot, saveData).isSuccess
+        persistenceFacade.storageFacade.save(saveData).isSuccess
     }
 
     return when (success) {
@@ -323,27 +312,25 @@ internal suspend fun SaveLoadViewModel.persistRestartSave(slot: Int, previousSlo
               catch (e: Exception) {
                 Log.e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after restart save: ${e.message}", e)
             }
-            Log.i(SaveLoadViewModelConstants.TAG, "performRestartSave success for slot $slot")
+            Log.i(SaveLoadViewModelConstants.TAG, "performRestartSave success")
             true
         }
         null -> {
-            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave timeout for slot $slot")
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            if (persistenceFacade.storageFacade.isSaveCorruptedSuspend(slot)) {
+            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave timeout")
+                if (persistenceFacade.storageFacade.isSaveCorruptedSuspend()) {
                 // 真恢复（读 .sav/.bak → 写回 DB）；旧实现是空函数，日志谎报"已尝试恢复"
-                val restored = persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
+                val restored = persistenceFacade.storageFacade.restoreFromBackupIfCorrupted()
                 Log.w(
                     SaveLoadViewModelConstants.TAG,
                     "Save may be corrupted, backup restore " +
-                        "${if (restored) "succeeded" else "failed"} for slot $slot"
+                        "${if (restored) "succeeded" else "failed"}"
                 )
             }
             false
         }
         false -> {
-            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave failed for slot $slot")
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            false
+            Log.e(SaveLoadViewModelConstants.TAG, "performRestartSave failed")
+                false
         }
     }
 }

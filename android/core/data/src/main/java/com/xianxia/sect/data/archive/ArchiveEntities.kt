@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.BattleType
 @Entity(
     tableName = "archived_battle_logs",
     indices = [
-        Index(value = ["slot_id", "timestamp"]),
         Index(value = ["archived_at"])
     ]
 )
@@ -18,9 +17,6 @@ data class ArchivedBattleLog(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "id")
     val id: Long = 0,
-
-    @ColumnInfo(name = "slot_id")
-    val slotId: Int = 0,
 
     @ColumnInfo(name = "original_id")
     val originalId: String = "",
@@ -50,7 +46,6 @@ data class ArchivedBattleLog(
 @Entity(
     tableName = "archived_disciples",
     indices = [
-        Index(value = ["slot_id", "archived_at"]),
         Index(value = ["archived_at"])
     ]
 )
@@ -58,9 +53,6 @@ data class ArchivedDisciple(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "id")
     val id: Long = 0,
-
-    @ColumnInfo(name = "slot_id")
-    val slotId: Int = 0,
 
     @ColumnInfo(name = "original_id")
     val originalId: String = "",

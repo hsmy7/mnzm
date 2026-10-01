@@ -62,7 +62,7 @@ internal fun DiscipleTables.writeBasicFields(id: Int, disciple: Disciple) {
     genders[id] = disciple.gender; portraitRes[id] = disciple.portraitRes
     templateIds[id] = disciple.templateId
     discipleTypes[id] = disciple.discipleType
-    spiritRootTypes[id] = disciple.spiritRootType; slotIds[id] = disciple.slotId
+    spiritRootTypes[id] = disciple.spiritRootType
 
     // 境界与修为
     realms[id] = disciple.realm; realmLayers[id] = disciple.realmLayer

@@ -16,6 +16,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.data.cloud.UploadQueue
 import com.xianxia.sect.taptap.TapCloudSaveManager
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.core.engine.di.IoDispatcher
@@ -313,7 +314,7 @@ class SaveLoadViewModel @Inject constructor(
         get() = persistenceFacade.bootSequenceController.bootInProgress
 
     @Suppress("ReturnCount") // 并发守卫多入口（boot/云锁/重启/加载/保存/内存），多 return 为守卫风格
-    fun startNewGame(sectName: String, slot: Int = 1) {
+    fun startNewGame(sectName: String) {
         // 统一 boot 守卫 + 云锁/重启/加载/保存互斥检查
         if (isBootOperationBlocked()) return
         if (cloudDownloadLock.get()) {
@@ -346,7 +347,7 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName, slot=$slot")
+        Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName")
         val startTime = System.currentTimeMillis()
 
         // job 身份由 perform* 内部 coroutineContext[Job] 自取，不经 lateinit
@@ -355,17 +356,31 @@ class SaveLoadViewModel @Inject constructor(
         //（Dispatchers.IO 是 LimitedDispatcher）
         val job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // 新游戏主流程
-            performStartNewGame(sectName, slot, startTime)
+            performStartNewGame(sectName, startTime)
         }
         gameEngineCore.registerActiveLoadJob(job)
     }
 
     @Suppress("TooGenericExceptionCaught", "ReturnCount") // 云下载自包含入口多守卫（boot/重启/保存/云锁/加载），多 return 为守卫风格
-    fun loadGameFromSlot(slot: Int, fromCloudLoad: Boolean = false) {
+    /** 本地读档入口（单档）。云下载走 [downloadCloudSlotToLoad]。 */
+    fun loadGameFromLocalSlot() {
+        // boot 进行中禁止读档
+        if (isBootOperationBlocked()) return
+        // 从已缓存的存档元数据中查找本地存档行，兜底构造最小 SaveSlot
+        val saveSlot = saveSlotsFlow.value.firstOrNull { it.slot != StorageConstants.CLOUD_SAVE_SLOT }
+            ?: SaveSlot(1, "", 0L, 1, 1, "", 0, 0L)
+        loadGameInternal(saveSlot, fromCloudLoad = false)
+    }
+
+    /** 云下载自包含入口（带 saveLoadState 管理 + 结果反馈）。 */
+    // 守卫族多早退（ReturnCount）；CE 显式重抛（RethrowCaughtException）；
+    // 下载链异常源跨 IO/SDK 不可枚举（TooGenericExceptionCaught）
+    @Suppress("ReturnCount", "RethrowCaughtException", "TooGenericExceptionCaught")
+    fun downloadCloudSlotToLoad() {
         // boot 进行中禁止任何读档/云下载入口
         if (isBootOperationBlocked()) return
-        // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
-        if (slot == 0) {
+        // 云下载分支（带 saveLoadState 管理 + 结果反馈）
+        run {
             // 云会话下载自包含入口：直接执行 performCloudDownload，不经过
             // downloadFromCloudSave 入口——协程开头即置位 isLoading，
             // SaveSlotDialog 立即显示"读取中..."转圈，覆盖下载全程反馈。
@@ -419,10 +434,6 @@ class SaveLoadViewModel @Inject constructor(
             }
             return
         }
-        // 从已缓存的存档元数据中查找 SaveSlot，兜底构造最小 SaveSlot
-        val saveSlot = saveSlotsFlow.value.find { it.slot == slot }
-            ?: SaveSlot(slot, "", 0L, 1, 1, "", 0, 0L)
-        loadGameInternal(saveSlot, fromCloudLoad)
     }
 
     /**

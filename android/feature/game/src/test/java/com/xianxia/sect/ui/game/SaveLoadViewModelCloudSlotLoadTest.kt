@@ -124,10 +124,10 @@ class SaveLoadViewModelCloudSlotLoadTest {
         every { persistenceFacade.sessionManager } returns sessionManager
         every { persistenceFacade.bootSequenceController } returns bootSequenceController
         every { bootSequenceController.bootInProgress } returns MutableStateFlow(false)
-        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } returns
+        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any()) } returns
             Result.success(Unit)
         every { sessionManager.isLoggedIn } returns true
-        coEvery { storageFacade.load(any()) } returns
+        coEvery { storageFacade.load() } returns
             SaveResult.failure(SaveError.SLOT_EMPTY, "no current save")
         coEvery { storageFacade.getSaveSlotsSuspend() } returns listOf(
             com.xianxia.sect.data.model.SaveSlot(
@@ -180,7 +180,7 @@ class SaveLoadViewModelCloudSlotLoadTest {
         payload: CloudSavePayload
     ) {
         coEvery { saveBackend.download(slot) } returns SaveBackendResult.Success(payload)
-        coEvery { storageFacade.save(slot, any()) } returns SaveResult.success(Unit)
+        coEvery { storageFacade.save(any()) } returns SaveResult.success(Unit)
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -195,14 +195,14 @@ class SaveLoadViewModelCloudSlotLoadTest {
         advanceUntilIdle()
 
         // 落缓存（审计 §3/§12-I 修复面核心断言）：下载的数据写入本地缓存槽 2
-        coVerify { storageFacade.save(2, any()) }
+        coVerify { storageFacade.save(any()) }
         // 账本基线收敛：W=7 已知 → adoptCloudState（非 recordLocalSave——下载不是新保存）
         verify { uploadLedger.adoptCloudState(2, 7L) }
         verify(exactly = 0) { uploadLedger.recordLocalSave(2) }
         // 既有 boot 链照走
         coVerify { gameEngineCore.stopGameLoopAndWait(any()) }
         coVerify {
-            bootSequenceController.boot(slot = 2, any(), any(), any(), any(), any(), any())
+            bootSequenceController.boot(any(), any(), any(), any(), any(), any())
         }
         assertEquals(
             CloudSaveOperationState.Success::class,
@@ -218,7 +218,7 @@ class SaveLoadViewModelCloudSlotLoadTest {
         viewModel.loadCloudSlot(3)
         advanceUntilIdle()
 
-        coVerify { storageFacade.save(3, any()) }
+        coVerify { storageFacade.save(any()) }
         verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
     }
 
@@ -234,7 +234,7 @@ class SaveLoadViewModelCloudSlotLoadTest {
         viewModel.loadCloudSlot(1)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
         verify(exactly = 0) { uploadLedger.adoptCloudState(any(), any()) }
         assertEquals(
             CloudSaveOperationState.Error::class,
@@ -257,8 +257,8 @@ class SaveLoadViewModelCloudSlotLoadTest {
         advanceUntilIdle()
 
         // 禁止静默覆盖：冲突时不写缓存、不 boot、不置 Error（等玩家二选一）
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
-        coVerify(exactly = 0) { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
+        coVerify(exactly = 0) { bootSequenceController.boot(any(), any(), any(), any(), any(), any()) }
         assertEquals(
             CloudSaveOperationState.Idle,
             viewModel.cloudSaveOperationState.value
@@ -277,7 +277,7 @@ class SaveLoadViewModelCloudSlotLoadTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { saveBackend.download(any()) }
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { storageFacade.save(any()) }
         assertEquals(
             CloudSaveOperationState.Error::class,
             viewModel.cloudSaveOperationState.value::class
@@ -293,13 +293,13 @@ class SaveLoadViewModelCloudSlotLoadTest {
         coEvery { saveBackend.download(5) } returns SaveBackendResult.Success(
             CloudSavePayload(cloudSaveData(), saveId = 9, verdict = ArbitrationVerdict.LOCAL_BEHIND)
         )
-        coEvery { storageFacade.save(5, any()) } returns
+        coEvery { storageFacade.save(any()) } returns
             SaveResult.failure(SaveError.SAVE_FAILED, "disk io error")
 
         viewModel.loadCloudSlot(5)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { bootSequenceController.boot(any(), any(), any(), any(), any(), any()) }
         assertEquals(
             CloudSaveOperationState.Error::class,
             viewModel.cloudSaveOperationState.value::class
@@ -324,7 +324,7 @@ class SaveLoadViewModelCloudSlotLoadTest {
         viewModel.loadCloudSlot(6)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) { storageFacade.save(any()) }
         assertNotEquals(
             CloudSaveOperationState.Error::class,
             viewModel.cloudSaveOperationState.value::class

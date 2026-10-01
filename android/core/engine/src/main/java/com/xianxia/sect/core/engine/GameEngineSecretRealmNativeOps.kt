@@ -138,9 +138,7 @@ internal suspend fun GameEngine.rejectIfSecretRealmExpired(): DomainResult<Unit>
                     SecretRealmBackpack()
                 }
         } ?: SecretRealmBackpack()
-        secretRealmService.applyExpiryCloseDraft(
-            slotId = stateStore.gameDataSnapshot.currentSlot,
-            backpack = backpack,
+        secretRealmService.applyExpiryCloseDraft(            backpack = backpack,
             memberIds = native.stringSet("memberIds")
         )
         return DomainResult.Failure(AppError.Domain.GameState.NotFound("远古秘境已关闭"))
@@ -177,9 +175,7 @@ internal suspend fun GameEngine.continueSecretRealmNative(): Boolean? {
                     DomainLog.w("GameEngine", "秘境读档关闭草稿背包解析失败，按空背包处理: ${it.message}")
                     SecretRealmBackpack()
                 }
-                secretRealmService.applyExpiryCloseDraft(
-                    slotId = stateStore.gameDataSnapshot.currentSlot,
-                    backpack = backpack,
+                secretRealmService.applyExpiryCloseDraft(                    backpack = backpack,
                     memberIds = releasedIds
                 )
             } else {

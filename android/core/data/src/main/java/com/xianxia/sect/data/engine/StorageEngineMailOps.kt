@@ -17,9 +17,9 @@ private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
  * `withTransaction` 之内（IN1 原子性），且不得依赖吞内层异常做部分提交
  * （SR-0 §5 Room 2.7.0 savepoint 语义警示）。
  */
-internal suspend fun StorageEngine.writeMails(slot: Int, data: SaveData) {
+internal suspend fun StorageEngine.writeMails(data: SaveData) {
     data.mails.chunked(MAX_BATCH_SIZE).forEach { batch ->
-        core.database.mailDao().insertAll(batch.map { it.copy(slotId = slot) })
+        core.database.mailDao().insertAll(batch)
     }
 }
 
@@ -27,8 +27,8 @@ internal suspend fun StorageEngine.writeMails(slot: Int, data: SaveData) {
  * 槽位全量邮件快照读取（SR-1 保存面注入用）：保存编排从表读当前 slot 全量入 SaveData。
  * 如实返回表内现状，不做任何过期清理（30 天删除逻辑归 SR-5）。
  */
-internal suspend fun StorageEngine.getMailsForSlot(slot: Int): List<MailEntity> =
-    core.database.mailDao().getAllForSlotSync(slot)
+internal suspend fun StorageEngine.getMails(): List<MailEntity> =
+    core.database.mailDao().getAllSync()
 
 /**
  * 槽位邮件整对象替换（SR-1 云恢复面用）：下载快照的邮件单表回填（先删后写，单事务）。
@@ -37,11 +37,11 @@ internal suspend fun StorageEngine.getMailsForSlot(slot: Int): List<MailEntity> 
  * 内层异常直接上抛（Room 2.7.0 吞内层异常 = 仅回滚内层写，不得依赖其做部分提交，
  * SR-0 §5 警示）。
  */
-internal suspend fun StorageEngine.replaceMailsForSlot(slot: Int, mails: List<MailEntity>) {
+internal suspend fun StorageEngine.replaceMails(mails: List<MailEntity>) {
     core.database.withTransaction {
-        core.database.mailDao().deleteAllForSlot(slot)
+        core.database.mailDao().deleteAll()
         mails.chunked(MAX_BATCH_SIZE).forEach { batch ->
-            core.database.mailDao().insertAll(batch.map { it.copy(slotId = slot) })
+            core.database.mailDao().insertAll(batch)
         }
     }
 }

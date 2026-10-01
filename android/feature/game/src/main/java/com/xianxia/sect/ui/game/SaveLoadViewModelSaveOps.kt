@@ -20,8 +20,8 @@ internal fun SaveLoadViewModel.isCloudSaveAvailable(): Boolean = persistenceFaca
  * 全量，注入 SaveData.mails（整对象替换语义——漏注入 = 空表抹邮件，故每个
  * SaveData 构造点必须经此读取）。失败异常上抛，不做静默空表降级。
  */
-internal suspend fun SaveLoadViewModel.readSlotMails(slot: Int): List<com.xianxia.sect.core.model.MailEntity> =
-    persistenceFacade.storageFacade.getMailsForSlot(slot)
+internal suspend fun SaveLoadViewModel.readMails(): List<com.xianxia.sect.core.model.MailEntity> =
+    persistenceFacade.storageFacade.getMails()
 
 /**
  * 后台保存触发入口（审计 §16 #6 方案 A：`onStop` 触发一次保存）。
@@ -36,17 +36,8 @@ internal suspend fun SaveLoadViewModel.readSlotMails(slot: Int): List<com.xianxi
 fun SaveLoadViewModel.saveOnBackground() = requestAutoSave(com.xianxia.sect.ui.game.saveload.AutoSaveTrigger.BACKGROUND)
 
 internal fun SaveLoadViewModel.saveGame(
-    slotId: String? = null,
     feedback: SaveFeedback = SaveFeedback.Manual
 ) {
-    val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
-
-    // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
-    if (slot == 0) {
-        saveToCloudViaSlot()
-        return
-    }
-
     // SR-4：手动保存已覆盖待触发自动窗的同一状态——窗内再存一次纯属重复（合并语义）
     if (feedback == SaveFeedback.Manual) saveOrchestrator.invalidate()
 
@@ -66,18 +57,17 @@ internal fun SaveLoadViewModel.saveGame(
     // 第二次点击可穿过守卫注册并取消第一次保存；协程内
     // setSaveLoadState(isSaving=true) 为幂等重设
     stateStore.setSavingDirect(true)
-    pendingSlotFlow.value = slot
+    pendingSlotFlow.value = 1
     pendingActionFlow.value = "save"
 
-    Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId, feedback=$feedback")
+    Log.i(SaveLoadViewModelConstants.TAG, "=== saveGame BEGIN === feedback=$feedback")
     val startTime = System.currentTimeMillis()
 
     // job 身份由 perform* 内部 coroutineContext[Job] 自取，
     // 不经 lateinit 捕获（避免 IO worker 抢跑读未赋值 lateinit）
     val job = viewModelScope.launch(ioDispatcher.dispatcher) {
         // 本地保存流程
-        val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-        performLocalSaveToSlot(slot, previousSlot, startTime, feedback)
+        performLocalSave(startTime, feedback)
     }
     gameEngineCore.registerActiveLoadJob(job) // 保存协程注册，看门狗可取消复位
 }
@@ -206,13 +196,11 @@ internal fun SaveLoadViewModel.checkSaveMutexGuards(): LocalSaveGuard? {
  */
 // [已合并 ThrowsCount 理由: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标] // 防御兜底: 取消异常已前置分支处理, 泛型段为刻意终局兜底
 @Suppress("ThrowsCount", "TooGenericExceptionCaught")
-internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
-    slot: Int,
-    previousSlot: Int,
+internal suspend fun SaveLoadViewModel.performLocalSave(
     startTime: Long,
     feedback: SaveFeedback = SaveFeedback.Manual
 ) {
-    setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
+    setSaveLoadState(isSaving = true, pendingSlot = 1, pendingAction = "save")
 
     try {
         if (!waitForSaveLock(timeoutMs = 5000)) {
@@ -223,31 +211,23 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
             return
         }
 
-        val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-        persistenceFacade.storageFacade.setCurrentSlot(slot)
-
         try {
             performSaveOperation(
-                slot = slot,
-                previousSlot = previousSlot,
                 startTime = startTime,
                 feedback = feedback
             )
         } catch (e: OutOfMemoryError) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === OutOfMemoryError", e)
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            reportSaveFailure(feedback, "内存不足，保存失败。请关闭其他应用后重试。")
+                        reportSaveFailure(feedback, "内存不足，保存失败。请关闭其他应用后重试。")
             try { saveSlotsFlow.value = persistenceFacade.storageFacade
                 .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
                     .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after OOM", e2) }
         } catch (e: CancellationException) {
             Log.w(SaveLoadViewModelConstants.TAG, "saveGame cancelled")
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            throw e
+                        throw e
         } catch (e: Exception) {
             Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === error=${e.message}", e)
-            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-            reportSaveFailure(feedback, "保存失败: ${e.message}")
+                        reportSaveFailure(feedback, "保存失败: ${e.message}")
             try { saveSlotsFlow.value = persistenceFacade.storageFacade
                 .getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log
                     .e(SaveLoadViewModelConstants.TAG, "Failed to refresh slots after save failure", e2) }
@@ -264,8 +244,6 @@ internal suspend fun SaveLoadViewModel.performLocalSaveToSlot(
 /**本地保存核心：快照 → 校验 → 落盘 → 结果反馈 */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 internal suspend fun SaveLoadViewModel.performSaveOperation(
-    slot: Int,
-    previousSlot: Int,
     startTime: Long,
     feedback: SaveFeedback = SaveFeedback.Manual
 ) {
@@ -277,18 +255,15 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
         "disciples=${snapshot.disciples.size}, equipment=${snapshot.equipmentInstances.size}")
     if (snapshot.gameData.sectName.isBlank()) {
         Log.e(SaveLoadViewModelConstants.TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
-        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-        reportSaveFailure(feedback, "游戏数据未初始化")
+                reportSaveFailure(feedback, "游戏数据未初始化")
         return
     }
-    val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-    // SR-1：从 mails 表读当前 slot 全量入快照（目标 slot 的表 = 整对象替换回写同表，
-    // 常规保存无损；读失败上抛中止保存——空表降级 = 抹邮件）
-    val slotMails = readSlotMails(slot)
-    val saveData = trimSaveData(snapshot, slotMails).copy(gameData = updatedGameData)
+    // SR-1：从 mails 表读全量入快照（读失败上抛中止保存——空表降级 = 抹邮件）
+    val slotMails = readMails()
+    val saveData = trimSaveData(snapshot, slotMails)
 
     val saveResult = withTimeoutOrNull(30_000L) {
-        persistenceFacade.storageFacade.save(slot, saveData)
+        persistenceFacade.storageFacade.save(saveData)
     }
 
     if (saveResult != null && saveResult.isSuccess) {
@@ -304,7 +279,7 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
 
         // SR-2：本地保存成功后投递云上传队列（D3 第二步）。LEGACY（默认）在
         // shouldEnqueueCloudUpload 短路——零新增行为（硬红线，守卫测试锚定）
-        maybeEnqueueCloudUploadAfterLocalSave(slot, saveData)
+        maybeEnqueueCloudUploadAfterLocalSave(saveData)
 
         // SR-4：onStop 口径在入队后追加一次排空尝试（D3 第二步"尽力完成"，进程可能随时被杀）
         if (feedback == SaveFeedback.Silent) requestCloudUploadDrain()
@@ -316,8 +291,7 @@ internal suspend fun SaveLoadViewModel.performSaveOperation(
             "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
             "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
     } else {
-        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-        val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
+                val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
         reportSaveFailure(feedback, errorMsg)
         Log.e(
             SaveLoadViewModelConstants.TAG,

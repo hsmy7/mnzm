@@ -14,8 +14,8 @@ interface ArchivedBattleLogDao {
     @Query("DELETE FROM archived_battle_logs WHERE archived_at < :threshold")
     suspend fun deleteArchivedBefore(threshold: Long): Int
 
-    @Query("DELETE FROM archived_battle_logs WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
+    @Query("DELETE FROM archived_battle_logs ")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -27,6 +27,6 @@ interface ArchivedDiscipleDao {
     @Query("DELETE FROM archived_disciples WHERE archived_at < :threshold")
     suspend fun deleteArchivedBefore(threshold: Long): Int
 
-    @Query("DELETE FROM archived_disciples WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
+    @Query("DELETE FROM archived_disciples ")
+    suspend fun deleteAll()
 }

@@ -110,12 +110,11 @@ internal class InMemoryProductionSlotDataPort : com.xianxia.sect.core.repository
         slots.removeAll { it.id == id }
     }
 
-    override suspend fun deleteBySlot(slotId: Int) {
+    override suspend fun deleteAll() {
         slots.clear()
     }
 
-    override suspend fun deleteBySlotAndBuildingType(
-        slotId: Int,
+    override suspend fun deleteByBuildingType(
         buildingType: com.xianxia.sect.core.model.production.BuildingType
     ) {
         slots.removeAll { it.buildingType == buildingType }

@@ -17,13 +17,6 @@ import org.junit.Test
 
 class StorageConstantsTest {
 
-    // ==================== Slot constants ====================
-
-    @Test
-    fun `DEFAULT_MAX_SLOTS is 6`() {
-        assertEquals(6, StorageConstants.DEFAULT_MAX_SLOTS)
-    }
-
     // ==================== Cache constants ====================
 
     @Test

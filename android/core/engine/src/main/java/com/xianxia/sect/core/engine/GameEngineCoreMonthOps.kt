@@ -149,7 +149,7 @@ internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
         }
         // ④ S4 槽位写回：镜像为权威整表重放 repo（C++ 结算的槽位变更同步
         //    Room；IO 失败仅记录——镜像已权威，Room 落后由下月对齐自愈）
-        cultivationService.restoreProductionSlotsFromMirror(stateStore.gameData.value.currentSlot)
+        cultivationService.restoreProductionSlotsFromMirror()
         env
     } catch (e: CancellationException) {
         throw e

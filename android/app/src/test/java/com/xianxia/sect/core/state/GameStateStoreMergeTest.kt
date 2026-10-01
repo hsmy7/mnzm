@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.model.DiscipleAggregate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
@@ -31,8 +32,7 @@ class GameStateStoreMergeTest {
 
     private fun store(): GameStateStoreImpl {
         val s = GameStateStoreImpl(
-            com.xianxia.sect.di.ApplicationScopeProvider(),
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
         s.unsafeAllowMainThreadUpdateForTest = true
         return s

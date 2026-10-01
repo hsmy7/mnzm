@@ -40,11 +40,11 @@ object SaveValidatorFixes {
      * @param repairCount 修复项数量
      * @param persisted 是否已持久化到数据库
      */
-    fun logRepairStatus(slot: Int, repairCount: Int, persisted: Boolean) {
+    fun logRepairStatus(repairCount: Int, persisted: Boolean) {
         if (persisted) {
-            Log.i(TAG, "修复后数据已持久化 (slot=$slot, ${repairCount}项)")
+            Log.i(TAG, "修复后数据已持久化（${repairCount} 项）")
         } else {
-            Log.w(TAG, "修复后数据仅缓存，未持久化 (slot=$slot, ${repairCount}项) — " +
+            Log.w(TAG, "修复后数据仅缓存，未持久化（${repairCount} 项）— " +
                 "将在下次保存时持久化")
         }
     }

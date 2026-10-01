@@ -80,7 +80,6 @@ class ProductionCoordinatorClearDisciplesBatchTest {
                 // C 占用 1 槽（应保留）
                 workingSlot(0, BuildingType.HERB_GARDEN, DISCIPLE_C, "弟子C")
             ),
-            slotId = 1
         )
         val coordinator = ProductionCoordinator(
             repository = repository,
@@ -108,8 +107,7 @@ class ProductionCoordinatorClearDisciplesBatchTest {
         val dao = mock<ProductionSlotDataPort>()
         val repository = newRepository(dao)
         repository.restoreSlots(
-            listOf(workingSlot(0, BuildingType.FORGE, DISCIPLE_A, "弟子A")),
-            slotId = 1
+            listOf(workingSlot(0, BuildingType.FORGE, DISCIPLE_A, "弟子A"))
         )
         val coordinator = ProductionCoordinator(
             repository = repository,
@@ -127,8 +125,7 @@ class ProductionCoordinatorClearDisciplesBatchTest {
         val dao = mock<ProductionSlotDataPort>()
         val repository = newRepository(dao)
         repository.restoreSlots(
-            listOf(workingSlot(0, BuildingType.FORGE, DISCIPLE_A, "弟子A")),
-            slotId = 1
+            listOf(workingSlot(0, BuildingType.FORGE, DISCIPLE_A, "弟子A"))
         )
         val coordinator = ProductionCoordinator(
             repository = repository,

@@ -14,7 +14,7 @@ import com.xianxia.sect.data.local.ProductionSlotDao
 import com.xianxia.sect.data.local.RecipeDao
 import com.xianxia.sect.data.incremental.ChangeLogDao
 
-// DAO 领域分组：收敛 GameStateRepository 的平铺 DAO 构造依赖。
+// DAO 领域分组：收敛存储链的平铺 DAO 构造依赖。
 // 分组仅为构造参数收敛，DAO 行为与调用方不变。
 // v53（SR-7 schema 第二刀）前此处另有 `DiscipleDaos`——弟子域曾有六张表
 //（disciples + 五张镜像 + 紧凑表），那六张表的 SELECT 全仓零调用者，已随迁移删除，

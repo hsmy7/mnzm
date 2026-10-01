@@ -119,11 +119,11 @@ suspend fun GameEngine.loadData(
         syncGachaUnlockedRoster(disciples)
         // 邮件永久保留：resetAndInitSlot 不删除任何邮件，未领取的溢出/直发邮件跨读档保留
         try {
-            mailService.resetAndInitSlot(gameData.slotId)
+            mailService.resetAndInit()
         } catch (e: CancellationException) {
             throw e // 取消穿透: 读档取消时中止, 不再进入 native 基线同步
         } catch (e: Exception) {
-            DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e)
+            DomainLog.e("GameEngine", "Failed to initialize mail", e)
         }
         // 读档后把 Kotlin 新档状态导入 C++ native 引擎基线——
         // 否则 AUTHORITATIVE tick 反向镜像会把 native 残留的旧档状态覆盖回 Kotlin
@@ -287,9 +287,9 @@ private fun GameEngine.instantiateStartupDisciple(operation: String) {
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
+suspend fun GameEngine.createNewGame(sectName: String) {
     return engineContextDispatcher.withEngineContext {
-        stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        stateStore.resetForSlot(); cultivationService.resetHighFrequencyData()
         // 地图种子须在生成世界前产生；AI 分区 RNG 的播种由随后的
         // gameRngManager.initSystemSeed 统一完成（Kotlin 全分区 + C++ aiRng_ 同式
         // `seed + 6×31337`）——AI 弟子生成（generateWorldSects）必须使用已播种的
@@ -302,7 +302,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         // 确保世界生成期的 GameRngManager 消费已确定性播种）
         gameRngManager.initSystemSeed(mapSeed.toLong())
         // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
-        initializeWorldAndServices(sectName, currentSlot)
+        initializeWorldAndServices(sectName)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
         val centerGrid = gridCells / 2 - 1  // 4x4 building centered on grid
         stateStore.update {
@@ -317,10 +317,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
                 width = 4, height = 4,
                 instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
             )
-            gameData = gameData.copy(
-                slotId = currentSlot,
-                currentSlot = currentSlot,
-                mapSeed = mapSeed,
+            gameData = gameData.copy(                mapSeed = mapSeed,
                 // 新档必须盖章当前存档版本——否则以 saveVersion=0 落库，
                 // 首次读档被 v0→1 迁移误 ÷10
                 saveVersion = SaveVersion.CURRENT,
@@ -343,11 +340,11 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
         // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
         try {
-            mailService.resetAndInitSlot(currentSlot)
+            mailService.resetAndInit()
         } catch (e: CancellationException) {
             throw e // 取消穿透: 新档初始化取消时中止, 不再进入 native 基线同步
         } catch (e: Exception) {
-            DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e)
+            DomainLog.e("GameEngine", "Failed to init mail for new game", e)
         }
         // 新游戏世界状态导入 C++ native 引擎基线（同 loadData，
         // 防 AUTHORITATIVE tick 反向镜像把 native 残留旧档覆盖回新档）
@@ -355,13 +352,12 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     }
 }
 
-suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1) = restartGameInternal(sectName,
-    currentSlot)
+suspend fun GameEngine.restartGameSuspend(sectName: String = "") = restartGameInternal(sectName)
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
+private suspend fun GameEngine.restartGameInternal(sectName: String) {
     return engineContextDispatcher.withEngineContext {
-        stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        stateStore.resetForSlot(); cultivationService.resetHighFrequencyData()
         // 每次重启生成新的地图/随机种子，避免全分区 PRNG 种子恒为 0、地图完全相同。
         // 熵源同 createNewGame = EngineEntropy 显式会话熵；AI 分区 RNG 的播种
         // 由下方的 gameRngManager.initSystemSeed 统一完成（Kotlin 全分区 + C++
@@ -374,7 +370,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
         gameRngManager.initSystemSeed(mapSeed.toLong())
         if (sectName.isNotBlank()) {
             // 1. 先初始化世界和游戏状态
-            initializeWorldAndServices(sectName, currentSlot)
+            initializeWorldAndServices(sectName)
             val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
             val centerGrid = gridCells / 2 - 1
             stateStore.update {
@@ -385,10 +381,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                     width = 4, height = 4,
                     instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
                 )
-                gameData = gameData.copy(
-                    slotId = currentSlot,
-                    currentSlot = currentSlot,
-                    mapSeed = mapSeed,
+                gameData = gameData.copy(                    mapSeed = mapSeed,
                     // 新档盖章当前存档版本（同 createNewGame）
                     saveVersion = SaveVersion.CURRENT,
                     placedBuildings = listOf(initialMine),
@@ -410,20 +403,17 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             // Note: isGameStarted is set to true later in SaveLoadViewModel.restartGame()
             // after startGameLoop() succeeds
             try {
-                mailService.resetAndInitSlot(currentSlot)
+                mailService.resetAndInit()
             } catch (e: CancellationException) {
                 throw e // 取消穿透: 重启取消时中止, 不再进入 native 基线同步
             } catch (e: Exception) {
-                DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e)
+                DomainLog.e("GameEngine", "Failed to init mail for restarted game", e)
             }
         } else {
             // 无名重启臂与有名臂同口径：起始灵石 + 起始星级账本 + 开局模板名册
             // （三项缺一即「重置后开局不一致」）
             stateStore.update {
-                gameData = GameData().copy(
-                    slotId = currentSlot,
-                    currentSlot = currentSlot,
-                    mapSeed = mapSeed,
+                gameData = GameData().copy(                    mapSeed = mapSeed,
                     saveVersion = SaveVersion.CURRENT
                 ).withStartupLedger()
                 instantiateStartupDisciple("restartGameBlankSect")
@@ -435,11 +425,11 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
     }
 }
 
-private suspend fun GameEngine.initializeWorldAndServices(sectName: String, currentSlot: Int = 1) {
+private suspend fun GameEngine.initializeWorldAndServices(sectName: String) {
     return engineContextDispatcher.withEngineContext {
         val generationResult = WorldMapGenerator.generateWorldSects(sectName)
         val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
-        productionCoordinator.repository.initializeAllSlots(currentSlot)
+        productionCoordinator.repository.initializeAllSlots()
         cultivationService.refreshTravelingMerchant(1, 1)
         cultivationService.refreshMerchantAcquisition(1, 1)
 

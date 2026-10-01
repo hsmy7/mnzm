@@ -87,7 +87,7 @@ class ProductionSlotSettlementRobustnessTest {
         val scopeProvider = mock<CoroutineScopeProvider>()
         whenever(scopeProvider.scope).thenReturn(CoroutineScope(Dispatchers.Unconfined))
         val repo = ProductionSlotRepository(dao, mock<BuildingConfigService>(), scopeProvider)
-        repo.restoreSlots(slots, slotId = 1)
+        repo.restoreSlots(slots)
         return repo
     }
 
@@ -422,9 +422,8 @@ private class GatedDao : ProductionSlotDataPort {
 
     override suspend fun deleteById(id: String) = Unit
 
-    override suspend fun deleteBySlot(slotId: Int) = Unit
+    override suspend fun deleteAll() = Unit
 
-    override suspend fun deleteBySlotAndBuildingType(
-        slotId: Int, buildingType: BuildingType
-    ) = Unit
+    override suspend fun deleteByBuildingType(buildingType: BuildingType) = Unit
+
 }

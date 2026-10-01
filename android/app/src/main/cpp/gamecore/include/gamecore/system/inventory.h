@@ -538,7 +538,6 @@ inline int32_t computeSlotCount(const state::GameState& state) {
 // ── 溢出邮件草稿（C++ 侧产出，Kotlin OverflowMailSender 落库）──────
 
 struct OverflowDraft {
-    int32_t slotId = 1;
     std::string source;      // withTrackingSource 来源（battle/forge/alchemy/...）
     std::string itemType;    // equipment/manual/pill/material/herb/seed/storageBag
     std::string itemName;

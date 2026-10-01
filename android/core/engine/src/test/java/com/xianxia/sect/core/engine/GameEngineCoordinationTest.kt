@@ -161,7 +161,7 @@ class GameEngineCoordinationTest {
         // 生产代码会访问 productionCoordinator.repository，stub 避免 mock 返回 null
         whenever(env.engine.productionCoordinator.repository).thenReturn(mock())
 
-        env.engine.createNewGame("青云宗", 1)
+        env.engine.createNewGame("青云宗")
 
         assertTrue("新游戏 mapSeed 不应为 0", env.store.gameDataValue.mapSeed != 0)
     }
@@ -170,7 +170,7 @@ class GameEngineCoordinationTest {
     fun `restartGameSuspend - mapSeed 非零（旧实现恒为 0 的回归守卫）`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.restartGameSuspend("", 1)
+        env.engine.restartGameSuspend("")
 
         assertTrue("重启后 mapSeed 不应为 0，否则全分区 PRNG 种子归零且地图相同",
             env.store.gameDataValue.mapSeed != 0)
@@ -180,9 +180,9 @@ class GameEngineCoordinationTest {
     fun `restartGameSuspend - 两次重启种子不同`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.restartGameSuspend("", 1)
+        env.engine.restartGameSuspend("")
         val first = env.store.gameDataValue.mapSeed
-        env.engine.restartGameSuspend("", 1)
+        env.engine.restartGameSuspend("")
         val second = env.store.gameDataValue.mapSeed
 
         assertTrue("两次重启应产生不同地图种子（相同为缺陷）", first != second)
@@ -195,7 +195,7 @@ class GameEngineCoordinationTest {
         val env = EngineTestEnv()
         whenever(env.engine.productionCoordinator.repository).thenReturn(mock())
 
-        env.engine.createNewGame("青云宗", 1)
+        env.engine.createNewGame("青云宗")
 
         val mine = env.store.gameDataValue.placedBuildings.single()
         assertEquals("初始灵矿场宽度应为 4（spirit_mine 配置占地）", 4, mine.width)
@@ -208,7 +208,7 @@ class GameEngineCoordinationTest {
     fun `restartGameSuspend - 初始灵矿场为 4x4 与配置一致`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.restartGameSuspend("青云宗", 1)
+        env.engine.restartGameSuspend("青云宗")
 
         val mine = env.store.gameDataValue.placedBuildings.single()
         assertEquals("重启后初始灵矿场宽度应为 4", 4, mine.width)
@@ -225,7 +225,7 @@ class GameEngineCoordinationTest {
     fun `createNewGame - 开局口径为单名周明加起始账本`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.createNewGame("青云宗", 1)
+        env.engine.createNewGame("青云宗")
 
         assertStartupBaseline("createNewGame", env)
     }
@@ -234,7 +234,7 @@ class GameEngineCoordinationTest {
     fun `restartGameSuspend - 有名臂开局口径与 createNewGame 同构`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.restartGameSuspend("青云宗", 1)
+        env.engine.restartGameSuspend("青云宗")
 
         assertStartupBaseline("restartGameInternal(有名臂)", env)
     }
@@ -243,7 +243,7 @@ class GameEngineCoordinationTest {
     fun `restartGameSuspend - 无名臂开局口径同构且灵石不退回首档哨兵值`() = runBlocking {
         val env = EngineTestEnv()
 
-        env.engine.restartGameSuspend("", 1)
+        env.engine.restartGameSuspend("")
 
         // else 臂不生成世界（无 initialMine 是预存口径差异，归 G10），
         // 但开局账本三件套与名册必须与另两臂逐字同构
@@ -336,7 +336,7 @@ class GameEngineCoordinationTest {
         whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
         setGameCoreLoaded(true)
         try {
-            env.engine.createNewGame("青云宗", 1)
+            env.engine.createNewGame("青云宗")
             verify(syncMock).importToNative()
             Unit
         } finally {
@@ -351,7 +351,7 @@ class GameEngineCoordinationTest {
         whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
         setGameCoreLoaded(true)
         try {
-            env.engine.restartGameSuspend("", 1)
+            env.engine.restartGameSuspend("")
             verify(syncMock).importToNative()
             Unit
         } finally {

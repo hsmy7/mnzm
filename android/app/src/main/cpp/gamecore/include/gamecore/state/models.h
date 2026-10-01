@@ -65,7 +65,6 @@ struct EquipInstanceMeta {
 
 struct EquipmentInstance {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     std::string setId;                    // 套装 id（空 = 散件）
     std::string part = "HEAD";            // 六部位 EquipmentSlot.name
@@ -82,7 +81,6 @@ struct EquipmentInstance {
 // 功法公共字段（ManualStack 与 ManualInstance 共享；Kotlin 字段名一致）
 struct ManualBase {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -244,7 +242,6 @@ struct PillEffect {
 
 struct Pill {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -259,7 +256,6 @@ struct Pill {
 
 struct Material {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -270,7 +266,6 @@ struct Material {
 
 struct Herb {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -281,7 +276,6 @@ struct Herb {
 
 struct Seed {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -293,7 +287,6 @@ struct Seed {
 
 struct StorageBag {
     std::string id;
-    int32_t slotId = 0;
     std::string name;
     int32_t rarity = 1;
     std::string description;
@@ -1202,7 +1195,6 @@ struct GameData {
     // 基础/时间
     std::string id;
     std::string sectName = "青云宗";
-    int32_t currentSlot = 1;
     int32_t gameYear = 1;
     int32_t gameMonth = 1;
     int32_t gamePhase = 0;

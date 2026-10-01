@@ -25,7 +25,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * ## 处理说明
  * - `cultivationCheckpoint`：域模型为 Double，序列化为 Long（与旧格式兼容）
  * - @Ignore 字段（lifeEvents, 运行时 Set 字段）不序列化
- * - slotId 不序列化（Room 复合主键，非游戏字段）
  */
 object DiscipleSerializer : KSerializer<Disciple> {
     override val descriptor: SerialDescriptor = DiscipleSurrogate.serializer().descriptor
@@ -159,7 +158,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
         var disciple = Disciple(
             // ===== 直接字段 =====
             id = surrogate.id,
-            slotId = 0, // slotId 由 StorageEngine 写入时赋值
             name = surrogate.name,
             surname = surrogate.surname,
             realm = surrogate.realm,

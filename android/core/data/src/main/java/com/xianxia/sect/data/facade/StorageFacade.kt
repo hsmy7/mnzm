@@ -6,8 +6,8 @@ import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.data.backup.SaveFileManager
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
-import com.xianxia.sect.data.engine.getMailsForSlot
-import com.xianxia.sect.data.engine.replaceMailsForSlot
+import com.xianxia.sect.data.engine.getMails
+import com.xianxia.sect.data.engine.replaceMails
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 
@@ -15,7 +15,6 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -68,8 +67,6 @@ class StorageFacade @Inject constructor(
         private const val TAG = "StorageFacade"
     }
 
-    private val _currentSlot = MutableStateFlow(1)
-
     private val isInitialized = AtomicBoolean(false)
     private val isShuttingDown = AtomicBoolean(false)
 
@@ -102,8 +99,8 @@ class StorageFacade @Inject constructor(
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
             // this throws immediately, giving a clear error instead of silent failure.
             try {
-                val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(1) }
-                Log.d(TAG, "Database integrity check passed (slot 1: ${metadata?.sectName ?: "empty"})")
+                val metadata = withContext(Dispatchers.IO) { engine.getMetadata() }
+                Log.d(TAG, "Database integrity check passed (sect: ${metadata?.sectName ?: "empty"})")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -148,11 +145,11 @@ class StorageFacade @Inject constructor(
     // ==================== 异步存取方法 ====================
 
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun save(slot: Int, data: SaveData): SaveResult<Unit> {
+    suspend fun save(data: SaveData): SaveResult<Unit> {
         ensureInitialized()
 
         return try {
-            val result = engine.save(slot, data)
+            val result = engine.save(data)
 
             if (result.isSuccess) {
                 // 后置步骤（.sav 镜像 / .bak 备份）降级原因必须带给调用方
@@ -164,23 +161,23 @@ class StorageFacade @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Save failed for slot $slot", e)
+            Log.e(TAG, "Save failed", e)
             SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Save failed", e)
         }
     }
 
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun load(slot: Int): SaveResult<SaveData> {
+    suspend fun load(): SaveResult<SaveData> {
         ensureInitialized()
 
         return try {
-            val result = engine.load(slot)
+            val result = engine.load()
 
             result.toUnifiedResult()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Load failed for slot $slot", e)
+            Log.e(TAG, "Load failed", e)
             SaveResult.failure(SaveError.LOAD_FAILED, e.message ?: "Load failed", e)
         }
     }
@@ -192,38 +189,38 @@ class StorageFacade @Inject constructor(
      * 如实返回表内现状，不做任何过期清理（30 天删除逻辑归 SR-5）。
      * 失败异常直接上抛——邮件快照缺失会以空表替换回写，静默降级 = 丢邮件。
      */
-    suspend fun getMailsForSlot(slot: Int): List<MailEntity> {
+    suspend fun getMails(): List<MailEntity> {
         ensureInitialized()
-        return engine.getMailsForSlot(slot)
+        return engine.getMails()
     }
 
     /**
      * 槽位邮件整对象替换（云恢复面用）：先删后写单事务，仅动邮件表。
      * 内层异常直接上抛（Room 2.7.0 吞内层异常 = 仅回滚内层写，不得依赖其做部分提交）。
      */
-    suspend fun replaceMailsForSlot(slot: Int, mails: List<MailEntity>) {
+    suspend fun replaceMails(mails: List<MailEntity>) {
         ensureInitialized()
-        engine.replaceMailsForSlot(slot, mails)
+        engine.replaceMails(mails)
     }
 
     // ==================== 删除方法 ====================
 
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
-    suspend fun delete(slot: Int): SaveResult<Unit> {
+    suspend fun delete(): SaveResult<Unit> {
         return try {
             ensureInitialized()
-            val result = engine.delete(slot)
+            val result = engine.delete()
             if (result.isSuccess) {
-                Log.i(TAG, "Deleted slot $slot")
+                Log.i(TAG, "Deleted save")
                 SaveResult.success(Unit)
             } else {
-                Log.e(TAG, "Delete failed for slot $slot: ${result.getOrNull()}")
-                SaveResult.failure(SaveError.DELETE_FAILED, "Delete failed for slot $slot")
+                Log.e(TAG, "Delete failed: ${result.getOrNull()}")
+                SaveResult.failure(SaveError.DELETE_FAILED, "Delete failed")
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Delete failed for slot $slot", e)
+            Log.e(TAG, "Delete failed", e)
             SaveResult.failure(SaveError.DELETE_FAILED, e.message ?: "Unknown error", e)
         }
     }
@@ -242,25 +239,16 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    fun setCurrentSlot(slot: Int) {
-        if (lockManager.isValidSlot(slot)) {
-            _currentSlot.value = slot
-            engine.setCurrentSlot(slot)
-        }
-    }
-
-    fun getCurrentSlot(): Int = _currentSlot.value
-
     // ==================== 数据检查方法 ====================
 
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
+    suspend fun isSaveCorruptedSuspend(): Boolean {
         return try {
-            !engine.hasData(slot) && lockManager.isValidSlot(slot)
+            !engine.hasData()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
+            Log.e(TAG, "isSaveCorrupted check failed", e)
             false
         }
     }
@@ -282,25 +270,21 @@ class StorageFacade @Inject constructor(
      *   （调用方**保持失败语义**，不得据此报成功）
      */
     @Suppress("TooGenericExceptionCaught") // 恢复链异常面广（IO/反序列化/写库），失败即如实返回 false
-    suspend fun restoreFromBackupIfCorrupted(slot: Int): Boolean {
-        if (!lockManager.isValidSlot(slot)) {
-            Log.w(TAG, "restoreFromBackupIfCorrupted: 非法槽位 $slot")
-            return false
-        }
-        return lockManager.withWriteLockLight(slot) {
+    suspend fun restoreFromBackupIfCorrupted(): Boolean {
+        return lockManager.withWriteLockLight() {
             try {
-                val restored = engine.restoreFromBackup(slot)
+                val restored = engine.restoreFromBackup()
                 val ok = restored?.isSuccess == true
                 if (ok) {
-                    Log.w(TAG, "已从备份恢复 slot=$slot（.sav/.bak → DB）")
+                    Log.w(TAG, "已从备份恢复（.sav/.bak → DB）")
                 } else {
-                    Log.e(TAG, "备份恢复失败 slot=$slot（备份不可用或写库失败）")
+                    Log.e(TAG, "备份恢复失败（备份不可用或写库失败）")
                 }
                 ok
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "备份恢复异常 slot=$slot", e)
+                Log.e(TAG, "备份恢复异常", e)
                 false
             }
         }

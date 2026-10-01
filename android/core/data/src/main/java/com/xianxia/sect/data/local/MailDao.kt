@@ -13,45 +13,45 @@ interface MailDao {
      * 未删除邮件列表（过期邮件由 [deleteExpired] 自动删除后自然不再出现；
      * expireTime=0 视为永久有效，永不过期）。
      */
-    @Query("SELECT * FROM mails WHERE slotId = :slotId ORDER BY isRead ASC, sendTime DESC")
-    fun getActiveMails(slotId: Int): Flow<List<MailEntity>>
+    @Query("SELECT * FROM mails ORDER BY isRead ASC, sendTime DESC")
+    fun getActiveMails(): Flow<List<MailEntity>>
 
     /**
-     * 槽位全量邮件快照读取（SR-1：保存时入 SaveData 用）。
+     * 全量邮件快照读取（SR-1：保存时入 SaveData 用）。
      * 如实返回表内现状（含尚未被惰性清理的过期行——30 天删除语义归 SR-5，本读取不做任何删除）。
      */
-    @Query("SELECT * FROM mails WHERE slotId = :slotId ORDER BY sendTime DESC")
-    suspend fun getAllForSlotSync(slotId: Int): List<MailEntity>
+    @Query("SELECT * FROM mails ORDER BY sendTime DESC")
+    suspend fun getAllSync(): List<MailEntity>
 
     /**
      * 删除槽位内全部过期邮件（决策项② 2026-09-09：过期即删）。
      * 过期邮件领取路径本就返回 Expired 不可领——删除无功能损失。
      * expireTime=0（永久有效）不受影响。@return 删除行数
      */
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND expireTime > 0 AND expireTime < :now")
-    suspend fun deleteExpired(slotId: Int, now: Long): Int
+    @Query("DELETE FROM mails WHERE expireTime > 0 AND expireTime < :now")
+    suspend fun deleteExpired(now: Long): Int
 
-    @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId AND isRead = 0")
-    fun getUnreadCount(slotId: Int): Flow<Int>
+    @Query("SELECT COUNT(*) FROM mails WHERE isRead = 0")
+    fun getUnreadCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId")
-    suspend fun countMails(slotId: Int): Int
+    @Query("SELECT COUNT(*) FROM mails")
+    suspend fun countMails(): Int
 
     @Transaction
     suspend fun insertWithEnforceLimit(mail: MailEntity, now: Long, maxLimit: Int = 1000) {
-        // 决策项② 2026-09-09：过期邮件自动删除——每次写入顺带清理本槽过期
+        // 决策项② 2026-09-09：过期邮件自动删除——每次写入顺带清理过期
         // 邮件（过期不可领取，删除无功能损失）；expireTime=0 永久有效不受影响。
         // REPLACE 保证确定性 mailId 重放幂等。
         // SR-5：`now` 由调用方（:app MailRepositoryImpl）经注入墙钟供时——
         // 本方法每次插入都会跑一遍 30 天删除，是收敛前守卫抓不到的裸钟绕行点。
         insertAll(listOf(mail))
-        deleteExpired(mail.slotId, now)
+        deleteExpired(now)
         // 容量溢出可见化（审计 P1-4）：过期删除后若仍超限（大量永久有效
         // 邮件的极端档），计数留痕供观察——不做容量淘汰
-        val count = countMails(mail.slotId)
+        val count = countMails()
         if (count > maxLimit) {
             mailOverflowCount.incrementAndGet()
-            android.util.Log.w("MailDao", "Mail slot ${mail.slotId} over limit: " +
+            android.util.Log.w("MailDao", "Mail over limit: " +
                 "count=$count maxLimit=$maxLimit overflowTotal=${mailOverflowCount.get()}")
         }
     }
@@ -67,29 +67,29 @@ interface MailDao {
     @Update
     suspend fun update(mail: MailEntity)
 
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM mails WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     /** 仅当邮件无附件或附件已领取时删除，原子化替代 deleteMail 的 TOCTOU 读-改-写模式 */
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :id AND (hasAttachment = 0 OR attachmentClaimed = 1)")
-    suspend fun deleteIfClaimed(slotId: Int, id: String)
+    @Query("DELETE FROM mails WHERE id = :id AND (hasAttachment = 0 OR attachmentClaimed = 1)")
+    suspend fun deleteIfClaimed(id: String)
 
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND id IN (:ids)")
-    suspend fun deleteByIds(slotId: Int, ids: List<String>)
+    @Query("DELETE FROM mails WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
-    @Query("SELECT * FROM mails WHERE slotId = :slotId AND id = :id LIMIT 1")
-    suspend fun getById(slotId: Int, id: String): MailEntity?
+    @Query("SELECT * FROM mails WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): MailEntity?
 
     /**
      * 玩家手动"删除已读"：唯一允许的邮件删除入口。
      * 仅删已读且已领取的邮件——未领取附件仍留在邮件里，绝不产生资产丢失。
      */
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND isRead = 1 AND attachmentClaimed = 1")
-    suspend fun deleteAllReadAndClaimed(slotId: Int)
+    @Query("DELETE FROM mails WHERE isRead = 1 AND attachmentClaimed = 1")
+    suspend fun deleteAllReadAndClaimed()
 
-    @Query("DELETE FROM mails WHERE slotId = :slotId")
-    suspend fun deleteAllForSlot(slotId: Int)
+    @Query("DELETE FROM mails")
+    suspend fun deleteAll()
 
-    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :builtinId AND source = 'builtin'")
-    suspend fun deleteByBuiltinId(slotId: Int, builtinId: String)
+    @Query("DELETE FROM mails WHERE id = :builtinId AND source = 'builtin'")
+    suspend fun deleteByBuiltinId(builtinId: String)
 }

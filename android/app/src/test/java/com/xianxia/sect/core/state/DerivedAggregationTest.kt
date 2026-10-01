@@ -100,9 +100,7 @@ class DerivedAggregationTest {
         }
 
         stateStore = GameStateStoreImpl(
-            applicationScopeProvider = ApplicationScopeProvider(),
-            repository = testGameStateRepository()
-        )
+            applicationScopeProvider = ApplicationScopeProvider(),        )
         stateStore.unsafeAllowMainThreadUpdateForTest = true
     }
 

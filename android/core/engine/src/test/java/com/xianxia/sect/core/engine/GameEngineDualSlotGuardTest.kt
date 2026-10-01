@@ -425,7 +425,6 @@ class GameEngineDualSlotGuardTest {
                     status = com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
                 )
             ),
-            slotId = 1
         )
         whenever(mockPC.repository).thenReturn(realRepo)
         // 让 mock 上的 suspend 清理真实执行到 realRepo：端到端验证

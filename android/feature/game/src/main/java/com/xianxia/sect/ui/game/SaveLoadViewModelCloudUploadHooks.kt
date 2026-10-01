@@ -40,20 +40,20 @@ internal fun SaveLoadViewModel.requestCloudUploadDrain() {
 // TooGenericExceptionCaught：防御兜底——入队异常源跨账本存储/队列不可枚举，
 // 如实提示后保存链继续（本地已提交，IN1），非静默吞噬
 @Suppress("TooGenericExceptionCaught")
-internal suspend fun SaveLoadViewModel.maybeEnqueueCloudUploadAfterLocalSave(slot: Int, saveData: SaveData) {
+internal suspend fun SaveLoadViewModel.maybeEnqueueCloudUploadAfterLocalSave(saveData: SaveData) {
     val mode = persistenceFacade.saveBackendModeProvider.current()
     if (!shouldEnqueueCloudUpload(mode)) {
-        Log.d(SaveLoadViewModelConstants.TAG, "cloud upload enqueue skipped: mode=LEGACY (slot=$slot)")
+        Log.d(SaveLoadViewModelConstants.TAG, "cloud upload enqueue skipped: mode=LEGACY")
         return
     }
     try {
-        persistenceFacade.uploadQueue.enqueue(slot, saveData)
-        Log.i(SaveLoadViewModelConstants.TAG, "cloud upload enqueued: slot=$slot mode=$mode")
+        persistenceFacade.uploadQueue.enqueue(com.xianxia.sect.data.StorageConstants.CLOUD_SAVE_SLOT, saveData)
+        Log.i(SaveLoadViewModelConstants.TAG, "cloud upload enqueued mode=$mode")
     } catch (e: CancellationException) {
         throw e // 取消穿透：入队取消时中止，不以失败冒充
     } catch (e: Exception) {
         // 入队失败如实提示（本地保存已成功，不谎报不静默——postSaveWarning 同纪律）
-        Log.e(SaveLoadViewModelConstants.TAG, "cloud upload enqueue failed: slot=$slot", e)
+        Log.e(SaveLoadViewModelConstants.TAG, "cloud upload enqueue failed", e)
         showError("云同步入队失败：本地已保存，未自动上传（${e.message}）")
     }
 }

@@ -134,7 +134,7 @@ class GameEventRecordTest {
     @Test
     fun `recordGameEvent appends to existing list`() {
         val state = MutableGameState(
-            gameData = GameData(id = "test", slotId = 1),
+            gameData = GameData(id = "test"),
             discipleTables = DiscipleTables(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
@@ -162,7 +162,7 @@ class GameEventRecordTest {
     @Test
     fun `recordGameEvent trims to MAX_EVENT_LOGS`() {
         val state = MutableGameState(
-            gameData = GameData(id = "test", slotId = 1),
+            gameData = GameData(id = "test"),
             discipleTables = DiscipleTables(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
@@ -191,7 +191,7 @@ class GameEventRecordTest {
     @Test
     fun `recordGameEvent sets correct game time fields`() {
         val state = MutableGameState(
-            gameData = GameData(id = "test", slotId = 1, gameYear = 8, gameMonth = 3, gamePhase = 1),
+            gameData = GameData(id = "test", gameYear = 8, gameMonth = 3, gamePhase = 1),
             discipleTables = DiscipleTables(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
@@ -219,7 +219,7 @@ class GameEventRecordTest {
     @Test
     fun `recordGameEvent rejects blank summary`() {
         val state = MutableGameState(
-            gameData = GameData(id = "test", slotId = 1),
+            gameData = GameData(id = "test"),
             discipleTables = DiscipleTables(),
             equipmentInstances = EntityStore(),
             manualStacks = EntityStore(),
@@ -247,7 +247,7 @@ class GameEventRecordTest {
     @Test
     fun `gameEventRecords defaults to empty array`() {
         // 验证新创建的 GameData 的 gameEventRecords 默认为空列表
-        val gameData = GameData(id = "field_default_test", slotId = 1)
+        val gameData = GameData(id = "field_default_test")
         assertTrue(gameData.gameEventRecords.isEmpty())
     }
 }

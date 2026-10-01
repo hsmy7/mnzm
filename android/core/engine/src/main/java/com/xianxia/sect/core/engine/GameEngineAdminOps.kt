@@ -20,15 +20,12 @@ private val adminMailJson = Json {
  * 幂等保证：通过 [mailId] 检查 [com.xianxia.sect.core.model.GameData.mailRecords]
  * 是否已有领取记录，已领取则跳过注入。
  *
- * @param slotId 目标存档槽位
  * @param mailId 稳定邮件 ID（用于幂等检查）
  * @param title 邮件标题
  * @param content 邮件正文
  * @param attachments 补偿附件列表
  */
-suspend fun GameEngine.sendAdminCompensation(
-    slotId: Int,
-    mailId: String,
+suspend fun GameEngine.sendAdminCompensation(    mailId: String,
     title: String,
     content: String,
     attachments: List<MailAttachment>
@@ -46,9 +43,7 @@ suspend fun GameEngine.sendAdminCompensation(
     val expireTime = now + 30L * 24 * 60 * 60 * 1000L // 30 天
 
     val mail = MailEntity(
-        id = mailId,
-        slotId = slotId,
-        source = "admin",
+        id = mailId,        source = "admin",
         mailType = "compensation",
         title = title,
         content = content,
@@ -63,6 +58,6 @@ suspend fun GameEngine.sendAdminCompensation(
     )
 
     mailService.insertMail(mail)
-    DomainLog.i(TAG, "补偿邮件 $mailId 已注入到 slot=$slotId")
+    DomainLog.i(TAG, "补偿邮件 $mailId 已注入")
 }
 

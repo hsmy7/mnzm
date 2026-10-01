@@ -119,7 +119,6 @@ inline SecretRealmStartReleaseOutcome secretRealmStartReleaseTx(
 struct SecretRealmExpiryGuardOutcome {
     bool ok = false;      // 恒 true（本事务无失败臂）
     bool expired = false; // false = 未到期（成功零写入——Kotlin 返回 null 放行）
-    int32_t slotId = 0;   // 关闭邮件归属存档槽位（GameData.currentSlot）
     std::vector<std::string> memberIds;                    // gate release 面
     gamecore::state::SecretRealmBackpack backpack;         // 关闭邮件附件（清空前快照）
 };
@@ -139,7 +138,6 @@ inline SecretRealmExpiryGuardOutcome secretRealmExpiryGuardTx(GameState& state) 
     secret_realm_settle::SecretRealmCloseDraft draft;
     secret_realm_settle::closeSecretRealmByExpiry(state, &draft);
     out.expired = true;
-    out.slotId = gd.currentSlot;
     out.memberIds = std::move(draft.memberIds);
     out.backpack = std::move(draft.backpack);
     return out;

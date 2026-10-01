@@ -76,16 +76,15 @@ internal fun SaveLoadViewModel.requestAutoSave(trigger: AutoSaveTrigger) {
         AutoSaveTrigger.REALTIME -> SaveTriggerFlag.realtimeTick
         AutoSaveTrigger.BACKGROUND -> SaveTriggerFlag.saveOnBackground
     }
-    val slot = gameEngine.gameData.value?.currentSlot ?: -1
     if (!shouldAutoSave(
             flagOn = flagOn,
-            hasActiveSlot = slot >= MIN_AUTO_SAVE_SLOT,
+            hasActiveSlot = isGameLoaded,
             engineLoaded = isGameLoaded
         )
     ) {
         Log.d(
             SaveLoadViewModelConstants.TAG,
-            "autoSave skipped trigger=$trigger flagOn=$flagOn slot=$slot loaded=$isGameLoaded"
+            "autoSave skipped trigger=$trigger flagOn=$flagOn loaded=$isGameLoaded"
         )
         return
     }
@@ -95,16 +94,10 @@ internal fun SaveLoadViewModel.requestAutoSave(trigger: AutoSaveTrigger) {
 /**
  * 编排窗到点（或 onStop 冲刷）后的实际落盘——复用手动保存链，仅反馈口径不同。
  *
- * slot 取 `gameData.currentSlot`（[requestAutoSave] 已保证 ≥[MIN_AUTO_SAVE_SLOT]）。
  */
 internal suspend fun SaveLoadViewModel.onAutoSaveFire(triggers: Set<AutoSaveTrigger>) {
-    val slot = gameEngine.gameData.value?.currentSlot ?: return
-    if (slot < MIN_AUTO_SAVE_SLOT) {
-        Log.i(SaveLoadViewModelConstants.TAG, "autoSave 放弃：槽位在触发后失效（slot=$slot）")
-        return
-    }
-    Log.i(SaveLoadViewModelConstants.TAG, "autoSave 触发 triggers=$triggers slot=$slot")
-    saveGame(slotId = slot.toString(), feedback = saveFeedbackFor(triggers))
+    Log.i(SaveLoadViewModelConstants.TAG, "autoSave 触发 triggers=$triggers")
+    saveGame(feedback = saveFeedbackFor(triggers))
 }
 
 /**
@@ -173,5 +166,4 @@ internal const val AUTO_SAVE_FAILED_PREFIX = "自动存档失败："
 internal fun autoSaveNoticeText(gameYear: Int, gameMonth: Int, degraded: Boolean): String =
     "$AUTO_SAVE_NOTICE_LABEL · 第${gameYear}年${gameMonth}月" + if (degraded) "（备份未写入）" else ""
 
-/** 自动存档可落盘的最小槽位：slot 0 是云存档伪槽，不是本地档 */
 internal const val MIN_AUTO_SAVE_SLOT = 1

@@ -48,11 +48,9 @@ internal fun StorageEngine.abortWalSyncQuietly(txnId: Long?) {
     }
 }
 
-internal suspend fun StorageEngine.syncSlotMetadata(slot: Int, data: SaveData) {
+internal suspend fun StorageEngine.syncSlotMetadata(data: SaveData) {
     val gd = data.gameData
-    val metadata = SaveSlotMetadata(
-        slotId = slot,
-        sectName = gd.sectName,
+    val metadata = SaveSlotMetadata(        sectName = gd.sectName,
         gameYear = gd.gameYear,
         gameMonth = gd.gameMonth,
         gamePhase = gd.gamePhase,
@@ -66,27 +64,27 @@ internal suspend fun StorageEngine.syncSlotMetadata(slot: Int, data: SaveData) {
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.logSaveChanges(slot: Int) {
+internal suspend fun StorageEngine.logSaveChanges() {
     try {
         infra.changeLogPersistence.logChange(
             tableName = "game_data",
-            recordId = "game_data_$slot",
+            recordId = "game_data",
             operation = ChangeLogOperation.UPDATE
         )
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to log save change for slot $slot", e)
+        Log.w(TAG, "Failed to log save change", e)
     }
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun StorageEngine.updateCacheAfterSave(slot: Int, data: SaveData) {
+internal fun StorageEngine.updateCacheAfterSave(data: SaveData) {
     try {
-        val cacheKey = CacheKey.forGameData(slot)
+        val cacheKey = CacheKey.forGameData()
         core.cache.putWithoutTracking(cacheKey, data)
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to update cache for slot $slot", e)
+        Log.w(TAG, "Failed to update cache", e)
     }
 }
 
@@ -109,9 +107,9 @@ internal suspend fun StorageEngine.cleanSaveDataWithArchive(data: SaveData): Sav
 /**
  * 保存熔断检查——熔断中返回 true（拒绝保存），否则 false。
  */
-internal suspend fun StorageEngine.isSaveCircuitOpen(slot: Int): Boolean {
+internal suspend fun StorageEngine.isSaveCircuitOpen(): Boolean {
     if (infra.circuitBreaker.allowRequest("save")) return false
-    Log.w(TAG, "保存熔断中（存储连续失败），拒绝本次保存 slot=$slot")
+    Log.w(TAG, "保存熔断中（存储连续失败），拒绝本次保存")
     return true
 }
 
@@ -119,13 +117,13 @@ internal suspend fun StorageEngine.isSaveCircuitOpen(slot: Int): Boolean {
  * 保存结果反馈熔断器——成功重置计数并清除删除 tombstone，
  * 失败累计失败计数。
  */
-internal suspend fun StorageEngine.recordSaveCircuitResult(slot: Int, result: StorageResult<SaveOperationStats>) {
+internal suspend fun StorageEngine.recordSaveCircuitResult(result: StorageResult<SaveOperationStats>) {
     if (result.isSuccess) {
         infra.circuitBreaker.recordSuccess("save")
         // 保存成功后清除删除 tombstone——删除中途崩溃残留的 tombstone 若不清除，
         // 会永久背负在新档上：日后 DB 损坏时 restoreFromBackup 见 tombstone
         // 拒绝恢复，clearSlotDataQuietly 还会删掉新档的唯一 .sav/.bak 恢复源
-        saveFileManager.clearSlotDeleted(slot)
+        saveFileManager.clearDeleted()
     } else {
         infra.circuitBreaker.recordFailure("save")
     }
@@ -138,18 +136,17 @@ internal suspend fun StorageEngine.recordSaveCircuitResult(slot: Int, result: St
 // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 @Suppress("TooGenericExceptionCaught", "NestedBlockDepth") // 成功/失败双分支 + 备份恢复读的 try/catch 守卫结构（既有模式）
 internal suspend fun StorageEngine.handleSaveResult(
-    slot: Int,
     result: StorageResult<SaveOperationStats>,
     dataWithTimestamp: SaveData
 ): StorageResult<SaveOperationStats> {
     if (result.isSuccess) {
         // 文件镜像（.sav）+ 备份（.bak）——**非阻断**，但降级原因必须带回给调用方
         // （审计 §12-C：备份失败不改写 result ⇒ UI 谎报"保存成功"）
-        val postSaveWarning = writeFileMirrorAndBackup(slot, dataWithTimestamp)
+        val postSaveWarning = writeFileMirrorAndBackup(dataWithTimestamp)
         _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
-        updateCacheAfterSave(slot, dataWithTimestamp)
+        updateCacheAfterSave(dataWithTimestamp)
         _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
-        logSaveChanges(slot)
+        logSaveChanges()
         infra.storageMetrics.recordSave()
         _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
         return if (postSaveWarning == null) {
@@ -158,22 +155,22 @@ internal suspend fun StorageEngine.handleSaveResult(
             result.map { it.copy(postSaveWarning = postSaveWarning) }
         }
     } else {
-        Log.e(TAG, "保存失败（${storageConfig.maxRetryCount}次重试），尝试恢复 slot=$slot")
+        Log.e(TAG, "保存失败（${storageConfig.maxRetryCount}次重试），尝试恢复")
         try {
-            val rr = saveFileManager.readWithFallback(slot, readOnly = !writesLocalSaveFiles)
+            val rr = saveFileManager.readWithFallback(readOnly = !writesLocalSaveFiles)
             if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
                 rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
-                Log.w(TAG, "从备份恢复数据成功 slot=$slot")
+                Log.w(TAG, "从备份恢复数据成功")
                 // .sav 修复失败——.sav 保持损坏持续回退，数据可用（payload 有效），
                 // 下次成功保存自愈，此处如实记录
                 if (rr.repairFailed) {
-                    Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
+                    Log.e(TAG, ".sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
                 }
             }
         } catch (e: CancellationException) {
             throw e // 取消穿透: 取消时中止备份恢复读, 重试由下次保存流程承担
         } catch (e2: Exception) {
-            Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
+            Log.e(TAG, "备份恢复也失败", e2)
         }
         return result
     }
@@ -187,7 +184,7 @@ internal suspend fun StorageEngine.handleSaveResult(
  */
 // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 @Suppress("TooGenericExceptionCaught", "ReturnCount") // 三种降级各自 early-return 原因串，为守卫风格
-private suspend fun StorageEngine.writeFileMirrorAndBackup(slot: Int, data: SaveData): String? {
+private suspend fun StorageEngine.writeFileMirrorAndBackup(data: SaveData): String? {
     if (!storageConfig.autoBackupOnSave) return null
     // SR-7 文件层退役：CLOUD_ONLY 下本地不再有玩家可见存档（D2），Room 是可丢弃会话缓存
     //（D1）⇒ .sav 镜像与 .bak 轮转整体停写。返回 null = 无降级（不是失败），
@@ -195,16 +192,16 @@ private suspend fun StorageEngine.writeFileMirrorAndBackup(slot: Int, data: Save
     if (!writesLocalSaveFiles) return null
     _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
     return try {
-        val br = saveFileManager.atomicWrite(slot, data)
+        val br = saveFileManager.atomicWrite(data)
         when (br) {
             is StorageResult.Success -> infra.storageMetrics.recordBackupSuccess()
             is StorageResult.Skipped -> {
                 // 备份超限跳过——主保存已成功，如实记录跳过并带回告警
-                Log.w(TAG, "备份被跳过 slot=$slot: ${br.message}（主保存成功，非阻断）")
+                Log.w(TAG, "备份被跳过: ${br.message}（主保存成功，非阻断）")
                 infra.storageMetrics.recordBackupSkippedOversize()
             }
             is StorageResult.Failure -> {
-                Log.w(TAG, "文件镜像/备份写入失败 slot=$slot: ${br.message}（主保存成功，非阻断）")
+                Log.w(TAG, "文件镜像/备份写入失败: ${br.message}（主保存成功，非阻断）")
                 infra.storageMetrics.recordBackupFailure()
             }
         }
@@ -212,7 +209,7 @@ private suspend fun StorageEngine.writeFileMirrorAndBackup(slot: Int, data: Save
     } catch (e: CancellationException) {
         throw e // 取消穿透: 取消时中止备份链路, 保存流程由外层 CE 分支收口
     } catch (e: Exception) {
-        Log.w(TAG, "文件镜像/备份异常 slot=$slot (非阻断)", e)
+        Log.w(TAG, "文件镜像/备份异常（非阻断）", e)
         infra.storageMetrics.recordBackupFailure()
         "文件镜像/备份写入异常: ${e.message ?: e::class.simpleName}"
     }
@@ -231,12 +228,12 @@ internal fun backupWriteDegradationReason(result: StorageResult<Unit>): String? 
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun StorageEngine.clearCacheForSlot(slot: Int) {
+internal fun StorageEngine.clearCacheForSlot() {
     try {
-        val cacheKey = CacheKey.forGameData(slot)
+        val cacheKey = CacheKey.forGameData()
         core.cache.remove(cacheKey)
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to clear cache for slot $slot", e)
+        Log.w(TAG, "Failed to clear cache", e)
     }
 }
 
@@ -245,17 +242,17 @@ internal fun StorageEngine.clearCacheForSlot(slot: Int) {
  * 留下部分 DB 行与 .sav/.bak 文件，使其不干扰后续正常创建新档。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.clearSlotDataQuietly(slot: Int) {
+internal suspend fun StorageEngine.clearResidualDataQuietly() {
     try {
         // 审计 §12-K：旧实现只删 game_data + disciples **两张表** ⇒ tombstone 路径
         // 残留 27 表行（合规与正确性双重问题）。现与 delete() 共用同一份全表清理。
-        clearAllSlotTables(slot)
-        saveFileManager.deleteSlot(slot)
-        saveFileManager.clearSlotDeleted(slot)
+        clearAllTables()
+        saveFileManager.deleteFiles()
+        saveFileManager.clearDeleted()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "tombstone 清理残留数据失败 slot=$slot（非阻断）", e)
+        Log.w(TAG, "tombstone 清理残留数据失败（非阻断）", e)
     }
 }
 
@@ -270,35 +267,35 @@ internal suspend fun StorageEngine.clearSlotDataQuietly(slot: Int) {
  * 否则删档/tombstone 会留下新表残行（`GameDatabase` 注册实体数 = 本清单唯一权威对照）。
  */
 @Suppress("LongMethod") // 27 个 DAO 逐行清理清单：按实体顺序平铺，拆函数反而遮蔽"清单完整性"
-internal suspend fun StorageEngine.clearAllSlotTables(slot: Int) {
+internal suspend fun StorageEngine.clearAllTables() {
     core.database.withTransaction {
-        core.database.gameDataDao().deleteAll(slot)
-        core.database.discipleDao().deleteAll(slot)
-        core.database.equipmentInstanceDao().deleteAll(slot)
-        core.database.manualStackDao().deleteAll(slot)
-        core.database.manualInstanceDao().deleteAll(slot)
-        core.database.pillDao().deleteAll(slot)
-        core.database.materialDao().deleteAll(slot)
-        core.database.seedDao().deleteAll(slot)
-        core.database.herbDao().deleteAll(slot)
-        core.database.buildingSlotDao().deleteAll(slot)
-        core.database.recipeDao().deleteAll(slot)
-        core.database.productionSlotDao().deleteBySlot(slot)
-        core.database.battleLogDao().deleteAll(slot)
-        core.database.mailDao().deleteAllForSlot(slot)
-        core.database.saveSlotMetadataDao().deleteBySlotId(slot)
-        core.database.storageBagDao().deleteAll(slot)
-        core.database.gameHeavyDataDao().deleteAllForSlot(slot)
-        core.database.diplomacyStateDao().deleteBySlot(slot)
-        core.database.productionStateDao().deleteBySlot(slot)
-        core.database.patrolStateDao().deleteBySlot(slot)
-        core.database.worldMapStateDao().deleteBySlot(slot)
-        core.database.sectPolicyStateDao().deleteBySlot(slot)
+        core.database.gameDataDao().deleteAll()
+        core.database.discipleDao().deleteAll()
+        core.database.equipmentInstanceDao().deleteAll()
+        core.database.manualStackDao().deleteAll()
+        core.database.manualInstanceDao().deleteAll()
+        core.database.pillDao().deleteAll()
+        core.database.materialDao().deleteAll()
+        core.database.seedDao().deleteAll()
+        core.database.herbDao().deleteAll()
+        core.database.buildingSlotDao().deleteAll()
+        core.database.recipeDao().deleteAll()
+        core.database.productionSlotDao().deleteAll()
+        core.database.battleLogDao().deleteAll()
+        core.database.mailDao().deleteAll()
+        core.database.saveSlotMetadataDao().deleteAll()
+        core.database.storageBagDao().deleteAll()
+        core.database.gameHeavyDataDao().deleteAll()
+        core.database.diplomacyStateDao().deleteAll()
+        core.database.productionStateDao().deleteAll()
+        core.database.patrolStateDao().deleteAll()
+        core.database.worldMapStateDao().deleteAll()
+        core.database.sectPolicyStateDao().deleteAll()
         // 审计 §12-K 补齐：归档表与邮件草稿表同样带 slot 列，删档必须一并清
         //（旧实现全链漏删这 4 张表 ⇒ 账号注销/删档后仍残留玩家数据）
-        core.database.archivedBattleLogDao().deleteBySlot(slot)
-        core.database.archivedDiscipleDao().deleteBySlot(slot)
-        core.database.mailDraftDao().deleteAllOverflowDraftsForSlot(slot)
-        core.database.mailDraftDao().deleteAllDirectMailDraftsForSlot(slot)
+        core.database.archivedBattleLogDao().deleteAll()
+        core.database.archivedDiscipleDao().deleteAll()
+        core.database.mailDraftDao().deleteAllOverflowDrafts()
+        core.database.mailDraftDao().deleteAllDirectMailDrafts()
     }
 }

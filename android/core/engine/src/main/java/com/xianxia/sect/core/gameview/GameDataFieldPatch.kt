@@ -126,9 +126,7 @@ internal object GameDataFieldPatch {
     @Suppress("LargeClass")
     private val WRITERS: Map<String, GameDataFieldWriter> = mapOf(
         f("id", { gd, el, j -> gd.id = j.decodeFromJsonElement<String>(el) }),
-        f("sectName", { gd, el, j -> gd.sectName = j.decodeFromJsonElement<String>(el) }),
-        f("currentSlot", { gd, el, j -> gd.currentSlot = j.decodeFromJsonElement<Int>(el) }),
-        f("gameYear", { gd, el, j -> gd.gameYear = j.decodeFromJsonElement<Int>(el) }),
+        f("sectName", { gd, el, j -> gd.sectName = j.decodeFromJsonElement<String>(el) }),        f("gameYear", { gd, el, j -> gd.gameYear = j.decodeFromJsonElement<Int>(el) }),
         f("gameMonth", { gd, el, j -> gd.gameMonth = j.decodeFromJsonElement<Int>(el) }),
         f("gamePhase", { gd, el, j -> gd.gamePhase = j.decodeFromJsonElement<Int>(el) }),
         f("elapsedGameMs", { gd, el, j -> gd.elapsedGameMs = j.decodeFromJsonElement<Long>(el) }),

@@ -62,7 +62,7 @@ namespace gamecore::state {
 // ── Manual common fields ─────────────────────────────────────────────
 
 static void manualBaseToJson(nlohmann::json& j, const ManualBase& v) {
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, type); GC_TO(v, j, stats);
     GC_TO_OPT(v, j, skillName); GC_TO_OPT(v, j, skillDescription);
@@ -80,7 +80,7 @@ static void manualBaseToJson(nlohmann::json& j, const ManualBase& v) {
 }
 
 static void manualBaseFromJson(const nlohmann::json& j, ManualBase& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, type); GC_FROM(j, v, stats);
     GC_FROM_OPT(j, v, skillName); GC_FROM_OPT(j, v, skillDescription);
@@ -137,13 +137,13 @@ void from_json(const nlohmann::json& j, EquipInstanceMeta& v) {
 
 void to_json(nlohmann::json& j, const EquipmentInstance& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, setId); GC_TO(v, j, part);
     GC_TO(v, j, growth); GC_TO(v, j, meta);
     GC_TO_OPT(v, j, ownerId); GC_TO(v, j, isEquipped);
 }
 void from_json(const nlohmann::json& j, EquipmentInstance& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, setId); GC_FROM(j, v, part);
     GC_FROM(j, v, growth); GC_FROM(j, v, meta);
     GC_FROM_OPT(j, v, ownerId); GC_FROM(j, v, isEquipped);
@@ -171,13 +171,13 @@ void from_json(const nlohmann::json& j, ManualInstance& v) {
 
 void to_json(nlohmann::json& j, const Pill& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, category); GC_TO(v, j, grade); GC_TO(v, j, pillType);
     GC_TO(v, j, effects); GC_TO(v, j, minRealm); GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, Pill& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, category); GC_FROM(j, v, grade); GC_FROM(j, v, pillType);
     GC_FROM(j, v, effects); GC_FROM(j, v, minRealm); GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
@@ -185,37 +185,37 @@ void from_json(const nlohmann::json& j, Pill& v) {
 
 void to_json(nlohmann::json& j, const Material& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, category); GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, Material& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, category); GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
 }
 
 void to_json(nlohmann::json& j, const Herb& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, category); GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, Herb& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, category); GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
 }
 
 void to_json(nlohmann::json& j, const Seed& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, growTime); GC_TO(v, j, yield);
     GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, Seed& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, growTime); GC_FROM(j, v, yield);
     GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
@@ -223,12 +223,12 @@ void from_json(const nlohmann::json& j, Seed& v) {
 
 void to_json(nlohmann::json& j, const StorageBag& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
+    GC_TO(v, j, id); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, StorageBag& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
+    GC_FROM(j, v, id); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
 }
@@ -1182,7 +1182,7 @@ void from_json(const nlohmann::json& j, GameEventRecord& v) {
 
 void to_json(nlohmann::json& j, const GameData& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, sectName); GC_TO(v, j, currentSlot);
+    GC_TO(v, j, id);GC_TO(v, j, sectName);
     GC_TO(v, j, gameYear); GC_TO(v, j, gameMonth); GC_TO(v, j, gamePhase);
     // 双轨时间权威轴（B3；导出键 = Kotlin 字段名）
     GC_TO(v, j, elapsedGameMs); GC_TO(v, j, lastSettleGameMs);
@@ -1276,7 +1276,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, caveExplorationTeams);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
+    GC_FROM(j, v, id);GC_FROM(j, v, sectName);
     GC_FROM(j, v, gameYear); GC_FROM(j, v, gameMonth); GC_FROM(j, v, gamePhase);
     // 双轨时间权威轴（B3；缺键宽松=旧档默认 0，读档归一化按日历回填）
     GC_FROM(j, v, elapsedGameMs); GC_FROM(j, v, lastSettleGameMs);

@@ -2,20 +2,12 @@ package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.Index
 
 @Entity(
     tableName = "game_heavy_data",
-    primaryKeys = ["slot_id", "data_key"],
-    indices = [
-        Index(value = ["slot_id", "data_key"], unique = true),
-        Index(value = ["slot_id"])
-    ]
+    primaryKeys = ["data_key"]
 )
 class GameHeavyData(
-    @ColumnInfo(name = "slot_id")
-    val slotId: Int = 0,
-
     @ColumnInfo(name = "data_key")
     val dataKey: String = "",
 
@@ -28,15 +20,13 @@ class GameHeavyData(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GameHeavyData) return false
-        return slotId == other.slotId
-                && dataKey == other.dataKey
+        return dataKey == other.dataKey
                 && dataValue.contentEquals(other.dataValue)
                 && updatedAt == other.updatedAt
     }
 
     override fun hashCode(): Int {
-        var result = slotId
-        result = 31 * result + dataKey.hashCode()
+        var result = dataKey.hashCode()
         result = 31 * result + dataValue.contentHashCode()
         result = 31 * result + updatedAt.hashCode()
         return result
@@ -90,16 +80,16 @@ class GameHeavyData(
          * 正常情况（< MAX_CHUNK_BYTES）：返回 1 行。
          * 极端情况（单个条目超限）：拆分为多行，key 加 _overflow_N 后缀。
          */
-        fun chunk(slotId: Int, key: String, value: ByteArray,
+        fun chunk(key: String, value: ByteArray,
             updatedAt: Long = System.currentTimeMillis()): List<GameHeavyData> {
             if (value.size <= MAX_CHUNK_BYTES) {
-                return listOf(GameHeavyData(slotId, key, value, updatedAt))
+                return listOf(GameHeavyData(key, value, updatedAt))
             }
             val result = mutableListOf<GameHeavyData>()
             var offset = 0
             while (offset < value.size) {
                 val end = minOf(offset + MAX_CHUNK_BYTES, value.size)
-                result.add(GameHeavyData(slotId,
+                result.add(GameHeavyData(
                     "${key}${OVERFLOW_SUFFIX}${offset / MAX_CHUNK_BYTES}",
                     value.copyOfRange(offset, end), updatedAt))
                 offset = end

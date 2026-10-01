@@ -17,11 +17,11 @@ class GameDataRepositoryImpl @Inject constructor(
         const val DEFAULT_SLOT_ID = 0
     }
 
-    override fun getGameData(slotId: Int): Flow<GameData?> =
-        gameDataDao.getGameData(slotId)
+    override fun getGameData(): Flow<GameData?> =
+        gameDataDao.getGameData()
 
-    override suspend fun getGameDataSync(slotId: Int): GameData? =
-        gameDataDao.getGameDataSync(slotId)
+    override suspend fun getGameDataSync(): GameData? =
+        gameDataDao.getGameDataSync()
 
     override suspend fun initializeNewGame(): GameData {
         val gameData = GameData(id = "game_data_0")
@@ -29,21 +29,21 @@ class GameDataRepositoryImpl @Inject constructor(
         return gameData
     }
 
-    override suspend fun clearAllData(slotId: Int) {
+    override suspend fun clearAllData() {
         database.withTransaction {
-            gameDataDao.deleteAll(slotId)
-            database.discipleDao().deleteAll(slotId)
-            database.equipmentInstanceDao().deleteAll(slotId)
-            database.manualStackDao().deleteAll(slotId)
-            database.manualInstanceDao().deleteAll(slotId)
-            database.pillDao().deleteAll(slotId)
-            database.materialDao().deleteAll(slotId)
-            database.seedDao().deleteAll(slotId)
-            database.herbDao().deleteAll(slotId)
-            database.buildingSlotDao().deleteAll(slotId)
-            database.recipeDao().deleteAll(slotId)
-            database.battleLogDao().deleteAll(slotId)
-            database.productionSlotDao().deleteBySlot(slotId)
+            gameDataDao.deleteAll()
+            database.discipleDao().deleteAll()
+            database.equipmentInstanceDao().deleteAll()
+            database.manualStackDao().deleteAll()
+            database.manualInstanceDao().deleteAll()
+            database.pillDao().deleteAll()
+            database.materialDao().deleteAll()
+            database.seedDao().deleteAll()
+            database.herbDao().deleteAll()
+            database.buildingSlotDao().deleteAll()
+            database.recipeDao().deleteAll()
+            database.battleLogDao().deleteAll()
+            database.productionSlotDao().deleteAll()
         }
     }
 }

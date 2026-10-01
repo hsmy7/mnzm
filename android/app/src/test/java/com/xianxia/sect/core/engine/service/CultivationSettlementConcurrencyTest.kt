@@ -13,7 +13,6 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -56,7 +55,7 @@ class CultivationSettlementConcurrencyTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
+        stateStore = GameStateStoreImpl(scopeProvider)
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         spiritStoneWallet = SpiritStoneWallet(stateStore, ledger, eventBus)
         runBlocking {

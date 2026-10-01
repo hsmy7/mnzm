@@ -190,7 +190,6 @@ class MainActivity : ComponentActivity() {
          * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"。
          */
         private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
-        const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
         const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
@@ -199,7 +198,6 @@ class MainActivity : ComponentActivity() {
         private const val AUTO_ENTER_CLOUD_CHECK_TIMEOUT_MS = 5_000L
 
         /** 自动进入：自动新建档的固定落位槽位（宗门名走引擎默认「青云宗」，游戏内可改名） */
-        private const val AUTO_ENTER_NEW_GAME_SLOT = 1
 
         /** 自动进入：加载页静态进度（存档判定阶段无真实进度可报，取中段值配合阶段文案） */
         private const val AUTO_ENTER_LOADING_PROGRESS = 0.5f
@@ -592,7 +590,7 @@ class MainActivity : ComponentActivity() {
      * 按存档状态自动进入游戏，判定全程由加载界面承载（玩家零选择界面）。
      *
      * 决策（[AutoEntryResolver]）：本地最新档自动读 → 本地全空时查云端
-     *（换机/重装兜底）→ 均无档自动新建（[AUTO_ENTER_NEW_GAME_SLOT] 号槽 +
+     *（换机/重装兜底）→ 均无档自动新建（自动建新档 +
      * 引擎默认宗门名「青云宗」，游戏内可改名）。
      *
      * 存储状态未知（槽位整表查询失败）时阻断在如实错误屏并给重试入口——
@@ -612,14 +610,13 @@ class MainActivity : ComponentActivity() {
             } else {
                 queryCloudHasSave()
             }
-            when (val entry = AutoEntryResolver.resolve(slots, cloudHasSave)) {
-                is AutoEntry.LoadLocal -> launchGame(slot = entry.slot)
+            when (AutoEntryResolver.resolve(slots, cloudHasSave)) {
+                AutoEntry.LoadLocal -> launchGame()
                 AutoEntry.LoadCloud -> launchGame(cloudLoad = true)
-                AutoEntry.CreateNew -> launchGame(
-                    slot = AUTO_ENTER_NEW_GAME_SLOT,
-                    newGame = true,
-                    sectName = null
-                )
+                            AutoEntry.CreateNew -> launchGame(
+                newGame = true,
+                sectName = null
+            )
             }
         }
     }
@@ -677,14 +674,12 @@ class MainActivity : ComponentActivity() {
 
     /** 携带存档参数启动游戏 Activity（槽位读档/自动新建/云存档读档 三选一） */
     private fun launchGame(
-        slot: Int? = null,
         newGame: Boolean = false,
         sectName: String? = null,
         cloudLoad: Boolean = false
     ) {
         val intent = Intent(this, GameActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            if (slot != null) putExtra(EXTRA_SLOT, slot)
             if (newGame) {
                 putExtra(EXTRA_NEW_GAME, true)
                 putExtra(EXTRA_SECT_NAME, sectName)

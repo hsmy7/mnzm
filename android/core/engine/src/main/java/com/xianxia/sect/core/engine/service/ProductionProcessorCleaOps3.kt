@@ -303,13 +303,13 @@ internal fun ProductionProcessor.alignMirrorFromRepository() {
  * IO 失败仅记录：镜像已是权威，Room 落后由下月对齐自愈。
  */
 
-internal fun ProductionProcessor.restoreRepositoryFromMirror(slotId: Int) {
+internal fun ProductionProcessor.restoreRepositoryFromMirror() {
     val mirrorSlots = stateStore.gameData.value.productionSlots
     scopeProvider.scope.launch(ioDispatcher.dispatcher) {
         try {
-            productionSlotRepository.restoreSlots(mirrorSlots, slotId)
+            productionSlotRepository.restoreSlots(mirrorSlots)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            DomainLog.e(TAG, "restoreRepositoryFromMirror 槽位写回失败: $slotId", e)
+            DomainLog.e(TAG, "restoreRepositoryFromMirror 槽位写回失败", e)
         }
     }
 }

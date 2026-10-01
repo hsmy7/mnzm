@@ -63,7 +63,7 @@ class BuildingFacadeImplPlantingTest {
     private fun seedEntity(id: String, quantity: Int, isLocked: Boolean = false): Seed {
         val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: error("聚灵草种必须在 HerbDatabase 中定义")
         return Seed(
-            id = id, slotId = 1, name = "聚灵草种", rarity = dbSeed.rarity,
+            id = id, name = "聚灵草种", rarity = dbSeed.rarity,
             growTime = 36, yield = 5, quantity = quantity, isLocked = isLocked
         )
     }

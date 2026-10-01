@@ -7,8 +7,6 @@ package com.xianxia.sect.core.model
 data class DiscipleExtended(
     var discipleId: String = "",
 
-    var slotId: Int = 0,
-
     var manualIds: List<String> = emptyList(),
     var manualMasteries: Map<String, Int> = emptyMap(),
     var statusData: Map<String, String> = emptyMap(),

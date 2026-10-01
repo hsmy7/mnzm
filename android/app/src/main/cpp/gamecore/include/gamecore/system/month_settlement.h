@@ -1059,7 +1059,6 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
         secret_realm_settle::processMonthlyExpiryCheck(
             state, state.gameData.gameYear, &closeDraft);
         if (closeDraft.closed) {
-            closeDraft.slotId = state.gameData.currentSlot;
             out.secretRealmClose = std::move(closeDraft);
         }
     }

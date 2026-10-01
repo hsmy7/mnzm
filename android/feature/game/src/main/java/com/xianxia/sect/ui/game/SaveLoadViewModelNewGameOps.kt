@@ -5,7 +5,6 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import kotlinx.coroutines.*
 import com.xianxia.sect.core.engine.createNewGame
-import com.xianxia.sect.core.engine.updateGameData
 
 // ── 新游戏流程（首存/启动序列/福利注入/循环启停/资源预载）（自 SaveLoadViewModel 拆出，行为零变更）─────────────────────
 // batch-02 TooManyFunctions/LargeClass 收敛外移为同包扩展，调用点语法不变。
@@ -15,17 +14,17 @@ import com.xianxia.sect.core.engine.updateGameData
  * 创建新游戏 → RNG 播种 → 首存（失败重试一次）→ BootSequenceController 启动。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 取消异常已前置分支处理, 泛型段为刻意终局兜底
-internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, slot: Int, startTime: Long) {
+internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, startTime: Long) {
     var needSlotRefresh = false
     var gameStarted = false
     try {
-        setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "newgame")
+        setSaveLoadState(isLoading = true, pendingSlot = 1, pendingAction = "newgame")
 
         loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START
 
         Log.d(SaveLoadViewModelConstants.TAG,
-            "startNewGame: Calling gameEngine.createNewGame(sectName=$sectName, slot=$slot)")
-        gameEngine.createNewGame(sectName, slot)
+            "startNewGame: Calling gameEngine.createNewGame(sectName=$sectName)")
+        gameEngine.createNewGame(sectName)
         Log.d(SaveLoadViewModelConstants.TAG, "startNewGame: Game engine created new game successfully, " +
             "elapsed=${System.currentTimeMillis() - startTime}ms")
 
@@ -35,16 +34,14 @@ internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, slo
         Log.d(SaveLoadViewModelConstants.TAG,
             "startNewGame: RNG seeded with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
-        persistenceFacade.storageFacade.setCurrentSlot(slot)
-        Log.d(SaveLoadViewModelConstants.TAG, "Active slot set to $slot")
-
-        var saveSuccess = performInitialSaveForNewGame(slot = slot)
+        
+        var saveSuccess = performInitialSaveForNewGame()
         needSlotRefresh = true
         if (!saveSuccess) {
             return
         }
 
-        gameStarted = performNewGameBoot(slot = slot, startTime = startTime)
+        gameStarted = performNewGameBoot(startTime = startTime)
     } catch (e: CancellationException) {
         Log.w(SaveLoadViewModelConstants.TAG, "startNewGame cancelled")
         throw e
@@ -73,28 +70,27 @@ internal suspend fun SaveLoadViewModel.performStartNewGame(sectName: String, slo
 }
 
 /**新游戏首存：保存进度置位 + 首次保存（失败重试一次） */
-internal suspend fun SaveLoadViewModel.performInitialSaveForNewGame(slot: Int): Boolean {
+internal suspend fun SaveLoadViewModel.performInitialSaveForNewGame(): Boolean {
     loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_SAVE_COMPLETE
-    var saveSuccess = performSynchronousSave(slot)
+    var saveSuccess = performSynchronousSave()
     if (!saveSuccess) {
-        Log.w(SaveLoadViewModelConstants.TAG, "startNewGame: First save attempt failed, retrying once for slot $slot")
+        Log.w(SaveLoadViewModelConstants.TAG, "startNewGame: First save attempt failed, retrying once")
         delay(500)
-        saveSuccess = performSynchronousSave(slot)
+        saveSuccess = performSynchronousSave()
     }
     if (!saveSuccess) {
         Log.e(SaveLoadViewModelConstants.TAG,
-            "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
+            "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start")
         showError("保存失败，无法启动游戏。请检查存储空间后重试。")
     }
     return saveSuccess
 }
 
 /**新游戏启动序列：BootSequenceController.boot + 福利注入 */
-internal suspend fun SaveLoadViewModel.performNewGameBoot(slot: Int, startTime: Long): Boolean {
+internal suspend fun SaveLoadViewModel.performNewGameBoot(startTime: Long): Boolean {
     // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
     // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
     val bootResult = persistenceFacade.bootSequenceController.boot(
-        slot = slot,
         onPreloadResources = { preloadGameResources() },
         onProgress = { progress ->
             loadingProgressFlow.value = SaveLoadViewModelConstants.PROGRESS_START + progress * (
@@ -120,28 +116,26 @@ internal suspend fun SaveLoadViewModel.performNewGameBoot(slot: Int, startTime: 
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun SaveLoadViewModel.performSynchronousSave(slot: Int): Boolean {
+internal suspend fun SaveLoadViewModel.performSynchronousSave(): Boolean {
     return try {
         val snapshot = gameEngine.buildSaveSnapshot()
         if (snapshot.gameData.sectName.isBlank()) {
             Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave: gameData not initialized")
             return false
         }
-        val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-        val saveData = trimSaveData(snapshot, readSlotMails(slot)).copy(gameData = updatedGameData)
+        val saveData = trimSaveData(snapshot, readMails())
 
         val result = withTimeoutOrNull(30_000L) {
-            persistenceFacade.storageFacade.save(slot, saveData)
+            persistenceFacade.storageFacade.save(saveData)
         }
 
         when {
             result == null -> {
-                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave TIMEOUT for slot $slot")
+                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave TIMEOUT")
                 showError("保存超时，请稍后手动保存")
                 false
             }
             result.isSuccess -> {
-                gameEngine.updateGameData { updatedGameData }
                 try {
                     saveSlotsFlow.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                 } catch (e: CancellationException) { throw e }
@@ -149,27 +143,27 @@ internal suspend fun SaveLoadViewModel.performSynchronousSave(slot: Int): Boolea
                     Log.e(SaveLoadViewModelConstants.TAG,
                         "Failed to refresh slots after synchronous save: ${e.message}", e)
                 }
-                Log.i(SaveLoadViewModelConstants.TAG, "performSynchronousSave SUCCESS for slot $slot")
+                Log.i(SaveLoadViewModelConstants.TAG, "performSynchronousSave SUCCESS")
                 true
             }
             result is SaveResult.Failure && result.error == SaveError.KEY_DERIVATION_ERROR -> {
-                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave KEY_DERIVATION_ERROR for slot $slot")
+                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave KEY_DERIVATION_ERROR")
                 showError("密钥错误：${result.message}\n请尝试清除应用数据或联系支持")
                 false
             }
             result is SaveResult.Failure && result.error == SaveError.IO_ERROR -> {
-                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave IO_ERROR for slot $slot")
+                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave IO_ERROR")
                 showError("存储错误：${result.message}\n请检查存储空间或重启应用")
                 false
             }
             result is SaveResult.Failure -> {
                 Log.e(SaveLoadViewModelConstants.TAG,
-                    "performSynchronousSave FAILED for slot $slot: ${result.error} - ${result.message}")
+                    "performSynchronousSave FAILED: ${result.error} - ${result.message}")
                 showError("保存失败，请稍后手动保存")
                 false
             }
             else -> {
-                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave FAILED for slot $slot: unknown error")
+                Log.e(SaveLoadViewModelConstants.TAG, "performSynchronousSave FAILED: unknown error")
                 showError("保存失败，请稍后手动保存")
                 false
             }

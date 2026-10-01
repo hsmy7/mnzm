@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -18,8 +17,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
-import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
@@ -43,7 +40,6 @@ class GameStateStoreRollbackTest {
     @get:Rule val writeGuardRule = WriteGuardRule()
 
     private lateinit var stateStore: GameStateStoreImpl
-    private lateinit var repository: GameStateRepository
 
     @Before
     fun setUp() {
@@ -94,12 +90,8 @@ class GameStateStoreRollbackTest {
             override fun getBreakthroughChance(
                 a: DiscipleAggregate, iec: Int, oec: Int, pb: Double, ab: Double
             ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab)
-        }
-
-        repository = testGameStateRepository()
-        stateStore = GameStateStoreImpl(
-            applicationScopeProvider = ApplicationScopeProvider(),
-            repository = repository
+        }        stateStore = GameStateStoreImpl(
+            ApplicationScopeProvider()
         )
         stateStore.unsafeAllowMainThreadUpdateForTest = true
     }
@@ -113,9 +105,10 @@ class GameStateStoreRollbackTest {
 
     private fun snapshotArgs(
         disciples: List<Disciple> = emptyList(),
-        year: Int = 2
+        year: Int = 2,
+        rngStates: Map<Int, Long> = emptyMap()
     ): List<Any?> = listOf(
-        GameData(gameYear = year, gameMonth = 1),
+        GameData(gameYear = year, gameMonth = 1, rngStates = rngStates),
         disciples,
         emptyList<EquipmentInstance>(),
         emptyList<com.xianxia.sect.core.model.ManualStack>(),
@@ -137,15 +130,26 @@ class GameStateStoreRollbackTest {
             discipleTables.insert(makeDisciple(2, cultivation = 200.0))
         }
 
-        // 触发加载异常：repository.setActiveSlot 在弟子写入后执行
-        Mockito.`when`(repository.setActiveSlot(any())).thenThrow(
-            IllegalStateException("模拟存档槽设置失败")
-        )
+        // 触发加载异常：RNG 恢复端口失败（finalizeLoadedState 段）
+        val failingPort = object : RngSnapshotPort {
+            override fun snapshot(): Map<Int, Long> = emptyMap()
+            override fun restore(states: Map<Int, Long>) = error("模拟存档读取失败")
+        }
+        val failingStore = GameStateStoreImpl(ApplicationScopeProvider(), failingPort).also {
+            it.unsafeAllowMainThreadUpdateForTest = true
+        }
+        failingStore.update {
+            discipleTables.insert(makeDisciple(1, cultivation = 150.0))
+            discipleTables.insert(makeDisciple(2, cultivation = 200.0))
+        }
 
-        val args = snapshotArgs(disciples = listOf(makeDisciple(9, cultivation = 999.0)))
+        val args = snapshotArgs(
+            disciples = listOf(makeDisciple(9, cultivation = 999.0)),
+            rngStates = mapOf(0 to 1L)
+        )
         try {
             @Suppress("UNCHECKED_CAST")
-            stateStore.loadFromSnapshot(
+            failingStore.loadFromSnapshot(
                 gameData = args[0] as GameData,
                 disciples = args[1] as List<Disciple>,
                 equipmentInstances = args[2] as List<EquipmentInstance>,
@@ -163,20 +167,20 @@ class GameStateStoreRollbackTest {
             )
             fail("loadFromSnapshot 应抛出模拟异常")
         } catch (e: IllegalStateException) {
-            // 预期异常：repository.setActiveSlot 模拟失败
-            assertTrue("异常应为模拟的存档槽设置失败", e.message?.contains("模拟") == true)
+            // 预期异常：RNG 恢复端口模拟失败
+            assertTrue("异常应为模拟的存档读取失败", e.message?.contains("模拟") == true)
         }
 
         // 回滚后：2 名弟子数据完整恢复（COW 破坏时修为归零）
-        val tables = stateStore.discipleTables
+        val tables = failingStore.discipleTables
         assertEquals("回滚后弟子数应恢复", 2, tables.count)
         assertEquals("回滚后修为应完整恢复", 150.0, tables.cultivations[1], 0.001)
         assertEquals("回滚后修为应完整恢复", 200.0, tables.cultivations[2], 0.001)
         assertEquals("回滚后姓名应完整恢复", "弟子1", tables.names[1])
         assertEquals("回滚后境界应完整恢复", 9, tables.realms[1])
         // _disciplesFlow 同步恢复
-        assertEquals("回滚后 _disciplesFlow 应恢复", 2, stateStore.disciples.value.size)
-        assertEquals(150.0, stateStore.disciples.value.find { it.id == "1" }?.cultivation ?: -1.0, 0.001)
+        assertEquals("回滚后 _disciplesFlow 应恢复", 2, failingStore.disciples.value.size)
+        assertEquals(150.0, failingStore.disciples.value.find { it.id == "1" }?.cultivation ?: -1.0, 0.001)
     }
 
     // ═══════════════════════════════════════════════════════════════

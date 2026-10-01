@@ -47,7 +47,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
 @Serializable(with = DiscipleSerializer::class)
 @Entity(
     tableName = "disciples",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["realm", "realmLayer"]),
@@ -60,9 +60,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
 data class Disciple(
     @ColumnInfo(name = "id")
     var id: String = java.util.UUID.randomUUID().toString(),
-
-    @ColumnInfo(name = "slot_id")
-    var slotId: Int = 0,
 
     var name: String = "",
     @ColumnInfo(name = "surname")

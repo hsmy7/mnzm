@@ -19,8 +19,8 @@ internal fun CultivationService.alignProductionSlotsForNativeMonth() {
 }
 
 /** S4 月结窗口后置写回（残留执行器之后）：镜像整表重放 repo（restoreSlots）。 */
-internal fun CultivationService.restoreProductionSlotsFromMirror(slotId: Int) {
-        productionProcessor.restoreRepositoryFromMirror(slotId)
+internal fun CultivationService.restoreProductionSlotsFromMirror() {
+        productionProcessor.restoreRepositoryFromMirror()
 }
 
 internal fun CultivationService.processSpiritFieldHarvest(state: MutableGameState) {

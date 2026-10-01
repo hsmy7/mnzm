@@ -1081,7 +1081,7 @@ class SecretRealmService @Inject constructor(
                 source = SpiritStoneSource.SecretRealm
             )
         }
-        val mail = buildExpiryCloseMail(data.currentSlot, session.backpack, wallClock.currentTimeMillis())
+        val mail = buildExpiryCloseMail(session.backpack, wallClock.currentTimeMillis())
         // 先清空背包再 endSession：settleBackpack 对空背包 no-op，杜绝邮件+入仓双发放
         state.gameData = data.copy(secretRealmSession = session.copy(backpack = SecretRealmBackpack()))
         endSession(state, SecretRealmEndReason.EXPIRED)
@@ -1098,16 +1098,14 @@ class SecretRealmService @Inject constructor(
      * 灵石入钱包/背包清空/会话清场——已在 C++ 侧完成，Kotlin 不再执行
      * processMonthlyExpiryCheck）。
      *
-     * @param slotId 存档槽位（邮件归属）
      * @param backpack 关闭时背包快照（六类物品——邮件附件来源）
      * @param memberIds 会话成员弟子 id（assignmentGate.release）
      */
     fun applyExpiryCloseDraft(
-        slotId: Int,
         backpack: SecretRealmBackpack,
         memberIds: Set<String>
     ) {
-        val mail = buildExpiryCloseMail(slotId, backpack, wallClock.currentTimeMillis())
+        val mail = buildExpiryCloseMail(backpack, wallClock.currentTimeMillis())
         memberIds.forEach { assignmentGate.release(it) }
         mail?.let { overflowMailSender.sendDirectMail(it) }
     }
@@ -1117,7 +1115,6 @@ class SecretRealmService @Inject constructor(
      * 未命中为 null 由 MailService 回退品阶随机）。空背包返回 null（不产生无附件邮件）。
      */
     internal fun buildExpiryCloseMail(
-        slotId: Int,
         backpack: SecretRealmBackpack,
         now: Long
     ): MailEntity? {
@@ -1132,9 +1129,7 @@ class SecretRealmService @Inject constructor(
         if (attachments.isEmpty()) return null
         val itemLines = attachments.joinToString("\n") { "• ${it.name} ×${it.quantity}" }
         return MailEntity(
-            id = UUID.randomUUID().toString(),
-            slotId = slotId,
-            source = "secret_realm",
+            id = UUID.randomUUID().toString(),            source = "secret_realm",
             mailType = "secret_realm_close",
             title = "远古秘境已关闭",
             content = "远古秘境已关闭，这些物品是远古秘境中获得的物品：\n\n$itemLines\n\n" +

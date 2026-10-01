@@ -12,16 +12,12 @@ import kotlinx.serialization.protobuf.ProtoNumber
 @Serializable
 @Entity(
     tableName = "building_slots",
-    primaryKeys = ["id", "slot_id"]
+    primaryKeys = ["id"]
 )
 data class BuildingSlot(
     @ColumnInfo(name = "id")
     @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
-
-    @ColumnInfo(name = "slot_id")
-    @Transient
-    var slotId: Int = 0,
 
     @ProtoNumber(2)
     val buildingId: String = "",
@@ -76,14 +72,11 @@ enum class SlotStatus {
 @Serializable
 @Entity(
     tableName = "recipes",
-    primaryKeys = ["id", "slot_id"]
+    primaryKeys = ["id"]
 )
 data class Recipe(
     @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
-
-    @ColumnInfo(name = "slot_id")
-    var slotId: Int = 0,
 
     val name: String = "",
     val description: String = "",
@@ -114,16 +107,12 @@ enum class RecipeType {
 @Serializable
 @Entity(
     tableName = "battle_logs",
-    primaryKeys = ["id", "slot_id"]
+    primaryKeys = ["id"]
 )
 data class BattleLog(
     @ColumnInfo(name = "id")
     @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
-
-    @ColumnInfo(name = "slot_id")
-    @Transient
-    var slotId: Int = 0,
 
     @ProtoNumber(2)
     val timestamp: Long = System.currentTimeMillis(),

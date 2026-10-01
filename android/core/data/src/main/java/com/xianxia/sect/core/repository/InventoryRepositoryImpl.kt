@@ -32,55 +32,55 @@ class InventoryRepositoryImpl @Inject constructor(
 
     // ==================== ManualStack ====================
 
-    override fun getManualStacks(slotId: Int): Flow<List<ManualStack>> =
-        manualStackDao.getAll(slotId)
+    override fun getManualStacks(): Flow<List<ManualStack>> =
+        manualStackDao.getAll()
 
-    override suspend fun getManualStackById(id: String, slotId: Int): ManualStack? =
-        manualStackDao.getById(slotId, id)
+    override suspend fun getManualStackById(id: String): ManualStack? =
+        manualStackDao.getById(id)
 
     // ==================== ManualInstance ====================
 
-    override fun getManualInstances(slotId: Int): Flow<List<ManualInstance>> =
-        manualInstanceDao.getAll(slotId)
+    override fun getManualInstances(): Flow<List<ManualInstance>> =
+        manualInstanceDao.getAll()
 
-    override suspend fun getManualInstanceById(id: String, slotId: Int): ManualInstance? =
-        manualInstanceDao.getById(slotId, id)
+    override suspend fun getManualInstanceById(id: String): ManualInstance? =
+        manualInstanceDao.getById(id)
 
-    override suspend fun getManualInstancesByOwner(discipleId: String, slotId: Int): List<ManualInstance> =
-        manualInstanceDao.getByOwner(slotId, discipleId)
+    override suspend fun getManualInstancesByOwner(discipleId: String): List<ManualInstance> =
+        manualInstanceDao.getByOwner(discipleId)
 
     // ==================== Pill ====================
 
-    override fun getPills(slotId: Int): Flow<List<Pill>> =
-        pillDao.getAll(slotId)
+    override fun getPills(): Flow<List<Pill>> =
+        pillDao.getAll()
 
-    override suspend fun getPillById(id: String, slotId: Int): Pill? =
-        pillDao.getById(slotId, id)
+    override suspend fun getPillById(id: String): Pill? =
+        pillDao.getById(id)
 
     // ==================== Material ====================
 
-    override fun getMaterials(slotId: Int): Flow<List<Material>> =
-        materialDao.getAll(slotId)
+    override fun getMaterials(): Flow<List<Material>> =
+        materialDao.getAll()
 
-    override suspend fun getMaterialById(id: String, slotId: Int): Material? =
-        materialDao.getById(slotId, id)
+    override suspend fun getMaterialById(id: String): Material? =
+        materialDao.getById(id)
 
-    override fun getMaterialsByCategory(category: MaterialCategory, slotId: Int): Flow<List<Material>> =
-        materialDao.getByCategory(slotId, category)
+    override fun getMaterialsByCategory(category: MaterialCategory): Flow<List<Material>> =
+        materialDao.getByCategory(category)
 
     // ==================== Seed ====================
 
-    override fun getSeeds(slotId: Int): Flow<List<Seed>> =
-        seedDao.getAll(slotId)
+    override fun getSeeds(): Flow<List<Seed>> =
+        seedDao.getAll()
 
-    override suspend fun getSeedById(id: String, slotId: Int): Seed? =
-        seedDao.getById(slotId, id)
+    override suspend fun getSeedById(id: String): Seed? =
+        seedDao.getById(id)
 
     // ==================== Herb ====================
 
-    override fun getHerbs(slotId: Int): Flow<List<Herb>> =
-        herbDao.getAll(slotId)
+    override fun getHerbs(): Flow<List<Herb>> =
+        herbDao.getAll()
 
-    override suspend fun getHerbById(id: String, slotId: Int): Herb? =
-        herbDao.getById(slotId, id)
+    override suspend fun getHerbById(id: String): Herb? =
+        herbDao.getById(id)
 }

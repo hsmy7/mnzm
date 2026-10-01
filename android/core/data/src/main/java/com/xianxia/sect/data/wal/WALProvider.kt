@@ -11,8 +11,8 @@ enum class WALEntryType {
 
 data class RecoveryResult(
     val success: Boolean,
-    val recoveredSlots: Set<Int>,
-    val failedSlots: Set<Int>,
+    val recoveredCount: Int,
+    val failedCount: Int,
     val errors: List<String>
 )
 
@@ -27,7 +27,6 @@ data class EnhancedWALStats(
 
 data class TransactionRecord(
     val txnId: Long,
-    val slot: Int,
     val operation: WALEntryType,
     val startTime: Long,
     val statusRef: AtomicReference<TransactionStatus> = AtomicReference(TransactionStatus.ACTIVE),
@@ -45,7 +44,6 @@ data class TransactionRecord(
 interface WALProvider {
 
     suspend fun beginTransaction(
-        slot: Int,
         operation: WALEntryType
     ): SaveResult<Long>
 

@@ -68,7 +68,6 @@ class BootSequenceController @Inject constructor(
     /**
      * 统一启动入口。必须在 [gameEngine.loadData] / [gameEngine.createNewGame] 之后调用。
      *
-     * @param slot 存档槽位
      * @param onPreloadResources 资源预加载回调（UI 层提供实现）
      * @param onProgress 进度回调 (0.0 ~ 1.0)
      * @param onPhase 阶段标签回调（UI 展示用）
@@ -79,7 +78,6 @@ class BootSequenceController @Inject constructor(
     // 统一启动入口（多回调签名）。主体在 [bootCore]（引擎上下文执行体）。
     @Suppress("LongParameterList")
     suspend fun boot(
-        slot: Int,
         onPreloadResources: suspend () -> Unit = {},
         onProgress: (Float) -> Unit = {},
         onPhase: (String) -> Unit = {},
@@ -92,7 +90,7 @@ class BootSequenceController @Inject constructor(
         // 已停/未启动（Step 1 stopGameLoop），引擎线程空闲，无阻塞风险。
         // 测试环境经 FakeEngineContextDispatcher 注入（BootSequenceControllerTest stub）。
         return gameEngine.engineContextDispatcher.withEngineContext {
-            bootCore(slot, onPreloadResources, onProgress, onPhase, onMapReady, onSuccess, onError)
+            bootCore(onPreloadResources, onProgress, onPhase, onMapReady, onSuccess, onError)
         }
     }
 
@@ -109,7 +107,6 @@ class BootSequenceController @Inject constructor(
         "ThrowsCount" // 各阶段取消穿透 rethrow 刻意独立抛出(结构化取消语义), 非疏忽超标
     )
     private suspend fun bootCore(
-        slot: Int,
         onPreloadResources: suspend () -> Unit = {},
         onProgress: (Float) -> Unit = {},
         onPhase: (String) -> Unit = {},
@@ -122,7 +119,7 @@ class BootSequenceController @Inject constructor(
 
         try {
             if (!_bootInProgress.compareAndSet(false, true)) {
-                val err = "boot() already in progress for slot $slot"
+                val err = "boot() already in progress"
                 DomainLog.w(TAG, err)
                 onError(err)
                 return Result.failure(IllegalStateException(err))
@@ -290,7 +287,7 @@ class BootSequenceController @Inject constructor(
             val gd = gameEngine.gameData.value
             DomainLog.i(TAG, "boot SUCCESS: " +
                 "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, " +
-                "slot=$slot, elapsed=${System.currentTimeMillis() - startTime}ms")
+                "elapsed=${System.currentTimeMillis() - startTime}ms")
 
             return Result.success(Unit)
 

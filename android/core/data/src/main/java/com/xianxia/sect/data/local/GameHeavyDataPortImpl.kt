@@ -10,12 +10,12 @@ class GameHeavyDataPortImpl @Inject constructor(
     private val database: GameDatabase
 ) : GameHeavyDataPort {
 
-    override fun getLoadedKeys(slot: Int): List<String> =
-        database.gameHeavyDataDao().getLoadedKeys(slot)
+    override fun getLoadedKeys(): List<String> =
+        database.gameHeavyDataDao().getLoadedKeys()
 
-    override fun getByKey(slot: Int, key: String): GameHeavyData? =
-        database.gameHeavyDataDao().getByKey(slot, key)
+    override fun getByKey(key: String): GameHeavyData? =
+        database.gameHeavyDataDao().getByKey(key)
 
-    override fun deleteByKey(slot: Int, key: String) =
-        database.gameHeavyDataDao().deleteByKey(slot, key)
+    override fun deleteByKey(key: String) =
+        database.gameHeavyDataDao().deleteByKey(key)
 }

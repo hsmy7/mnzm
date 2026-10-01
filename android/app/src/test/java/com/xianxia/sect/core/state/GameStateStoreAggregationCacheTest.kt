@@ -30,7 +30,7 @@ class GameStateStoreAggregationCacheTest {
         Disciple(id = id.toString(), name = "弟子$id", realm = 5, realmLayer = 1)
 
     private fun store(): GameStateStoreImpl {
-        val s = GameStateStoreImpl(ApplicationScopeProvider(), testGameStateRepository())
+        val s = GameStateStoreImpl(ApplicationScopeProvider())
         s.unsafeAllowMainThreadUpdateForTest = true
         return s
     }

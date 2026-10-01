@@ -9,7 +9,6 @@ import com.xianxia.sect.core.overflow.OverflowMailHandler
 import com.xianxia.sect.core.engine.service.OverflowMailSender
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
-import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -53,7 +52,7 @@ class InventorySystemOverflowMailTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
+        stateStore = GameStateStoreImpl(scopeProvider)
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         handler = CollectingOverflowMailHandler()

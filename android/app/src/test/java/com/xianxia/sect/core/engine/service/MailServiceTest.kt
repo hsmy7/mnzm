@@ -12,7 +12,6 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
-import com.xianxia.sect.core.state.testGameStateRepository
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -47,7 +46,6 @@ class MailServiceTest {
     private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
 
     // 测试常量
-    private val testSlotId = 1
     private val testMailId = "online_test_001"
     private val now = System.currentTimeMillis()
     private val futureExpire = now + 30L * 24 * 60 * 60 * 1000 // 30天后过期
@@ -64,8 +62,7 @@ class MailServiceTest {
         } else "[]"
         return MailEntity(
             id = id,
-            slotId = testSlotId,
-            source = "online",
+                source = "online",
             mailType = "reward",
             title = "测试邮件",
             content = "测试内容",
@@ -89,13 +86,12 @@ class MailServiceTest {
         // 需要真实堆叠上限（默认 9999），裸 mock 默认返回 0 会导致发放失败
         `when`(inventoryConfig.getMaxStackSize(any())).thenReturn(9999)
         stateStore = GameStateStoreImpl(
-            scopeProvider,
-            testGameStateRepository()
+            ApplicationScopeProvider()
         )
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
 
         // 设置默认 mock 行为
-        `when`(mailRepo.getActiveMails(any())).thenReturn(flowOf(emptyList()))
+        `when`(mailRepo.getActiveMails()).thenReturn(flowOf(emptyList()))
         val gameRngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
         `when`(gameRngManager.getRng(any())).thenReturn(DeterministicRng(42))
 
@@ -134,7 +130,7 @@ class MailServiceTest {
         runBlocking {
             // Arrange: Room 中邮件未标记已领，但 mailRecords 已有记录
             val mail = createUnclaimedMail()
-            `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+            `when`(mailRepo.getById(eq(testMailId))).thenReturn(mail)
 
             // 预置 mailRecord（模拟 Room 更新失败后重进场景）
             stateStore.update {
@@ -150,7 +146,7 @@ class MailServiceTest {
             }
 
             // Act
-            val result = service.claimAttachment(testMailId, testSlotId)
+            val result = service.claimAttachment(testMailId)
 
             // Assert: 应返回 AlreadyClaimed
             assertTrue(
@@ -171,7 +167,7 @@ class MailServiceTest {
         runBlocking {
             // Arrange: Room update 会失败（模拟磁盘满）
             val mail = createUnclaimedMail()
-            `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+            `when`(mailRepo.getById(eq(testMailId))).thenReturn(mail)
             `when`(mailRepo.update(any())).thenThrow(RuntimeException("Disk full"))
 
             stateStore.update {
@@ -183,7 +179,7 @@ class MailServiceTest {
             }
 
             // Act: 不应因自愈失败而崩溃
-            val result = service.claimAttachment(testMailId, testSlotId)
+            val result = service.claimAttachment(testMailId)
 
             // Assert: 即使自愈失败，仍应返回 AlreadyClaimed（不重复发物）
             assertTrue(
@@ -196,10 +192,10 @@ class MailServiceTest {
     fun `claimAttachment - fresh mail without mailRecord, claims normally`() = runBlocking {
         // Arrange: 正常未领取邮件，mailRecords 中无记录
         val mail = createUnclaimedMail()
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(mail)
 
         // Act
-        val result = service.claimAttachment(testMailId, testSlotId)
+        val result = service.claimAttachment(testMailId)
 
         // Assert: 应成功领取
         assertTrue(
@@ -223,9 +219,9 @@ class MailServiceTest {
         val mail = createUnclaimedMail().copy(
             attachments = """[{"type":"mystery","name":"神秘物品","quantity":1,"rarity":1}]"""
         )
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(mail)
 
-        val result = service.claimAttachment(testMailId, testSlotId)
+        val result = service.claimAttachment(testMailId)
 
         assertTrue("未知附件类型必须返回 DistributeFailed", result is ClaimResult.DistributeFailed)
         assertTrue(
@@ -240,8 +236,8 @@ class MailServiceTest {
 
     @Test
     fun `claimAttachment - mail not found returns MailNotFound`() = runBlocking {
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(null)
-        val result = service.claimAttachment(testMailId, testSlotId)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(null)
+        val result = service.claimAttachment(testMailId)
         assertTrue(result is ClaimResult.MailNotFound)
     }
 
@@ -250,16 +246,16 @@ class MailServiceTest {
         val expiredMail = createUnclaimedMail().copy(
             expireTime = now - 1000 // 已过期
         )
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(expiredMail)
-        val result = service.claimAttachment(testMailId, testSlotId)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(expiredMail)
+        val result = service.claimAttachment(testMailId)
         assertTrue(result is ClaimResult.Expired)
     }
 
     @Test
     fun `claimAttachment - already claimed in Room returns AlreadyClaimed`() = runBlocking {
         val claimedMail = createUnclaimedMail().copy(attachmentClaimed = true)
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(claimedMail)
-        val result = service.claimAttachment(testMailId, testSlotId)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(claimedMail)
+        val result = service.claimAttachment(testMailId)
         assertTrue(result is ClaimResult.AlreadyClaimed)
     }
 
@@ -294,11 +290,11 @@ class MailServiceTest {
             expireTime = Long.MAX_VALUE,
             source = "admin"
         )
-        `when`(mailRepo.getById(eq(testSlotId), eq(WHITELIST_BONUS_MAIL_ID)))
+        `when`(mailRepo.getById(eq(WHITELIST_BONUS_MAIL_ID)))
             .thenReturn(permanentMail)
 
         // Act
-        val result = service.claimAttachment(WHITELIST_BONUS_MAIL_ID, testSlotId)
+        val result = service.claimAttachment(WHITELIST_BONUS_MAIL_ID)
 
         // Assert: 永久邮件不应被判为过期
         assertTrue(
@@ -315,12 +311,12 @@ class MailServiceTest {
         )
 
         // Act: 读档/切档/重开路径
-        service.resetAndInitSlot(testSlotId)
+        service.resetAndInit()
 
         // Assert: 邮件永久保留——reset 绝不删除任何邮件（全量清空或按源删除都不发生），
         // 否则未领取的溢出/直发邮件（草稿已被 drain 消费、无处重建）会被静默清掉
-        verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
-        verify(mailRepo, never()).deleteIfClaimed(any(), any())
+        verify(mailRepo, never()).deleteAllReadAndClaimed()
+        verify(mailRepo, never()).deleteIfClaimed(any())
     }
 
     @Test
@@ -331,13 +327,13 @@ class MailServiceTest {
         val claimed = createUnclaimedMail(id = "claimed_1", hasAttachments = true).copy(
             isRead = true, attachmentClaimed = true
         )
-        `when`(mailRepo.getActiveMails(any())).thenReturn(flowOf(listOf(unclaimed, claimed)))
+        `when`(mailRepo.getActiveMails()).thenReturn(flowOf(listOf(unclaimed, claimed)))
 
         // Act: 一键已读（会对未领取附件尝试领取；容量充足）
-        service.markAllAsRead(testSlotId)
+        service.markAllAsRead()
 
         // Assert: 已读未领取的邮件绝不被自动删除——删除入口只有玩家手动"删除已读"
-        verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
+        verify(mailRepo, never()).deleteAllReadAndClaimed()
     }
 
     @Test
@@ -353,10 +349,10 @@ class MailServiceTest {
         val mail = createUnclaimedMail().copy(
             attachments = """[{"type":"spiritStones","name":"上品灵石","quantity":5,"rarity":3}]"""
         )
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+        `when`(mailRepo.getById(eq(testMailId))).thenReturn(mail)
 
         // Act
-        val result = service.claimAttachment(testMailId, testSlotId)
+        val result = service.claimAttachment(testMailId)
 
         // Assert: 成功领取且按上品灵石入账
         assertTrue("上品灵石邮件应领取成功", result is ClaimResult.Success)
@@ -379,11 +375,11 @@ class MailServiceTest {
             state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + amount)
             state.gameData.spiritStones
         }
-        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId)))
+        `when`(mailRepo.getById(eq(testMailId)))
             .thenReturn(createUnclaimedMail())
 
         // Act
-        val result = service.claimAttachment(testMailId, testSlotId)
+        val result = service.claimAttachment(testMailId)
 
         // Assert: 成功领取且按下品灵石入账（名称无品阶词默认 LOW）
         assertTrue("普通灵石邮件应领取成功", result is ClaimResult.Success)

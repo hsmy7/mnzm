@@ -7,8 +7,6 @@ package com.xianxia.sect.core.model
 data class DiscipleEquipment(
     var discipleId: String = "",
 
-    var slotId: Int = 0,
-
     var headId: String = "",
     var bodyId: String = "",
     var handsId: String = "",

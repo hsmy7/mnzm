@@ -35,7 +35,7 @@ import kotlin.concurrent.withLock
  * 替代 NoOpWAL，提供真正的事务持久化和崩溃恢复能力。
  *
  * 设计要点：
-  *1. 二进制 WAL 条目格式：[magic(2B)] [type(1B)] [txnId(8B)] [slotId(4B)] [timestamp(8B)] [dataLen(4B)] [data(var)]
+  *1. 二进制 WAL 条目格式：[magic(2B)] [type(1B)] [txnId(8B)] [timestamp(8B)] [dataLen(4B)] [data(var)]
   * [checksum(32B SHA-256)]
  * 2. 快照数据存储在独立文件中，WAL 条目仅保存引用元数据
  * 3. 使用 ReentrantLock 保证写入原子性，ConcurrentHashMap 管理活跃事务
@@ -56,7 +56,7 @@ class FunctionalWAL @Inject constructor(
         internal const val MAGIC_BYTE_2: Byte = 0x34
 
         /** 条目固定头部大小: magic(2) + type(1) + txnId(8) + slotId(4) + timestamp(8) + dataLength(4) = 27 */
-        internal const val ENTRY_HEADER_SIZE = 27
+        internal const val ENTRY_HEADER_SIZE = 23
 
         /** SHA-256 校验和长度 */
         internal const val CHECKSUM_SIZE = 32
@@ -176,7 +176,6 @@ class FunctionalWAL @Inject constructor(
      */
     @Suppress("TooGenericExceptionCaught") // 异常显式包装进 Result 上抛, 非静默吞噬
     override suspend fun beginTransaction(
-        slot: Int,
         operation: WALEntryType
     ): SaveResult<Long> {
         if (isShutdown.get()) {
@@ -189,7 +188,7 @@ class FunctionalWAL @Inject constructor(
 
                 // 写入 BEGIN 条目，data 字段存储操作类型名称
                 val entryData = operation.name.toByteArray(Charsets.UTF_8)
-                if (!writeEntry(WALEntryType.BEGIN, txnId, slot, entryData)) {
+                if (!writeEntry(WALEntryType.BEGIN, txnId, entryData)) {
                     return@withContext SaveResult.failure(
                         SaveError.WAL_ERROR,
                         "Failed to write BEGIN entry for transaction $txnId"
@@ -199,7 +198,6 @@ class FunctionalWAL @Inject constructor(
                 // 注册活跃事务
                 val record = TransactionRecord(
                     txnId = txnId,
-                    slot = slot,
                     operation = operation,
                     startTime = System.currentTimeMillis()
                 )
@@ -207,12 +205,12 @@ class FunctionalWAL @Inject constructor(
                 txnLocks[txnId] = ReentrantLock()
                 totalTransactions.incrementAndGet()
 
-                Log.d(TAG, "Transaction begun: txnId=$txnId, slot=$slot, op=$operation")
+                Log.d(TAG, "Transaction begun: txnId=$txnId, op=$operation")
                 SaveResult.success(txnId)
             } catch (e: CancellationException) {
                 throw e // 取消穿透: 取消时上抛, 不以 WAL_ERROR 冒充事务记账失败
             } catch (e: Exception) {
-                Log.e(TAG, "beginTransaction failed: slot=$slot", e)
+                Log.e(TAG, "beginTransaction failed", e)
                 SaveResult.failure(SaveError.WAL_ERROR, "Failed to begin transaction: ${e.message}", e)
             }
         }
@@ -321,10 +319,10 @@ class FunctionalWAL @Inject constructor(
         return withContext(Dispatchers.IO) {
             try {
                 val entries = readEntriesForRecovery()
-                    ?: return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
+                    ?: return@withContext RecoveryResult(true, 0, 0, emptyList())
 
                 if (entries.isEmpty()) {
-                    return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
+                    return@withContext RecoveryResult(true, 0, 0, emptyList())
                 }
 
                 // 追踪事务生命周期
@@ -337,31 +335,30 @@ class FunctionalWAL @Inject constructor(
                     Log.i(TAG, "No uncommitted transactions found")
                     // 仍需更新 txnIdGenerator
                     updateTxnIdFromEntries(entries)
-                    return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
+                    return@withContext RecoveryResult(true, 0, 0, emptyList())
                 }
 
-                val recoveredSlots = mutableSetOf<Int>()
-                val failedSlots = mutableSetOf<Int>()
+                var recoveredCount = 0
+                var failedCount = 0
                 val errors = mutableListOf<String>()
 
-                registerUncommittedTransactions(
+                failedCount += registerUncommittedTransactions(
                     uncommitted = uncommitted,
-                    failedSlots = failedSlots,
                     errors = errors
                 )
 
                 // 更新 txnIdGenerator 避免冲突
                 updateTxnIdFromEntries(entries)
 
-                val success = failedSlots.isEmpty()
-                Log.i(TAG, "Recovery completed: recovered=${recoveredSlots.size}, failed=${failedSlots.size}, " +
+                val success = failedCount == 0
+                Log.i(TAG, "Recovery completed: recovered=$recoveredCount, failed=$failedCount, " +
                     "errors=${errors.size}")
-                RecoveryResult(success, recoveredSlots, failedSlots, errors)
+                RecoveryResult(success, recoveredCount, failedCount, errors)
             } catch (e: CancellationException) {
                 throw e // 取消穿透: 取消时上抛, 不以"恢复失败"冒充(避免误触发恢复失败处置)
             } catch (e: Exception) {
                 Log.e(TAG, "Recovery failed", e)
-                RecoveryResult(false, emptySet(), emptySet(), listOf("Recovery failed: ${e.message}"))
+                RecoveryResult(false, 0, 0, listOf("Recovery failed: ${e.message}"))
             }
         }
     }
@@ -570,7 +567,7 @@ internal fun FunctionalWAL.performCommit(
         append("|currentGameYear=").append(currentGameYear)
     }.toByteArray(Charsets.UTF_8)
 
-    if (!writeEntry(WALEntryType.COMMIT, txnId, record.slot, metaData)) {
+    if (!writeEntry(WALEntryType.COMMIT, txnId, metaData)) {
         record.statusRef.set(TransactionStatus.ACTIVE)
         return SaveResult.failure(
             SaveError.WAL_ERROR,
@@ -599,7 +596,7 @@ internal fun FunctionalWAL.performCommit(
         }
     }
 
-    Log.d(TAG, "Transaction committed: txnId=$txnId, slot=${record.slot}")
+    Log.d(TAG, "Transaction committed: txnId=$txnId")
     return SaveResult.success(Unit)
 }
 
@@ -620,7 +617,7 @@ internal fun FunctionalWAL.performAbort(txnId: Long): SaveResult<Unit> {
                 return@withLock SaveResult.success(Unit)
             }
 
-            if (!writeEntry(WALEntryType.ABORT, txnId, record.slot)) {
+            if (!writeEntry(WALEntryType.ABORT, txnId)) {
                 record.statusRef.set(TransactionStatus.ACTIVE)
                 return@withLock SaveResult.failure(
                     SaveError.WAL_ERROR,
@@ -633,7 +630,7 @@ internal fun FunctionalWAL.performAbort(txnId: Long): SaveResult<Unit> {
             activeTransactions.remove(txnId)
             abortedCount.incrementAndGet()
 
-            Log.d(TAG, "Transaction aborted: txnId=$txnId, slot=${record.slot}")
+            Log.d(TAG, "Transaction aborted: txnId=$txnId")
             SaveResult.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "abort failed: txnId=$txnId", e)
@@ -682,7 +679,6 @@ internal fun FunctionalWAL.trackTransactionLifecycle(
                     WALEntryType.valueOf(String(entry.data, Charsets.UTF_8))
                 } catch (_: Exception) { null }
                 beginEntries[entry.txnId] = RecoveryTxnInfo(
-                    slotId = entry.slotId,
                     operation = operation,
                     timestamp = entry.timestamp
                 )
@@ -702,18 +698,16 @@ internal fun FunctionalWAL.trackTransactionLifecycle(
  */
 internal fun FunctionalWAL.registerUncommittedTransactions(
     uncommitted: Map<Long, RecoveryTxnInfo>,
-    failedSlots: MutableSet<Int>,
     errors: MutableList<String>
-) {
+): Int {
+    var failed = 0
     for ((txnId, info) in uncommitted) {
-        val slot = info.slotId
-
         // 超保留期的未完成事务不注册——崩溃遗留的 BEGIN 条目若无任何代码
         // abort/commit，checkpoint 会保留其条目，WAL 文件随崩溃次数单调增长
         if (info.timestamp > 0L &&
             System.currentTimeMillis() - info.timestamp > FunctionalWAL.RECOVERED_TXN_RETENTION_MS
         ) {
-            Log.w(TAG, "跳过超保留期未完成事务 $txnId (slot=$slot, " +
+            Log.w(TAG, "跳过超保留期未完成事务 $txnId (" +
                 "age=${(System.currentTimeMillis() - info.timestamp) / 86_400_000L} 天)")
             continue
         }
@@ -722,16 +716,16 @@ internal fun FunctionalWAL.registerUncommittedTransactions(
         // + .sav 备份，未完成事务仅登记供监控
         val record = TransactionRecord(
             txnId = txnId,
-            slot = slot,
             operation = info.operation ?: WALEntryType.DATA,
             startTime = info.timestamp
         )
         activeTransactions[txnId] = record
 
-        failedSlots.add(slot)
-        errors.add("Uncommitted transaction $txnId on slot $slot (DB 事务已回滚，无需快照恢复)")
-        Log.w(TAG, "Uncommitted transaction: txnId=$txnId, slot=$slot")
+        failed += 1
+        errors.add("Uncommitted transaction $txnId (DB 事务已回滚，无需快照恢复)")
+        Log.w(TAG, "Uncommitted transaction: txnId=$txnId")
     }
+    return failed
 }
 
 /**
@@ -824,7 +818,6 @@ internal fun FunctionalWAL.writeCheckpointEntries(tempBos: BufferedOutputStream,
         dos.writeByte(MAGIC_BYTE_2.toInt())
         dos.writeByte(entry.type.ordinal)
         dos.writeLong(entry.txnId)
-        dos.writeInt(entry.slotId)
         dos.writeLong(entry.timestamp)
         dos.writeInt(entry.data.size)
         dos.write(entry.data)

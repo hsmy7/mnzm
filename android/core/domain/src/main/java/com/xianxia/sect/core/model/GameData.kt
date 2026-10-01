@@ -72,9 +72,8 @@ data class YearlyReport(
 @Serializable
 @Entity(
     tableName = "game_data",
-    primaryKeys = ["id", "slot_id"],
+    primaryKeys = ["id"],
     indices = [
-        Index(value = ["slot_id"], unique = true),
         Index(value = ["lastSaveTime"]),
         Index(value = ["gameYear", "gameMonth"]),
         Index(value = ["sectName"]),
@@ -89,19 +88,12 @@ data class GameData(
     @ProtoNumber(1)
     var id: String = "",
 
-    @ColumnInfo(name = "slot_id")
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    @kotlinx.serialization.Transient
-    var slotId: Int = 0,
+    // reserved 3;（currentSlot 存档槽号字段随单存档改造退役，禁复用）
 
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(2)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var sectName: String = "青云宗",
-    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
-    @ProtoNumber(3)
-    @SettlementStrategy(Strategy.USE_SHADOW)
-    var currentSlot: Int = 1,
 
     // 游戏时间（tick已推进，shadow也同步推进，保留oldState安全）
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)

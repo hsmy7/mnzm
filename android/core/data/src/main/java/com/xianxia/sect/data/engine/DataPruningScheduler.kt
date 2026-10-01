@@ -19,9 +19,6 @@ data class PruningConfig(
     val checkIntervalMs: Long = 300_000L,
     val maxBattleLogs: Int = StorageConstants.DEFAULT_MAX_BATTLE_LOGS,
     val battleLogRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L,
-    // 审计 P3-10：从 StorageConstants 派生全合法槽（0=云存档槽 .. 上限），
-    // 替代硬编码 1..5——slot 0/6 的无主行从此受治理（验证点 15）
-    val slotIds: List<Int> = (0..StorageConstants.DEFAULT_MAX_SLOTS).toList(),
     val enableAutoPruning: Boolean = true
 )
 
@@ -188,21 +185,19 @@ class DataPruningScheduler @Inject constructor(
     private suspend fun pruneStorageAreas(): Int {
         val battleLogCutoff = System.currentTimeMillis() - config.battleLogRetentionMs
         var totalLogsDeleted = 0
-        for (slotId in config.slotIds) {
-            try {
-                // 修剪与保存互斥：保存事务全量重写 battleLogs，与修剪删除
-                // 交叉会导致主表/归档表数据漂移，须持槽位写锁
-                core.lockManager.withWriteLockLight(slotId) {
-                    // 审计 P3-11：累加 deleteOld 返回的**删除行数**（原
-                    // totalLogsDeleted++ 计的是槽位数——口径失真）
-                    totalLogsDeleted += database.battleLogDao()
-                        .deleteOld(slotId, battleLogCutoff)
-                }
-            } catch (e: CancellationException) {
-                throw e // 取消穿透: 修剪取消时中止剩余槽位, 槽位写锁不跨取消持锁
-            } catch (e: Exception) {
-                Log.d(TAG, "Battle log pruning for slot $slotId: ${e.message}")
+        try {
+            // 修剪与保存互斥：保存事务全量重写 battleLogs，与修剪删除
+            // 交叉会导致主表/归档表数据漂移，须持存档写锁
+            core.lockManager.withWriteLockLight() {
+                // 审计 P3-11：累加 deleteOld 返回的**删除行数**（原
+                // totalLogsDeleted++ 计的是槽位数——口径失真）
+                totalLogsDeleted += database.battleLogDao()
+                    .deleteOld(battleLogCutoff)
             }
+        } catch (e: CancellationException) {
+            throw e // 取消穿透: 修剪取消时中止, 写锁不跨取消持锁
+        } catch (e: Exception) {
+            Log.d(TAG, "Battle log pruning failed: ${e.message}")
         }
 
         // 审计 P2-14：change_log 清理接线（deleteOlderThan 既有实现零调用方）

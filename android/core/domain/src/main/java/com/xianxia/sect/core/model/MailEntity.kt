@@ -34,9 +34,8 @@ data class MailAttachment(
 @Entity(
     tableName = "mails",
     indices = [
-        Index(value = ["slotId"]),
         Index(value = ["remoteMailId"]),
-        Index(value = ["slotId", "expireTime"])
+        Index(value = ["expireTime"])
     ]
 )
 @Serializable
@@ -46,9 +45,7 @@ data class MailEntity(
     @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),
 
-    @ColumnInfo(defaultValue = "0")
-    @ProtoNumber(2)
-    val slotId: Int = 0,
+    // reserved 2;（slotId 邮件归属槽字段随单存档改造退役，禁复用）
 
     @ColumnInfo(defaultValue = "builtin")
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)

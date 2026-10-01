@@ -23,7 +23,7 @@ suspend fun GameEngine.ensureHeavyDataLoaded() {
         heavyDataLoaded = true
         DomainLog.d(
             "GameEngine",
-            "ensureHeavyDataLoaded: 完成 slot=${snapshot.currentSlot} worldMapSects=${snapshot.worldMapSects.size}"
+            "ensureHeavyDataLoaded: 完成 worldMapSects=${snapshot.worldMapSects.size}"
         )
     } else {
         // 数据缺失时不标记完成——空时保持 false，后续调用重试，

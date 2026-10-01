@@ -54,7 +54,8 @@ data class CacheKey(
         fun alliance(slot: Int, id: String) = CacheKey(TYPE_ALLIANCE, slot, id)
         fun alchemySlot(slot: Int, id: String) = CacheKey(TYPE_ALCHEMY_SLOT, slot, id)
         
-        fun forGameData(slot: Int) = CacheKey(TYPE_GAME_DATA, slot, "current")
+        /** 单档缓存键：全库唯一 game_data 快照入口 */
+        fun forGameData() = CacheKey(TYPE_GAME_DATA, 0, "current")
         fun forDisciple(slot: Int, discipleId: String) = CacheKey(TYPE_DISCIPLE, slot, discipleId)
         fun forEquipment(slot: Int, equipmentId: String) = CacheKey(TYPE_EQUIPMENT, slot, equipmentId)
         fun forManual(slot: Int, manualId: String) = CacheKey(TYPE_MANUAL, slot, manualId)

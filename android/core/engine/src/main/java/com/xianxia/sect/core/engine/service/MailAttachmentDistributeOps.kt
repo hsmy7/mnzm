@@ -42,8 +42,8 @@ private val MAIL_RECORD_RETENTION = MailService.MAIL_RECORD_RETENTION
  *
  * @return first = 非空表示不可继续领取；second = 邮件实体（不存在时为 null）
  */
-internal suspend fun MailService.findClaimableMail(mailId: String, slotId: Int): Pair<ClaimResult?, MailEntity?> {
-    val mail = mailRepo.getById(slotId, mailId) ?: return ClaimResult.MailNotFound to null
+internal suspend fun MailService.findClaimableMail(mailId: String): Pair<ClaimResult?, MailEntity?> {
+    val mail = mailRepo.getById(mailId) ?: return ClaimResult.MailNotFound to null
     val now = wallClock.currentTimeMillis()
     if (mail.expireTime <= now) return ClaimResult.Expired to mail
     if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed to mail
@@ -53,7 +53,7 @@ internal suspend fun MailService.findClaimableMail(mailId: String, slotId: Int):
     // 并刷新 UI，使领取按钮自然消失。
     val snapshot = stateStore.gameData.value
     if (snapshot.mailRecords.any { it.mailId == mailId }) {
-        healRoomClaimState(mail = mail, mailId = mailId, slotId = slotId)
+        healRoomClaimState(mail = mail, mailId = mailId)
         return ClaimResult.AlreadyClaimed to mail
     }
     return null to mail
@@ -93,12 +93,12 @@ internal suspend fun MailService.parseAndCheckAttachmentCapacity(
 /** Room 状态自愈：mailRecords 已有记录而 Room 未同步时主动修复 */
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun MailService.healRoomClaimState(mail: MailEntity, mailId: String, slotId: Int) {
+internal suspend fun MailService.healRoomClaimState(mail: MailEntity, mailId: String) {
     try {
         mailRepo.update(mail.copy(
             attachmentClaimed = true, isRead = true
         ))
-        refreshActiveMails(slotId)
+        refreshActiveMails()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -118,7 +118,6 @@ internal suspend fun MailService.healRoomClaimState(mail: MailEntity, mailId: St
 internal suspend fun MailService.grantAttachments(
     mail: MailEntity,
     attachments: List<MailAttachment>,
-    slotId: Int
 ): Pair<List<RewardCardItem>, ClaimResult?> {
     if (attachments.isEmpty()) return Pair(emptyList(), null)
     return try {
@@ -163,7 +162,7 @@ internal suspend fun MailService.checkInternalMailClaimable(mail: MailEntity, no
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 探针/可选增强失败即降级默认值, 异常类型不可枚举
-internal suspend fun MailService.claimAttachmentInternal(mail: MailEntity, slotId: Int, now: Long): ClaimResult {
+internal suspend fun MailService.claimAttachmentInternal(mail: MailEntity, now: Long): ClaimResult {
     val guardFailure = checkInternalMailClaimable(mail, now)
     if (guardFailure != null) return guardFailure
 
@@ -211,7 +210,7 @@ internal suspend fun MailService.claimAttachmentInternal(mail: MailEntity, slotI
     }
 
     mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
-    refreshActiveMails(slotId)
+    refreshActiveMails()
     return ClaimResult.Success(attachments, rewardCards)
 }
 

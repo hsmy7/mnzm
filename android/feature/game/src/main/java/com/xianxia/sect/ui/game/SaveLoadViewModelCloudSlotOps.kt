@@ -190,12 +190,7 @@ internal suspend fun SaveLoadViewModel.performCloudSlotLoad(slot: Int): CloudSlo
 private suspend fun SaveLoadViewModel.bootFromCloudCache(
     outcome: CloudSaveCacheWriter.Outcome.Written
 ): CloudSlotLoadOutcome {
-    // 既有 boot 链（pendingSlot 参数化后回显目标槽 N）
-    val bootResult = applyCloudSaveToEngine(
-        outcome.saveData,
-        outcome.targetSlot,
-        pendingSlot = outcome.targetSlot
-    )
+    val bootResult = applyCloudSaveToEngine(outcome.saveData)
     cloudSaveOperationStateFlow.value = if (bootResult.isSuccess) {
         // SR-5 C7（P4 拍板）：完整性异常降级放行，但必须让玩家看得见，不静默
         CloudSaveOperationState.Success(

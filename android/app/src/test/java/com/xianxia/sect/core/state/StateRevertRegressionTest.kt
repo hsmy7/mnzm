@@ -17,8 +17,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.doThrow
-import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -29,23 +27,26 @@ import org.robolectric.annotation.Config
  * 1. 加载失败后旧值全部恢复（gameData/disciples/聚合/战力）
  * 2. 回滚后快照缓存与恢复数据一致（aggregatesGen 对齐，getter 不误重算）
  * 3. 正常加载路径不受影响
+ *
+ * 失败注入点：`finalizeLoadedState` 的 RNG 恢复调用
+ * （repository 激活写已随单存档改造退役）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StateRevertRegressionTest {
+
+    /** restore 即抛的端口：finalizeLoadedState 的 RNG 恢复失败 → loadFromSnapshot 回滚 */
+    private val failingRestorePort = object : RngSnapshotPort {
+        override fun snapshot(): Map<Int, Long> = emptyMap()
+        override fun restore(states: Map<Int, Long>) = error("模拟存储失败")
+    }
 
     private fun disciple(id: Int): Disciple =
         Disciple(id = id.toString(), name = "弟子$id", realm = 5, realmLayer = 1)
 
     @Test
     fun `loadFromSnapshot 失败后旧状态全部恢复`() = runBlocking {
-        // 注入失败：setActiveSlot 抛异常 → loadFromSnapshot 走回滚路径
-        // （dirty 记账摘除 batch-05 后，失败注入点由 markAllDirty 迁至
-        // finalizeLoadedState 同段位的仓库调用，语义等价——同款先例见
-        // GameStateStoreRollbackTest 的 setActiveSlot 注入）
-        val repo = testGameStateRepository()
-        doThrow(RuntimeException("模拟存储失败")).`when`(repo).setActiveSlot(any())
-        val store = GameStateStoreImpl(ApplicationScopeProvider(), repo)
+        val store = GameStateStoreImpl(ApplicationScopeProvider(), failingRestorePort)
         store.unsafeAllowMainThreadUpdateForTest = true
 
         // 建立旧状态（3 弟子 + 游戏数据）
@@ -55,12 +56,15 @@ class StateRevertRegressionTest {
         }
         TestPolling.awaitCondition("旧状态聚合就绪") { store.discipleAggregatesSnapshot.size == 3 }
 
-        // 执行会失败的加载（新档 5 弟子）——setActiveSlot 失败 → rollbackLoad → rethrow
+        // 执行会失败的加载（新档 5 弟子）——RNG 恢复失败 → rollbackLoad → rethrow
         val newDisciples = (1..5).map { disciple(it) }
         val thrown = runBlocking {
             try {
                 store.loadFromSnapshot(
-                    gameData = GameData(sectName = "新宗门", gameYear = 99),
+                    gameData = GameData(
+                        sectName = "新宗门", gameYear = 99,
+                        rngStates = mapOf(0 to 1L)
+                    ),
                     disciples = newDisciples,
                     equipmentInstances = emptyList(),
                     manualStacks = emptyList(), manualInstances = emptyList(),
@@ -70,8 +74,8 @@ class StateRevertRegressionTest {
                     isPaused = false, isLoading = false, isSaving = false
                 )
                 null
-            } catch (e: RuntimeException) {
-                e  // 预期异常：标记后断言 message 验证确实是存储失败触发
+            } catch (e: IllegalStateException) {
+                e
             }
         }
         org.junit.Assert.assertNotNull("加载应抛异常", thrown)
@@ -94,7 +98,7 @@ class StateRevertRegressionTest {
     fun `旧档事件 sequenceId 加载后回填`() = runBlocking {
         // 旧档（v4.0.83 前）事件 sequenceId 全 0 → 加载后按列表序回填 1..N
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), testGameStateRepository()
+            ApplicationScopeProvider()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         store.loadFromSnapshot(
@@ -133,7 +137,7 @@ class StateRevertRegressionTest {
     fun `事件 sequenceId 全非 0 时零成本不动`() = runBlocking {
         // T1 补充守卫：无 0 序号时不做任何重编号（返回原引用）
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), testGameStateRepository()
+            ApplicationScopeProvider()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         val records = listOf(
@@ -164,7 +168,7 @@ class StateRevertRegressionTest {
     @Test
     fun `正常加载后快照与代际一致`() = runBlocking {
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), testGameStateRepository()
+            ApplicationScopeProvider()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         store.update {
@@ -193,8 +197,7 @@ class StateRevertRegressionTest {
         // batch-05 回归守卫：回滚语义由 LoadBaseline + rollbackLoad 承载（dirty 记账
         // 摘除前也如此——dirty 位从无读者）。旧状态带非空实体 + 差异化状态三连，
         // 失败读档载荷全部不同——回滚若漏恢复任一流，逐位比较即失败。
-        val repo = testGameStateRepository()
-        val store = GameStateStoreImpl(ApplicationScopeProvider(), repo)
+        val store = GameStateStoreImpl(ApplicationScopeProvider(), failingRestorePort)
         store.unsafeAllowMainThreadUpdateForTest = true
 
         // 建立旧状态：首次成功读档（实体全非空，isPaused/isSaving 取非默认值）
@@ -220,11 +223,13 @@ class StateRevertRegressionTest {
         )
         val before = snapshotAllFlows(store)
 
-        // 注入失败：setActiveSlot 抛异常 → 回滚（同首个测试的注入点迁移）
-        doThrow(RuntimeException("模拟存储失败")).`when`(repo).setActiveSlot(any())
+        // 注入失败：RNG 恢复抛异常 → 回滚
         val thrown = try {
             store.loadFromSnapshot(
-                gameData = GameData(sectName = "新宗门", gameYear = 99),
+                gameData = GameData(
+                    sectName = "新宗门", gameYear = 99,
+                    rngStates = mapOf(0 to 1L)
+                ),
                 disciples = (4..8).map { disciple(it) },
                 equipmentInstances = listOf(EquipmentInstance(name = "新飞剑·器")),
                 manualStacks = listOf(ManualStack(name = "新功法")),
@@ -238,7 +243,7 @@ class StateRevertRegressionTest {
                 isPaused = false, isLoading = false, isSaving = false
             )
             null
-        } catch (e: RuntimeException) {
+        } catch (e: IllegalStateException) {
             e
         }
         org.junit.Assert.assertNotNull("加载应抛异常", thrown)

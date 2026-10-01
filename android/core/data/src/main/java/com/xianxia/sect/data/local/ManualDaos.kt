@@ -13,23 +13,23 @@ import kotlinx.coroutines.flow.Flow
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface ManualStackDao {
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<ManualStack>>
+    @Query("SELECT * FROM manual_stacks ")
+    fun getAll(): Flow<List<ManualStack>>
 
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<ManualStack>
+    @Query("SELECT * FROM manual_stacks ")
+    suspend fun getAllSync(): List<ManualStack>
 
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): ManualStack?
+    @Query("SELECT * FROM manual_stacks WHERE id = :id")
+    suspend fun getById(id: String): ManualStack?
 
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND type = :type ORDER BY rarity DESC")
-    fun getByType(slotId: Int, type: ManualType): Flow<List<ManualStack>>
+    @Query("SELECT * FROM manual_stacks WHERE type = :type ORDER BY rarity DESC")
+    fun getByType(type: ManualType): Flow<List<ManualStack>>
 
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND rarity = :rarity ORDER BY name ASC")
-    fun getByRarity(slotId: Int, rarity: Int): Flow<List<ManualStack>>
+    @Query("SELECT * FROM manual_stacks WHERE rarity = :rarity ORDER BY name ASC")
+    fun getByRarity(rarity: Int): Flow<List<ManualStack>>
 
-    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND minRealm <= :realm ORDER BY rarity DESC")
-    fun getByRealm(slotId: Int, realm: Int): Flow<List<ManualStack>>
+    @Query("SELECT * FROM manual_stacks WHERE minRealm <= :realm ORDER BY rarity DESC")
+    fun getByRealm(realm: Int): Flow<List<ManualStack>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(manualStack: ManualStack)
@@ -46,20 +46,14 @@ interface ManualStackDao {
     @Update
     suspend fun updateAll(manualStacks: List<ManualStack>)
 
-    @Query("SELECT id FROM manual_stacks WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
-
     @Delete
     suspend fun delete(manualStack: ManualStack)
 
-    @Query("DELETE FROM manual_stacks WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM manual_stacks WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM manual_stacks WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
-
-    @Query("DELETE FROM manual_stacks")
-    suspend fun deleteAllGlobal()
+    @Query("DELETE FROM manual_stacks ")
+    suspend fun deleteAll()
 
     @Transaction
     suspend fun updateBatch(manualStacks: List<ManualStack>) {
@@ -72,17 +66,17 @@ interface ManualStackDao {
 // Room 要求 DAO 方法驻留接口承载实现代理生成；项目已做过一轮 DAO 域拆分（DiscipleSubDaos），
 // 继续拆分只会碎片化数据访问协议并倍增注入面
 interface ManualInstanceDao {
-    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<ManualInstance>>
+    @Query("SELECT * FROM manual_instances ")
+    fun getAll(): Flow<List<ManualInstance>>
 
-    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<ManualInstance>
+    @Query("SELECT * FROM manual_instances ")
+    suspend fun getAllSync(): List<ManualInstance>
 
-    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): ManualInstance?
+    @Query("SELECT * FROM manual_instances WHERE id = :id")
+    suspend fun getById(id: String): ManualInstance?
 
-    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId AND ownerId = :discipleId")
-    suspend fun getByOwner(slotId: Int, discipleId: String): List<ManualInstance>
+    @Query("SELECT * FROM manual_instances WHERE ownerId = :discipleId")
+    suspend fun getByOwner(discipleId: String): List<ManualInstance>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(manualInstance: ManualInstance)
@@ -99,17 +93,17 @@ interface ManualInstanceDao {
     @Update
     suspend fun updateAll(manualInstances: List<ManualInstance>)
 
-    @Query("SELECT id FROM manual_instances WHERE slot_id = :slotId")
-    suspend fun getIdsBySlot(slotId: Int): List<String>
+    @Query("SELECT id FROM manual_instances ")
+    suspend fun getIdsBySlot(): List<String>
 
     @Delete
     suspend fun delete(manualInstance: ManualInstance)
 
-    @Query("DELETE FROM manual_instances WHERE slot_id = :slotId AND id = :id")
-    suspend fun deleteById(slotId: Int, id: String)
+    @Query("DELETE FROM manual_instances WHERE id = :id")
+    suspend fun deleteById(id: String)
 
-    @Query("DELETE FROM manual_instances WHERE slot_id = :slotId")
-    suspend fun deleteAll(slotId: Int)
+    @Query("DELETE FROM manual_instances ")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM manual_instances")
     suspend fun deleteAllGlobal()

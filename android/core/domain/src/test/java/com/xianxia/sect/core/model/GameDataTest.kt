@@ -13,9 +13,7 @@ class GameDataTest {
     fun gameData_defaultConstruction_keyDefaults() {
         val data = GameData()
         assertEquals("", data.id)
-        assertEquals(0, data.slotId)
         assertEquals("青云宗", data.sectName)
-        assertEquals(1, data.currentSlot)
         assertEquals(1, data.gameYear)
         assertEquals(1, data.gameMonth)
         assertEquals(0, data.gamePhase)

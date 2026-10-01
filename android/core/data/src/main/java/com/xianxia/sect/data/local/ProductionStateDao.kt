@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProductionStateDao {
-    @Query("SELECT * FROM production_state WHERE slot_id = :slotId")
-    suspend fun getBySlot(slotId: Int): ProductionState?
+    @Query("SELECT * FROM production_state ")
+    suspend fun get(): ProductionState?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(state: ProductionState)
@@ -15,12 +15,12 @@ interface ProductionStateDao {
     @Update
     suspend fun update(state: ProductionState)
 
-    @Query("SELECT * FROM production_state WHERE slot_id = :slotId")
-    fun observeBySlot(slotId: Int): Flow<ProductionState?>
+    @Query("SELECT * FROM production_state ")
+    fun observe(): Flow<ProductionState?>
 
     @Upsert
     suspend fun upsert(state: ProductionState)
 
-    @Query("DELETE FROM production_state WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
+    @Query("DELETE FROM production_state ")
+    suspend fun deleteAll()
 }

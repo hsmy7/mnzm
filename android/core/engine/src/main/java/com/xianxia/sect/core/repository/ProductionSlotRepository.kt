@@ -350,7 +350,7 @@ class ProductionSlotRepository @Inject constructor(
         Result.success(true)
     }
 
-    suspend fun initializeAllSlots(slotId: Int) {
+    suspend fun initializeAllSlots() {
         writeMutex.withLock {
             val allSlots = globalMutex.withLock {
                 val slots = mutableListOf<ProductionSlot>()
@@ -362,7 +362,7 @@ class ProductionSlotRepository @Inject constructor(
                             slotIndex = idx,
                             buildingType = buildingType,
                             buildingId = getBuildingIdForType(buildingType)
-                        ).copy(slotId = slotId))
+                        ))
                     }
                 }
 
@@ -371,12 +371,12 @@ class ProductionSlotRepository @Inject constructor(
                 DomainLog.d(TAG, "Initialized ${slots.size} slots for all buildings")
                 slots
             }
-            dao.deleteBySlot(slotId)
+            dao.deleteAll()
             dao.insertAll(allSlots)
         }
     }
 
-    suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
+    suspend fun initializeSlotsForType(buildingType: BuildingType) {
         if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return
         writeMutex.withLock {
             val newSlots = globalMutex.withLock {
@@ -385,19 +385,19 @@ class ProductionSlotRepository @Inject constructor(
                     ProductionSlot.createIdle(
                         slotIndex = idx,
                         buildingType = buildingType,
-                        buildingId = getBuildingIdForType(buildingType)
-                    ).copy(slotId = slotId)
-                }
+                            buildingId = getBuildingIdForType(buildingType)
+                )
+            }
 
                 val currentSlots = _slots.value.filter { it.buildingType != buildingType }
                 val allSlots = currentSlots + slots
 
                 _slots.value = allSlots
                 cache.updateCache(allSlots)
-                DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
+                DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name}")
                 slots
             }
-            dao.deleteBySlotAndBuildingType(slotId, buildingType)
+            dao.deleteByBuildingType(buildingType)
             dao.insertAll(newSlots)
         }
     }
@@ -409,27 +409,27 @@ class ProductionSlotRepository @Inject constructor(
         writeMutex.withLock { dao.updateAll(currentSlots) }
     }
 
-    suspend fun clear(slotId: Int) {
+    suspend fun clear() {
         writeMutex.withLock {
             globalMutex.withLock {
                 _slots.value = emptyList()
                 cache.invalidate()
             }
-            dao.deleteBySlot(slotId)
-            DomainLog.d(TAG, "Cleared all slots for slotId=$slotId")
+            dao.deleteAll()
+            DomainLog.d(TAG, "Cleared all slots")
         }
     }
 
-    suspend fun restoreSlots(slots: List<ProductionSlot>, slotId: Int) {
+    suspend fun restoreSlots(slots: List<ProductionSlot>) {
         val sanitized = sanitizeSlots(slots)
         writeMutex.withLock {
             globalMutex.withLock {
                 _slots.value = sanitized
                 cache.updateCache(sanitized)
             }
-            dao.deleteBySlot(slotId)
+            dao.deleteAll()
             dao.insertAll(sanitized)
-            DomainLog.d(TAG, "Restored ${sanitized.size} slots from save data for slotId=$slotId")
+            DomainLog.d(TAG, "Restored ${sanitized.size} slots from save data")
         }
     }
 

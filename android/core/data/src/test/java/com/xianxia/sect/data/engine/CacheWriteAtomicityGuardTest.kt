@@ -36,10 +36,10 @@ class CacheWriteAtomicityGuardTest {
 
     @Test
     fun `删档全表清单跑在单个 withTransaction 内`() {
-        val body = functionBody(SAVE_SUPPORT, "internal suspend fun StorageEngine.clearAllSlotTables")
+        val body = functionBody(SAVE_SUPPORT, "internal suspend fun StorageEngine.clearAllTables")
         val txnAt = body.indexOf("withTransaction")
         val firstDeleteAt = body.indexOf("Dao().delete")
-        assertTrue("clearAllSlotTables 必须整体在 withTransaction 内（IN1 + 审计 §12-K）", txnAt >= 0)
+        assertTrue("clearAllTables 必须整体在 withTransaction 内（IN1 + 审计 §12-K）", txnAt >= 0)
         assertTrue("第一条删表语句必须在事务之内", firstDeleteAt > txnAt)
     }
 

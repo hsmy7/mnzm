@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 @Suppress("LongMethod")
 internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf(
     // ── Int 表（值拷贝） ──
-    IntTableRef(slotIds, DiscipleTables::slotIds, "slotIds"),
     IntTableRef(realms, DiscipleTables::realms, "realms"),
     IntTableRef(realmLayers, DiscipleTables::realmLayers, "realmLayers"),
     IntTableRef(isAlive, DiscipleTables::isAlive, "isAlive"),

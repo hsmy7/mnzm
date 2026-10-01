@@ -71,7 +71,6 @@ TEST(JsonCodecTest, ItemsRoundTrip) {
     // B3 实例轨：EquipmentInstance 全字段往返（含 growth 词条面 + meta 横切面）
     EquipmentInstance ei;
     ei.id = "eq-i1";
-    ei.slotId = 100;
     ei.name = "裂天罡煞·战刃";
     ei.setId = "lietian";
     ei.part = "WEAPON";
@@ -89,7 +88,6 @@ TEST(JsonCodecTest, ItemsRoundTrip) {
     ei.isEquipped = true;
     const auto eiDecoded = nlohmann::json(ei).get<EquipmentInstance>();
     EXPECT_EQ(ei.id, eiDecoded.id);
-    EXPECT_EQ(ei.slotId, eiDecoded.slotId);
     EXPECT_EQ(ei.name, eiDecoded.name);
     EXPECT_EQ(ei.setId, eiDecoded.setId);
     EXPECT_EQ(ei.part, eiDecoded.part);

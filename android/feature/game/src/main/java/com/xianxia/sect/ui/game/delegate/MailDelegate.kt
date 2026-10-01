@@ -35,12 +35,10 @@ class MailDelegate(
     /** 邮件过期文案的取时点（SR-5）：一次采样喂整张列表，避免逐卡片读数漂移。 */
     fun displayNowMs(): Long = wallClock.currentTimeMillis()
 
-    private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0
-
     val mails: StateFlow<List<MailEntity>> get() = mailService.activeMails
     val mailUnreadCount: StateFlow<Int> get() = mailService.unreadCount
 
-    fun markMailAsRead(mailId: String) { gameEngine.launchOnEngine { mailService.markAsRead(mailId, currentSlotId) } }
+    fun markMailAsRead(mailId: String) { gameEngine.launchOnEngine { mailService.markAsRead(mailId) } }
 
     private val _mailRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()
@@ -53,7 +51,7 @@ class MailDelegate(
             // 正常情况下 claimAttachment 不抛异常（业务失败走 ClaimResult 三态），
             // 一旦抛出说明存在未预期路径（如领取并发/状态损坏），须记录并让玩家可重试。
             val result = try {
-                mailService.claimAttachment(mailId, currentSlotId)
+                mailService.claimAttachment(mailId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -71,7 +69,7 @@ class MailDelegate(
 
     fun markAllMailsAsRead() {
         gameEngine.launchOnEngine {
-            val result = mailService.markAllAsRead(currentSlotId)
+            val result = mailService.markAllAsRead()
             if (result.cards.isNotEmpty()) { _mailRewardCards.value = result.cards }
             withContext(Dispatchers.Main) {
                 if (result.skippedCount > 0) { onShowError(result.skipReasons.first()) }
@@ -92,5 +90,5 @@ class MailDelegate(
     }
 
     fun deleteAllReadAndClaimedMails() { gameEngine.launchOnEngine { mailService
-        .deleteAllReadAndClaimed(currentSlotId) } }
+        .deleteAllReadAndClaimed() } }
 }

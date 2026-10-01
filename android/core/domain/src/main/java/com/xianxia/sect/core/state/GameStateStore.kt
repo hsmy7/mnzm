@@ -313,7 +313,7 @@ interface GameStateStore : GameStateSnapshotProvider {
      * 清除所有内存状态并同步槽位上下文。
      * 默认行为与 [reset] 一致，具体实现可附加 repository 同步逻辑。
      */
-    suspend fun resetForSlot(slotId: Int) {
+    suspend fun resetForSlot() {
         reset()
     }
 }

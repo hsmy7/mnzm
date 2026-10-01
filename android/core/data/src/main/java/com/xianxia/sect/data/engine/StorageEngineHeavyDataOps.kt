@@ -51,10 +51,17 @@ internal data class HeavyDataLoadReport(
  * 会**永久覆盖** DB 中的完整数据（exploredSects/scoutInfo 等无再生源）。
  * clearHeavyDataByPrefix 据此排除这些 key，保住 DB 原值。
  */
-internal val skippedHeavyKeysBySlot = ConcurrentHashMap<Int, MutableSet<String>>()
+/**
+ * 进程内记录"最近一次读档被跳过的 heavy key"。
+ *
+ * 被跳过的 key 其内存值为空，若下一次保存照常 `deleteByKeyPrefix` 再用空值重写，
+ * 会**永久覆盖** DB 中的完整数据（exploredSects/scoutInfo 等无再生源）。
+ * clearHeavyDataByPrefix 据此排除这些 key，保住 DB 原值。
+ */
+internal val skippedHeavyKeys: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
-internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int): GameData {
-    val report = loadHeavyDataSafeWithReport(slot)
+internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData): GameData {
+    val report = loadHeavyDataSafeWithReport()
     val allRows = report.rows
 
     // heavy_data 表无数据时，依次从 domain state 表 fallback 恢复所有重型字段。
@@ -62,9 +69,9 @@ internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int)
     // Phase B 第 740-791 行），若 heavy_data 因写入中断丢失，domain state 表仍有完整数据。
     // 防止写入中断后重型字段永久为空（世界地图空白/招募列表为空等）。
     if (allRows.isEmpty()) {
-        val restored = restoreHeavyDataFromDomainTables(gameData = gameData, slot = slot)
+        val restored = restoreHeavyDataFromDomainTables(gameData = gameData)
         if (restored != null) return restored
-        Log.w(TAG, "mergeHeavyData: all domain state tables empty for slot $slot")
+        Log.w(TAG, "mergeHeavyData: all domain state tables empty")
         return gameData
     }
 
@@ -78,12 +85,12 @@ internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int)
     }.toSet()
     val missingKeys = keysNeedingBackfill(GameHeavyData.ALL_KEYS, presentKeys)
     if (missingKeys.isNotEmpty()) {
-        Log.w(TAG, "mergeHeavyData: slot $slot missing heavy keys=$missingKeys, " +
+        Log.w(TAG, "mergeHeavyData: missing heavy keys=$missingKeys, " +
             "skipped=${report.skippedKeys}, backfilling from domain tables")
-        return restoreMissingHeavyKeysFromDomainTables(decoded, slot, missingKeys.toSet())
+        return restoreMissingHeavyKeysFromDomainTables(decoded, missingKeys.toSet())
     }
     if (report.skippedKeys.isNotEmpty()) {
-        Log.w(TAG, "mergeHeavyData: slot $slot skipped=${report.skippedKeys} " +
+        Log.w(TAG, "mergeHeavyData: skipped=${report.skippedKeys} " +
             "but no heavy key missing from rows; nothing to backfill")
     }
     return decoded
@@ -97,23 +104,23 @@ internal suspend fun StorageEngine.mergeHeavyData(gameData: GameData, slot: Int)
  */
 // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
 @Suppress("TooGenericExceptionCaught", "ThrowsCount")
-internal suspend fun StorageEngine.restoreHeavyDataFromDomainTables(gameData: GameData, slot: Int): GameData? {
+internal suspend fun StorageEngine.restoreHeavyDataFromDomainTables(gameData: GameData): GameData? {
     val worldMapEntity = try {
-        core.database.worldMapStateDao().getBySlot(slot)
+        core.database.worldMapStateDao().get()
     } catch (e: CancellationException) { throw e }
       catch (e: Exception) {
           Log.w(TAG, "mergeHeavyData: worldMapStateDao fallback failed", e)
           null
       }
     val diplomacyEntity = try {
-        core.database.diplomacyStateDao().getBySlot(slot)
+        core.database.diplomacyStateDao().get()
     } catch (e: CancellationException) { throw e }
       catch (e: Exception) {
           Log.w(TAG, "mergeHeavyData: diplomacyStateDao fallback failed", e)
           null
       }
     val productionEntity = try {
-        core.database.productionStateDao().getBySlot(slot)
+        core.database.productionStateDao().get()
     } catch (e: CancellationException) { throw e }
       catch (e: Exception) {
           Log.w(TAG, "mergeHeavyData: productionStateDao fallback failed", e)
@@ -122,7 +129,7 @@ internal suspend fun StorageEngine.restoreHeavyDataFromDomainTables(gameData: Ga
 
     val hasFallbackData = worldMapEntity?.worldMapSects?.isNotEmpty() == true
     if (hasFallbackData) {
-        Log.w(TAG, "mergeHeavyData: heavy_data empty for slot $slot, " +
+        Log.w(TAG, "mergeHeavyData: heavy_data empty, " +
             "falling back to domain state tables " +
             "(worldSects=${worldMapEntity?.worldMapSects?.size}, " +
             "sectDetails=${diplomacyEntity?.sectDetails?.size}, " +
@@ -183,23 +190,23 @@ internal fun keysNeedingBackfill(allKeys: List<String>, presentKeys: Set<String>
     allKeys.filterNot { it in presentKeys }
 
 /** 薄封装：仅返回行，供既有调用点（loadHeavyDataForSlot 等）使用。 */
-internal suspend fun StorageEngine.loadHeavyDataSafe(slot: Int): List<GameHeavyData> =
-    loadHeavyDataSafeWithReport(slot).rows
+internal suspend fun StorageEngine.loadHeavyDataSafe(): List<GameHeavyData> =
+    loadHeavyDataSafeWithReport().rows
 
 /**
  * 安全加载重型数据：逐 key 读取，跳过超过 CursorWindow 限制的单行，并**报告**被跳过的 key。
  *
- * 被跳过的行保留在 DB（不删），同时把 key 记入 [skippedHeavyKeysBySlot]，
+ * 被跳过的行保留在 DB（不删），同时把 key 记入 [skippedHeavyKeys]，
  * 使下一次保存的 clearHeavyDataByPrefix 跳过它，避免用空内存值覆盖 DB 完整数据。
  */
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(slot: Int): HeavyDataLoadReport {
+internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(): HeavyDataLoadReport {
     val keys = try {
-        core.database.gameHeavyDataDao().getLoadedKeys(slot)
+        core.database.gameHeavyDataDao().getLoadedKeys()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to load heavy data keys for slot $slot, skipping", e)
+        Log.w(TAG, "Failed to load heavy data keys, skipping", e)
         return HeavyDataLoadReport(emptyList(), emptySet())
     }
 
@@ -207,7 +214,7 @@ internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(slot: Int): Heavy
     val skipped = mutableSetOf<String>()
     for (key in keys) {
         try {
-            val row = core.database.gameHeavyDataDao().getByKey(slot, key)
+            val row = core.database.gameHeavyDataDao().getByKey(key)
             if (row != null) result.add(row)
         } catch (e: CancellationException) {
             throw e
@@ -221,17 +228,14 @@ internal suspend fun StorageEngine.loadHeavyDataSafeWithReport(slot: Int): Heavy
         }
     }
 
-    if (skipped.isEmpty()) {
-        skippedHeavyKeysBySlot.remove(slot)
-    } else {
-        skippedHeavyKeysBySlot[slot] = skipped
-    }
+    skippedHeavyKeys.clear()
+    skippedHeavyKeys.addAll(skipped)
     return HeavyDataLoadReport(result, skipped)
 }
 
-internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
+internal suspend fun StorageEngine.buildSaveDataFromDatabase(
     gameData: GameData): SaveData = withContext(Dispatchers.IO) {
-    val loaded = loadAllEntities(slot = slot)
+    val loaded = loadAllEntities()
 
     val alliances = gameData.alliances ?: emptyList()
 
@@ -261,7 +265,7 @@ internal suspend fun StorageEngine.buildSaveDataFromDatabase(slot: Int,
     ).also {
         Log.d(
             TAG,
-            "loadFromDatabase: slot=$slot, ${loaded.disciples.size} disciples, " +
+            "loadFromDatabase: ${loaded.disciples.size} disciples, " +
                 "recruitList=${gameData.recruitList.size} unrecruited disciples"
         )
     }
@@ -296,18 +300,18 @@ private fun materializeDiscipleBags(loaded: DbLoadResult): MaterializedBagResult
 /**
  * 并行读取槽位全量实体：async 并发 + await 汇总。
  */
-internal suspend fun StorageEngine.loadAllEntities(slot: Int): DbLoadResult = withContext(Dispatchers.IO) {
-    val deferredDisciples = async { core.database.discipleDao().getAllSync(slot) }
-    val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync(slot) }
-    val deferredManualStacks = async { core.database.manualStackDao().getAllSync(slot) }
-    val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync(slot) }
-    val deferredPills = async { core.database.pillDao().getAllSync(slot) }
-    val deferredMaterials = async { core.database.materialDao().getAllSync(slot) }
-    val deferredHerbs = async { core.database.herbDao().getAllSync(slot) }
-    val deferredSeeds = async { core.database.seedDao().getAllSync(slot) }
-    val deferredStorageBags = async { core.database.storageBagDao().getAll(slot) }
-    val deferredBattleLogs = async { core.database.battleLogDao().getAllSync(slot) }
-    var deferredProductionSlots = async { core.database.productionSlotDao().getBySlotSync(slot) }
+internal suspend fun StorageEngine.loadAllEntities(): DbLoadResult = withContext(Dispatchers.IO) {
+    val deferredDisciples = async { core.database.discipleDao().getAllSync() }
+    val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync() }
+    val deferredManualStacks = async { core.database.manualStackDao().getAllSync() }
+    val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync() }
+    val deferredPills = async { core.database.pillDao().getAllSync() }
+    val deferredMaterials = async { core.database.materialDao().getAllSync() }
+    val deferredHerbs = async { core.database.herbDao().getAllSync() }
+    val deferredSeeds = async { core.database.seedDao().getAllSync() }
+    val deferredStorageBags = async { core.database.storageBagDao().getAll() }
+    val deferredBattleLogs = async { core.database.battleLogDao().getAllSync() }
+    var deferredProductionSlots = async { core.database.productionSlotDao().getAllSync() }
 
     DbLoadResult(
         disciples = deferredDisciples.await(),
@@ -411,36 +415,46 @@ internal fun StorageEngine.quarantineCurrentDatabase() {
 }
 
 @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 归因日志后按领域语义重抛
-internal suspend fun StorageEngine.querySingleSlot(slot: Int): SaveSlot {
+internal suspend fun StorageEngine.querySingleSlot(): SaveSlot {
     return try {
-        val meta = core.database.gameDataDao().getMetadataBySlot(slot)
+        val meta = core.database.gameDataDao().getMetadata()
         if (meta != null) {
             SaveSlot(
-                slot = slot,
-                name = "Save $slot",
+                slot = 0,
+                name = "Save",
                 timestamp = meta.lastSaveTime,
                 gameYear = meta.gameYear,
                 gameMonth = meta.gameMonth,
                 sectName = meta.sectName,
-                discipleCount = core.database.discipleDao().getAliveCountSync(slot),
+                discipleCount = core.database.discipleDao().getAliveCountSync(),
                 spiritStones = meta.spiritStones,
                 isEmpty = false,
                 customName = meta.sectName,
             )
         } else {
-            SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
+            SaveSlot(
+                slot = 0,
+                name = "",
+                timestamp = 0L,
+                gameYear = 1,
+                gameMonth = 1,
+                sectName = "",
+                discipleCount = 0,
+                spiritStones = 0L,
+                isEmpty = true
+            )
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.e(TAG, "querySingleSlot FAILED for slot $slot -- database may be unreachable or schema is mismatched",
+        Log.e(TAG, "querySingleSlot FAILED -- database may be unreachable or schema is mismatched",
             e)
-        throw IllegalStateException("Failed to query save slot $slot: ${e.message}", e)
+        throw IllegalStateException("Failed to query save row: ${e.message}", e)
     }
 }
 
 /**
- * 一次槽位实体装载的行集合(loadAllEntities 的结构化结果载体)
+ * 一次实体装载的行集合(loadAllEntities 的结构化结果载体)
  */
 internal data class DbLoadResult(
     val disciples: List<Disciple>,

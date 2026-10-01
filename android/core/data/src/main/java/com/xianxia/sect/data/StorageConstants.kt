@@ -16,9 +16,6 @@ object StorageConstants {
     
     // ==================== 槽位与存档 ====================
 
-    /** 默认最大存档槽位数 */
-    const val DEFAULT_MAX_SLOTS = 6
-
     /** 云存档槽位 */
     const val CLOUD_SAVE_SLOT = 0
 

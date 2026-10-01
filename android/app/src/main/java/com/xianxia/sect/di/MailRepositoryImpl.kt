@@ -38,14 +38,14 @@ class MailRepositoryImpl @Inject constructor(
         private const val TAG = "MailRepository"
     }
 
-    override fun getActiveMails(slotId: Int): Flow<List<MailEntity>> =
-        mailDao.getActiveMails(slotId)
+    override fun getActiveMails(): Flow<List<MailEntity>> =
+        mailDao.getActiveMails()
 
-    override fun getUnreadCount(slotId: Int): Flow<Int> =
-        mailDao.getUnreadCount(slotId)
+    override fun getUnreadCount(): Flow<Int> =
+        mailDao.getUnreadCount()
 
-    override suspend fun getById(slotId: Int, mailId: String): MailEntity? =
-        mailDao.getById(slotId, mailId)
+    override suspend fun getById(mailId: String): MailEntity? =
+        mailDao.getById(mailId)
 
     override suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int) =
         mailDao.insertWithEnforceLimit(entity, wallClock.currentTimeMillis(), maxPerSlot)
@@ -53,17 +53,17 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun update(entity: MailEntity) =
         mailDao.update(entity)
 
-    override suspend fun deleteById(slotId: Int, mailId: String) =
-        mailDao.deleteById(slotId, mailId)
+    override suspend fun deleteById(mailId: String) =
+        mailDao.deleteById(mailId)
 
-    override suspend fun deleteExpiredMails(slotId: Int, now: Long): Int =
-        mailDao.deleteExpired(slotId, now)
+    override suspend fun deleteExpiredMails(now: Long): Int =
+        mailDao.deleteExpired(now)
 
-    override suspend fun deleteIfClaimed(slotId: Int, mailId: String) =
-        mailDao.deleteIfClaimed(slotId, mailId)
+    override suspend fun deleteIfClaimed(mailId: String) =
+        mailDao.deleteIfClaimed(mailId)
 
-    override suspend fun deleteAllReadAndClaimed(slotId: Int) =
-        mailDao.deleteAllReadAndClaimed(slotId)
+    override suspend fun deleteAllReadAndClaimed() =
+        mailDao.deleteAllReadAndClaimed()
 
     // === 草稿持久化 ===
     // 非挂起（阻塞）方法：供 GameStateStore 事务提交钩子（锁外、事务线程，禁 suspend）
@@ -123,12 +123,12 @@ class MailRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun deleteAllDraftsForSlotBlocking(slotId: Int) {
+    override fun deleteAllDraftsBlocking() {
         try {
-            mailDraftDao.deleteAllOverflowDraftsForSlot(slotId)
-            mailDraftDao.deleteAllDirectMailDraftsForSlot(slotId)
+            mailDraftDao.deleteAllOverflowDrafts()
+            mailDraftDao.deleteAllDirectMailDrafts()
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Log.w(TAG, "删除槽位草稿失败 slotId=$slotId", e)
+            Log.w(TAG, "删除草稿失败", e)
         }
     }
 

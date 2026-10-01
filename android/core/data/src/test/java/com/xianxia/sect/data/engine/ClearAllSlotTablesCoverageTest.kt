@@ -8,13 +8,13 @@ import java.io.File
 /**
  * 删档完整性静态守卫（审计 §12-K）。
  *
- * 背景：删档有两条路径——`StorageEngine.delete`（用户删档）与 `clearSlotDataQuietly`
+ * 背景：删档有两条路径——`StorageEngine.delete`（用户删档）与 `clearResidualDataQuietly`
  * （tombstone 命中/恢复拒绝时清理残留）。审计实证两者**清单漂移**：删档清 29 表，
  * tombstone 只清 `game_data` + `disciples` **两表** ⇒ 残留 27 表行（合规与正确性双重问题），
  * 且全链漏删 4 张带 slot 列的表（`archived_battle_logs` / `archived_disciples` /
  * `overflow_mail_drafts` / `direct_mail_drafts`）。
  *
- * 处置 = 收敛为**唯一实现** `clearAllSlotTables`，并由本守卫锁"清单与 `@Database` 实体同步"：
+ * 处置 = 收敛为**唯一实现** `clearAllTables`，并由本守卫锁"清单与 `@Database` 实体同步"：
  * 新增 Room 实体而忘记补删行 ⇒ 本用例变红。
  *
  * 口径：`GameDatabase` 声明的全部 DAO 访问器 − [EXEMPT]（无 slot 列的全局表）
@@ -35,7 +35,7 @@ class ClearAllSlotTablesCoverageTest {
     }
 
     @Test
-    fun `clearAllSlotTables covers every slot-scoped DAO declared in GameDatabase`() {
+    fun `clearAllTables covers every slot-scoped DAO declared in GameDatabase`() {
         val cleared = clearedDaoNames()
         val declared = declaredDaoNames()
 
@@ -59,20 +59,20 @@ class ClearAllSlotTablesCoverageTest {
         val supportSrc = readSource(SUPPORT_SRC)
 
         assertTrue(
-            "StorageEngine.delete 必须调用 clearAllSlotTables（不得内联自己的清单）",
-            engineSrc.contains("clearAllSlotTables(slot)")
+            "StorageEngine.delete 必须调用 clearAllTables（不得内联自己的清单）",
+            engineSrc.contains("clearAllTables()")
         )
         assertTrue(
-            "clearSlotDataQuietly 必须调用 clearAllSlotTables（审计 §12-K：旧实现只删 2 表）",
-            supportSrc.contains("clearSlotDataQuietly") &&
-                supportSrc.substringAfter("fun StorageEngine.clearSlotDataQuietly")
-                    .substringBefore("\n}").contains("clearAllSlotTables(slot)")
+            "clearResidualDataQuietly 必须调用 clearAllTables（审计 §12-K：旧实现只删 2 表）",
+            supportSrc.contains("clearResidualDataQuietly") &&
+                supportSrc.substringAfter("fun StorageEngine.clearResidualDataQuietly")
+                    .substringBefore("\n}").contains("clearAllTables()")
         )
     }
 
     private fun clearedDaoNames(): Set<String> {
         val body = readSource(SUPPORT_SRC)
-            .substringAfter("fun StorageEngine.clearAllSlotTables")
+            .substringAfter("fun StorageEngine.clearAllTables")
             .substringBefore("\n}")
         return Regex("core\\.database\\.(\\w+Dao)\\(\\)")
             .findAll(body).map { it.groupValues[1] }.toSet()

@@ -8,7 +8,6 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "save_slot_metadata",
     indices = [
-        Index(value = ["slot_id"], unique = true),
         Index(value = ["last_save_time"]),
         Index(value = ["game_year", "game_month"])
     ]
@@ -18,8 +17,6 @@ data class SaveSlotMetadata(
     @ColumnInfo(name = "id")
     val id: Long = 0,
 
-    @ColumnInfo(name = "slot_id")
-    val slotId: Int,
 
     @ColumnInfo(name = "sect_name")
     val sectName: String = "",

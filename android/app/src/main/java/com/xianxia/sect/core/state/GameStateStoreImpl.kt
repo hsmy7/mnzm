@@ -29,7 +29,6 @@ import com.xianxia.sect.core.model.spiritStones
 import android.os.Looper
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -62,7 +61,6 @@ import javax.inject.Singleton
 @Singleton
 class GameStateStoreImpl @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
-    private val repository: GameStateRepository,
     /**
      * RNG 事务钩子：事务失败回滚时同步回滚分区 PRNG 状态。
      * 默认 [NoopRngSnapshotPort] 供非注入测试环境使用；Hilt 注入真实实现
@@ -1305,7 +1303,6 @@ class GameStateStoreImpl @Inject constructor(
         _isPaused.value = isPaused
         _isLoading.value = isLoading
         _isSaving.value = isSaving
-        repository.setActiveSlot(gameData.slotId)
         _updateVersion.value++
         if (gameData.rngStates.isNotEmpty()) {
             rngSnapshotPort.restore(gameData.rngStates)
@@ -1483,9 +1480,8 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
-    override suspend fun resetForSlot(slotId: Int) {
+    override suspend fun resetForSlot() {
         reset()
-        repository.setActiveSlot(slotId)
     }
 
     // ==================== GameData 策略表驱动合并 ====================

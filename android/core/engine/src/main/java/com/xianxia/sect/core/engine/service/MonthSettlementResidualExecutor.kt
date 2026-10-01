@@ -66,9 +66,7 @@ internal class MonthSettlementResidualExecutor(
         // 秘境到期关闭邮件 + gate release（sendDirectMail 异步落库，
         // 事务内安全——与 closeSecretRealmByExpiry 的邮件/gate 段一致）
         env.secretRealmClose?.let { close ->
-            eventProcessor.secretRealmService.applyExpiryCloseDraft(
-                slotId = state.gameData.currentSlot,
-                backpack = close.backpack,
+            eventProcessor.secretRealmService.applyExpiryCloseDraft(                backpack = close.backpack,
                 memberIds = close.memberIds.toSet()
             )
         }

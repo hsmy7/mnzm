@@ -19,8 +19,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
-import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
@@ -61,10 +59,8 @@ class TransactionRngRollbackTest {
     }
 
     private fun createStore(rngPort: RngSnapshotPort = NoopRngSnapshotPort): GameStateStoreImpl {
-        val repository = testGameStateRepository()
         return GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
-            repository = repository,
             rngSnapshotPort = rngPort
         ).also { it.unsafeAllowMainThreadUpdateForTest = true }
     }
@@ -191,19 +187,28 @@ class TransactionRngRollbackTest {
     fun `failed loadFromSnapshot keeps RNG at pre-load state`() = runTest {
         val mgr = GameRngManager().apply { initSystemSeed(99L) }
         val port = FakeRngPort(mgr)
-        val repository = testGameStateRepository()
+        // 失败注入：首次 restore（finalizeLoadedState 段）先真实恢复再抛——
+        // 模拟"恢复链路失败"，随后的 rollbackLoad 会再次 restore（回到读档前状态）
         val store = GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
-            repository = repository,
-            rngSnapshotPort = port
+            rngSnapshotPort = object : RngSnapshotPort {
+                var failedOnce = false
+                override fun snapshot(): Map<Int, Long> = port.snapshot()
+                override fun restore(states: Map<Int, Long>) {
+                    port.restore(states)
+                    if (!failedOnce) {
+                        failedOnce = true
+                        error("模拟读档失败")
+                    }
+                }
+            }
         ).also { it.unsafeAllowMainThreadUpdateForTest = true }
 
         // 读档前：事务消费 RNG 形成已知状态
         store.update { consumeSystemRngSequence(mgr) }
         val before = mgr.exportStates()
 
-        // 触发加载异常：repository.setActiveSlot 在写入后执行
-        Mockito.`when`(repository.setActiveSlot(any())).thenThrow(RuntimeException("模拟读档失败"))
+        // 触发加载异常：RNG 恢复端口失败（finalizeLoadedState 段）
         val newData = GameData(gameYear = 5, rngStates = mapOf(0 to 123L, 1 to 456L))
         try {
             store.loadFromSnapshot(
@@ -223,11 +228,11 @@ class TransactionRngRollbackTest {
                 isSaving = false
             )
         } catch (@Suppress("SwallowedException") e: RuntimeException) {
-            // 预期：repository.setActiveSlot 模拟读档失败
+            // 预期：RNG 恢复链路失败（首次 restore 后抛）
         }
 
         assertEquals("读档失败后 RNG 应恢复读档前状态", before, mgr.exportStates())
-        assertEquals("读档失败触发一次恢复", 1, port.restoreCount)
+        assertEquals("读档失败触发两次恢复（失败恢复 + 回滚恢复）", 2, port.restoreCount)
     }
 
     /** 场景 D：读档成功——状态 + RNG 原子切换为新档值 */

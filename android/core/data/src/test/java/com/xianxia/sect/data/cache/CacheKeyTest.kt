@@ -152,9 +152,9 @@ class CacheKeyTest {
 
     @Test
     fun `forGameData is alias for gameData`() {
-        val key = CacheKey.forGameData(5)
+        val key = CacheKey.forGameData()
         assertEquals(CacheKey.TYPE_GAME_DATA, key.type)
-        assertEquals(5, key.slot)
+        assertEquals(0, key.slot)
         assertEquals("current", key.id)
     }
 

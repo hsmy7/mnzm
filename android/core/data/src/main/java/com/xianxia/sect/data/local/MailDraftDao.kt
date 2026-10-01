@@ -20,7 +20,6 @@ import com.xianxia.sect.core.overflow.PersistedOverflowDraft
 @Entity(tableName = "overflow_mail_drafts")
 data class OverflowMailDraftEntity(
     @PrimaryKey val id: String,
-    val slotId: Int,
     val source: String,
     val itemType: String,
     val itemName: String,
@@ -37,7 +36,6 @@ data class OverflowMailDraftEntity(
 @Entity(tableName = "direct_mail_drafts")
 data class DirectMailDraftEntity(
     @PrimaryKey val id: String,
-    val slotId: Int,
     val payload: String,
     val createdAt: Long
 )
@@ -62,13 +60,13 @@ interface MailDraftDao {
 
     /** 读取全量溢出草稿行（按 createdAt 升序——先入先转邮件） */
     @Query(
-        "SELECT id, slotId, source, itemType, itemName, itemId, rarity, quantity, createdAt " +
+        "SELECT id, source, itemType, itemName, itemId, rarity, quantity, createdAt " +
             "FROM overflow_mail_drafts ORDER BY createdAt ASC"
     )
     fun getPersistedOverflowDrafts(): List<PersistedOverflowDraft>
 
     /** 读取全量直发草稿行（按 createdAt 升序） */
-    @Query("SELECT id, slotId, payload, createdAt FROM direct_mail_drafts ORDER BY createdAt ASC")
+    @Query("SELECT id, payload, createdAt FROM direct_mail_drafts ORDER BY createdAt ASC")
     fun getPersistedDirectMailDrafts(): List<PersistedDirectMailDraft>
 
     /** 按 id 批量删除溢出草稿行，返回删除行数 */
@@ -80,10 +78,10 @@ interface MailDraftDao {
     fun deleteDirectMailDrafts(ids: List<String>): Int
 
     /** 删除指定槽位全部草稿行（槽位删除路径调用） */
-    @Query("DELETE FROM overflow_mail_drafts WHERE slotId = :slotId")
-    fun deleteAllOverflowDraftsForSlot(slotId: Int)
+    @Query("DELETE FROM overflow_mail_drafts ")
+    fun deleteAllOverflowDrafts()
 
     /** 删除指定槽位全部直发草稿行（槽位删除路径调用） */
-    @Query("DELETE FROM direct_mail_drafts WHERE slotId = :slotId")
-    fun deleteAllDirectMailDraftsForSlot(slotId: Int)
+    @Query("DELETE FROM direct_mail_drafts ")
+    fun deleteAllDirectMailDrafts()
 }

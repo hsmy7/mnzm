@@ -108,7 +108,6 @@ class DiscipleTables {
     val templateIds = ComponentTable<String>()    // id → 角色模板 id（空=存量旧弟子）
     val discipleTypes = ComponentTable<String>()  // id → "outer"/"inner"/"elder"
     val spiritRootTypes = ComponentTable<String>()// id → "metal"/"fire"/...
-    val slotIds = IntComponentTable()             // id → slot_id (持久化用)
 
     // === 境界与修为（Int/Double 基本类型表） ===
     val realms = IntComponentTable()              // id → realm (9=练气 ... 0=仙人)
