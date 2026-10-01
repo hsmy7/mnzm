@@ -17,7 +17,15 @@ data class StorageMetricsSnapshot(
     val backupRestoreCount: Long,
     val backupSkippedOversizeCount: Long,
     val jadeLedgerDriftCount: Long,
-    val lastJadeLedgerDriftOp: String?
+    val lastJadeLedgerDriftOp: String?,
+    /** 增量路径落盘次数（SS5 路径分布） */
+    val incrementalSaveCount: Long,
+    /** 全量路径落盘次数（SS5 路径分布，含首保基线建立） */
+    val fullSaveCount: Long,
+    /** 脏集越界/溢出回退全量次数（异常回退，独立于首保类全量） */
+    val dirtyFallbackCount: Long,
+    /** 最近一次全量路径的原因名（[FullSaveReason]） */
+    val lastFullSaveReason: String?
 )
 
 @Singleton
@@ -39,6 +47,18 @@ class StorageMetrics @Inject constructor() : PersistenceTelemetryPort {
 
     /** 最近一次不一致的玉符事务操作名（诊断归因） */
     private val lastJadeLedgerDriftOp = AtomicReference<String?>(null)
+
+    /** 增量路径落盘次数（SS5 路径分布） */
+    private val incrementalSaveCount = AtomicLong(0)
+
+    /** 全量路径落盘次数（SS5 路径分布，含首保基线建立） */
+    private val fullSaveCount = AtomicLong(0)
+
+    /** 脏集越界/溢出回退全量次数（异常回退，独立于首保类全量） */
+    private val dirtyFallbackCount = AtomicLong(0)
+
+    /** 最近一次全量路径的原因名（诊断归因） */
+    private val lastFullSaveReason = AtomicReference<String?>(null)
 
     fun recordSave() {
         saveCount.incrementAndGet()
@@ -73,6 +93,26 @@ class StorageMetrics @Inject constructor() : PersistenceTelemetryPort {
         backupRestoreCount.incrementAndGet()
     }
 
+    /** 记录一次增量路径落盘决策（SS5 路径分布） */
+    fun recordIncrementalSave() {
+        incrementalSaveCount.incrementAndGet()
+    }
+
+    /** 记录一次全量路径落盘决策（SS5 路径分布） */
+    fun recordFullSave() {
+        fullSaveCount.incrementAndGet()
+    }
+
+    /** 记录一次脏集越界/溢出回退全量（SS5 异常回退计数） */
+    fun recordDirtyFallback() {
+        dirtyFallbackCount.incrementAndGet()
+    }
+
+    /** 记录最近一次全量路径原因名（诊断归因） */
+    fun setLastFullSaveReason(reason: String?) {
+        lastFullSaveReason.set(reason)
+    }
+
     /**
      * 全量读面快照（各计数器独立读取的非严格一致读数）——诊断与周期上报的
      * 统一 getter；SS5/SS7 的新计数器在各自批追加字段。
@@ -87,7 +127,11 @@ class StorageMetrics @Inject constructor() : PersistenceTelemetryPort {
         backupRestoreCount = backupRestoreCount.get(),
         backupSkippedOversizeCount = backupSkippedOversizeCount.get(),
         jadeLedgerDriftCount = jadeLedgerDriftCount.get(),
-        lastJadeLedgerDriftOp = lastJadeLedgerDriftOp.get()
+        lastJadeLedgerDriftOp = lastJadeLedgerDriftOp.get(),
+        incrementalSaveCount = incrementalSaveCount.get(),
+        fullSaveCount = fullSaveCount.get(),
+        dirtyFallbackCount = dirtyFallbackCount.get(),
+        lastFullSaveReason = lastFullSaveReason.get()
     )
 
     override fun recordJadeLedgerDrift(op: String) {

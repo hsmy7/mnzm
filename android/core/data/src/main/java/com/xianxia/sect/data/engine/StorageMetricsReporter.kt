@@ -51,7 +51,11 @@ class StorageMetricsReporter @Inject constructor(
                     AnalyticsEvents.PROP_STORAGE_JADE_DRIFT_COUNT to snapshot.jadeLedgerDriftCount,
                     AnalyticsEvents.PROP_STORAGE_CHANGE_LOG_PENDING to changeLogPending,
                     AnalyticsEvents.PROP_STORAGE_ARCHIVE_BATTLE_LOG_ROWS to overview.battleLogCount,
-                    AnalyticsEvents.PROP_STORAGE_ARCHIVE_DISCIPLE_ROWS to overview.discipleCount
+                    AnalyticsEvents.PROP_STORAGE_ARCHIVE_DISCIPLE_ROWS to overview.discipleCount,
+                    AnalyticsEvents.PROP_STORAGE_INCREMENTAL_SAVE_COUNT to snapshot.incrementalSaveCount,
+                    AnalyticsEvents.PROP_STORAGE_FULL_SAVE_COUNT to snapshot.fullSaveCount,
+                    AnalyticsEvents.PROP_STORAGE_DIRTY_FALLBACK_COUNT to snapshot.dirtyFallbackCount,
+                    AnalyticsEvents.PROP_STORAGE_LAST_FULL_SAVE_REASON to (snapshot.lastFullSaveReason ?: "NONE")
                 )
             )
             Log.d(TAG, "storage metrics reported: saves=${snapshot.saveCount}, " +

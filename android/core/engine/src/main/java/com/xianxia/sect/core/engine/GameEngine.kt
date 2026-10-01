@@ -86,7 +86,12 @@ data class GameStateSnapshot(
     val storageBags: List<StorageBag> = emptyList(),
     val battleLogs: List<BattleLog>,
     val alliances: List<Alliance>,
-    val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
+    val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList(),
+    /**
+     * 保存脏集（SS5 增量落盘）：快照构建点在引擎线程上随状态读取原子捕获，
+     * 随快照→SaveData 携带到存储引擎；null = 捕获口未接入（走全量兜底）。
+     */
+    val dirtySet: com.xianxia.sect.core.state.SaveDirtySet? = null
 )
 
 @Singleton

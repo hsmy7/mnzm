@@ -136,6 +136,7 @@ class StorageEngine @Inject constructor(
             try {
                 // 熔断器保护保存主链路：连续失败（5 次）时熔断 30s 防雪崩重试
                 if (isSaveCircuitOpen()) {
+                    infra.dirtySetTracker.settleSaveResult(data.dirtySet, success = false, writtenViaFull = false)
                     return@withWriteLockLight StorageResult.failure(
                         StorageError.SAVE_FAILED, "保存熔断中（存储连续失败），请稍后重试"
                     )
@@ -144,9 +145,12 @@ class StorageEngine @Inject constructor(
 
                 // 保存前校验 + 清理 + 时间戳
                 val dataWithTimestamp = validateAndPrepareData(data)
-                    ?: return@withWriteLockLight StorageResult.failure(
-                        StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
-                    )
+                    ?: run {
+                        infra.dirtySetTracker.settleSaveResult(data.dirtySet, success = false, writtenViaFull = false)
+                        return@withWriteLockLight StorageResult.failure(
+                            StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
+                        )
+                    }
 
                 // 重试保存（OOM 短路）
                 val result = saveWithRetry(dataWithTimestamp)
@@ -154,6 +158,14 @@ class StorageEngine @Inject constructor(
                 // 结果处理（备份/缓存/变更日志/失败恢复）——返回可能带 postSaveWarning 的结果
                 // （审计 §12-C：文件镜像/备份降级必须传到 UI，不得谎报"保存成功"）
                 val handled = handleSaveResult(result, dataWithTimestamp)
+
+                // 保存结算：成功清除「捕获后未再变更」的脏集条目并建立基线；
+                // 失败整组回并（DB 事务已回滚，变更仍未落盘）
+                infra.dirtySetTracker.settleSaveResult(
+                    delta = data.dirtySet,
+                    success = handled.isSuccess,
+                    writtenViaFull = handled.isSuccess && handled.getOrNull()?.wasIncremental != true
+                )
 
                 // 保存结果反馈熔断器（成功重置计数，失败累计）
                 recordSaveCircuitResult(result = handled)
@@ -163,6 +175,8 @@ class StorageEngine @Inject constructor(
                     stats.copy(timeMs = elapsed)
                 }
             } catch (e: CancellationException) {
+                // 取消穿透前回并脏集：DB 未提交，变更仍待落盘
+                infra.dirtySetTracker.settleSaveResult(data.dirtySet, success = false, writtenViaFull = false)
                 throw e
             } catch (e: java.io.IOException) {
                 Log.e(TAG, "Save failed", e)
@@ -170,6 +184,7 @@ class StorageEngine @Inject constructor(
                 // 保持原"先判 OOM 后判 IO"分类语义：IOException 携带 OOM cause 时仍归 OOM
                 val isOom = e.cause is OutOfMemoryError
                 val error = if (isOom) StorageError.OUT_OF_MEMORY else StorageError.IO_ERROR
+                infra.dirtySetTracker.settleSaveResult(data.dirtySet, success = false, writtenViaFull = false)
                 StorageResult.failure(error, e.message ?: "Save failed", e)
             } catch (e: Exception) {
                 Log.e(TAG, "Save failed", e)
@@ -179,6 +194,7 @@ class StorageEngine @Inject constructor(
                 // 重试循环对 OOM 正确短路（OOM 重试无意义，只会拉长 ANR 窗口）
                 val isOom = e.cause is OutOfMemoryError
                 val error = if (isOom) StorageError.OUT_OF_MEMORY else StorageError.SAVE_FAILED
+                infra.dirtySetTracker.settleSaveResult(data.dirtySet, success = false, writtenViaFull = false)
                 StorageResult.failure(error, e.message ?: "Save failed", e)
             }
         }
@@ -231,11 +247,16 @@ class StorageEngine @Inject constructor(
         return stamped.copy(timestamp = System.currentTimeMillis())
     }
 
-    /** 全量事务保存 + 重试（内存守卫已前置；OOM 类失败直接终止重试）。 */
+    /**
+     * 保存事务编排（SS5）：路径判定（增量默认/全量兜底）→ 单事务落盘 → 重试。
+     * 路径判定一次（重试复用同一决策与同一脏集，增量写幂等）；越界/溢出回退
+     * 全量时计数进 [StorageMetrics]，不得静默。
+     */
     private suspend fun saveWithRetry(
         dataWithTimestamp: SaveData
     ): StorageResult<SaveOperationStats> {
-        var result = performFullTransactionSave(dataWithTimestamp)
+        val decision = resolveSaveDecision(dataWithTimestamp)
+        var result = performTransactionSave(dataWithTimestamp, decision)
         var retryCount = 0
         val maxRetries = storageConfig.maxRetryCount
         while (result.isFailure && retryCount < maxRetries) {
@@ -244,9 +265,95 @@ class StorageEngine @Inject constructor(
             retryCount++
             Log.w(TAG, "保存重试 ($retryCount/$maxRetries)")
             kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
-            result = performFullTransactionSave(dataWithTimestamp)
+            result = performTransactionSave(dataWithTimestamp, decision)
         }
         return result
+    }
+
+    /**
+     * 路径判定 + 计数。基线语义：脏集跟踪器自进程启动（或读档/删档/重置）起
+     * 未有成功落盘 ⇒ 无基线 ⇒ 全量基线建立（首保）；此后成功保存（增量或全量）
+     * 均刷新基线。越界/溢出属异常回退，独立计数（验收⑤：回退不得静默）。
+     */
+    private fun resolveSaveDecision(data: SaveData): SavePathDecision {
+        val decision = resolveSaveDecisionWithCount(
+            dirtySet = data.dirtySet,
+            hasBaseline = !infra.dirtySetTracker.isFullWriteRequired(),
+            snapshotIds = snapshotIdsByTable(data),
+            metrics = infra.storageMetrics
+        )
+        if (!decision.incremental) {
+            decision.fullSaveReason?.let { reason ->
+                if (reason == FullSaveReason.DIRTY_OUT_OF_SNAPSHOT ||
+                    reason == FullSaveReason.DIRTY_OVERFLOW
+                ) {
+                    Log.w(TAG, "增量保存回退全量：reason=$reason")
+                }
+            }
+        }
+        return decision
+    }
+
+    /** 各行级跟踪表的当前快照 id 集（越界校验输入）。 */
+    private fun snapshotIdsByTable(data: SaveData): Map<String, Set<String>> {
+        val tables = com.xianxia.sect.core.state.SaveDirtyTables
+        return mapOf(
+            tables.DISCIPLES to data.disciples.mapTo(HashSet()) { it.id },
+            tables.EQUIPMENT_INSTANCES to data.equipmentInstances.mapTo(HashSet()) { it.id },
+            tables.MANUAL_STACKS to data.manualStacks.mapTo(HashSet()) { it.id },
+            tables.MANUAL_INSTANCES to data.manualInstances.mapTo(HashSet()) { it.id },
+            tables.PILLS to data.pills.mapTo(HashSet()) { it.id },
+            tables.MATERIALS to data.materials.mapTo(HashSet()) { it.id },
+            tables.HERBS to data.herbs.mapTo(HashSet()) { it.id },
+            tables.SEEDS to data.seeds.mapTo(HashSet()) { it.id },
+            tables.STORAGE_BAGS to data.storageBags.mapTo(HashSet()) { it.id },
+            tables.BATTLE_LOGS to data.battleLogs.mapTo(HashSet()) { it.id }
+        )
+    }
+
+    // 异常显式包装进 Result 上抛, 非静默吞噬（检查点段刻意宽捕获: 后置维护非阻断）
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun performTransactionSave(
+        data: SaveData,
+        decision: SavePathDecision
+    ): StorageResult<SaveOperationStats> {
+        // ── 内存守卫前置：低内存直接失败，不写 DB / 不写备份，避免内存态与 DB 脱节 ──
+        if (availableMemoryMB() < LOW_MEMORY_THRESHOLD_MB) {
+            Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected")
+            return StorageResult.failure(
+                StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝"
+            )
+        }
+
+        // 事务原子性由 Room 事务（withTransaction）承担：提交/回滚边界即 DB 一致性边界；
+        // 增量与全量共用同一事务边界（CacheWriteAtomicityGuardTest 锚定）
+        val writeResult = core.database.withTransaction {
+            if (decision.incremental) {
+                core.database.writeIncrementalDataToDatabase(data, decision.dirtySet!!)
+            } else {
+                core.database.writeAllDataToDatabase(data)
+            }
+        }
+        if (writeResult.isFailure) {
+            // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
+            // 事务已回滚，DB 保持旧数据，直接返回失败
+            return writeResult.map {
+                SaveOperationStats(bytesWritten = 0, timeMs = 0, wasIncremental = false)
+            }
+        }
+
+        try {
+            core.database.performPostSaveCheckpoint()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Post-save checkpoint failed (non-fatal)", e)
+        }
+
+        val bytesWritten = estimateSaveSize(data)
+        return StorageResult.success(
+            SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0, wasIncremental = decision.incremental)
+        )
     }
 
 
@@ -368,7 +475,11 @@ class StorageEngine @Inject constructor(
             // 写库结果必须检查——低内存/编码失败导致的写库失败必须如实返回失败：
             // 否则 load 报成功、缓存与内存持有恢复数据，但 DB 仍是损坏数据，
             // 重启后再损坏、恢复循环丢进度
-            val restoreSave = performFullTransactionSave(restoredData)
+            // 备份恢复恒走全量路径（DB 被文件内容整体覆写，无脏集语义）
+            val restoreSave = performTransactionSave(
+                restoredData,
+                SavePathDecision.full(FullSaveReason.NO_BASELINE)
+            )
             if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
                 Log.e(TAG, "备份恢复写库失败: ${restoreSave.message}")
                 return StorageResult.failure(
@@ -376,7 +487,7 @@ class StorageEngine @Inject constructor(
                     "备份恢复写库失败: ${restoreSave.message}"
                 )
             }
-            clearCacheForSlot()
+            clearSaveCache()
             updateCacheAfterSave(restoredData)
             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
             return StorageResult.success(restoredData)
@@ -396,7 +507,7 @@ class StorageEngine @Inject constructor(
 
         return core.lockManager.withWriteLockLight() {
             try {
-                clearCacheForSlot()
+                clearSaveCache()
 
                 // 先写删除 tombstone——DB 事务与文件删除之间崩溃时，
                 // load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档。
@@ -410,11 +521,13 @@ class StorageEngine @Inject constructor(
                 // 会让 tombstone 路径残留 27 表行）
                 clearAllTables()
 
-                clearCacheForSlot()
+                clearSaveCache()
                 saveFileManager.deleteFiles()
                 // 删除流程完整完成后清除 tombstone（下一次 load 正常返回空档）
                 saveFileManager.clearDeleted()
 
+                // 删档后 DB 已空：下一次保存必须全量基线建立（与读档/重置钩子同语义）
+                infra.dirtySetTracker.recordRequiresFullWrite()
                 Log.i(TAG, "Deleted all data")
                 StorageResult.success(Unit)
             } catch (e: CancellationException) {
@@ -493,36 +606,7 @@ class StorageEngine @Inject constructor(
 
     // 前者: 异常源跨IO/SDK不可枚举; 后者: 多步骤事务/异常翻译边界：各 throw 对应不同失败路径的领域错误，刻意独立抛出保归因清晰，非疏忽计数超标 // 防御兜底: 异常源跨IO/SDK不可枚举,
     // 降级继续+日志留痕, 非静默吞噬
-    @Suppress("TooGenericExceptionCaught", "ThrowsCount")
-    private suspend fun performFullTransactionSave(data: SaveData): StorageResult<SaveOperationStats> {
-        // ── 内存守卫前置：低内存直接失败，不写 DB / 不写备份，避免内存态与 DB 脱节 ──
-        if (availableMemoryMB() < LOW_MEMORY_THRESHOLD_MB) {
-            Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected")
-            return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
-        }
 
-        // 事务原子性由 Room 事务（withTransaction）承担：提交/回滚边界即 DB 一致性边界
-        val writeResult = core.database.withTransaction {
-            writeAllDataToDatabase(data)
-        }
-        if (writeResult.isFailure) {
-            // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
-            // 事务已回滚，DB 保持旧数据，直接返回失败
-            return writeResult.map { SaveOperationStats(bytesWritten = 0, timeMs = 0, wasIncremental = false) }
-        }
-
-        try {
-            core.database.performPostSaveCheckpoint()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w(TAG, "Post-save checkpoint failed (non-fatal)", e)
-        }
-
-        val bytesWritten = estimateSaveSize(data)
-        return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0,
-            wasIncremental = false))
-    }
 
 
 

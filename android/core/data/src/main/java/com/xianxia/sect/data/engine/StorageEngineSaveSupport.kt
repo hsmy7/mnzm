@@ -180,7 +180,7 @@ internal fun backupWriteDegradationReason(result: StorageResult<Unit>): String? 
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun StorageEngine.clearCacheForSlot() {
+internal fun StorageEngine.clearSaveCache() {
     try {
         val cacheKey = CacheKey.forGameData()
         core.cache.remove(cacheKey)

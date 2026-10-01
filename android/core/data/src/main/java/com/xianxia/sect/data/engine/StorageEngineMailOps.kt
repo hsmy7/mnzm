@@ -2,6 +2,7 @@ package com.xianxia.sect.data.engine
 
 import androidx.room.withTransaction
 import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.model.SaveData
 
 // SR-1 邮件快照的 StorageEngine 读写层：按域独立成文件（模块既有拆分惯例，
@@ -17,9 +18,9 @@ private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
  * `withTransaction` 之内（IN1 原子性），且不得依赖吞内层异常做部分提交
  * （SR-0 §5 Room 2.7.0 savepoint 语义警示）。
  */
-internal suspend fun StorageEngine.writeMails(data: SaveData) {
+internal suspend fun GameDatabase.writeMails(data: SaveData) {
     data.mails.chunked(MAX_BATCH_SIZE).forEach { batch ->
-        core.database.mailDao().insertAll(batch)
+        mailDao().insertAll(batch)
     }
 }
 

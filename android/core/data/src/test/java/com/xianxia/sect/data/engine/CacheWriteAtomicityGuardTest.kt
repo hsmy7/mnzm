@@ -24,14 +24,18 @@ class CacheWriteAtomicityGuardTest {
     }
 
     @Test
-    fun `全量保存的 DB 写包在单个 withTransaction 内`() {
-        val body = functionBody(ENGINE, "private suspend fun performFullTransactionSave")
-        assertTrue("写库入口 writeAllDataToDatabase 必须仍在 performFullTransactionSave 内",
+    fun `增量与全量双路径的 DB 写包在单个 withTransaction 内`() {
+        val body = functionBody(ENGINE, "private suspend fun performTransactionSave")
+        assertTrue("全量写库入口 writeAllDataToDatabase 必须仍在 performTransactionSave 内",
             "writeAllDataToDatabase" in body)
+        assertTrue("增量写库入口 writeIncrementalDataToDatabase 必须仍在 performTransactionSave 内",
+            "writeIncrementalDataToDatabase" in body)
         val txnAt = body.indexOf("withTransaction")
-        val writeAt = body.indexOf("writeAllDataToDatabase")
-        assertTrue("performFullTransactionSave 必须经 withTransaction 包裹 DB 写（IN1）", txnAt >= 0)
-        assertTrue("withTransaction 必须出现在 DB 写之前（IN1：不得退化成事务外裸写）", txnAt < writeAt)
+        val fullWriteAt = body.indexOf("writeAllDataToDatabase")
+        val incrementalWriteAt = body.indexOf("writeIncrementalDataToDatabase")
+        assertTrue("performTransactionSave 必须经 withTransaction 包裹 DB 写（IN1）", txnAt >= 0)
+        assertTrue("withTransaction 必须出现在全量 DB 写之前（IN1：不得退化成事务外裸写）", txnAt < fullWriteAt)
+        assertTrue("withTransaction 必须出现在增量 DB 写之前（IN1：不得退化成事务外裸写）", txnAt < incrementalWriteAt)
     }
 
     @Test

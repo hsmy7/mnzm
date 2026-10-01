@@ -125,3 +125,21 @@ object StorageModule {
     }
 
 }
+
+/** SS5：保存脏集双端口绑定（馈送口 = store 提交段消费；出口 = 快照构建点消费）。 */
+@Module
+@InstallIn(SingletonComponent::class)
+object SaveDirtyPortModule {
+
+    @Provides
+    @Singleton
+    fun provideSaveDirtyRecorder(
+        dirtySetTracker: com.xianxia.sect.data.engine.DirtySetTracker
+    ): com.xianxia.sect.core.state.SaveDirtyRecorder = dirtySetTracker
+
+    @Provides
+    @Singleton
+    fun provideSaveDirtyDeltaSource(
+        dirtySetTracker: com.xianxia.sect.data.engine.DirtySetTracker
+    ): com.xianxia.sect.core.state.SaveDirtyDeltaSource = dirtySetTracker
+}

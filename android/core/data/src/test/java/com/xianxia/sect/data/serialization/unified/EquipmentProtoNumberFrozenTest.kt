@@ -36,14 +36,18 @@ class EquipmentProtoNumberFrozenTest {
 
     /** 属性名 → @ProtoNumber 编号（缺注解直接报错：云存档面禁隐式编号） */
     private fun protoNumbers(clazz: KClass<*>): Map<String, Int> =
-        clazz.memberProperties.associateBy(
-            keySelector = { it.name },
-            valueTransform = { prop ->
-                prop.isAccessible = true
-                prop.findAnnotation<ProtoNumber>()?.number
-                    ?: error("${clazz.simpleName}.${prop.name} 缺 @ProtoNumber（云存档面禁隐式编号）")
-            }
-        )
+        clazz.memberProperties
+            // @Transient 属性不入序列化字节面（如 SaveData.dirtySet 保存脏集，
+            // 进程内存活），无编号语义，跳过检查
+            .filterNot { it.findAnnotation<kotlinx.serialization.Transient>() != null }
+            .associateBy(
+                keySelector = { it.name },
+                valueTransform = { prop ->
+                    prop.isAccessible = true
+                    prop.findAnnotation<ProtoNumber>()?.number
+                        ?: error("${clazz.simpleName}.${prop.name} 缺 @ProtoNumber（云存档面禁隐式编号）")
+                }
+            )
 
     @Test
     fun `equipment section and new section match the frozen table`() {
