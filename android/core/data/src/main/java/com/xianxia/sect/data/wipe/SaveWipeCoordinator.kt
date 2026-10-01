@@ -4,21 +4,20 @@ import android.content.Context
 import android.util.Log
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.SessionManager
-import com.xianxia.sect.data.archive.DataArchiver
-import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.account.AccountSpaceManager
 import com.tencent.mmkv.MMKV
 import java.io.File
 
 /**
  * 单存档测试期删档重置协调器（SS0）。
  *
- * 职责：在新版本首次启动时把**本机全部旧数据**清零——数据库文件族、启动前
- * 快照/恢复残留、`.sav`/`.bak` 文件层、归档目录、云端台账 MMKV 键、账号与
+ * 职责：在新版本首次启动时把**本机全部旧数据**清零——账号数据空间整树
+ * （SS2 分库结构）、分库前设备级旧位置残留、云端台账 MMKV 键、账号与
  * 合规缓存（W5）；并以 `wipe_single_save_done` 标记保证幂等（重复启动零副作用）。
  *
  * 触发两路（W12/D-6）：
  * - 首次启动自动清：[wipeIfNeeded]（Application.onCreate 在 MMKV 初始化后调用，
- *   此时 Room 数据库尚未被 Hilt 打开，删文件安全）；
+ *   此时存储链经 Lazy 延迟持有，数据库尚未打开，删文件安全）；
  * - 开发入口：[requestWipeOnNextLaunch] 置待执行标记 + 进程重启，下次启动走
  *   同一执行路径（游戏运行中引擎/DB 均已加载，禁止原地删文件）。
  *
@@ -72,25 +71,25 @@ object SaveWipeCoordinator {
      * 经 runCatching 降级跳过）。
      */
     internal fun executeWipe(context: Context) {
-        // 1. 数据库文件族（主文件 + WAL/SHM）——旧库连同影子表/元数据整体清零
-        val dbFile = GameDatabase.getUnifiedDatabaseFile(context)
-        listOf("", "-wal", "-shm").forEach { suffix ->
-            File(dbFile.absolutePath + suffix).delete()
-        }
+        // 1. 账号数据空间整树删除（SS2 分库结构：库(+ -wal/-shm/快照/恢复 marker)、
+        //    saves/、archives/、.current 全在其中）
+        File(context.filesDir, AccountSpaceManager.ACCOUNTS_DIR_NAME).deleteRecursively()
 
-        // 2. 启动前快照与恢复残留（版本化快照/恢复 marker/恢复临时文件）——
-        // 与 DB 主文件同目录（databases/，非 filesDir 根）
+        // 2. 分库前设备级旧位置残留（未清理=删档未生效）：
+        //    databases/ 库文件族 + filesDir 根的 saves/ 与 archives/
+        val legacyDbFile = context.getDatabasePath(AccountSpaceManager.DATABASE_FILE_NAME)
+        listOf("", "-wal", "-shm").forEach { suffix ->
+            File(legacyDbFile.absolutePath + suffix).delete()
+        }
         val snapshotPrefixes = listOf(
-            dbFile.name + ".pre_migrate_backup",
-            dbFile.name + ".restore"
+            legacyDbFile.name + ".pre_migrate_backup",
+            legacyDbFile.name + ".restore"
         )
-        dbFile.parentFile?.listFiles()
+        legacyDbFile.parentFile?.listFiles()
             ?.filter { file -> snapshotPrefixes.any(file.name::startsWith) }
             ?.forEach(File::delete)
-
-        // 3. 文件层存档目录与归档目录整树删除
         File(context.filesDir, StorageConstants.BACKUP_DIR_NAME).deleteRecursively()
-        File(context.filesDir, DataArchiver.DEFAULT_ARCHIVE_DIR_NAME).deleteRecursively()
+        File(context.filesDir, AccountSpaceManager.ARCHIVES_DIR_NAME).deleteRecursively()
 
         // 4. 云端台账键（上传序号账本 + 存量迁移状态）；MMKV 未就绪时跳过
         //（键留存不构成旧档恢复路径——台账只记序号，不记档内容）

@@ -129,9 +129,17 @@ class MainActivity : ComponentActivity() {
     
     @Inject
     lateinit var sessionManager: SessionManager
-    
+
+    /**
+     * 存储链延迟持有（SS2 分库）：无活跃账号数据空间时禁止实例化（无账号不建库）——
+     * 字段注入发生在 onCreate，直持引用会在登录前建库；进入游戏路径
+     * （[enterGameAuto] 激活空间后）才 get()。
+     */
     @Inject
-    lateinit var storageFacade: StorageFacade
+    lateinit var storageFacade: dagger.Lazy<StorageFacade>
+
+    @Inject
+    lateinit var accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
 
     @Inject
     lateinit var tapCloudSaveManager: TapCloudSaveManager
@@ -166,9 +174,9 @@ class MainActivity : ComponentActivity() {
     internal var isLoadComplete = false
 
     /**
-     * StorageFacade 初始化全败阻断态（SR-3，审计 §12-J 修复）。
-     * 非空 = 加载页切换为如实错误屏（[StorageInitErrorScreen]），进度动画停摆、
-     * onLoadingComplete 不触发——不再"proceeding with empty cache"静默放行。
+     * 进入游戏路径的存储初始化全败阻断态（SR-3，审计 §12-J 修复）。
+     * 非空 = 自动进入页切换为如实错误屏（[StorageInitErrorScreen]）——
+     * 不再"proceeding with empty cache"静默放行。
      */
     internal val storageInitError = mutableStateOf<String?>(null)
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -408,77 +416,68 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             // 友盟统计正式初始化：此处是"已同意冷启"与"首次同意"两条路径的统一汇合点，
             // 满足"仅在用户同意隐私政策后采集数据"的合规契约（preInit 已在 Application 完成）。
-            // IO 线程执行——init 内部 SP 读取/注册回调不在主线程冷启动关键路径上
+            // IO 线程执行——init 内部 SP 读取/注册回调不在主线程冷启动关键路径上。
+            // 存储链初始化不在启动加载页执行（无账号不建库，SS2）——
+            // 移至登录/验证通过后的 enterGameAuto
             com.xianxia.sect.umeng.UmengManager.init(application)
-            initializeStorageWithRetry()
+            isLoadComplete = true
         }
     }
 
     /**
-     * StorageFacade 初始化（3 次重试）+ 全败处置（SR-3，审计 §12-J 修复）。
+     * 存储链初始化（3 次重试）+ 全败处置（SR-3，审计 §12-J 修复）。
+     *
+     * 调用时机 = 账号数据空间激活之后（[enterGameAuto] 内）——空间未激活时
+     * 底层 fail-fast，此处按初始化失败如实阻断。
      *
      * 全败 = 置 [storageInitError] 阻断态（如实错误屏 + 重试按钮），**不再放行**——
-     * 旧实现"proceeding with empty cache"静默进主菜单，玩家在存档不可用的会话里
+     * "proceeding with empty cache"静默放行会让玩家在存档不可用的会话里
      * 保存静默失败/读档全空，进度被静默丢弃。
+     *
+     * @return true 初始化成功；false 全败（阻断态已置位）
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 初始化异常源跨IO/DB不可枚举, 计入重试, 非静默吞噬
-    private fun initializeStorageWithRetry() {
-        lifecycleScope.launch(ioDispatcher.dispatcher) {
-            var initialized = false
-            var retryCount = 0
-            var lastError: String? = null
-            val maxRetries = 3
-            while (!initialized && retryCount < maxRetries) {
-                try {
-                    val initResult = storageFacade.initialize()
-                    if (initResult.isSuccess) {
-                        Log.i(TAG, "StorageFacade initialized successfully (attempt ${retryCount + 1})")
-                        initialized = true
-                    } else {
-                        retryCount++
-                        lastError = (initResult as? com.xianxia.sect.data.unified.SaveResult.Failure)?.message
-                            ?: "初始化失败"
-                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $lastError")
-                        if (retryCount < maxRetries) {
-                            kotlinx.coroutines.delay(500L * retryCount)
-                        }
-                    }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    retryCount++
-                    lastError = e.message
-                    Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
-                    if (retryCount < maxRetries) {
-                        kotlinx.coroutines.delay(500L * retryCount)
-                    }
+    private suspend fun initializeStorageWithRetry(): Boolean {
+        var retryCount = 0
+        var lastError: String? = null
+        val maxRetries = 3
+        while (retryCount < maxRetries) {
+            try {
+                val initResult = storageFacade.get().initialize()
+                if (initResult.isSuccess) {
+                    Log.i(TAG, "StorageFacade initialized successfully (attempt ${retryCount + 1})")
+                    return true
                 }
-            }
-            withContext(Dispatchers.Main) {
-                if (initialized) {
-                    isLoadComplete = true
-                } else {
-                    Log.e(
-                        TAG,
-                        "StorageFacade initialization failed after $maxRetries attempts, " +
-                            "blocking with retry UI (audit §12-J)"
-                    )
-                    storageInitError.value = storageInitFailureMessage(
-                        saveBackendModeProvider.current(),
-                        lastError
-                    )
+                retryCount++
+                lastError = (initResult as? com.xianxia.sect.data.unified.SaveResult.Failure)?.message
+                    ?: "初始化失败"
+                Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $lastError")
+                if (retryCount < maxRetries) {
+                    delay(500L * retryCount)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                retryCount++
+                lastError = e.message
+                Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
+                if (retryCount < maxRetries) {
+                    delay(500L * retryCount)
                 }
             }
         }
+        Log.e(
+            TAG,
+            "StorageFacade initialization failed after $maxRetries attempts, " +
+                "blocking with retry UI (audit §12-J)"
+        )
+        storageInitError.value = storageInitFailureMessage(
+            saveBackendModeProvider.current(),
+            lastError
+        )
+        return false
     }
 
-    /** 初始化失败重试入口（错误屏按钮）：清阻断态 → 回加载页 → 重跑初始化。 */
-    internal fun retryStorageInitialization() {
-        storageInitError.value = null
-        showLoadingScreen()
-        initializeStorageWithRetry()
-    }
-    
     private fun startProgressAnimation() {
         val updateRunnable = ProgressRunnable()
         ProgressRunnable.attach(this)
@@ -536,20 +535,13 @@ class MainActivity : ComponentActivity() {
     private fun showLoadingScreen() {
         setContent {
             XianxiaTheme {
-                // SR-3：初始化全败 → 如实阻断错误屏（重试入口）；否则正常加载页
-                val initError by storageInitError
-                if (initError != null) {
-                    StorageInitErrorScreen(
-                        message = initError ?: "",
-                        onRetry = { retryStorageInitialization() }
-                    )
-                } else {
-                    val progress by loadingProgress
-                    LoadingScreen(
-                        progress = progress,
-                        showProgress = true
-                    )
-                }
+                // 启动加载页纯动画承载（存储链初始化已移至 enterGameAuto，
+                // 登录前零存储链实例化——SS2 分库）
+                val progress by loadingProgress
+                LoadingScreen(
+                    progress = progress,
+                    showProgress = true
+                )
             }
         }
     }
@@ -589,16 +581,34 @@ class MainActivity : ComponentActivity() {
     /**
      * 按存档状态自动进入游戏，判定全程由加载界面承载（玩家零选择界面）。
      *
-     * 决策（[AutoEntryResolver]）：本地最新档自动读 → 本地全空时查云端
+     * 前置（SS2 分库，两条路径——冷启动已验证 / 刚完成验证——均经此处）：
+     * 1. 激活账号数据空间（unionId 派生 accountKey，写 `.current`）；
+     * 2. 存储链初始化（3 次重试）——登录前零存储链实例化的必经解锁点。
+     *
+     * 后续决策（[AutoEntryResolver]）：本地最新档自动读 → 本地全空时查云端
      *（换机/重装兜底）→ 均无档自动新建（自动建新档 +
      * 引擎默认宗门名「青云宗」，游戏内可改名）。
      *
-     * 存储状态未知（槽位整表查询失败）时阻断在如实错误屏并给重试入口——
-     * 绝不在存档状态不明时自动新建，防止覆盖既有进度。
+     * 空间未激活/存储状态未知（初始化全败或槽位整表查询失败）时阻断在如实错误屏
+     * 并给重试入口——绝不在存档状态不明时自动新建，防止覆盖既有进度。
      */
     internal fun enterGameAuto() {
+        storageInitError.value = null
         showAutoEnterLoadingScreen()
         lifecycleScope.launch {
+            val unionId = sessionManager.unionId
+            if (unionId.isNullOrEmpty()) {
+                // 无账号标识 = 验证链路程序错误之外的兜底：回登录页重新登录，
+                // 绝不建"匿名空间"（D-5）
+                Log.e(TAG, "auto-enter: 无 unionId，回登录页（不建数据空间）")
+                withContext(Dispatchers.Main) { showMainScreen() }
+                return@launch
+            }
+            withContext(ioDispatcher.dispatcher) { accountSpace.activate(unionId) }
+            if (!initializeStorageWithRetry()) {
+                showAutoEnterStorageError(storageInitError.value ?: AUTO_ENTER_STORAGE_ERROR_MESSAGE)
+                return@launch
+            }
             val slots = queryLocalSlots()
             if (slots == null) {
                 showAutoEnterStorageError(AUTO_ENTER_STORAGE_ERROR_MESSAGE)
@@ -650,7 +660,7 @@ class MainActivity : ComponentActivity() {
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/DB不可枚举, 上抛为阻断态而非静默降级
     private suspend fun queryLocalSlots(): List<SaveSlot>? = withContext(ioDispatcher.dispatcher) {
         try {
-            storageFacade.getSaveSlotsSuspend()
+            storageFacade.get().getSaveSlotsSuspend()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -899,16 +909,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 登出统一四件套（唯一实现点）：清本地会话 + 清 TapTap SDK 登录态 + 停时长统计 +
-     * 解绑合规回调。所有登出入口经状态机 LogoutRequested 事件汇聚到此处，杜绝
-     * "登出不完整 → 残留会话使再次登录走静默登录 → 防沉迷验证不触发"的回归。
-     * 界面切换（回登录界面）由状态机 ShowLoginScreen 副作用负责。
+     * 登出统一五件套（唯一收敛点：清单实现在 `login/FullLogout.kt`）：
+     * 清本地会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调 + 关数据空间
+     * （只清 `.current` 不删空间）。所有登出入口经状态机 LogoutRequested 事件汇聚到
+     * 此处，杜绝"登出不完整 → 残留会话使再次登录走静默登录 → 防沉迷验证不触发"
+     * 的回归；随后进程重启回登录页（换账号必须换数据空间，进程级单例图均为账号态）。
      */
     private fun performFullLogout() {
-        sessionManager.clearSession()
-        TapTapAuthManager.logout()
-        TapDBManager.stopGameDurationTracking()
-        ComplianceManager.unregisterCallback()
+        com.xianxia.sect.login.performFullLogout(sessionManager, accountSpace)
+        com.xianxia.sect.login.restartToLoginScreen(this)
     }
 
     /** 登出请求入口（文件内顶层 Composable 回调使用）：统一转发状态机 LogoutRequested */
@@ -1229,8 +1238,8 @@ private fun LoginColumnContent(
 }
 
 /**
- * 合规限制弹窗"退出游戏/切换账号"：统一经状态机 LogoutRequested（清会话 + 清 TapTap
- * SDK 登录态 / 停时长统计 / 解绑合规回调 + 回登录界面），不再各写四件套 + recreate。
+ * 合规限制弹窗"退出游戏/切换账号"：统一经状态机 LogoutRequested（登出五件套 +
+ * 进程重启回登录页），不再各写清单。
  */
 private fun performComplianceLogout(context: Context) {
     (context as? MainActivity)?.requestLogout()

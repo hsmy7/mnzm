@@ -56,20 +56,27 @@ object AppModule {
      * GameDatabase 单例提供者 — 使用统一实例创建方法
      *
      * 存储路由：
-     * - 统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
-     * - transactionalSaveManager 通过 slot 字段区分不同存档的数据行
+     * - 单实例 DB 落在当前账号数据空间（`filesDir/accounts/<accountKey>/xianxia_sect.db`），
+     *   空间由 [AccountSpaceManager.activate] 在登录/验证通过后激活
+     * - 无活跃账号空间时此处抛 [IllegalStateException]（无账号不建库）——
+     *   调用链必须保证 DB 首次注入发生在空间激活之后（MainActivity/Application
+     *   经 dagger.Lazy 延迟持有存储链）
      *
      * @see GameDatabase.create 统一实例工厂方法
      */
     @Provides
     @Singleton
-    fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
+    fun provideGameDatabase(
+        @ApplicationContext context: Context,
+        accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
+    ): GameDatabase {
+        val dbFile = accountSpace.requireDatabaseFile()
         // 在 Room databaseBuilder 前检查是否需要从启动前快照恢复
-        val restored = GameDatabase.restoreFromBackupIfNeeded(context)
+        val restored = GameDatabase.restoreFromBackupIfNeeded(dbFile)
         if (restored) {
             Log.w(TAG, "数据库已从启动前快照恢复")
         }
-        return GameDatabase.create(context.applicationContext)
+        return GameDatabase.create(context.applicationContext, dbFile)
     }
     
     @Provides

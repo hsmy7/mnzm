@@ -139,6 +139,9 @@ class GameActivity : ComponentActivity() {
     lateinit var sessionManager: SessionManager
 
     @Inject
+    lateinit var accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
+
+    @Inject
     lateinit var storageFacade: StorageFacade
 
     @Inject
@@ -486,17 +489,9 @@ class GameActivity : ComponentActivity() {
                                 worldMapGarrisonViewModel = worldMapGarrisonViewModel,
                                 battleViewModel = battleViewModel,
                                 onLogout = {
-                                    sessionManager.clearSession()
-                                    // 完整登出（对齐 MainActivity.handleUserExit）：清 TapTap SDK
-                                    // 登录态——否则残留会话使下次登录走"静默登录"（不弹登录页），
-                                    // 防沉迷验证不触发导致卡在登录界面；停时长统计；解绑合规回调
-                                    com.xianxia.sect.taptap.TapTapAuthManager.logout()
-                                    com.xianxia.sect.taptap.TapDBManager.stopGameDurationTracking()
-                                    com.xianxia.sect.taptap.ComplianceManager.unregisterCallback()
-                                    val intent = Intent(this@GameActivity, MainActivity::class.java)
-                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    startActivity(intent)
-                                    finish()
+                                    // 登出五件套（login/FullLogout.kt 唯一实现）+ 进程重启回登录页
+                                    com.xianxia.sect.login.performFullLogout(sessionManager, accountSpace)
+                                    com.xianxia.sect.login.restartToLoginScreen(this@GameActivity)
                                 },
                                 onRestartGame = {
                                     saveLoadViewModel.restartGame()
@@ -639,15 +634,12 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
-     * 停时长统计 / 解绑合规回调，对齐 MainActivity.performComplianceLogout）+ 回登录页。
+     * 合规限制弹窗"退出游戏/切换账号"：登出五件套（login/FullLogout.kt 唯一实现，
+     * 与 MainActivity 登出收敛点同源）+ 进程重启回登录页。
      */
     private fun performComplianceLogout() {
-        sessionManager.clearSession()
-        com.xianxia.sect.taptap.TapTapAuthManager.logout()
-        com.xianxia.sect.taptap.TapDBManager.stopGameDurationTracking()
-        com.xianxia.sect.taptap.ComplianceManager.unregisterCallback()
-        navigateBackToMainMenu()
+        com.xianxia.sect.login.performFullLogout(sessionManager, accountSpace)
+        com.xianxia.sect.login.restartToLoginScreen(this)
     }
 
     /**

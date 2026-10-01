@@ -65,7 +65,7 @@ object GameDatabaseConfig {
      * 升级数据库版本时必须同步递增此常量、注册 `MIGRATION_(N-1)_N` 并更新
      * `MigrationRequiredGuardTest` 的实体清单基线（缺迁移 = 老库被 destructive 重建）。
      */
-    const val DATABASE_VERSION = 68
+    const val DATABASE_VERSION = 69
 
     /**
      * 判定是否应从启动前快照恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -344,7 +344,6 @@ abstract class GameDatabase : RoomDatabase() {
     @Suppress("TooManyFunctions") // 数据库工厂/备份/恢复/维护聚合，内聚单一职责
     companion object {
         private const val TAG = "GameDatabase"
-        private const val UNIFIED_DB_NAME = "xianxia_sect.db"
 
         /** 快照保留份数：最近 2 个版本供降级恢复 */
         const val MIGRATION_BACKUP_RETENTION = 2
@@ -378,7 +377,8 @@ abstract class GameDatabase : RoomDatabase() {
 
         /**
          * 在数据库打开前落启动前快照。
-         * 将 xianxia_sect.db 复制到 xianxia_sect.db.pre_migrate_backup.v{当前版本}。
+         * 将库文件复制到 `{db}.pre_migrate_backup.v{当前版本}`（库文件所在目录 =
+         * 账号数据空间，SS2 分库）。
          * 仅当数据库版本落后于 [GameDatabaseConfig.DATABASE_VERSION] 时执行——
          * 版本落后即意味着本次启动将发生 destructive 重建，快照是重建前唯一的
          * 抢救副本（供 [restoreFromBackupIfNeeded] 的损坏恢复与降级恢复消费）。
@@ -387,8 +387,7 @@ abstract class GameDatabase : RoomDatabase() {
          * 此处使用 PRAGMA wal_checkpoint(TRUNCATE) 先行落盘再复制。
          */
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-        fun snapshotDatabaseBeforeUpgrade(context: Context) {
-            val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
+        fun snapshotDatabaseBeforeUpgrade(dbFile: File) {
             if (!dbFile.exists()) {
                 Log.d(TAG, "数据库文件不存在，跳过启动前快照（首次安装）")
                 return
@@ -456,16 +455,25 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        fun create(context: Context): GameDatabase {
-            Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
+        /**
+         * 创建账号空间内的统一单实例数据库。
+         *
+         * @param context applicationContext（Room builder / 设备内存探测）
+         * @param dbFile 库文件绝对路径——由账号数据空间派生
+         *   （`filesDir/accounts/<accountKey>/xianxia_sect.db`，路径经
+         *   [com.xianxia.sect.data.account.AccountSpaceManager.requireDatabaseFile]）。
+         *   绝对路径直接被 SQLiteOpenHelper 采用，不再落入设备级 databases/ 目录。
+         */
+        fun create(context: Context, dbFile: File): GameDatabase {
+            Log.i(TAG, "Creating single-instance database at: $dbFile")
 
             // 数据库打开前落启动前快照（destructive 重建前的抢救副本）
-            snapshotDatabaseBeforeUpgrade(context)
+            snapshotDatabaseBeforeUpgrade(dbFile)
 
             return Room.databaseBuilder(
                 context.applicationContext,
                 GameDatabase::class.java,
-                UNIFIED_DB_NAME
+                dbFile.absolutePath
             )
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .setQueryExecutor(
@@ -480,14 +488,14 @@ abstract class GameDatabase : RoomDatabase() {
                 )
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
-                        Log.i(TAG, "Unified database created")
+                        Log.i(TAG, "Database created")
                         configureDatabase(db, context)
                     }
                     override fun onOpen(db: SupportSQLiteDatabase) {
-                        Log.i(TAG, "Unified database opened")
+                        Log.i(TAG, "Database opened")
                         optimizeDatabase(db)
                         // 启动时检查数据库完整性，并在异常时自动尝试从快照恢复
-                        verifyAndRecoverDatabase(db, context)
+                        verifyAndRecoverDatabase(db, dbFile)
                     }
                 })
                 // 版本落后且无迁移路径时毁灭重建（dropAllTables 含 Room schema 外
@@ -496,10 +504,6 @@ abstract class GameDatabase : RoomDatabase() {
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
-        }
-
-        fun getUnifiedDatabaseFile(context: Context): File {
-            return context.getDatabasePath(UNIFIED_DB_NAME)
         }
 
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
@@ -600,7 +604,7 @@ abstract class GameDatabase : RoomDatabase() {
          * 2. 如果已调用 restoreFromBackupIfNeeded() 且启动前快照存在，则文件级恢复优先
          */
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-        private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, context: Context) {
+        private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, dbFile: File) {
             // Step 1: integrity_check
             val integrityOk = checkDatabaseIntegrity(db)
 
@@ -619,7 +623,6 @@ abstract class GameDatabase : RoomDatabase() {
             // 价值衰减，按保留窗口留最近 MIGRATION_BACKUP_RETENTION 份）
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
-                    val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
                     File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
                     pruneMigrationBackups(dbFile.absolutePath)
                 }
@@ -679,11 +682,11 @@ abstract class GameDatabase : RoomDatabase() {
          *
          * 此方法必须在 [create] 之前调用。当前由 AppModule.provideGameDatabase 调用。
          *
+         * @param dbFile 账号空间内的库文件（快照/恢复 marker 均按其路径派生）
          * @return true 表示已执行恢复，false 表示无需恢复或恢复失败
          */
         @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-        fun restoreFromBackupIfNeeded(context: Context): Boolean {
-            val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
+        fun restoreFromBackupIfNeeded(dbFile: File): Boolean {
             val backupFile = findVersionedBackup(dbFile) ?: return false
             val markerFile = File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER)
             if (!dbFile.exists()) return false

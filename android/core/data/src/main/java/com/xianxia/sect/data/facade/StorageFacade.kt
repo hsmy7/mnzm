@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.facade
 
-import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.data.backup.SaveFileManager
@@ -13,7 +12,6 @@ import com.xianxia.sect.data.model.SaveSlot
 
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
@@ -58,10 +56,10 @@ fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveRes
 
 @Singleton
 class StorageFacade @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val engine: StorageEngine,
     private val lockManager: SlotLockManager,
-    private val saveFileManager: SaveFileManager
+    private val saveFileManager: SaveFileManager,
+    private val accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
 ) {
     companion object {
         private const val TAG = "StorageFacade"
@@ -82,8 +80,9 @@ class StorageFacade @Inject constructor(
 
         return try {
             engine.startMaintenance()
-            // 初始化 SaveFileManager 双缓冲备份（.sav/.bak）
-            saveFileManager.initialize(context.filesDir)
+            // 初始化 SaveFileManager 双缓冲备份（.sav/.bak）——落在当前账号数据空间
+            // （无活跃空间时 requireRoot 抛 IllegalStateException，与建库同门控）
+            saveFileManager.initialize(accountSpace.requireRoot())
             // 启动时清理崩溃遗留 .tmp 文件与孤儿 .bak（.sav 永不清——
             // 它是 DB 损坏时的恢复点）
             try {
