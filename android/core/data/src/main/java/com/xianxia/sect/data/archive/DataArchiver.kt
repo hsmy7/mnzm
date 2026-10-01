@@ -1,12 +1,10 @@
 package com.xianxia.sect.data.archive
 
-import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.data.compression.CompressionAlgorithm
 import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -129,7 +127,7 @@ data class ArchivedItem(
 
 @Singleton
 class DataArchiver @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val accountSpace: com.xianxia.sect.data.account.AccountSpaceManager,
     private val dataCompressor: DataCompressor
 ) {
     companion object {
@@ -151,8 +149,9 @@ class DataArchiver @Inject constructor(
         }
     }
 
+    /** 归档基目录：当前账号数据空间内（无活跃空间时 fail-fast，与建库同门控） */
     private val archiveBaseDir: File by lazy {
-        File(context.filesDir, DEFAULT_ARCHIVE_DIR_NAME).apply { mkdirs() }
+        accountSpace.requireArchivesDir().apply { mkdirs() }
     }
 
     private val indexMutex = Mutex()

@@ -40,18 +40,23 @@ internal fun safeRunAfterSdkInit(
 - 调用点：登录成功回调（`block` = `startComplianceCheck`）、已登录冷启动（`block` = 界面跳转分支）。
 - **语义守护：** `app/src/test/java/com/xianxia/sect/ui/SafeRunAfterSdkInitTest.kt`（6 用例）。未来改动此编排（调整顺序/吞异常/改签名）必须保持"初始化异常不阻断关键步骤"契约，测试会拦截违规。
 
-## 登出完整清单（4 处登出入口必须一致）
+## 登出完整清单（全部登出入口必须一致：五件套 + 进程重启）
 
-登出基准 = `MainActivity.handleUserExit`（清会话 + 停时长统计 + SDK 登出 + 解绑回调）：
+登出基准 = `login/FullLogout.kt` 的 `performFullLogout`（登出五件套唯一实现：
+`clearSession` + `TapTapAuthManager.logout` + `TapDBManager.stopGameDurationTracking` +
+`ComplianceManager.unregisterCallback` + `AccountSpaceManager.closeCurrent`），
+随后 `restartToLoginScreen` 进程重启回登录页（数据空间绑定进程级单例图，换账号
+必须重启进程换空间）：
 
 | 登出入口 | 位置 | 必须包含 |
 |---|---|---|
-| 游戏内设置退出登录 | `GameActivity.onLogout` | `clearSession` + `TapTapAuthManager.logout` + `TapDBManager.stopGameDurationTracking` + `ComplianceManager.unregisterCallback` |
-| 模式选择界面退出登录 | `MainActivity` `ModeSelectionScreen.onLogout` | 同上（`recreate` 重建主界面） |
-| 合规限制弹窗"退出游戏/切换账号" | `MainActivity.performComplianceLogout` | 同上 |
-| 实名认证界面"切换账号" | `MainActivity` `ComplianceVerificationScreen.onLogout` | 同上 |
+| 游戏内设置退出登录 | `GameActivity.onLogout` | 五件套（复用 `performFullLogout`）+ 进程重启 |
+| 合规限制弹窗"退出游戏/切换账号"（主界面） | `MainActivity.performComplianceLogout`（经状态机 `LogoutRequested`） | 同上 |
+| 合规限制弹窗"退出游戏/切换账号"（游戏内） | `GameActivity.performComplianceLogout` | 同上 |
+| 实名认证界面"切换账号" | `MainActivity` `ComplianceVerificationScreen.onLogout`（经状态机） | 同上 |
 
-新增登出入口时必须复制完整四件套，禁止只做 `clearSession()`。
+新增登出入口时必须复用 `performFullLogout`，禁止手抄清单，禁止只做 `clearSession()`。
+守卫：`AccountDataIsolationGuardTest`（清单唯一性 + 入口收敛断言）。
 
 ## 修改检查清单
 
@@ -61,7 +66,7 @@ internal fun safeRunAfterSdkInit(
 - [ ] SDK 调用前是否保证就绪（`TapTapAuthManager.isReady()`）？冷启动/重试路径是否显式 `awaitTapTapSdkReady()`？
 - [ ] 登录/防沉迷流程改动是否走 `LoginFlowStateMachine` 状态机（事件驱动 + 副作用经 `LoginFlowHost`）？是否新增了"只置位不复位"的一次性布尔标记？（禁止——状态机自身可复位）
 - [ ] 合规回调注册是否幂等自愈（`ComplianceManager.ensureCallbackRegistered`）？注册是否先于 startup？
-- [ ] 登出是否完整四件套（统一收敛到 `MainActivity.performFullLogout`，经状态机 LogoutRequested 事件）
+- [ ] 登出是否完整五件套（清单唯一实现 = `login/FullLogout.kt` 的 `performFullLogout`；MainActivity 经状态机 LogoutRequested 汇聚，GameActivity 直调共享函数）+ 进程重启（`restartToLoginScreen`）
 - [ ] 防沉迷验证（startup）的合规回调注册必须先于验证启动
 - [ ] 运行 `LoginFlowStateMachineTest` + `ComplianceManagerSelfHealTest` + `SafeRunAfterSdkInitTest` + `SdkInitGuardTest` + `TapDBManagerInitGuardTest`
 - [ ] 真机冒烟：登录 → 进游戏 → 退出 → 再登录（弹登录页确认）→ 防沉迷验证 → 进模式选择；杀进程重进（已登录直接进游戏）；登出后杀进程重进（登录界面）；登录后 SDK 认证页退出 → 再登录（正常进模式选择）

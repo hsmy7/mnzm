@@ -77,10 +77,10 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideDataArchiver(
-        @ApplicationContext context: Context,
+        accountSpace: com.xianxia.sect.data.account.AccountSpaceManager,
         dataCompressor: DataCompressor
     ): DataArchiver {
-        return DataArchiver(context, dataCompressor)
+        return DataArchiver(accountSpace, dataCompressor)
     }
 
     @Provides

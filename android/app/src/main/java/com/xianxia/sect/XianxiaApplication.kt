@@ -68,7 +68,7 @@ class XianxiaApplication : Application() {
     lateinit var applicationScopeProvider: com.xianxia.sect.di.ApplicationScopeProvider
 
     @Inject
-    lateinit var storageFacade: StorageFacade
+    lateinit var storageFacade: dagger.Lazy<StorageFacade>
 
     @Inject
     lateinit var crashReporter: CrashReporter
@@ -76,11 +76,23 @@ class XianxiaApplication : Application() {
     @Inject
     lateinit var crashHandler: com.xianxia.sect.core.CrashHandler
 
+    /**
+     * 引擎链延迟持有：构造依赖树含 DAO 面（注入即触发建库）——无活跃账号数据
+     * 空间时禁止实例化（无账号不建库，SS2）；trim 动作经 isActive 门控后 get()。
+     */
     @Inject
-    lateinit var gameEngine: com.xianxia.sect.core.engine.GameEngine
+    lateinit var gameEngine: dagger.Lazy<com.xianxia.sect.core.engine.GameEngine>
+
+    /**
+     * 存储缓存链延迟持有：无活跃账号数据空间时禁止实例化（无账号不建库，SS2）——
+     * trim 动作与 onTerminate 侧均经 [com.xianxia.sect.data.account.AccountSpaceManager.isActive]
+     * 门控后才 get()。
+     */
+    @Inject
+    lateinit var gameDataCacheManager: dagger.Lazy<com.xianxia.sect.data.cache.GameDataCacheManager>
 
     @Inject
-    lateinit var gameDataCacheManager: com.xianxia.sect.data.cache.GameDataCacheManager
+    lateinit var accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
 
     /** AppStartup-Init 后台初始化执行器（Bugly/MMKV 一次性任务），onTerminate 时幂等 shutdown */
     private var appStartupExecutor: ExecutorService? = null
@@ -92,18 +104,26 @@ class XianxiaApplication : Application() {
      */
     private fun assembleTrimBridgeActions() {
         TrimMemoryBridge.engineTrimAction = TrimMemoryBridge.EngineTrimAction { level ->
-            // GameEngine.releaseMemory 保留 Android 级别入参（引擎既有归一层）：
-            // SOFT → 轻裁剪（战斗日志），AGGRESSIVE/CRITICAL → + 重列表裁剪
-            val androidLevel = when (level) {
-                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.CRITICAL,
-                com.xianxia.sect.core.domain.memory.MemoryTrimLevel.AGGRESSIVE ->
-                    ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
-                else -> ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+            // 无活跃账号数据空间（未登录）时引擎未加载，无引擎态可裁剪，跳过以维持
+            // "登录前零存储链实例化"契约
+            if (accountSpace.isActive()) {
+                // GameEngine.releaseMemory 保留 Android 级别入参（引擎既有归一层）：
+                // SOFT → 轻裁剪（战斗日志），AGGRESSIVE/CRITICAL → + 重列表裁剪
+                val androidLevel = when (level) {
+                    com.xianxia.sect.core.domain.memory.MemoryTrimLevel.CRITICAL,
+                    com.xianxia.sect.core.domain.memory.MemoryTrimLevel.AGGRESSIVE ->
+                        ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
+                    else -> ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+                }
+                gameEngine.get().releaseMemory(androidLevel)
             }
-            gameEngine.releaseMemory(androidLevel)
         }
         TrimMemoryBridge.cacheTrimAction = TrimMemoryBridge.CacheTrimAction { level ->
-            gameDataCacheManager.onMemoryTrimBridge(level)
+            // 无活跃账号数据空间（未登录）时无缓存数据可裁剪，跳过以维持
+            // "登录前零存储链实例化"契约
+            if (accountSpace.isActive()) {
+                gameDataCacheManager.get().onMemoryTrimBridge(level)
+            }
         }
     }
 
@@ -420,7 +440,11 @@ class XianxiaApplication : Application() {
     override fun onTerminate() {
         super.onTerminate()
         try {
-            storageFacade.shutdown()
+            // 仅在账号数据空间活跃（存储链已实例化）时优雅关闭；
+            // 未活跃时保持"登录前零存储链实例化"契约，不触发建库
+            if (accountSpace.isActive()) {
+                storageFacade.get().shutdown()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error shutting down storage subsystems", e)
         }
