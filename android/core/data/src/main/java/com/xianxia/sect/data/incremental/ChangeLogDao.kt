@@ -54,4 +54,7 @@ interface ChangeLogDao {
 
     @Query("SELECT MAX(sync_version) FROM change_log")
     suspend fun getLastSyncVersion(): Long?
+
+    @Query("SELECT * FROM change_log ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int): List<ChangeLogEntity>
 }

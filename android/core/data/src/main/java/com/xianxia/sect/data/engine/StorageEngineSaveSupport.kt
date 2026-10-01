@@ -2,16 +2,14 @@ package com.xianxia.sect.data.engine
 import android.util.Log
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.data.cache.CacheKey
-import com.xianxia.sect.data.incremental.ChangeLogOperation
+import com.xianxia.sect.data.incremental.SaveDataChangeSummarizer
 import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageResult
 import kotlinx.coroutines.CancellationException
 import androidx.room.withTransaction
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 
-// StorageEngine 的保存支撑域:WAL 非阻断回滚/槽位元数据同步/保存变更日志/
+// StorageEngine 的保存支撑域:槽位元数据同步/保存变更日志/
 // 缓存维护/熔断判定与保存结果处置。
 
 private val TAG = StorageEngine.TAG
@@ -19,34 +17,6 @@ private val TAG = StorageEngine.TAG
 private const val MAX_BATCH_SIZE = StorageEngine.MAX_BATCH_SIZE
 
 private const val LOW_MEMORY_THRESHOLD_MB = StorageEngine.LOW_MEMORY_THRESHOLD_MB
-
-/** WAL 非阻断回滚：失败仅记录，不掩盖主路径异常 */
-@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.abortWalQuietly(txnId: Long?) {
-    if (txnId != null) {
-        // NonCancellable 原子段: 回滚必须完成才能保证 WAL 事务一致性(失败回滚语义依赖),
-        // 段内为单次 WAL 记录移除, 无无限等待; 段外取消照常传播
-        withContext(NonCancellable) {
-            try {
-                core.wal.abort(txnId)
-            } catch (e2: Exception) {
-                Log.w(TAG, "WAL abort 失败", e2)
-            }
-        }
-    }
-}
-
-/** WAL 同步非阻断回滚：取消信号传递路径使用 */
-@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal fun StorageEngine.abortWalSyncQuietly(txnId: Long?) {
-    if (txnId != null) {
-        try {
-            core.wal.abortSync(txnId)
-        } catch (e2: Exception) {
-            Log.w(TAG, "WAL abortSync 失败", e2)
-        }
-    }
-}
 
 internal suspend fun StorageEngine.syncSlotMetadata(data: SaveData) {
     val gd = data.gameData
@@ -64,17 +34,15 @@ internal suspend fun StorageEngine.syncSlotMetadata(data: SaveData) {
 }
 
 @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-internal suspend fun StorageEngine.logSaveChanges() {
+internal suspend fun StorageEngine.logSaveChanges(previous: SaveData?, current: SaveData) {
     try {
-        infra.changeLogPersistence.logChange(
-            tableName = "game_data",
-            recordId = "game_data",
-            operation = ChangeLogOperation.UPDATE
-        )
+        val changes = SaveDataChangeSummarizer.summarize(previous, current)
+        if (changes.isEmpty()) return
+        infra.changeLogPersistence.logBatchChanges(changes)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "Failed to log save change", e)
+        Log.w(TAG, "Failed to log save changes", e)
     }
 }
 
@@ -143,10 +111,12 @@ internal suspend fun StorageEngine.handleSaveResult(
         // 文件镜像（.sav）+ 备份（.bak）——**非阻断**，但降级原因必须带回给调用方
         // （审计 §12-C：备份失败不改写 result ⇒ UI 谎报"保存成功"）
         val postSaveWarning = writeFileMirrorAndBackup(dataWithTimestamp)
+        // 变更摘要的对比基准 = 缓存中的上一份数据，必须在缓存覆盖前读取
+        val previousSave = core.cache.getOrNull<SaveData>(CacheKey.forGameData())
         _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
         updateCacheAfterSave(dataWithTimestamp)
         _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
-        logSaveChanges()
+        logSaveChanges(previous = previousSave, current = dataWithTimestamp)
         infra.storageMetrics.recordSave()
         _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
         return if (postSaveWarning == null) {

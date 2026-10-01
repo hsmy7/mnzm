@@ -60,6 +60,9 @@ class DataPruningScheduler @Inject constructor(
     /** legacy snapshots/ 一次性删除标志（审计 P3-9） */
     private val legacySnapshotsDeleted = AtomicBoolean(false)
 
+    /** legacy wal_v4/ 一次性删除标志（组件退役残留清理） */
+    private val legacyWalDirDeleted = AtomicBoolean(false)
+
     /** 审计 P3-9：一次性删除历史版本遗留的 filesDir/snapshots/ 孤儿目录 */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     private fun deleteLegacySnapshotsOnce() {
@@ -72,6 +75,21 @@ class DataPruningScheduler @Inject constructor(
             }
         } catch (e: Exception) {
             Log.d(TAG, "legacy snapshots cleanup skipped: ${e.message}")
+        }
+    }
+
+    /** 一次性删除应用级事务日志退役后遗留的 filesDir/wal_v4/ 孤儿目录 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun deleteLegacyWalDirOnce() {
+        if (!legacyWalDirDeleted.compareAndSet(false, true)) return
+        try {
+            val legacy = java.io.File(appContext.filesDir, StorageConstants.WAL_DIR_NAME)
+            if (legacy.exists()) {
+                val deleted = legacy.deleteRecursively()
+                Log.i(TAG, "Legacy wal dir deleted (success=$deleted)")
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "legacy wal dir cleanup skipped: ${e.message}")
         }
     }
     private val totalBattleLogsDeleted = AtomicLong(0)
@@ -224,6 +242,8 @@ class DataPruningScheduler @Inject constructor(
 
         // 审计 P3-9：legacy snapshots/ 目录一次性删除
         deleteLegacySnapshotsOnce()
+        // 应用级事务日志退役残留：legacy wal_v4/ 目录一次性删除
+        deleteLegacyWalDirOnce()
         return totalLogsDeleted
     }
 

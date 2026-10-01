@@ -879,9 +879,8 @@ class StorageSystemBenchmark {
         println("\n【一、系统架构概览】")
         println("  主存储引擎: Room (SQLite v13) + WAL模式")
         println("  序列化方案: Protobuf (kotlinx.serialization) + LZ4/ZSTD压缩")
-        println("  完整性保护: SHA-256校验和 (每条WAL记录 + 序列化数据)")
+        println("  完整性保护: SHA-256校验和 (序列化数据)")
         println("  加密方案: AES + HMAC-SHA256签名 (可选)")
-        println("  应用级WAL: FunctionalWAL (二进制格式, SHA-256 per-entry)")
         println("  缓存层: ConcurrentHashMap内存缓存 + SWR策略(TTL=1h)")
         println("  备份机制: 自动备份(5份) + 手动备份(10份) + 关键备份(20份)")
     }
@@ -897,7 +896,6 @@ class StorageSystemBenchmark {
         println("  紧急存档超时: 2s (GameActivity)")
         println("  最大存档大小: 200MB (DataLimits.DEFAULT.totalMaxBytes)")
         println("  最大弟子数: 5000 (DataLimits.DEFAULT.maxDiscipleCount)")
-        println("  WAL最大文件: 10MB (StorageConstants.MAX_WAL_SIZE_BYTES)")
         println("  DB批量批次: 200条 (StorageEngine.MAX_BATCH_SIZE)")
     }
 
@@ -999,17 +997,13 @@ class StorageSystemBenchmark {
         println("  1. SQLite WAL模式: PRAGMA synchronous=NORMAL")
         println("     → 平衡了持久性与性能，NORMAL模式下每次提交fsync一次")
         println("     → 评级: ★★★★☆ (生产可用，非完全ACID)")
-        println("  2. 应用级FunctionalWAL:")
-        println("     → 二进制格式 + 每条目SHA-256校验和")
-        println("     → 周期性flush(1s间隔) + 累积字节强制flush(256KB阈值)")
-        println("     → commit()时强制flush确保持久化")
-        println("     → 崩溃恢复: 扫描未完成事务 + 快照回放")
-        println("     → 评级: ★★★★★ (完善的崩溃恢复能力)")
+        println("  2. Room 事务原子性: withTransaction 提交/回滚边界")
+        println("     → 评级: ★★★★★ (DB 一致性边界)")
         println("  3. 原子文件写入 (SaveStorage 实现): temp→rename")
         println("     → 评级: ★★★★★ (标准原子写模式)")
         println("  4. 备份体系:")
         println("     → 自动备份(最多5份) + SHA-256快速校验(前8字节)")
-        println("     → 5级恢复降级: WAL快照 → 本地备份 → 自动存档 → 紧急存档 → 默认数据")
+        println("     → 5级恢复降级: 本地备份 → 自动存档 → 紧急存档 → 默认数据")
         println("     → 评级: ★★★★★ (多层冗余保障)")
     }
 

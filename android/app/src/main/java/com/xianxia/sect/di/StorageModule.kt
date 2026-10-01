@@ -15,8 +15,6 @@ import com.xianxia.sect.data.engine.StorageMaintenanceFacade
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 
 import com.xianxia.sect.data.serialization.unified.SerializationModule
-import com.xianxia.sect.data.wal.FunctionalWAL
-import com.xianxia.sect.data.wal.WALProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,12 +42,10 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun provideWAL(
-        @ApplicationContext context: Context,
-        applicationScopeProvider: ApplicationScopeProvider,
-        thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor
-    ): WALProvider {
-        return FunctionalWAL(context, applicationScopeProvider, thermalMonitor)
+    fun providePersistenceTelemetryPort(
+        storageMetrics: com.xianxia.sect.data.engine.StorageMetrics
+    ): com.xianxia.sect.core.util.PersistenceTelemetryPort {
+        return storageMetrics
     }
 
     @Provides

@@ -59,6 +59,11 @@ class ChangeLogPersistence @Inject constructor(
         database.changeLogDao().getUnsynced(limit)
     }
 
+    /** 最近 N 条保存变更（时间倒序）——存档诊断读面 */
+    suspend fun getRecentChanges(limit: Int = 50): List<ChangeLogEntity> = withContext(Dispatchers.IO) {
+        database.changeLogDao().getRecent(limit)
+    }
+
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun cleanupOldLogs() = withContext(Dispatchers.IO) {
         try {

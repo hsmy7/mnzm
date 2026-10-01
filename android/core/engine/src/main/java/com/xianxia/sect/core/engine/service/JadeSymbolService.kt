@@ -16,6 +16,7 @@ import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.PersistenceTelemetryPort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -96,7 +97,10 @@ class JadeSymbolService @Inject constructor(
     // 经 [Provider] 惰性取镜像服务——GameEngineCore 构造链持有本服务，Provider
     // 为惰性边（Dagger 官方破环手段，与 DiplomacyService.gameEngineCoreProvider
     // 同构）；null（测试直构）⇒ 恒走 Kotlin 回退臂。
-    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null
+    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null,
+    // SS3：账本↔派生缓存不一致计数接持久化遥测（StorageMetrics 实现，经 domain
+    // 端口反向接线）；null（测试直构）⇒ 只保留 Log 通道。
+    private val persistenceTelemetry: PersistenceTelemetryPort? = null
 ) {
 
     // ── W4-B/B2 native 臂（平台效应回执化）────────────────────────────
@@ -135,6 +139,7 @@ class JadeSymbolService @Inject constructor(
     /** 回执 drift 上报（派生缓存与账本基准不一致，C++ 已以账本为准重锚）。 */
     private fun logNativeDrift(reply: JsonObject?, op: String) {
         if (reply?.boolOrFalse("drift") == true) {
+            persistenceTelemetry?.recordJadeLedgerDrift(op)
             DomainLog.w(
                 TAG, "$op: 派生缓存与账本基准不一致（C++ 已以账本为准重锚）"
             )

@@ -35,6 +35,9 @@ object AnalyticsEvents {
     /** 广告奖励发放成功（广告价值分析） */
     const val AD_REWARD_CLAIM = "#ad_reward_claim"
 
+    /** 存储指标周期聚合（保存/读档/备份/账本漂移/change_log/归档读数，30 分钟节拍） */
+    const val STORAGE_METRICS_REPORT = "#storage_metrics_report"
+
     // ==================== 历史兼容事件（保持旧名） ====================
 
     /** 游戏会话开始（GameActivity PLAYING 上报） */
@@ -83,5 +86,40 @@ object AnalyticsEvents {
 
     /** 游戏版本号 */
     const val PROP_GAME_VERSION = "game_version"
+
+    // ==================== 存储指标事件属性（#storage_metrics_report） ====================
+
+    /** 累计保存次数 */
+    const val PROP_STORAGE_SAVE_COUNT = "storage_save_count"
+
+    /** 累计读档次数 */
+    const val PROP_STORAGE_LOAD_COUNT = "storage_load_count"
+
+    /** 累计缓存命中次数 */
+    const val PROP_STORAGE_CACHE_HIT_COUNT = "storage_cache_hit_count"
+
+    /** 累计缓存未命中次数 */
+    const val PROP_STORAGE_CACHE_MISS_COUNT = "storage_cache_miss_count"
+
+    /** 累计备份写入失败次数 */
+    const val PROP_STORAGE_BACKUP_FAILURE_COUNT = "storage_backup_failure_count"
+
+    /** 累计备份恢复次数 */
+    const val PROP_STORAGE_BACKUP_RESTORE_COUNT = "storage_backup_restore_count"
+
+    /** 累计备份超限跳过次数 */
+    const val PROP_STORAGE_BACKUP_SKIPPED_COUNT = "storage_backup_skipped_count"
+
+    /** 账本↔派生缓存不一致次数（C++ 以账本为准重锚） */
+    const val PROP_STORAGE_JADE_DRIFT_COUNT = "storage_jade_drift_count"
+
+    /** change_log 行数（7 天排障窗口内） */
+    const val PROP_STORAGE_CHANGE_LOG_PENDING = "storage_change_log_pending"
+
+    /** 归档战报表行数 */
+    const val PROP_STORAGE_ARCHIVE_BATTLE_LOG_ROWS = "storage_archive_battle_log_rows"
+
+    /** 归档弟子表行数 */
+    const val PROP_STORAGE_ARCHIVE_DISCIPLE_ROWS = "storage_archive_disciple_rows"
 
 }

@@ -186,6 +186,7 @@ internal fun SettingsTab(
     var showChangelogDialog by remember { mutableStateOf(false) }
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
     var showSalaryConfigDialog by remember { mutableStateOf(false) }
+    var showDiagnosticsDialog by remember { mutableStateOf(false) }
 
     SettingsTabContent(
         gameData = gameData,
@@ -222,10 +223,13 @@ internal fun SettingsTab(
     if (showOtherSettingsDialog) {
         OtherSettingsDialog(viewModel = viewModel, onDismiss = { showOtherSettingsDialog = false },
             onRedeemCodeClick = { showOtherSettingsDialog = false; viewModel.redeem.openRedeemCodeDialog() },
-            onChangelogClick = { showOtherSettingsDialog = false; showChangelogDialog = true })
+            onChangelogClick = { showOtherSettingsDialog = false; showChangelogDialog = true },
+            onDiagnosticsClick = { showOtherSettingsDialog = false; showDiagnosticsDialog = true })
     }
 
     if (showChangelogDialog) ChangelogDialog(onDismiss = { showChangelogDialog = false })
+
+    if (showDiagnosticsDialog) StorageDiagnosticsDialog(onDismiss = { showDiagnosticsDialog = false })
 
     if (showSalaryConfigDialog) {
         SalaryConfigDialog(gameData = gameData, viewModel = viewModel,
@@ -380,7 +384,8 @@ private fun OtherSettingsDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit,
     onRedeemCodeClick: () -> Unit,
-    onChangelogClick: () -> Unit
+    onChangelogClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit
 ) {
     val personalizedAdsEnabled by viewModel.personalizedAdsEnabled.collectAsStateWithLifecycle()
     UnifiedGameDialog(
@@ -396,7 +401,8 @@ private fun OtherSettingsDialog(
 
             OtherSettingsActionRow(
                 onRedeemCodeClick = onRedeemCodeClick,
-                onChangelogClick = onChangelogClick
+                onChangelogClick = onChangelogClick,
+                onDiagnosticsClick = onDiagnosticsClick
             )
 
             // 个性化广告开关（TapADN 合规要求：App 内必须提供退出个性化广告的能力）
@@ -444,56 +450,44 @@ private fun OtherSettingsDialog(
     }
 }
 
-/** 其他设置功能入口行：兑换码 + 更新日志两个按钮 */
+/** 其他设置功能入口行：兑换码 + 更新日志 + 存档诊断三个按钮 */
 @Composable
 private fun OtherSettingsActionRow(
     onRedeemCodeClick: () -> Unit,
-    onChangelogClick: () -> Unit
+    onChangelogClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .width(ButtonSizes.StandardWidth)
-                .height(ButtonSizes.StandardHeight)
-                .clip(RoundedCornerShape(4.dp))
-                .clickable(onClick = onRedeemCodeClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ui_button),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Text(
-                text = "兑换码",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
+        OtherSettingsActionButton(label = "兑换码", onClick = onRedeemCodeClick)
+        OtherSettingsActionButton(label = "更新日志", onClick = onChangelogClick)
+        OtherSettingsActionButton(label = "存档诊断", onClick = onDiagnosticsClick)
+    }
+}
 
-        Box(
-            modifier = Modifier
-                .width(ButtonSizes.StandardWidth)
-                .height(ButtonSizes.StandardHeight)
-                .clip(RoundedCornerShape(4.dp))
-                .clickable(onClick = onChangelogClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ui_button),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Text(
-                text = "更新日志",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
+/** 其他设置入口按钮：ui_button 底图 + 文本（三按钮共用的形态抽取） */
+@Composable
+private fun OtherSettingsActionButton(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Black
+        )
     }
 }
 

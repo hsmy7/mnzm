@@ -56,7 +56,7 @@ class StorageConstantsTest {
         assertEquals(200, StorageConstants.DEFAULT_BATCH_SIZE)
     }
 
-    // ==================== WAL constants ====================
+    // ==================== 历史遗留孤儿目录常量 ====================
 
     @Test
     fun `WAL_DIR_NAME is wal_v4`() {
@@ -64,38 +64,8 @@ class StorageConstantsTest {
     }
 
     @Test
-    fun `MAX_WAL_SIZE_BYTES is 10MB`() {
-        assertEquals(10L * 1024 * 1024, StorageConstants.MAX_WAL_SIZE_BYTES)
-    }
-
-    @Test
-    fun `MAX_SNAPSHOT_SIZE_BYTES is 50MB`() {
-        assertEquals(50L * 1024 * 1024, StorageConstants.MAX_SNAPSHOT_SIZE_BYTES)
-    }
-
-    @Test
-    fun `MAX_TOTAL_SNAPSHOTS_SIZE_BYTES is 200MB`() {
-        assertEquals(200L * 1024 * 1024, StorageConstants.MAX_TOTAL_SNAPSHOTS_SIZE_BYTES)
-    }
-
-    @Test
-    fun `MAX_SNAPSHOT_AGE_MS is 12 hours`() {
-        assertEquals(12 * 60 * 60 * 1000L, StorageConstants.MAX_SNAPSHOT_AGE_MS)
-    }
-
-    @Test
-    fun `MIN_SNAPSHOTS_TO_KEEP is 3`() {
-        assertEquals(3, StorageConstants.MIN_SNAPSHOTS_TO_KEEP)
-    }
-
-    @Test
-    fun `CHECKPOINT_INTERVAL is 100`() {
-        assertEquals(100, StorageConstants.CHECKPOINT_INTERVAL)
-    }
-
-    @Test
-    fun `WAL_BUFFER_SIZE_BYTES is 64KB`() {
-        assertEquals(64 * 1024, StorageConstants.WAL_BUFFER_SIZE_BYTES)
+    fun `SNAPSHOT_DIR_NAME is snapshots`() {
+        assertEquals("snapshots", StorageConstants.SNAPSHOT_DIR_NAME)
     }
 
     // ==================== Retry constants ====================

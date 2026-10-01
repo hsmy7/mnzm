@@ -22,7 +22,6 @@ import com.xianxia.sect.data.unified.SlotMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Immutable
 import androidx.room.withTransaction
@@ -115,8 +114,6 @@ class StorageEngine @Inject constructor(
             return size
         }
     }
-
-    internal val scope get() = infra.scopeProvider.ioScope
 
     /**
      * SR-7 文件层退役判据在当前模式下的读数：`CLOUD_ONLY` ⇒ false（本地 `.sav`/`.bak`/
@@ -513,26 +510,6 @@ class StorageEngine @Inject constructor(
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     fun startMaintenance() {
         maintenanceFacade.startMaintenance()
-        // ── WAL 恢复：扫描未完成事务（崩溃残留），仅记录日志供监控 ──
-        // SR-7：CLOUD_ONLY 下不开 WAL ⇒ 无残留可扫，扫描本身会创建 wal_v4 目录（文件层写），
-        // 故一并门控。shutdown 不门控：拆除路径必须无条件跑，覆盖"会话中途升档"的残留句柄。
-        if (writesLocalSaveFiles) {
-            scope.launch {
-                try {
-                    val result = core.wal.recover()
-                                        if (result.failedCount > 0) {
-                        Log.w(TAG, "WAL recovery: failed=" + result.failedCount + ", errors=" + result.errors)
-                    } else if (result.recoveredCount > 0) {
-                        Log.i(TAG, "WAL recovery: recovered=" + result.recoveredCount)
-                    } else {
-                        Log.i(TAG, "WAL recovery: clean (no incomplete transactions)")
-                    }
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) {
-                    Log.e(TAG, "WAL recovery failed", e)
-                }
-            }
-        }
         Log.i(TAG, "Storage maintenance started")
     }
 
@@ -544,7 +521,6 @@ class StorageEngine @Inject constructor(
     fun shutdown() {
         maintenanceFacade.shutdown()
         core.cache.shutdown()
-        core.wal.shutdown()
         core.lockManager.shutdown()
         Log.i(TAG, "StorageEngine shutdown completed")
     }
@@ -555,69 +531,33 @@ class StorageEngine @Inject constructor(
     // 降级继续+日志留痕, 非静默吞噬
     @Suppress("TooGenericExceptionCaught", "ThrowsCount")
     private suspend fun performFullTransactionSave(data: SaveData): StorageResult<SaveOperationStats> {
-        // ── 内存守卫前置：低内存直接失败，不写 DB / 不写 WAL / 不写备份，避免内存态与 DB 脱节 ──
+        // ── 内存守卫前置：低内存直接失败，不写 DB / 不写备份，避免内存态与 DB 脱节 ──
         if (availableMemoryMB() < LOW_MEMORY_THRESHOLD_MB) {
             Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected")
             return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
         }
 
-        // ── WAL 事务开始（SR-7 文件层退役判据：CLOUD_ONLY 下不开文件型事务日志）──
-        // 门控只关"开事务"这一入口：txnId 保持 null ⇒ 既有 commit/abort 路径的
-        // null 守卫自动把后续全部变成 no-op（abortWalQuietly / abortWalSyncQuietly /
-        // if (txnId != null) commit），无需在四处各加一次判断。
-        var txnId: Long? = null
-        if (writesLocalSaveFiles) {
-            try {
-                val result = core.wal.beginTransaction(com.xianxia.sect.data.wal.WALEntryType.DATA)
-                if (result.isSuccess) txnId = result.getOrNull()
-            } catch (e: CancellationException) {
-                throw e // 取消穿透: 取消时不再进入后续 DB 事务, WAL 无事务需回滚
-            } catch (e: Exception) {
-                Log.w(TAG, "WAL beginTransaction 失败（非阻断）", e)
-            }
+        // 事务原子性由 Room 事务（withTransaction）承担：提交/回滚边界即 DB 一致性边界
+        val writeResult = core.database.withTransaction {
+            writeAllDataToDatabase(data)
+        }
+        if (writeResult.isFailure) {
+            // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
+            // 事务已回滚，DB 保持旧数据，直接返回失败
+            return writeResult.map { SaveOperationStats(bytesWritten = 0, timeMs = 0, wasIncremental = false) }
         }
 
         try {
-            val writeResult = core.database.withTransaction {
-                writeAllDataToDatabase(data)
-            }
-            if (writeResult.isFailure) {
-                // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
-                // 事务已回滚，DB 保持旧数据，直接返回失败
-                abortWalQuietly(txnId)
-                return writeResult.map { SaveOperationStats(bytesWritten = 0, timeMs = 0, wasIncremental = false) }
-            }
-
-            try {
-                core.database.performPostSaveCheckpoint()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Post-save checkpoint failed (non-fatal)", e)
-            }
-
-            // ── WAL 提交 ──
-            if (txnId != null) {
-                try {
-                    core.wal.commit(txnId, currentGameYear = data.gameData.gameYear)
-                } catch (e: CancellationException) {
-                    throw e // 取消穿透: WAL 是尽力日志非真源(DB 事务才是), 取消交外层 CE 分支回滚
-                } catch (e: Exception) {
-                    Log.w(TAG, "WAL commit 失败（非阻断）", e)
-                }
-            }
-
-            val bytesWritten = estimateSaveSize(data)
-            return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0,
-                wasIncremental = false))
+            core.database.performPostSaveCheckpoint()
         } catch (e: CancellationException) {
-            // WAL 回滚后传递取消信号
-            abortWalSyncQuietly(txnId)
             throw e
         } catch (e: Exception) {
-            abortWalQuietly(txnId)
-            throw e
+            Log.w(TAG, "Post-save checkpoint failed (non-fatal)", e)
         }
+
+        val bytesWritten = estimateSaveSize(data)
+        return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0,
+            wasIncremental = false))
     }
 
 
