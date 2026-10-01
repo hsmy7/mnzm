@@ -742,12 +742,16 @@ fun watchAdForNewFeature() {
 | 方向 | 入口 | 说明 | 代码位置 |
 |------|------|------|---------|
 | 产（源） | 在线时长 | 真实前台运行每满 10 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 20，墙钟次日 0 点重置（今日计数与周期累计时长均清零） | `JadeSymbolService.kt`、`GameConfig.Jade` |
-| 耗（汇） | 玉符购买类玩法 | 见 `GameConfig.JadePurchase`（消耗即扣、事务内 `deduct`） | `GameEngineJadePurchaseOps.kt`、`JadeSymbolService.deduct` |
+| 耗（汇） | 玉符购买类玩法 | 见 `GameConfig.JadePurchase`（消耗即扣、账本落账） | `GameEngineJadePurchaseOps.kt`、`jade_tx.h` 六事务、`JadeSymbolService.deduct`（回退臂） |
 
-**玉符消耗统一通道（新增消耗/发放玩法必须走此通道）**：
-1. **唯一写入入口 = `JadeSymbolService`**——玉符是**绝对值覆盖写模型**（运行时 `@Volatile totalCount` 以绝对值覆盖写 `GameData.jadeSymbols`，`checkpointNow`/`settleGrants` 内部写）。消耗必须事务内调 `jadeSymbolService.deduct(state, cost)`（同步递减 totalCount，否则 checkpoint 把余额写回扣减前值——**玉符回涨**）；禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（扫描 engine 主源码 copy/赋值反模式 + 白名单 `JadeSymbolService.kt`）自动拦截
-2. **消耗模式**（现存活参照：`GameEngineJadePurchaseOps` 商人刷新/购买系列）：`stateStore.updateAndReturn { 校验目标（先于扣费，达上限不扣玉符）→ deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
-3. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（启动时越界修正）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围
+**玉符账本模型（SS9：余额真源在 C++ `state.gameData.jadeLedger`）**：
+1. **余额 = 期初条目 + Σdelta**——`jadeLedger` 是 append-only 流水（条目冗余 `balanceAfter` 供 O(1) 读末条），`jadeSymbols` 是账本求和的**派生缓存**，由 C++ 玉符事务（`appendLedgerEntry`）同事务双写；两者不一致时以账本为准重锚并经回执 `drift` 上报（Log 通道；`StorageMetrics` getter 归 SS3）。扣费/发放路径余额检查读账本末条 `balanceAfter`（O(1)），不遍历账本（防双花复活 + O(n) 退化）
+2. **唯一写入入口**——native 臂可用时购买/发放走 C++ 事务落账（`jade_tx.h` 六事务）；降级回退臂经 `JadeSymbolService`（`deduct(state, cost, reason)` / `grantFromAd` / `settleGrants` 内部 `appendLedger`，append 条目 + 缓存跟随）。禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)` / `copy(jadeLedger = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（正则覆盖 `jadeSymbols` + `jadeLedger` 双字段，白名单 = `JadeSymbolService.kt` 玩法写 + `GameDataFieldPatch.kt` 镜像写）自动拦截
+3. **消耗模式**（现存活参照：`GameEngineJadePurchaseOps` 商人刷新/购买系列）：`stateStore.updateAndReturn { 校验目标（先于扣费，达上限不扣玉符）→ deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
+4. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（order=23，启动时越界修正派生缓存）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围；其修复若致缓存与账本不一致，由下一次账本事务以账本为准重锚（账本为准语义）
+5. **新档期初开账**：`withStartupLedger`（开局三臂单点）写 `OPENING_BALANCE` 期初条目（delta = 期初余额、余额不变）；C++ 导入侧对未开账态兜底（`ensureJadeLedgerOpeningEntry`）。派生余额 == 期初 + Σdelta 恒成立（守卫断言）
+
+**玉符账本 reason 协议值**（C++ `jade_tx.h` 常量与 Kotlin `JadeLedgerReasons` 同名同步）：`OPENING_BALANCE`（新档/兜底开账）、`GRANT_TIME`（在线时长发放）、`GRANT_AD`（激励视频发放，含白名单直发——特权无上限语义保持，账本如实记录来源）、`SPEND_MERCHANT_REFRESH`（商人刷新扣费）、`SPEND_BREAKTHROUGH_BONUS`（突破率加成扣费）。玉符不走 `withTrackingSource`/`OverflowMailSender`（本表上方既有设计），reason 仅入账本、不对接邮件来源命名表。
 
 **墙钟豁免论证（`rules/expansion-playbook.md` 第 7 项"进度锚定唯一权威时间轴"，原 L22"禁止以现实时间为准"条款已随 2026-09 实时结算改造改写——玉符豁免论证同步换锚：新条款约束的是进度结算轨道，玉符本就不是进度系统）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 10 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
 

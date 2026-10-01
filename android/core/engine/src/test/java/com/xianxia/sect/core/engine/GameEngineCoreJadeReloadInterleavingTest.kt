@@ -11,6 +11,8 @@ import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -26,16 +28,14 @@ import org.mockito.Mockito.`when`
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
- * 玉符读档时序交错测试：
+ * 玉符读档时序交错测试（SS9 账本模型）：
  *
- * 玉符读档/云下载后重置为旧值的根因：
- * 游戏内读档时 loadData（快照替换）→ boot 的非等待 stopGameLoop →
- * 旧循环 finally 的 JadeSymbolService.onLoopStop()（checkpointNow 绝对值
- * 覆盖写）在引擎线程异步执行，晚于快照替换 → 读档前的旧运行时值覆盖
- * 新档玉符四字段；随后 onLoopStart 从被污染值重新锚定。
- *
- * 本测试用真实 JadeSymbolService + 真实 FakeAtomicStateStore + 真实循环
- * 复现机理（非等待 stop 时旧值覆盖）并锁死修复契约（等待 stop 后加载安全）。
+ * 玉符余额真源 = jadeLedger（append-only），checkpointNow 只写今日计数/
+ * 累计/日锚三字段——「旧循环 finally 以旧运行时值绝对值覆盖新档余额」的
+ * 写通道已结构性消失。本测试用真实 JadeSymbolService + 真实
+ * FakeAtomicStateStore + 真实循环锁死该契约：非等待 stop 的 finally
+ * checkpoint 不再触碰余额面；等待 stop / 冷启动窗口等时序下余额一律
+ * 从快照账本出发。
  */
 class GameEngineCoreJadeReloadInterleavingTest {
 
@@ -74,24 +74,22 @@ class GameEngineCoreJadeReloadInterleavingTest {
         // "todayMidnight <= dayAnchorMs"（同一天）直接 return——消除循环线程
         // 首帧对 store 的并发 update（FakeAtomicStateStore 无锁，writeDepth 竞态
         // 损坏会让后续 checkpointNow 永不 syncFlows，机理复现被环境破坏）
-        store.update {
-            gameData = gameData.copy(jadeSymbols = 5, jadeDayAnchorMs = Long.MAX_VALUE)
-        }
+        store.update { gameData = seedJade(balance = 5, dayAnchorMs = Long.MAX_VALUE) }
         core.startGameLoop()
-        // prepareLoopStart 同步执行 onLoopStart → 运行时 totalCount=5 已锚定
+        // prepareLoopStart 同步执行 onLoopStart → 运行时字段从快照恢复
         // 等循环完成第一帧（onLoopTick + 暂停分支 delay 挂起），进入稳定暂停态
         Thread.sleep(200)
 
         // 读档：快照替换为新档（玉符 99），旧循环仍在运行（isLoading 暂停分支）
-        store.update { gameData = gameData.copy(jadeSymbols = 99) }
+        store.update { gameData = seedJade(balance = 99, dayAnchorMs = Long.MAX_VALUE) }
 
         // boot Step 1 的非等待 stop：cancel 后立即返回
         core.stopGameLoop()
 
-        // 旧循环 finally 的 checkpointNow 用旧运行时值 5 绝对值覆盖新档 99
-        // （cancel 恢复在 Default 线程池异步执行，先等其完成）
+        // 旧循环 finally 的 checkpointNow 只写 today/accum/anchor（SS9 账本模型
+        // 无余额覆盖写通道）；cancel 恢复在 Default 线程池异步执行，先等其完成
         Thread.sleep(1_000)
-        assertEquals("非等待 stop 后旧循环 finally 必须用旧运行时值覆盖新档玉符", 5, store.gameDataSnapshot.jadeSymbols)
+        assertEquals("非等待 stop 后旧循环 finally 不得覆盖新档玉符余额", 99, store.gameDataSnapshot.jadeSymbols)
     }
 
     // ── 修复契约：等待 stop 后加载安全 ──
@@ -99,9 +97,7 @@ class GameEngineCoreJadeReloadInterleavingTest {
     @Test
     fun `waiting for loop stop before load keeps loaded jade symbols`() {
         // 同测试 1：MAX_VALUE 消除循环线程首帧 maybeDayReset 的并发 update
-        store.update {
-            gameData = gameData.copy(jadeSymbols = 5, jadeDayAnchorMs = Long.MAX_VALUE)
-        }
+        store.update { gameData = seedJade(balance = 5, dayAnchorMs = Long.MAX_VALUE) }
         core.startGameLoop()
 
         // 修复路径：loadData 前 stopGameLoopAndWait（旧 finally 的 checkpoint
@@ -109,12 +105,13 @@ class GameEngineCoreJadeReloadInterleavingTest {
         val stopped = runBlocking { core.stopGameLoopAndWait(5000) }
         assertTrue("循环必须停止", stopped)
 
-        store.update { gameData = gameData.copy(jadeSymbols = 99) }
+        store.update { gameData = seedJade(balance = 99, dayAnchorMs = Long.MAX_VALUE) }
         assertEquals("等待停止后快照替换不再被覆盖", 99, store.gameDataSnapshot.jadeSymbols)
 
-        // 重新启动：onLoopStart 从新档锚定运行时
+        // 重新启动：onLoopStart 从新档快照恢复运行时字段
         core.startGameLoop()
-        assertEquals("onLoopStart 必须从新档锚定", 99, jadeSymbolService.runtimeState.value.total)
+        assertTrue("onLoopStart 后新档账本保持完整",
+            store.gameDataSnapshot.jadeLedger.last().balanceAfter == 99)
 
         // 再次停止：checkpoint 写回 99（运行时与存档一致，无残留旧值）
         val stopped2 = runBlocking { core.stopGameLoopAndWait(5000) }
@@ -126,18 +123,19 @@ class GameEngineCoreJadeReloadInterleavingTest {
 
     @Test
     fun `load before loop start is safe and anchors fresh runtime`() {
-        store.update { gameData = gameData.copy(jadeSymbols = 7) }
+        store.update { gameData = seedJade(balance = 7, dayAnchorMs = 0L) }
 
         // 循环未运行：stopGameLoopAndWait 立即返回 true，零副作用
         val stopped = runBlocking { core.stopGameLoopAndWait(5000) }
         assertTrue("未启动时 stopGameLoopAndWait 必须立即返回 true", stopped)
 
-        store.update { gameData = gameData.copy(jadeSymbols = 99) }
+        store.update { gameData = seedJade(balance = 99, dayAnchorMs = 0L) }
         assertEquals(99, store.gameDataSnapshot.jadeSymbols)
 
-        // 启动后从新档锚定
+        // 启动后从新档快照恢复运行时字段
         core.startGameLoop()
-        assertEquals("启动后运行时必须锚定 99", 99, jadeSymbolService.runtimeState.value.total)
+        assertTrue("启动后新档账本保持完整",
+            store.gameDataSnapshot.jadeLedger.last().balanceAfter == 99)
 
         // 显式收尾：循环在测试体内干净死亡（JUnit 会等待未死循环的 finally
         // 收尾，测试结束时有活循环会拖慢 ~4.5s，全量回归累计成本可观）
@@ -155,26 +153,24 @@ class GameEngineCoreJadeReloadInterleavingTest {
     @Test
     fun `loop started by third party during load window is re-anchored by boot startGameLoop`() {
         // jadeDayAnchorMs=MAX_VALUE：消除循环线程首帧 maybeDayReset 的并发 update
-        // （FakeAtomicStateStore 无锁，见测试 1 注释）；jadeSymbols=0 模拟初始空快照
-        store.update { gameData = gameData.copy(jadeDayAnchorMs = Long.MAX_VALUE) }
+        // （FakeAtomicStateStore 无锁，见测试 1 注释）；空账本模拟初始空快照
+        store.update { gameData = seedJade(balance = 0, dayAnchorMs = Long.MAX_VALUE) }
 
-        // 竞态 1：前台服务 ACTION_START 抢先启动循环 → onLoopStart 从空快照锚定 0
+        // 竞态 1：前台服务 ACTION_START 抢先启动循环 → onLoopStart 从空快照恢复
         core.startGameLoop()
         Thread.sleep(200) // 等循环完成第一帧，进入稳定暂停态
-        assertEquals("抢先启动必须从空快照锚定 0", 0, jadeSymbolService.runtimeState.value.total)
 
         // 竞态 2：读档完成，快照替换为新档（玉符 99）
-        store.update { gameData = gameData.copy(jadeSymbols = 99) }
+        store.update { gameData = seedJade(balance = 99, dayAnchorMs = Long.MAX_VALUE) }
 
         // 竞态 3：boot Step 7 startGameLoop——循环已运行，必须重锚而非 no-op
         core.startGameLoop()
-        assertEquals("boot 的 startGameLoop 必须重锚新档余额", 99, jadeSymbolService.runtimeState.value.total)
 
-        // 广告发放基于新档余额，绝对值写不覆盖持久化值
+        // 广告发放基于新档账本落账（余额真源在账本，无绝对值覆盖写）
         jadeSymbolService.grantFromAd(3)
         assertEquals("广告发放 99 + 3 = 102", 102, store.gameDataSnapshot.jadeSymbols)
         jadeSymbolService.checkpointNow()
-        assertEquals("checkpoint 后绝对值写不回退", 102, store.gameDataSnapshot.jadeSymbols)
+        assertEquals("checkpoint 不写余额（真源在账本）", 102, store.gameDataSnapshot.jadeSymbols)
 
         // 显式收尾（同测试 3 注释：避免活循环拖慢全量回归）
         val stopped = runBlocking { core.stopGameLoopAndWait(5000) }
@@ -183,19 +179,18 @@ class GameEngineCoreJadeReloadInterleavingTest {
 
     @Test
     fun `repeated watchdog fallback starts during load window keep final balance`() {
-        store.update { gameData = gameData.copy(jadeDayAnchorMs = Long.MAX_VALUE) }
+        store.update { gameData = seedJade(balance = 0, dayAnchorMs = Long.MAX_VALUE) }
         core.startGameLoop() // 第一次：ACTION_START 抢先启动
         Thread.sleep(200)
 
-        // watchdog 兜底多次调用：每次走"已运行"分支重锚（幂等）
+        // watchdog 兜底多次调用：每次走"已运行"分支恢复（幂等）
         core.startGameLoop()
         core.startGameLoop()
         core.startGameLoop()
 
-        store.update { gameData = gameData.copy(jadeSymbols = 99) } // loadData
-        core.startGameLoop() // boot Step 7：重锚 99
+        store.update { gameData = seedJade(balance = 99, dayAnchorMs = Long.MAX_VALUE) } // loadData
+        core.startGameLoop() // boot Step 7：从新档恢复
 
-        assertEquals("多次兜底启动后重锚余额必须为新档值", 99, jadeSymbolService.runtimeState.value.total)
         jadeSymbolService.grantFromAd(3)
         assertEquals("余额 99 + 广告 3 = 102，不被兜底启动破坏", 102, store.gameDataSnapshot.jadeSymbols)
 
@@ -204,6 +199,22 @@ class GameEngineCoreJadeReloadInterleavingTest {
     }
 
     // ── 工具 ──
+
+    /** 账本期初播种（期初条目 + 派生缓存，对齐生产 withStartupLedger 语义）。 */
+    private fun seedJade(balance: Int, dayAnchorMs: Long): com.xianxia.sect.core.model.GameData {
+        val base = com.xianxia.sect.core.model.GameData()
+            .copy(jadeSymbols = balance, jadeDayAnchorMs = dayAnchorMs)
+        return base.copy(
+            jadeLedger = listOf(
+                JadeLedgerEntry(
+                    atEpochMs = 0L,
+                    delta = balance,
+                    reason = JadeLedgerReasons.OPENING_BALANCE,
+                    balanceAfter = balance
+                )
+            )
+        )
+    }
 
     private class FakeTimeSource(var nowMs: Long) : TimeSource {
         override fun elapsedRealtime(): Long = nowMs

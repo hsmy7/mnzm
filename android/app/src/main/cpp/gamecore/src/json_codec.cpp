@@ -873,6 +873,16 @@ void from_json(const nlohmann::json& j, SectLevelClaimRecord& v) {
     GC_FROM(j, v, level); GC_FROM(j, v, claimedAtEpochMs);
 }
 
+void to_json(nlohmann::json& j, const JadeLedgerEntry& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, atEpochMs); GC_TO(v, j, delta); GC_TO(v, j, reason);
+    GC_TO(v, j, balanceAfter);
+}
+void from_json(const nlohmann::json& j, JadeLedgerEntry& v) {
+    GC_FROM(j, v, atEpochMs); GC_FROM(j, v, delta); GC_FROM(j, v, reason);
+    GC_FROM(j, v, balanceAfter);
+}
+
 void to_json(nlohmann::json& j, const YearlyReport& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, year); GC_TO(v, j, totalIncome); GC_TO(v, j, totalExpenditure);
@@ -1198,6 +1208,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, recruitCountThisMonth);
     GC_TO(v, j, jadeSymbols); GC_TO(v, j, jadeSymbolsToday);
     GC_TO(v, j, jadeDayAnchorMs); GC_TO(v, j, jadeAccumMs);
+    GC_TO(v, j, jadeLedger);
     GC_TO(v, j, worldLevelLastRefreshMonth);
     writeIntKeyMap(j, "rngStates", v.rngStates);
     GC_TO(v, j, unlockedRecipes); GC_TO(v, j, unlockedManuals);
@@ -1292,6 +1303,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, recruitCountThisMonth);
     GC_FROM(j, v, jadeSymbols); GC_FROM(j, v, jadeSymbolsToday);
     GC_FROM(j, v, jadeDayAnchorMs); GC_FROM(j, v, jadeAccumMs);
+    GC_FROM(j, v, jadeLedger);
     GC_FROM(j, v, worldLevelLastRefreshMonth);
     readIntKeyMap(j, "rngStates", v.rngStates);
     GC_FROM(j, v, unlockedRecipes); GC_FROM(j, v, unlockedManuals);

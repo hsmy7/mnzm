@@ -23,7 +23,7 @@ class MigrationRequiredGuardTest {
         const val DATABASE_SRC = "src/main/java/com/xianxia/sect/data/local/GameDatabase.kt"
 
         /**
-         * 实体清单基线（SS1 时刻，v67；实体清单与 v66 相同，列变更走 destructive 重建）。实体清单与基线不一致 = 有实体变更：
+         * 实体清单基线（SS9 时刻，v68；实体清单与 v67 相同，列变更走 destructive 重建）。实体清单与基线不一致 = 有实体变更：
          * 必须同批写迁移并更新本清单，否则老库将被静默重建。
          */
         val BASELINE_ENTITIES = setOf(

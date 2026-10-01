@@ -26,15 +26,16 @@
 //    事务 5–8（1766–1769）——volatile 累计/单调差分/墙钟节流/本地午夜计算
 //    仍留 Kotlin 运行时（读数参数化，见事务 5–8 注）。
 //
-// 🔴 玉符绝对值覆盖写模型（CLAUDE.md 13.3）——本批下沉 deduct 的**前置条件**：
-//   JadeSymbolService 运行时 `totalCount` 是绝对值覆盖写的源头（checkpointNow/
-//   settleGrants 都以它覆盖写 GameData.jadeSymbols）。故 C++ 事务扣减
-//   jadeSymbols 后，Kotlin 臂**必须**立即调用
-//   `JadeSymbolService.syncBalanceFromSnapshot()` 把 totalCount 重锚到 C++ 权威
-//   余额（`GameEngineJadePurchaseOps` 两臂均为成功路径固定动作），否则下一次
-//   checkpoint 会把旧绝对值写回 → 玉符回涨。守卫测试
-//   `JadeSymbolConsumptionGuardTest`（扫描 Kotlin 主源）零改动通过：本批 Kotlin
-//   侧不新增任何 `copy(jadeSymbols` / `.jadeSymbols =` 写入点。
+// 🔴 玉符账本模型（SS9，方案 §2.4）——余额真源 = jadeLedger（append-only）：
+//   余额 = 期初条目（OPENING_BALANCE）+ Σdelta；jadeSymbols 是同事务双写的
+//   派生缓存。玉符事务一律经 appendLedgerEntry 落账（禁止 +=/-=/绝对值覆盖
+//   余额），条目冗余 balance_after 供 O(1) 读末条；派生缓存与账本基准不一
+//   致时以账本为准重锚并经回执 drift 标记（Kotlin 臂 Log 上报；StorageMetrics
+//   getter 归 SS3）。无余额变化的事务（dayReset/checkpoint）经
+//   verifyDerivedBalance 做派生校验。扣费/发放路径余额检查读账本末条
+//   balance_after（O(1)），不遍历账本（防双花复活 + O(n) 退化）。
+//   守卫测试 `JadeSymbolConsumptionGuardTest`（扫描 Kotlin 主源）：派生缓存
+//   与账本的独立写入点零容忍（正则覆盖 jadeSymbols + jadeLedger）。
 //
 // 物品发放溢出语义类别（CLAUDE.md 13.3，对抗性审查 C1/C2/C3/H1/H2 教训）：
 //  - 宗门等级奖励 = **凭据类**（玩家可重试的领取）→ `overflowMailSuppressed=true`：
@@ -44,7 +45,7 @@
 //
 // 零 RNG 论证：四事务均为纯确定性状态变换——校验链只读，变更段仅
 // worldMapSects 单条目改写 / materials+storageBags 追加 / spiritStones 线性加减 /
-// sectLevelClaimRecords upsert / jadeSymbols 线性加减 / merchantRefreshChances
+// sectLevelClaimRecords upsert / jadeLedger 追加 + 派生缓存双写 / merchantRefreshChances
 // 累加钳制 / disciple.statusData 单键写。全链无 rng() 调用点（签名级证据：
 // 本头 API 不接受 RngManager/种子参数）。Kotlin 原路径（GameEngineSectLevelOps /
 // GameEngineJadePurchaseOps）亦零抽取。
@@ -76,6 +77,81 @@ struct TxResult {
     std::string errorType;
     std::string message;
 };
+
+// ── 玉符账本核心（余额真源 = jadeLedger，append-only）────────────────────
+//
+// reason 协议值（Kotlin JadeLedgerReasons 同名同步；语义登记
+// docs/knowledge-base.md 经济基线表）：
+//   OPENING_BALANCE            新档开账（delta = 期初余额，余额不变）
+//   GRANT_TIME                 在线时长发放（事务 5）
+//   GRANT_AD                   激励视频发放（事务 8；含白名单直发——特权
+//                              语义保持无上限，账本如实记录来源）
+//   SPEND_MERCHANT_REFRESH     商人刷新扣费（事务 3）
+//   SPEND_BREAKTHROUGH_BONUS   突破率加成扣费（事务 4）
+inline constexpr const char* kJadeReasonOpeningBalance = "OPENING_BALANCE";
+inline constexpr const char* kJadeReasonGrantTime = "GRANT_TIME";
+inline constexpr const char* kJadeReasonGrantAd = "GRANT_AD";
+inline constexpr const char* kJadeReasonSpendMerchantRefresh = "SPEND_MERCHANT_REFRESH";
+inline constexpr const char* kJadeReasonSpendBreakthroughBonus = "SPEND_BREAKTHROUGH_BONUS";
+
+/// 账本余额（O(1) 读末条冗余 balance_after；空账本兜底读派生缓存——
+/// 未经 OPENING_BALANCE 开账的存量状态首次落账时以此建立基准）。
+inline int32_t jadeLedgerBalance(const state::GameData& gd) {
+    return gd.jadeLedger.empty() ? gd.jadeSymbols : gd.jadeLedger.back().balanceAfter;
+}
+
+/// 派生缓存与账本基准是否一致（账本空 ⇒ 一致性无从判定，视为一致）。
+inline bool jadeDerivedMatchesLedger(const state::GameData& gd) {
+    return gd.jadeLedger.empty() || gd.jadeSymbols == gd.jadeLedger.back().balanceAfter;
+}
+
+/// 派生校验（无余额变化的事务用）：缓存 ≠ 账本基准时以账本为准重锚。
+/// @return true = 检出漂移并已重锚（调用方置回执 drift，Kotlin 臂 Log 上报）
+inline bool verifyDerivedBalance(state::GameData& gd) {
+    if (jadeDerivedMatchesLedger(gd)) return false;
+    gd.jadeSymbols = jadeLedgerBalance(gd);
+    return true;
+}
+
+/// 账本落账唯一写入口：append 条目 + 派生缓存同事务双写。
+/// 余额推进以**账本末条 balance_after** 为基准（账本是唯一真源）；
+/// 派生缓存原值若偏离基准（残留覆盖写），以账本为准重锚并标 drift。
+struct JadeAppendOutcome {
+    int32_t balanceAfter = 0;
+    bool drift = false;  // 派生缓存与账本基准不一致（已以账本为准纠正）
+};
+
+inline JadeAppendOutcome appendLedgerEntry(state::GameData& gd, int32_t delta,
+                                           const char* reason, int64_t atEpochMs) {
+    JadeAppendOutcome out;
+    const int32_t ledgerBase = jadeLedgerBalance(gd);
+    out.drift = !gd.jadeLedger.empty() && gd.jadeSymbols != ledgerBase;
+    const int32_t newBalance = ledgerBase + delta;
+    state::JadeLedgerEntry entry;
+    entry.atEpochMs = atEpochMs;
+    entry.delta = delta;
+    entry.reason = reason;
+    entry.balanceAfter = newBalance;
+    gd.jadeLedger.push_back(entry);
+    gd.jadeSymbols = newBalance;
+    out.balanceAfter = newBalance;
+    return out;
+}
+
+/// 期初开账（账本首条，专用非增量形）：把当前余额记为 OPENING_BALANCE 条目
+/// （delta = balanceAfter = 期初余额，余额不变）。delta 自含期初值保证全账本
+/// 「Σdelta == 末条 balance_after == 派生缓存」恒成立（验收⑤守卫断言）。
+/// 新档期初余额为 0（条目 0/0）；存量兜底（导入态未经开账）记存量余额。
+/// @return 落账后余额（= 期初余额，不变）
+inline int32_t openJadeLedger(state::GameData& gd, int64_t atEpochMs) {
+    state::JadeLedgerEntry entry;
+    entry.atEpochMs = atEpochMs;
+    entry.delta = gd.jadeSymbols;
+    entry.reason = kJadeReasonOpeningBalance;
+    entry.balanceAfter = gd.jadeSymbols;
+    gd.jadeLedger.push_back(entry);
+    return gd.jadeSymbols;
+}
 
 // ── 事务 1：宗门升级写回（SECT_LEVEL_UPGRADE_TX）─────────────────────────
 //
@@ -257,19 +333,20 @@ inline SectLevelClaimOutcome claimSectLevelRewardTx(
 
 // ── 事务 3/4：玉符购买落账（JADE_PURCHASE_*）─────────────────────────────
 //
-// 🔴 本事务承接玉符**扣减**（CLAUDE.md 13.3 绝对值覆盖写模型）：调用方
-// （Kotlin native 臂）成功后必须立即 `JadeSymbolService.syncBalanceFromSnapshot()`
-// 重锚运行时 totalCount，否则 checkpointNow 以旧绝对值覆盖写 → 玉符回涨。
+// 玉符扣减走账本：`jadeLedgerBalance` 读末条 balance_after（O(1)）判定余额
+// → appendLedgerEntry 落 SPEND_* 条目（-cost）→ 派生缓存同事务双写。
+// Kotlin 臂成功后以回执重锚运行时读数（余额权威在账本，Kotlin 运行时跟随）。
 //
 // Kotlin 判定序（GameEngineJadePurchaseOps）：
-//   上限校验**先于**扣款（达上限不消耗玉符）→ jadeSymbols >= cost → 扣减
+//   上限校验**先于**扣款（达上限不消耗玉符）→ 账本余额 >= cost → 落账扣减
 //   → 写回（merchantRefreshChances 累加钳制 / disciple.statusData）。
 
 struct JadePurchaseOutcome {
     TxResult base;
-    int32_t jadeSymbols = 0;   // 扣减后余额（Kotlin 侧重锚用；亦作对拍证据）
+    int32_t jadeSymbols = 0;   // 落账后余额（回执；Kotlin 运行时重锚用/对拍证据）
     int32_t value = 0;         // 事务写回值（刷新次数 / 新加成 ×100 取整不适用，见下）
     std::string writtenValue;  // statusData 写回字符串（breakthrough 专用）
+    bool drift = false;        // 派生缓存与账本基准不一致（已以账本为准纠正）
 };
 
 /// Java Double.toString 最短往返表示（Kotlin `newBonus.toString()` 等价）。
@@ -285,14 +362,15 @@ inline std::string javaDoubleToString(double v) {
 
 /// 商人刷新次数购买落账（GameEngineJadePurchaseOps.purchaseMerchantRefresh）。
 /// 判定序：上限校验（>= maxChances → LIMIT，**不扣玉符**）→ 余额校验
-/// （jadeSymbols < cost → INSUFFICIENT，不写入）→ 扣减 → 累加钳制。
+/// （账本余额 < cost → INSUFFICIENT，不写入）→ 账本落账扣减 → 累加钳制。
 inline JadePurchaseOutcome purchaseMerchantRefreshTx(state::GameState& st, int32_t cost,
                                                      int32_t perJade,
-                                                     int32_t maxChances) {
+                                                     int32_t maxChances,
+                                                     int64_t nowMs) {
     JadePurchaseOutcome out;
-    if (cost <= 0 || perJade <= 0 || maxChances <= 0) {
+    if (cost <= 0 || perJade <= 0 || maxChances <= 0 || nowMs < 0) {
         out.base.errorType = "INVALID_PARAMS";
-        out.base.message = "cost/perJade/maxChances must be positive";
+        out.base.message = "cost/perJade/maxChances must be positive and nowMs non-negative";
         return out;
     }
     auto& gd = st.gameData;
@@ -301,15 +379,16 @@ inline JadePurchaseOutcome purchaseMerchantRefreshTx(state::GameState& st, int32
         out.base.message = "merchant refresh chances at max";
         return out;
     }
-    if (gd.jadeSymbols < cost) {
+    if (jadeLedgerBalance(gd) < cost) {
         out.base.errorType = "INSUFFICIENT_JADE";
         out.base.message = "insufficient jade symbols";
         return out;
     }
-    gd.jadeSymbols -= cost;
+    const auto app = appendLedgerEntry(gd, -cost, kJadeReasonSpendMerchantRefresh, nowMs);
     gd.merchantRefreshChances = std::min(gd.merchantRefreshChances + perJade, maxChances);
     out.base.ok = true;
-    out.jadeSymbols = gd.jadeSymbols;
+    out.jadeSymbols = app.balanceAfter;
+    out.drift = app.drift;
     out.value = gd.merchantRefreshChances;
     return out;
 }
@@ -317,16 +396,16 @@ inline JadePurchaseOutcome purchaseMerchantRefreshTx(state::GameState& st, int32
 /// 突破率加成购买落账
 /// （GameEngineJadePurchaseOps.purchaseBreakthroughBonus）。
 /// 判定序：弟子存在 → 存活 → 上限校验（currentBonus >= maxBonus → LIMIT，
-/// 不扣玉符）→ 余额校验 → 扣减 → statusData["adBreakthroughBonus"] 写回。
+/// 不扣玉符）→ 余额校验 → 账本落账扣减 → statusData["adBreakthroughBonus"] 写回。
 /// `currentBonus` 解析语义 = Kotlin `statusData[key]?.toDoubleOrNull() ?: 0.0`。
 inline JadePurchaseOutcome purchaseBreakthroughBonusTx(
     state::GameState& st, const std::string& discipleId, int32_t cost, double perJade,
-    double maxBonus) {
+    double maxBonus, int64_t nowMs) {
     JadePurchaseOutcome out;
     constexpr const char* kBonusKey = "adBreakthroughBonus";
-    if (cost <= 0 || perJade <= 0 || maxBonus <= 0) {
+    if (cost <= 0 || perJade <= 0 || maxBonus <= 0 || nowMs < 0) {
         out.base.errorType = "INVALID_PARAMS";
-        out.base.message = "cost/perJade/maxBonus must be positive";
+        out.base.message = "cost/perJade/maxBonus must be positive and nowMs non-negative";
         return out;
     }
     auto& ds = st.disciples;
@@ -358,18 +437,20 @@ inline JadePurchaseOutcome purchaseBreakthroughBonusTx(
         out.base.message = "breakthrough bonus at max";
         return out;
     }
-    if (st.gameData.jadeSymbols < cost) {
+    if (jadeLedgerBalance(st.gameData) < cost) {
         out.base.errorType = "INSUFFICIENT_JADE";
         out.base.message = "insufficient jade symbols";
         return out;
     }
-    st.gameData.jadeSymbols -= cost;
+    const auto app = appendLedgerEntry(st.gameData, -cost,
+                                       kJadeReasonSpendBreakthroughBonus, nowMs);
     const double newBonus = std::min(currentBonus + perJade, maxBonus);
     state::Disciple updated = current;
     updated.statusData[kBonusKey] = javaDoubleToString(newBonus);
     ds.upsertDisciple(updated);
     out.base.ok = true;
-    out.jadeSymbols = st.gameData.jadeSymbols;
+    out.jadeSymbols = app.balanceAfter;
+    out.drift = app.drift;
     out.writtenValue = updated.statusData[kBonusKey];
     return out;
 }
@@ -379,19 +460,19 @@ inline JadePurchaseOutcome purchaseBreakthroughBonusTx(
 // 🔴 墙钟/单调钟读数参数化（batch-W4B §2.2 ③类统一处置模板）：
 //  - 单调差分/10s 裁剪/1s 墙钟节流/**本地午夜计算**仍留 Kotlin 运行时
 //    （volatile 累计 + Calendar 时区语义 = 平台读数，禁止 C++ 内取时或复刻时区规则）；
-//  - GameData 四字段（jadeSymbols / jadeSymbolsToday / jadeAccumMs / jadeDayAnchorMs）
-//    的**稳态写**归本组事务；Kotlin 臂成功后以**回执**回写运行时 volatile
-//    （与 batch-19 购买事务的 syncBalanceFromSnapshot 重锚同方向：C++ 权威，
-//    Kotlin 运行时跟随）。
+//  - jadeSymbolsToday/jadeAccumMs/jadeDayAnchorMs 三字段的**稳态写**归本组
+//    事务；落账墙钟 `nowMs` 同为参数传入（C++ 不取时）；Kotlin 臂成功后以
+//    回执重锚运行时读数（余额权威在账本，Kotlin 运行时跟随）。
 //
-// 🔴 绝对值覆盖写模型（CLAUDE.md 13.3）不变式：四事务全部以参数传入的运行时
-// 绝对值覆盖写（不做 C++ 侧增量），与 checkpointNow/settleGrants 的幂等注释
-// 同源——「volatile 自增后、update 前」被抢占的并发窗口在 C++ 侧同样以
-// 绝对值语义消除双加。
+// 🔴 账本模型（SS9）：本组事务不做任何余额的绝对值覆盖写——
+//  - 事务 5/8（发放）：appendLedgerEntry 落 GRANT_TIME / GRANT_AD 条目 +
+//    派生缓存同事务双写（回执 total = 落账后余额）；
+//  - 事务 6/7（日重置/checkpoint）：不触碰余额，末尾 verifyDerivedBalance
+//    派生校验（缓存漂移时以账本为准重锚 → 回执 drift 上报）。
+//  失败零写入：参数校验先行，非法即 failure 信封零写入。
 //
 // 零 RNG 论证：四事务均为纯确定性算术/比较（整除、取模、钳制、比较写），
 // 无 rng() 调用点（签名级证据：不接受 RngManager/种子参数）。
-// 失败零写入：参数校验先行，非法即 failure 信封零写入。
 
 /// 每获得 1 枚玉符所需前台时长（Kotlin GameConfig.Jade.INTERVAL_MS 同值）
 inline constexpr int64_t kJadeIntervalMs = 10LL * 60 * 1000;
@@ -401,45 +482,45 @@ inline constexpr int32_t kJadeDailyCap = 20;
 /// 事务 5：玉符结算发放（JADE_RUNTIME_SETTLE_TX，1766）。
 ///
 /// Kotlin 判定序（JadeSymbolService.settleGrants）：
-///   grants = accumMs / INTERVAL_MS；grants<=0 → **零写入** ok 回执（原样回声）
-///   → remainder = accumMs % INTERVAL_MS；headroom = DAILY_CAP - today
-///   → headroom<=0 → 拿满冻结：jadeAccumMs = 0（余量丢弃）
-///   → toGrant = min(grants, headroom)；keepRemainder = (toGrant == grants)
-///   → 写 jadeSymbols/jadeSymbolsToday/jadeAccumMs 三字段。
-/// 回执 total/today/accumMs/frozen 供 Kotlin 回写 volatile 运行时。
+///   grants = accumMs / INTERVAL_MS；grants<=0 → **零写入** ok 回执
+///   （total = 账本余额）→ remainder = accumMs % INTERVAL_MS；
+///   headroom = DAILY_CAP - today → headroom<=0 → 拿满冻结：jadeAccumMs = 0
+///   （余量丢弃，余额零变化不落账）→ toGrant = min(grants, headroom)；
+///   keepRemainder = (toGrant == grants) → 落 GRANT_TIME 条目（delta=+toGrant）
+///   并写 jadeSymbolsToday/jadeAccumMs。
 struct JadeSettleOutcome {
     TxResult base;
-    int32_t total = 0;
+    int32_t total = 0;      // 账本余额（回执权威）
     int32_t today = 0;
     int64_t accumMs = 0;
-    bool frozen = false;  // headroom<=0：拿满冻结（accum 归零）
+    bool frozen = false;    // headroom<=0：拿满冻结（accum 归零）
+    bool drift = false;     // 派生缓存与账本基准不一致（已以账本为准纠正）
 };
 
-inline JadeSettleOutcome settleJadeGrantsTx(state::GameState& st, int32_t total,
-                                            int32_t today, int64_t accumMs) {
+inline JadeSettleOutcome settleJadeGrantsTx(state::GameState& st, int32_t today,
+                                            int64_t accumMs, int64_t nowMs) {
     JadeSettleOutcome out;
-    if (total < 0 || today < 0 || accumMs < 0) {
+    if (today < 0 || accumMs < 0 || nowMs < 0) {
         out.base.errorType = "INVALID_PARAMS";
         out.base.message = "runtime values must be non-negative";
         return out;
     }
+    auto& gd = st.gameData;
     const int64_t grants = accumMs / kJadeIntervalMs;
+    out.total = jadeLedgerBalance(gd);
     if (grants <= 0) {
         // Kotlin 原语义：grants<=0 → 无事务（零写入；本回执仅回声）
         out.base.ok = true;
-        out.total = total;
         out.today = today;
         out.accumMs = accumMs;
         return out;
     }
-    auto& gd = st.gameData;
     const int64_t remainder = accumMs % kJadeIntervalMs;
     const int64_t headroom = static_cast<int64_t>(kJadeDailyCap) - today;
     if (headroom <= 0) {
         gd.jadeAccumMs = 0;
         out.base.ok = true;
         out.frozen = true;
-        out.total = total;
         out.today = today;
         out.accumMs = 0;
         return out;
@@ -448,13 +529,14 @@ inline JadeSettleOutcome settleJadeGrantsTx(state::GameState& st, int32_t total,
         static_cast<int32_t>(std::min(grants, headroom));
     const bool keepRemainder = static_cast<int64_t>(toGrant) == grants;
     const int64_t newAccum = keepRemainder ? remainder : 0;
-    gd.jadeSymbols = total + toGrant;
+    const auto app = appendLedgerEntry(gd, toGrant, kJadeReasonGrantTime, nowMs);
     gd.jadeSymbolsToday = today + toGrant;
     gd.jadeAccumMs = newAccum;
     out.base.ok = true;
-    out.total = gd.jadeSymbols;
+    out.total = app.balanceAfter;
     out.today = gd.jadeSymbolsToday;
     out.accumMs = newAccum;
+    out.drift = app.drift;
     return out;
 }
 
@@ -467,6 +549,8 @@ inline JadeSettleOutcome settleJadeGrantsTx(state::GameState& st, int32_t total,
 ///   → crossedDay = anchor != 0；写 jadeDayAnchorMs = todayMidnight
 ///   → crossedDay：真跨天 → jadeSymbolsToday = 0、jadeAccumMs = 0
 ///   → 首锚（旧档 anchor==0）：只锚定，不动计数。
+/// 余额零变化（不落账）；成功路径末尾派生校验（缓存漂移 → 以账本为准
+/// 重锚并经回执 drift 上报）。
 /// 同一 todayMidnightMs 重复调用幂等（第二次命中 `<= anchor` 零写入）；
 /// 墙钟回退（todayMidnight 更小）同样零写入——ADR 盲区 3 兜底。
 struct JadeDayResetOutcome {
@@ -476,6 +560,7 @@ struct JadeDayResetOutcome {
     int32_t today = 0;
     int64_t accumMs = 0;
     int64_t dayAnchorMs = 0;
+    bool drift = false;  // 派生缓存与账本基准不一致（已以账本为准纠正）
 };
 
 inline JadeDayResetOutcome jadeDayResetTx(state::GameState& st,
@@ -511,68 +596,74 @@ inline JadeDayResetOutcome jadeDayResetTx(state::GameState& st,
     out.changed = true;
     out.crossedDay = crossedDay;
     out.dayAnchorMs = todayMidnightMs;
+    out.drift = verifyDerivedBalance(gd);
     return out;
 }
 
 /// 事务 7：玉符 checkpoint（JADE_RUNTIME_CHECKPOINT_TX，1768）。
 ///
 /// Kotlin 判定序（JadeSymbolService.checkpointNow 写段 + onLoopTick 拿满冻结）：
-/// 四字段绝对值覆盖写（未 onLoopStart 哨兵 `lastSampleMs==0` 留 Kotlin）。
+/// 写 jadeSymbolsToday/jadeAccumMs/jadeDayAnchorMs 三字段（余额真源在账本，
+/// checkpoint 不做余额覆盖写；未 onLoopStart 哨兵 `lastSampleMs==0` 留 Kotlin）。
 /// 拿满冻结（accum=0）复用本事务：runtime 以 accumMs=0 调用即为等价写。
+/// 成功路径末尾派生校验（缓存漂移 → 以账本为准重锚 → 回执 drift 上报）。
 struct JadeCheckpointOutcome {
     TxResult base;
-    int32_t total = 0;
+    int32_t total = 0;  // 账本余额（回执权威）
     int32_t today = 0;
     int64_t accumMs = 0;
     int64_t dayAnchorMs = 0;
+    bool drift = false;  // 派生缓存与账本基准不一致（已以账本为准纠正）
 };
 
 inline JadeCheckpointOutcome jadeCheckpointTx(state::GameState& st,
-                                              int32_t total, int32_t today,
+                                              int32_t today,
                                               int64_t accumMs,
                                               int64_t dayAnchorMs) {
     JadeCheckpointOutcome out;
-    if (total < 0 || today < 0 || accumMs < 0 || dayAnchorMs < 0) {
+    if (today < 0 || accumMs < 0 || dayAnchorMs < 0) {
         out.base.errorType = "INVALID_PARAMS";
         out.base.message = "runtime values must be non-negative";
         return out;
     }
     auto& gd = st.gameData;
-    gd.jadeSymbols = total;
     gd.jadeSymbolsToday = today;
     gd.jadeAccumMs = accumMs;
     gd.jadeDayAnchorMs = dayAnchorMs;
     out.base.ok = true;
-    out.total = total;
+    out.total = jadeLedgerBalance(gd);
     out.today = today;
     out.accumMs = accumMs;
     out.dayAnchorMs = dayAnchorMs;
+    out.drift = verifyDerivedBalance(gd);
     return out;
 }
 
 /// 事务 8：玉符广告发放落账（JADE_RUNTIME_GRANT_AD_TX，1769）。
 ///
 /// Kotlin 判定序（JadeSymbolService.grantFromAd 写段）：amount>0 校验 +
-/// 绝对值覆盖写 jadeSymbols = 发放前余额 + amount（C++ 侧承做加法，回执为
-/// 权威——Kotlin 运行时 volatile 以回执重锚）；**不写 todayCount**
+/// 落 GRANT_AD 条目（delta=+amount，白名单直发同 reason 如实记录来源——
+/// 特权语义保持无上限）+ 派生缓存同事务双写；**不写 jadeSymbolsToday**
 /// （广告玉符独立于时间渠道每日上限）。广告 SDK/播放本身 = 平台效应留
-/// Kotlin（本事务只承接账段）。@param totalBefore = 发放前运行时绝对值。
+/// Kotlin（本事务只承接账段）。
 struct JadeGrantOutcome {
     TxResult base;
-    int32_t total = 0;
+    int32_t total = 0;  // 落账后余额（账本权威）
+    bool drift = false;  // 派生缓存与账本基准不一致（已以账本为准纠正）
 };
 
 inline JadeGrantOutcome grantJadeFromAdTx(state::GameState& st, int32_t amount,
-                                          int32_t totalBefore) {
+                                          int64_t nowMs) {
     JadeGrantOutcome out;
-    if (amount <= 0 || totalBefore < 0) {
+    if (amount <= 0 || nowMs < 0) {
         out.base.errorType = "INVALID_PARAMS";
-        out.base.message = "amount must be positive and totalBefore non-negative";
+        out.base.message = "amount must be positive and nowMs non-negative";
         return out;
     }
-    st.gameData.jadeSymbols = totalBefore + amount;
+    const auto app = appendLedgerEntry(st.gameData, amount, kJadeReasonGrantAd, nowMs);
     out.base.ok = true;
-    out.total = st.gameData.jadeSymbols;
+    out.total = app.balanceAfter;
+    out.drift = app.drift;
     return out;
 }
 

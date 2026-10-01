@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.SectLevelClaimRecord
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
@@ -46,12 +47,12 @@ import org.robolectric.RobolectricTestRunner
  * - **镜像缺失不 NPE**：测试 mock 未 stub `stateSyncServiceRef` → 返回 null
  *   sync → native 臂先赋可空局部再判空（findings 13），不得抛
  *   NullPointerException（本测试类全部用例即为该契约的回归网）
- * - **玉符绝对值覆盖写不回涨**：`purchaseMerchantRefresh` /
+ * - **玉符账本落账（SS9）**：`purchaseMerchantRefresh` /
  *   `purchaseBreakthroughBonus` 在 AUTHORITATIVE 无 .so 时回退 Kotlin 臂，
- *   运行时 totalCount 与 GameData.jadeSymbols 同步；`checkpointNow()` 之后
- *   余额不回涨（CLAUDE.md 13.3 / jade_tx.h 头注释红线）
+ *   账本落 SPEND_* 条目 + 派生缓存同事务双写；`checkpointNow()` 不写余额
+ *   （真源在账本），余额恒等于账本末条 balance_after
  *
- * C++ 侧的判定序/RNG 面/零写入语义由 GTest `jade_tx_test.cpp`（17 用例）逐位守护；
+ * C++ 侧的判定序/RNG 面/零写入语义由 GTest `jade_tx_test.cpp`（20 用例）逐位守护；
  * 真机 native 臂对拍由 batch-22 物理设备验证批承担。
  */
 @org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
@@ -194,9 +195,21 @@ class JadeNativeTxGateTest {
         }
     }
 
-    /** 播种玉符余额并从快照恢复运行时 totalCount（对齐生产 onLoopStart 语义）。 */
+    /** 播种玉符账本（期初条目 + 派生缓存，对齐生产 withStartupLedger 语义）。 */
     private fun seedJade(count: Int) {
-        store.update { gameData = gameData.copy(jadeSymbols = count) }
+        store.update {
+            gameData = gameData.copy(
+                jadeSymbols = count,
+                jadeLedger = listOf(
+                    com.xianxia.sect.core.model.JadeLedgerEntry(
+                        atEpochMs = 1_700_000_000_000L,
+                        delta = count,
+                        reason = JadeLedgerReasons.OPENING_BALANCE,
+                        balanceAfter = count
+                    )
+                )
+            )
+        }
         jadeService.onLoopStart()
     }
 
@@ -347,9 +360,13 @@ class JadeNativeTxGateTest {
 
         assertTrue("AUTHORITATIVE 无 .so 应回退 Kotlin 臂并成功", result is MerchantRefreshResult.Success)
         assertEquals("玉符应扣 1 枚", 4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals("运行时 totalCount 必须同步（防 checkpoint 覆盖回涨）",
-            4, jadeService.runtimeState.value.total)
-        // checkpointNow 后仍为 4（绝对值覆盖写不回涨）
+        // 账本落账：SPEND_MERCHANT_REFRESH 条目 + 派生缓存同事务双写
+        val ledger = store.gameDataSnapshot.jadeLedger
+        assertEquals("账本应有期初 + 扣费两条", 2, ledger.size)
+        assertEquals(JadeLedgerReasons.SPEND_MERCHANT_REFRESH, ledger[1].reason)
+        assertEquals(-1, ledger[1].delta)
+        assertEquals(4, ledger[1].balanceAfter)
+        // checkpointNow 不写余额（真源在账本）：落账结果保持
         jadeService.checkpointNow()
         assertEquals(4, store.gameDataSnapshot.jadeSymbols)
         assertEquals(4, store.gameDataSnapshot.merchantRefreshChances)
@@ -395,11 +412,14 @@ class JadeNativeTxGateTest {
         assertTrue("AUTHORITATIVE 无 .so 应回退 Kotlin 臂并成功",
             result is BreakthroughBonusResult.Success)
         assertEquals(4, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(4, jadeService.runtimeState.value.total)
+        val ledger = store.gameDataSnapshot.jadeLedger
+        assertEquals("账本应有期初 + 扣费两条", 2, ledger.size)
+        assertEquals(JadeLedgerReasons.SPEND_BREAKTHROUGH_BONUS, ledger[1].reason)
+        assertEquals(4, ledger[1].balanceAfter)
         assertEquals("0.15",
             store.persistentDiscipleTables.assemble(1).statusData["adBreakthroughBonus"])
         jadeService.checkpointNow()
-        assertEquals("checkpointNow 之后玉符不得回涨", 4, store.gameDataSnapshot.jadeSymbols)
+        assertEquals("checkpointNow 不写余额（真源在账本）", 4, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test

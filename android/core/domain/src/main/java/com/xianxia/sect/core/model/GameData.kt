@@ -40,6 +40,44 @@ data class SectLevelClaimRecord(
 )
 
 /**
+ * 玉符账本条目（append-only 流水的单笔落账；SS9 账本模型）。
+ *
+ * 余额真源 = 期初条目 + Σ[delta]；[balanceAfter] 冗余落账后余额供 O(1) 读末条，
+ * 全账本满足「Σdelta == 末条 balanceAfter == 派生缓存 jadeSymbols」。
+ * [reason] 取值见 [JadeLedgerReasons]（C++ jade_tx.h reason 常量同名同步）。
+ */
+@Keep
+@Serializable
+data class JadeLedgerEntry(
+    /** 落账墙钟 epoch ms（C++ 不取时，由 Kotlin 臂传入；期初兜底条目为 0） */
+    @ProtoNumber(1) val atEpochMs: Long = 0L,
+    /** 变动量（正 = 发放/期初，负 = 消耗） */
+    @ProtoNumber(2) val delta: Int = 0,
+    /** 落账来源（[JadeLedgerReasons] 协议值） */
+    @ProtoNumber(3) val reason: String = "",
+    /** 落账后余额（账本权威，独立于派生缓存） */
+    @ProtoNumber(4) val balanceAfter: Int = 0
+)
+
+/** 玉符账本 reason 协议值（与 C++ `jade_tx.h` 常量同名同步；语义登记 docs/knowledge-base.md 经济基线表） */
+object JadeLedgerReasons {
+    /** 新档/兜底开账（delta = 期初余额，余额不变） */
+    const val OPENING_BALANCE = "OPENING_BALANCE"
+
+    /** 在线时长发放（事务 5） */
+    const val GRANT_TIME = "GRANT_TIME"
+
+    /** 激励视频发放（事务 8；含白名单直发——特权无上限语义保持，账本如实记录来源） */
+    const val GRANT_AD = "GRANT_AD"
+
+    /** 商人刷新扣费（事务 3） */
+    const val SPEND_MERCHANT_REFRESH = "SPEND_MERCHANT_REFRESH"
+
+    /** 突破率加成扣费（事务 4） */
+    const val SPEND_BREAKTHROUGH_BONUS = "SPEND_BREAKTHROUGH_BONUS"
+}
+
+/**
  * 年度报告——每年结束时由年变快照生成，展示灵石/生产/弟子等年度统计数据。
  * 保留最近 [GameConfig.Logs.MAX_YEARLY_REPORTS] 条。
  */
@@ -280,8 +318,8 @@ data class GameData(
     // ── 玉符（氪金货币）──
     // 墙钟货币：按真实前台游玩时长发放（GameConfig.Jade），不占仓库、无品阶、不走 InventorySystem，
     // 与游戏时间（年/月/旬）完全解耦；单日上限次日凌晨 12 点（墙钟午夜）重置。
-    // 发放/跨天重置/循环停止/存档快照时由 JadeSymbolService 写入（低频），运行时累计在服务内存态。
-    /** 玉符持有数量 */
+    // 稳态写入经 C++ 玉符事务族（账本落账 + 派生缓存双写），运行时累计在服务内存态。
+    /** 玉符持有数量（账本求和的派生缓存；独立赋值即守卫违规 JadeSymbolConsumptionGuardTest） */
     @ProtoNumber(220)
     @ColumnInfo(name = "jade_symbols", defaultValue = "0")
     @SettlementStrategy(Strategy.USE_SHADOW)
@@ -301,6 +339,15 @@ data class GameData(
     @ColumnInfo(name = "jade_accum_ms", defaultValue = "0")
     @SettlementStrategy(Strategy.USE_SHADOW)
     var jadeAccumMs: Long = 0L,
+    /**
+     * 玉符账本（append-only 流水，余额真源；SS9 账本模型）。
+     * 新档首条目 = OPENING_BALANCE 期初条目（withStartupLedger 写入）；
+     * 派生余额 == 期初 + Σdelta（守卫断言 JadeLedgerInvariant）。
+     */
+    @ProtoNumber(240)
+    @ColumnInfo(name = "jade_ledger")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var jadeLedger: List<JadeLedgerEntry> = emptyList(),
 
     // 世界关卡（妖兽+洞府统一池子）
     @ProtoNumber(140)

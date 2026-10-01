@@ -21,6 +21,7 @@ import com.xianxia.sect.core.model.GachaHistoryEntry
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
+import com.xianxia.sect.core.model.JadeLedgerEntry
 import com.xianxia.sect.core.model.LibrarySlot
 import com.xianxia.sect.core.model.MailClaimRecord
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -560,6 +561,18 @@ object CollectionConverters {
     @JvmStatic
     fun toSectLevelClaimRecordList(value: String): List<SectLevelClaimRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(SectLevelClaimRecord.serializer()), value) { emptyList() }
+
+    // ==================== 玉符账本转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromJadeLedgerEntryList(value: List<JadeLedgerEntry>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(JadeLedgerEntry.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toJadeLedgerEntryList(value: String): List<JadeLedgerEntry> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(JadeLedgerEntry.serializer()), value) { emptyList() }
 
     // ==================== 附属宗门转换器 ====================
 

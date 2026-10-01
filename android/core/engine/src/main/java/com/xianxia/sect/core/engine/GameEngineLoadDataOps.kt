@@ -10,6 +10,8 @@ import com.xianxia.sect.core.model.CharacterTemplateDb
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -256,7 +258,7 @@ private suspend fun GameEngine.initLegacySaveMonthAnchors() {
 
 /**
  * 开局资产口径（新档 / 有名重启 / 无名重启三条臂共用单点，防臂间口径漂移）：
- * 起始灵石 + 起始星级账本。
+ * 起始灵石 + 起始星级账本 + 玉符账本期初条目。
  *
  * 灵石为**一次性开局注入**：禁止改 [GameData] 的 `spiritStones` 默认值（该值承载
  * 「未初始化」哨兵语义、被多处测试锁定），也禁止走 `SpiritStoneWallet.add`——钱包
@@ -264,11 +266,23 @@ private suspend fun GameEngine.initLegacySaveMonthAnchors() {
  *
  * 账本只写 `gachaStarMap`（开局模板 1 星实例）；`gachaFragmentCounts` **不含**该键，
  * 即开局角色碎片进度 0/100（开局不送碎片）。
+ *
+ * 玉符账本期初条目（SS9）：新档首条目 = OPENING_BALANCE（delta = 期初余额、
+ * 余额不变；期初余额 = GameData 默认 0），此后派生余额 == 期初 + Σdelta 恒成立；
+ * 落账墙钟 = 开局时刻（由 GameEngine 注入 WallClock 取时，三臂在 update 闭包外取值传入）。
  */
-private fun GameData.withStartupLedger(): GameData = copy(
+private fun GameData.withStartupLedger(nowMs: Long): GameData = copy(
     spiritStones = GameConfig.Gacha.START_SPIRIT_STONES.toLong(),
     gachaStarMap = mapOf(
         CharacterTemplateDb.STARTUP_TEMPLATE_ID to CharacterTemplateDb.STARTER_STAR
+    ),
+    jadeLedger = listOf(
+        JadeLedgerEntry(
+            atEpochMs = nowMs,
+            delta = 0,
+            reason = JadeLedgerReasons.OPENING_BALANCE,
+            balanceAfter = 0
+        )
     )
 )
 
@@ -317,7 +331,8 @@ suspend fun GameEngine.createNewGame(sectName: String) {
                 width = 4, height = 4,
                 instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
             )
-            gameData = gameData.copy(                mapSeed = mapSeed,
+            gameData = gameData.copy(
+                mapSeed = mapSeed,
                 // 新档必须盖章当前存档版本——否则以 saveVersion=0 落库，
                 // 首次读档被 v0→1 迁移误 ÷10
                 saveVersion = SaveVersion.CURRENT,
@@ -332,7 +347,7 @@ suspend fun GameEngine.createNewGame(sectName: String) {
                 patrolConfigs = emptyList(),
                 librarySlots = emptyList(),
                 spiritFieldPlants = emptyList()
-            ).withStartupLedger()
+            ).withStartupLedger(wallClock.currentTimeMillis())
             instantiateStartupDisciple("createNewGame")
         }
         addInitialStorageBags()
@@ -381,7 +396,8 @@ private suspend fun GameEngine.restartGameInternal(sectName: String) {
                     width = 4, height = 4,
                     instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
                 )
-                gameData = gameData.copy(                    mapSeed = mapSeed,
+                gameData = gameData.copy(
+                    mapSeed = mapSeed,
                     // 新档盖章当前存档版本（同 createNewGame）
                     saveVersion = SaveVersion.CURRENT,
                     placedBuildings = listOf(initialMine),
@@ -395,7 +411,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String) {
                     patrolConfigs = emptyList(),
                     librarySlots = emptyList(),
                     spiritFieldPlants = emptyList()
-                ).withStartupLedger()
+                ).withStartupLedger(wallClock.currentTimeMillis())
                 instantiateStartupDisciple("restartGame")
             }
             addInitialStorageBags()
@@ -413,9 +429,10 @@ private suspend fun GameEngine.restartGameInternal(sectName: String) {
             // 无名重启臂与有名臂同口径：起始灵石 + 起始星级账本 + 开局模板名册
             // （三项缺一即「重置后开局不一致」）
             stateStore.update {
-                gameData = GameData().copy(                    mapSeed = mapSeed,
+                gameData = GameData().copy(
+                    mapSeed = mapSeed,
                     saveVersion = SaveVersion.CURRENT
-                ).withStartupLedger()
+                ).withStartupLedger(wallClock.currentTimeMillis())
                 instantiateStartupDisciple("restartGameBlankSect")
             }
         }

@@ -5,6 +5,9 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.engine.system.WallClock
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.JadeLedgerEntry
+import com.xianxia.sect.core.model.JadeLedgerReasons
 import com.xianxia.sect.core.nativebridge.ActionIds
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
@@ -12,6 +15,7 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,15 +32,16 @@ import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
- * 玉符运行时状态（1Hz 节流发布，驱动 UI 徽章与倒计时）。
+ * 玉符运行时状态（1Hz 节流发布，驱动倒计时）。
  *
- * @param total 累计持有数量
+ * 余额读数统一走镜像 [GameData.jadeSymbols]（账本派生缓存）；本流只承载
+ * 墙钟日闸语义（今日计数/倒计时/封顶态），见 [JadeSymbolService] KDoc。
+ *
  * @param today 今日已获得数量
  * @param remainingMs 距离下次获得玉符的剩余 ms（拿满后为 0）
  * @param capped 今日是否已达上限（20 枚）
  */
 data class JadeSymbolRuntimeState(
-    val total: Int,
     val today: Int,
     val remainingMs: Long,
     val capped: Boolean
@@ -50,13 +55,20 @@ data class JadeSymbolRuntimeState(
  * 每满 [GameConfig.Jade.INTERVAL_MS]（10 分钟）得 1 枚，
  * 单日最多 [GameConfig.Jade.DAILY_CAP]（20 枚），墙钟午夜重置。
  *
+ * ## 账本模型（SS9：余额真源在 C++ jadeLedger）
+ * 余额 = 账本期初条目 + Σdelta；[GameData.jadeSymbols] 是账本求和的**派生
+ * 缓存**，由 C++ 事务（appendLedgerEntry）同事务双写。本服务不持有余额
+ * 内存态：消耗/发放经 native 臂落账（C++ 权威），降级回退臂用
+ * [appendLedger] 在镜像上同构落账（append 条目 + 缓存跟随），两条路径都
+ * 不存在独立于账本的余额写入——「余额回涨」在结构上不可能。
+ *
  * ## 时钟语义（防作弊第一性基础）
  * - **发放只由单调时钟**（[TimeSource]，SystemClock.elapsedRealtime()）驱动——
  *   修改墙钟无法加速获得，每枚仍需 10 分钟真实前台时间；
- * - 墙钟（[wallClock]）仅用于跨天重置判定，1s 节流采样；
+ * - 墙钟（[wallClock]）用于跨天重置判定（1s 节流）与账本落账时间戳；
  * - 单 tick 差分上限 [GameConfig.Jade.MAX_TICK_DELTA_MS]（10s）：
  *   OEM 挂起恢复不补记（镜像引擎 MAX_PHASES_PER_TICK 语义）；
- * - 跨天重置判据 `todayMidnight > [jadeDayAnchorMs]`；回拨（`<=`）不重置；
+ * - 跨天重置判据 `todayMidnight > [dayAnchorMs]`；回拨（`<=`）不重置；
  * - 拿满 [GameConfig.Jade.DAILY_CAP] 冻结累计；次日 0 点重置（今日计数与
  *   周期累计时长均清零，新的一天从 0 重新累计）。
  *
@@ -80,7 +92,7 @@ class JadeSymbolService @Inject constructor(
     private val timeSource: TimeSource,
     private val stateStore: GameStateStore,
     private val wallClock: WallClock,
-    // W4-B/B2（w3-04）：GameData 四字段稳态写下沉 C++（1766–1769），native 臂
+    // W4-B/B2（w3-04）：玉符稳态写下沉 C++（1766–1769），native 臂
     // 经 [Provider] 惰性取镜像服务——GameEngineCore 构造链持有本服务，Provider
     // 为惰性边（Dagger 官方破环手段，与 DiplomacyService.gameEngineCoreProvider
     // 同构）；null（测试直构）⇒ 恒走 Kotlin 回退臂。
@@ -120,6 +132,15 @@ class JadeSymbolService @Inject constructor(
     private fun JsonObject?.boolOrFalse(name: String): Boolean =
         this?.get(name)?.jsonPrimitive?.booleanOrNull ?: false
 
+    /** 回执 drift 上报（派生缓存与账本基准不一致，C++ 已以账本为准重锚）。 */
+    private fun logNativeDrift(reply: JsonObject?, op: String) {
+        if (reply?.boolOrFalse("drift") == true) {
+            DomainLog.w(
+                TAG, "$op: 派生缓存与账本基准不一致（C++ 已以账本为准重锚）"
+            )
+        }
+    }
+
     /** 单调时钟上次采样（tick 差分基准）。 */
     @Volatile
     private var lastSampleMs = 0L
@@ -131,10 +152,6 @@ class JadeSymbolService @Inject constructor(
     /** 今日已获得玉符数。 */
     @Volatile
     private var todayCount = 0
-
-    /** 累计持有玉符数。 */
-    @Volatile
-    private var totalCount = 0
 
     /** 今日午夜锚点 epoch ms（跨天判定基准，回拨防御）。 */
     @Volatile
@@ -154,7 +171,7 @@ class JadeSymbolService @Inject constructor(
 
     private val _runtimeState = MutableStateFlow(
         JadeSymbolRuntimeState(
-            total = 0, today = 0,
+            today = 0,
             remainingMs = GameConfig.Jade.INTERVAL_MS, capped = false
         )
     )
@@ -162,18 +179,47 @@ class JadeSymbolService @Inject constructor(
     /** 玉符运行时状态流（源已 1Hz 节流，订阅方无需再 sample）。 */
     val runtimeState: StateFlow<JadeSymbolRuntimeState> = _runtimeState.asStateFlow()
 
+    // ── 账本镜像面（Kotlin 回退臂专用；与 C++ jade_tx.h 同语义）─────────
+
+    /** 账本余额（O(1) 读末条冗余；空账本兜底读派生缓存，同 C++ jadeLedgerBalance）。 */
+    private fun ledgerBalance(gd: GameData): Int =
+        gd.jadeLedger.lastOrNull()?.balanceAfter ?: gd.jadeSymbols
+
+    /**
+     * 账本落账（回退臂唯一写入口）：append 条目 + 派生缓存同事务双写。
+     * 缓存偏离账本基准时以账本为准重锚并 Log（计数通道，StorageMetrics
+     * getter 归 SS3）。
+     */
+    private fun appendLedger(gd: GameData, delta: Int, reason: String): GameData {
+        val ledgerBase = ledgerBalance(gd)
+        if (gd.jadeLedger.isNotEmpty() && gd.jadeSymbols != ledgerBase) {
+            DomainLog.w(
+                TAG, "派生缓存与账本基准不一致（已以账本为准重锚）: " +
+                    "cache=${gd.jadeSymbols} ledger=$ledgerBase"
+            )
+        }
+        val newBalance = ledgerBase + delta
+        val entry = JadeLedgerEntry(
+            atEpochMs = wallClock.currentTimeMillis(),
+            delta = delta,
+            reason = reason,
+            balanceAfter = newBalance
+        )
+        return gd.copy(jadeSymbols = newBalance, jadeLedger = gd.jadeLedger + entry)
+    }
+
     /**
      * 游戏循环启动钩子：从 GameData 快照恢复运行时字段（读档/切档/重启天然正确），
      * 并立即执行一次跨天检查（启动时若已跨天，今日计数直接归零）。
+     * 余额真源在账本，无内存态需恢复。
      *
      * 可重复调用（幂等重锚）：仅 volatile 内存写 + UI 发布，不写 store
      * （跨天/锚定写入经 [pendingDayResetCheck] 延迟到引擎线程首帧 tick），
      * 任意线程调用安全；循环已被第三方（前台服务/watchdog）抢先启动后
-     * 再次调用即以最新快照重锚——冷启动读档竞态的根治手段。
+     * 再次调用即以最新快照重锚。
      */
     fun onLoopStart() {
         val gd = stateStore.gameDataSnapshot
-        totalCount = gd.jadeSymbols
         todayCount = gd.jadeSymbolsToday
         // 防御纵深：恢复值不可 ≥ 发放阈值——否则每次读档首帧即免费 +1 玉符
         accumMs = gd.jadeAccumMs.coerceAtMost(GameConfig.Jade.INTERVAL_MS - 1)
@@ -219,11 +265,11 @@ class JadeSymbolService @Inject constructor(
                 accumMs = 0
                 // native 臂（W4-B/B2）：冻结写 = checkpoint（accum=0）等价形
                 val reply = tryNativeJade(ActionIds.JADE_RUNTIME_CHECKPOINT_TX) {
-                    put("total", totalCount)
                     put("today", todayCount)
                     put("accumMs", 0L)
                     put("dayAnchorMs", dayAnchorMs)
                 }
+                logNativeDrift(reply, "checkpoint")
                 if (reply == null) {
                     stateStore.update {
                         gameData = gameData.copy(jadeAccumMs = 0L)
@@ -247,10 +293,11 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
-     * 幂等 checkpoint：把运行时字段全量写入 GameData。
+     * 幂等 checkpoint：把运行时今日计数/累计时长/日锚写入 GameData。
      * 存档/云存档/后台快照前调用，保证快照含最新玉符值。
+     * 余额真源在账本，checkpoint 不写余额。
      *
-     * native 臂（W4-B/B2，JADE_RUNTIME_CHECKPOINT_TX）：四字段绝对值覆盖写归
+     * native 臂（W4-B/B2，JADE_RUNTIME_CHECKPOINT_TX）：三字段写归
      * C++；运行时值即参数（回执幂等）；失败/降级 → Kotlin 原路径（回退臂）。
      */
     fun checkpointNow() {
@@ -258,15 +305,14 @@ class JadeSymbolService @Inject constructor(
         // 防止启动前的存档/后台快照用运行时零值覆盖已持久化的玉符
         if (lastSampleMs == 0L) return
         val reply = tryNativeJade(ActionIds.JADE_RUNTIME_CHECKPOINT_TX) {
-            put("total", totalCount)
             put("today", todayCount)
             put("accumMs", accumMs)
             put("dayAnchorMs", dayAnchorMs)
         }
+        logNativeDrift(reply, "checkpoint")
         if (reply == null) {
             stateStore.update {
                 gameData = gameData.copy(
-                    jadeSymbols = totalCount,
                     jadeSymbolsToday = todayCount,
                     jadeAccumMs = accumMs,
                     jadeDayAnchorMs = dayAnchorMs
@@ -277,29 +323,21 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
-     * 在已有事务内扣除玉符（玉符购买等消耗路径）。必须在引擎线程、
-     * 调用方 `stateStore.update` 事务闭包内调用（仿灵石 Wallet 的 deduct 模式）。
+     * 在已有事务内扣除玉符（玉符购买等消耗路径的降级回退臂）。必须在
+     * 引擎线程、调用方 `stateStore.update` 事务闭包内调用（仿灵石 Wallet
+     * 的 deduct 模式）。
      *
-     * 必须同步递减运行时 [totalCount]——否则后续 [checkpointNow]/[settleGrants]
-     * 用未扣减的绝对值覆盖写 GameData.jadeSymbols，导致玉符回涨。
+     * 账本语义：余额判定与落账均以账本为准（[appendLedger] append
+     * SPEND_* 条目 + 派生缓存同事务双写）；native 臂可用时购买走 C++
+     * 落账（GameEngineJadePurchaseOps），本方法只在降级路径执行。
      *
-     * ⚠️ 事务回滚契约：totalCount 递减是立即生效的外部可变状态，不随事务回滚。
-     * 若同事务内 deduct 之后的代码抛出异常导致 update 回滚（GameData 恢复），
-     * totalCount 不会自动回滚，余额将与 GameData 不一致（少扣的部分会在
-     * checkpoint 时被绝对值覆盖，玩家实际损失该枚玉符）。
-     * 调用方必须保证 deduct 之后的事务代码无异常路径（玉符购买在 deduct 后
-     * 仅执行纯 copy 写回，不抛异常，满足契约）。
-     *
+     * @param reason 落账来源（[JadeLedgerReasons.SPEND_*]，按调用玩法传入）
      * @return 是否成功（余额不足或金额非正返回 false，状态不变）
      */
-    fun deduct(state: MutableGameState, amount: Int): Boolean {
-        // 懒重锚守卫（与 grantFromAd 对称）：未 onLoopStart 过时先从快照恢复
-        // totalCount 再判定余额，防止零值基累计误判（消耗路径正常在 boot
-        // 完成后调用，本守卫为未来调用点漂移提供纵深防御）
-        if (lastSampleMs == 0L) onLoopStart()
-        if (amount <= 0 || totalCount < amount) return false
-        totalCount -= amount
-        state.gameData = state.gameData.copy(jadeSymbols = totalCount)
+    fun deduct(state: MutableGameState, amount: Int, reason: String): Boolean {
+        if (amount <= 0) return false
+        if (ledgerBalance(state.gameData) < amount) return false
+        state.gameData = appendLedger(state.gameData, -amount, reason)
         return true
     }
 
@@ -309,36 +347,26 @@ class JadeSymbolService @Inject constructor(
      * 必须在引擎线程调用（调用方负责 launchOnEngine 派发，stateStore.update
      * 有主线程运行时守卫）。
      *
-     * 与 [settleGrants] 同款幂等语义：先更新运行时 [totalCount] 再绝对值写
-     * GameData——否则 checkpointNow/settleGrants 用旧绝对值写回导致玉符回涨。
-     * **不写入 [todayCount]**：广告玉符独立于时间渠道的每日上限（单日时间 20 +
-     * 广告 45 合计上限）。
+     * 账本语义：native 臂落 GRANT_AD 条目（C++ 权威，回执 total 为落账后
+     * 余额）；降级回退臂用 [appendLedger] 同构落账。**不写 [todayCount]**：
+     * 广告玉符独立于时间渠道每日上限。白名单用户的免广告直发同走本路径，
+     * 账本如实记录来源（特权无上限语义保持）。
      *
      * @param amount 发放数量（必须为正）
      * @return 是否成功（amount 非正返回 false，状态不变）
      */
     fun grantFromAd(amount: Int): Boolean {
         if (amount <= 0) return false
-        // 对称 checkpointNow 哨兵（lastSampleMs==0）：全新进程循环从未启动时
-        // 先按快照懒重锚再发放，防止"读档 I/O 窗口 0 基累计 + 广告发放"
-        // 绝对值覆盖已持久化余额（冷启动竞态纵深防御，主修复见 startGameLoop 重锚）
-        if (lastSampleMs == 0L) onLoopStart()
-        val totalBefore = totalCount
-        totalCount += amount
-        // native 臂（W4-B/B2，JADE_RUNTIME_GRANT_AD_TX）：落账段归 C++（绝对值
-        // 覆盖写 jadeSymbols = totalBefore + amount；不写 todayCount——广告渠道
-        // 独立于时间日上限）。广告 SDK/播放本身 = 平台效应，已由调用方执行。
+        // 广告 SDK/播放本身 = 平台效应，已由调用方执行；本方法只承接账段
         val reply = tryNativeJade(ActionIds.JADE_RUNTIME_GRANT_AD_TX) {
             put("amount", amount)
-            put("totalBefore", totalBefore)
+            put("nowMs", wallClock.currentTimeMillis())
         }
+        logNativeDrift(reply, "grantFromAd")
         if (reply == null) {
             stateStore.update {
-                gameData = gameData.copy(jadeSymbols = totalCount)
+                gameData = appendLedger(gameData, amount, JadeLedgerReasons.GRANT_AD)
             }
-        } else {
-            // 回执为权威（C++ 承做加法的绝对值语义），运行时跟随
-            reply.intOrZero("total").takeIf { it > 0 }?.let { totalCount = it }
         }
         publishJadeSymbolStateNow()
         return true
@@ -354,51 +382,38 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
-     * 余额重锚：把运行时 [totalCount] 同步为当前 GameData 快照的 jadeSymbols。
-     *
-     * batch-19（jade_tx.h）：玉符**购买**事务（商人刷新/突破率加成）已下沉 C++，
-     * 由 C++ 侧执行绝对值扣减并写入权威状态；Kotlin 运行时 [totalCount] 必须
-     * 在 native 臂成功后立即重锚到 C++ 权威余额——否则后续 [checkpointNow] /
-     * [settleGrants] 会以旧绝对值覆盖写 `GameData.jadeSymbols`（**玉符回涨**，
-     * CLAUDE.md 13.3 绝对值覆盖写模型红线）。
-     *
-     * 与 [onLoopStart] 的重锚不同：本方法**不动** [accumMs] / [lastSampleMs] /
-     * [dayAnchorMs] / 跨天检查标记，也不打断 UI 节流——只同步绝对值余额，
-     * 当前 10 分钟发放周期的累计进度不受影响（购买不重置奖励进度）。
-     *
-     * 幂等：任意线程调用安全（单次 volatile 读 + 写）。
+     * 当前墙钟（CalibratedWallClock 语义）：玉符账本落账时间戳与 native 臂
+     * `nowMs` 参数的统一取值点（C++ 不取时，平台读数经参数传入）。
      */
-    fun syncBalanceFromSnapshot() {
-        totalCount = stateStore.gameDataSnapshot.jadeSymbols
-    }
+    fun wallClockNowMs(): Long = wallClock.currentTimeMillis()
 
     /**
      * 结算发放：按累计时长整除 [GameConfig.Jade.INTERVAL_MS] 发放，
      * 封顶 [GameConfig.Jade.DAILY_CAP]，余量保留；拿满后余量丢弃（冻结）。
      *
-     * native 臂（W4-B/B2，JADE_RUNTIME_SETTLE_TX）：整除/封顶/冻结判定与三字段
-     * 写归 C++；回执回写运行时 volatile（C++ 权威 → Kotlin 跟随，与 batch-19
-     * 购买事务 `syncBalanceFromSnapshot` 重锚同方向）。失败/降级 → Kotlin 原路径。
+     * native 臂（W4-B/B2，JADE_RUNTIME_SETTLE_TX）：整除/封顶/冻结判定与
+     * GRANT_TIME 落账归 C++（回执 total = 账本余额）；失败/降级 → Kotlin
+     * 原路径（[appendLedger] 同构落账）。
      */
     private fun settleGrants() {
         val grants = accumMs / GameConfig.Jade.INTERVAL_MS
         if (grants <= 0) return
         val reply = tryNativeJade(ActionIds.JADE_RUNTIME_SETTLE_TX) {
-            put("total", totalCount)
             put("today", todayCount)
             put("accumMs", accumMs)
+            put("nowMs", wallClock.currentTimeMillis())
         }
         if (reply != null) {
-            totalCount = reply.intOrZero("total")
+            logNativeDrift(reply, "settleGrants")
             todayCount = reply.intOrZero("today")
             accumMs = reply.longOrZero("accumMs")
             return
         }
-        // Kotlin 原路径（回退臂，逐字保留）
+        // Kotlin 原路径（回退臂，语义同 C++ 事务）
         val remainder = accumMs % GameConfig.Jade.INTERVAL_MS
         val headroom = GameConfig.Jade.DAILY_CAP - todayCount
         if (headroom <= 0) {
-            // 拿满冻结：余量丢弃
+            // 拿满冻结：余量丢弃（余额零变化不落账）
             accumMs = 0
             stateStore.update {
                 gameData = gameData.copy(jadeAccumMs = 0L)
@@ -408,16 +423,10 @@ class JadeSymbolService @Inject constructor(
         val toGrant = minOf(grants.toInt(), headroom)
         val keepRemainder = toGrant == grants.toInt()
         accumMs = if (keepRemainder) remainder else 0L
-        totalCount += toGrant
         todayCount += toGrant
-        // 绝对值写入：与 checkpointNow 并发交错时幂等
-        // （增量式 gameData.x + toGrant 在"volatile 自增后、update 前"被抢占时会双加）
         stateStore.update {
-            gameData = gameData.copy(
-                jadeSymbols = totalCount,
-                jadeSymbolsToday = todayCount,
-                jadeAccumMs = accumMs
-            )
+            gameData = appendLedger(gameData, toGrant, JadeLedgerReasons.GRANT_TIME)
+                .copy(jadeSymbolsToday = todayCount, jadeAccumMs = accumMs)
         }
     }
 
@@ -452,6 +461,7 @@ class JadeSymbolService @Inject constructor(
             put("accumMs", accumMs)
         }
         if (reply != null) {
+            logNativeDrift(reply, "maybeDayReset")
             if (reply.boolOrFalse("crossedDay")) {
                 // 真实跨天：今日计数归零，周期累计时长清零（运行时跟随回执）
                 todayCount = 0
@@ -460,7 +470,7 @@ class JadeSymbolService @Inject constructor(
             dayAnchorMs = reply.longOrZero("dayAnchorMs").takeIf { it > 0 } ?: todayMidnight
             return
         }
-        // Kotlin 原路径（回退臂，逐字保留）
+        // Kotlin 原路径（回退臂，语义同 C++ 事务；余额零变化不落账）
         val crossedDay = dayAnchorMs != 0L
         dayAnchorMs = todayMidnight
         if (crossedDay) {
@@ -502,7 +512,6 @@ class JadeSymbolService @Inject constructor(
             GameConfig.Jade.INTERVAL_MS - (accumMs % GameConfig.Jade.INTERVAL_MS)
         }
         _runtimeState.value = JadeSymbolRuntimeState(
-            total = totalCount,
             today = todayCount,
             remainingMs = remainingMs,
             capped = capped
@@ -510,6 +519,9 @@ class JadeSymbolService @Inject constructor(
     }
 
     private companion object {
+        /** 日志 TAG。 */
+        const val TAG = "JadeSymbolService"
+
         /** UI 状态发布节流：1Hz（倒计时 mm:ss 精度足够，避免高频全屏派发）。 */
         const val UI_PUBLISH_INTERVAL_MS = 1_000L
 
