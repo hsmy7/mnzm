@@ -80,8 +80,8 @@ applyCollection("equipmentInstances")；UI 消费一律经
 `GameEngine.equipmentInstances` 只读流，词条展示用 `EquipmentInstance.totalBonus()`，
 禁止 UI 侧自算第二份词条加成。）
 
-**装备重构线最终镜像面（EQ-B5 收口注记，2026-09-30）**：
-- disciples 行新增列（B1 属性单列 + B3 六部位）：`baseAttack/baseDefense/innateDamageType/attackVariance/defenseVariance/pillAttackBonus/pillDefenseBonus`（proto 113–119）+ 六部位 `headId/bodyId/handsId/feetId/legsId`（proto 67-70/122/123）；旧物法四列/孕养列已退役 reserved，不再导出。
+**装备重构线最终镜像面（EQ-B5 收口注记，2026-09-30；F2 四部位化收缩，2026-10-02）**：
+- disciples 行新增列（B1 属性单列 + B3 装备列；F2 收缩四部位）：`baseAttack/baseDefense/innateDamageType/attackVariance/defenseVariance/pillAttackBonus/pillDefenseBonus`（proto 113–119）+ 四部位 `headId/bodyId/handsId/feetId`（proto 67-70；weaponId=122/legsId=123 删除 reserved）；旧物法四列/孕养列已退役 reserved，不再导出。
 - 速度/灵力**不在**装备加成通道（S14 拍板）：镜像行无装备速度/灵力字段，UI 若展示速度/灵力只读弟子基础+境界成长值，禁自造"装备加速度"派生。
 
 ### 2.3 顶层运行态载体（`NativeGameState` 顶层可空字段，非空才导出/宽松导入）

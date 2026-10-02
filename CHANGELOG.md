@@ -72,6 +72,37 @@
   （SS1 去槽 −83、SS9 账本 +7−1，基线冻结）；JVM 五模块 SS0 时点 7297/0 → SS9 时点 7271/0
   （SS5 起验收复跑收敛为三/四模块定向）；对拍 digest `0x8877d164f6bfe1fc` 冻结。
 
+### 装备系统四部位化收缩（F1–F4 批，2026-10-02）——部位 6→4 · 套装 2/4 两档 · 24 部件 — `feat(equipment)`（分支 `feat/equipment-four-slot-f1`）
+
+> 权威方案 [docs/design/equipment-four-slot-refactor-plan.md](docs/design/equipment-four-slot-refactor-plan.md)（Q1–Q5 决策闭环）；
+> 各批验收 `docs/design/equipment-batches/reports/report-F1..F4.md`；决策记录 `docs/adr/equipment-set-system.md` §6。
+> **性质**：对**未上线**装备系统的收缩型重构（用户确认无存量产出装备 ⇒ 无迁移、无补偿，测试期 destructive rebuild）；
+> **单件数值表一字未改**（主词条基数/副词条档位/部位系数零改动，无隐藏补偿）。装备系统尚未在任何发布版本与玩家见面，
+> 本节改动对现有玩家进度零影响。
+
+- **F1 领域与静态数据**：`EquipmentSlot` 6→4 值（HEAD(10)/BODY(11)/HANDS(12)/FEET(13)；
+  `WEAPON(14)`/`LEGS(15)` 退役 reserved 禁复用，`EquipmentSlotOrderGuardTest` 退役名/编号双断言）；
+  主词条池/部位系数 4 部位（手部 1.15 承接武器输出向池、脚部 0.95 承接腿部均衡向池）；
+  套装档位 2/4/6→**2/4**（`bonus6`→`bonusFull` 改名且 4 件触发、`>=6` 分支删除非注释、
+  满套口径守恒 = 本系 +30% + 暴击率 +12%）；中性源 36→24 条 + codegen 重生成零漂移。
+- **F2 弟子槽位与存档 + 引擎结算**：`weaponId`/`legsId` 字段全链删除（存档编号 17/116 退役 reserved）、
+  Room v70→**v71**（`disciples` 表两列随 `@Embedded` 删除 + v70 schema json 删除）、列式存储与镜像 proto 四列（122/123 删 reserved）；
+  C++ 列链对偶（models/disciple_store/column_dirty/disciple_tx/auto_gear/ai_sect_* 六文件组）；
+  武器/腿部名战斗展示链退役（`BattleDescriptionGenerator` 武器动词表删除，普攻恒徒手动词表，salt 键不变 ⇒ 掷点序零漂移）。
+- **F3 锻造配方链全量迁移 + 外围收口**：C++ 旧 72 条通用配方体系整链替换为新形状 24 条
+  （`ForgeRecipeTemplate` id/pieceId/setId/part/tierMaterials[6]，对偶 Kotlin 真源；数据链四层重生成）；
+  自动锻造/启动/晋升面按 Kotlin 现行重写（修正 B3 遗留启动面行为分叉）；精灵图 **72→24**
+  （删 144 张旧 webp 双模块，2 真源烘焙 + 22 程序化占位，注册面/UID 表/清单三方一致）；
+  掉落/商店/AI 配装/排序筛选随 `EquipmentFactory` 唯一入口自然收敛四部位。
+- **F4 数值校准 + 文档收口（本批）**：占比实测定稿——五入口中位 **0.2591/0.2758/0.2968/0.3448/0.3198**
+  （金丹/元婴/化神/炼虚/大乘，均值约 30%；F1/F4 两次实跑逐位一致），带宽 **[22,40]** 定稿
+  （方案预测「约 27%、实际略高」命中，FR7 占比观察项不触发 = 债 EQ-I17 登记）；
+  文档五件（architecture/knowledge-base/cpp-engine/CODE_WIKI/ui-read-surface）四部位化 + ADR §6 + 双 changelog + 台账终登记。
+- **新增/升级守卫**：`EquipmentSlotRetirementGuardTest`（全仓武器/腿部符号面归零）、
+  `ForgeRecipeSlotGuardTest`（配方产出部位 ∈ 四部位）、`EquipmentProtoNumberFrozenTest`（退役号 17/116 禁复用）。
+- **门禁终态（F4 复跑）**：ctest **1538/1538** · JVM 全量绿 · Diff 家族全绿 0 skip · jni-count 87/87 ·
+  lint/detekt 绿 · codegen 零漂移 · agent-instructions 绿；装备占比锚 [30,45] → **[22,40]**。
+
 ## [4.01.16] - 2026-09-22
 
 ### 主界面退役——登录后自动进入游戏（自动建档 / 自动读档） — `feat(remove-main-menu)`（2026-10-01 单批交付）

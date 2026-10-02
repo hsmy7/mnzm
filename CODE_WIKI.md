@@ -27,7 +27,7 @@
 4. [状态管理 — GameStateStore](#状态管理--gamestatestore)
 5. [游戏时间系统 — GameTimeClock](#游戏时间系统--gametimeclock)
 6. [游戏引擎 — GameEngineCore](#游戏引擎--gameenginecore)
-7. [装备与属性体系（装备重构线）](#装备与属性体系2026-09-装备重构线-eq-b0b5)
+7. [装备与属性体系（装备重构线 + 四部位化）](#装备与属性体系2026-09-装备重构线-eq-b0b52026-10-四部位化-f1f4)
 8. [结算管线 — 三层真相源](#结算管线--三层真相源)
 9. [Canvas 渲染管线](#canvas-渲染管线)
 10. [性能基础设施](#性能基础设施)
@@ -600,16 +600,16 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 
 ---
 
-## 装备与属性体系（2026-09 装备重构线 EQ-B0–B5）
+## 装备与属性体系（2026-09 装备重构线 EQ-B0–B5；2026-10 四部位化 F1–F4）
 
-> 终态登记；子系统速查与守卫清单见 `docs/knowledge-base.md`「装备系统（六部位套装体系）」节，债务与遗留见 `docs/architecture.md`「属性与装备体系」节，决策记录 [docs/adr/equipment-set-system.md](docs/adr/equipment-set-system.md)。
+> 终态登记；子系统速查与守卫清单见 `docs/knowledge-base.md`「装备系统（四部位套装体系）」节，债务与遗留见 `docs/architecture.md`「属性与装备体系」节，决策记录 [docs/adr/equipment-set-system.md](docs/adr/equipment-set-system.md)（§6 四部位化）。
 
 - **属性单列（EQ-B1）**：弟子/战斗体只有 `attack/defense`；物法差异走三通道——普攻 `innateDamageType`（模板固定，首灵根派生）、技能 `damageType`、类型增伤/减伤分桶（`DamageZones.typeDamageBonus/typeDamageReduction`）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`（`SectCombatPowerCalculator` 与 C++ `sect_power.h` 同式）。
-- **装备实例轨（EQ-B3）**：`EquipmentSlot` 六值（HEAD/BODY/HANDS/FEET/WEAPON/LEGS，proto 10..15）；`EquipmentInstance` 一行一实例（`setId/part/growth{level 1–30,exp,主词条,3 副词条,强化}/meta`），等级随实例单点（装卸往返逐位保真）；堆叠轨已退役（`EquipmentStackRemovalGuardTest` 符号面归零）。
+- **装备实例轨（EQ-B3 立，F1–F4 收缩四部位）**：`EquipmentSlot` 四值（HEAD/BODY/HANDS/FEET，proto 10..13；WEAPON(14)/LEGS(15) 退役 reserved 禁复用，`EquipmentSlotRetirementGuardTest` 符号面归零）；`EquipmentInstance` 一行一实例（`setId/part/growth{level 1–30,exp,主词条,3 副词条,强化}/meta`），等级随实例单点（装卸往返逐位保真）；堆叠轨已退役（`EquipmentStackRemovalGuardTest` 符号面归零）。
 - **写入口**：升级/分解 = native 事务 `equipment_tx.h`（ActionId **1486/1487**，`EquipmentUpgradeService` → `NativeEngineFlag.authoritative` 路由）；词条 roll/强化走 `RngPartition.EQUIPMENT(13)` 双端；穿卸走 `DiscipleEquipmentService`/`DiscipleEquipmentManager`（卸装 = 实例保留 `isEquipped=false`）。
-- **数值面**：`EquipStatResolver` 词条+套装加成解析单点（2/4/6 档相加口径；**恒等键整解析缓存**，值语义缓存已实测否决勿翻案）；品阶受境界钳制（`EquipmentFactory.create`，默认哨兵 `REALM_UNRESTRICTED`）；占比锚 [35,45]（`EquipmentPowerParityTest` 分维度）、一套满级 ≈ 1 月产出（`EquipmentEconomyCalibrationTest`，月产出锚 940 万）。
-- **静态数据**：12 部件 × 6 品阶 + 两套装 2/4/6 档 + 主/副词条池走 codegen 单源（`scripts/data/equipment_db_sample.json` → `gen-templates.mjs`/`gen-game-data.mjs`；E4 禁手改 `equip_*_db.h`，G0 幂等门）。
-- **存档面**：Room v70（`disciples` 六部位列 headId(112)..legsId(116) 扁平代理 + `equipment_instances` 实例表；版本号随单存档改造 SS0–SS4 递增 65→70，迁移注册清零走 destructive 重建）；镜像面 `equipmentInstances` 集合 + disciples 行六列（proto 67-70/122/123），UI 一律经 `GameEngine.equipmentInstances` 只读流。
+- **数值面**：`EquipStatResolver` 词条+套装加成解析单点（**2/4 两档**相加口径，`bonusFull`=原 6 件档 4 件触发；**恒等键整解析缓存**，值语义缓存已实测否决勿翻案）；品阶受境界钳制（`EquipmentFactory.create`，默认哨兵 `REALM_UNRESTRICTED`）；占比锚 **[22,40]**（四部位化 F4 实测定稿，`EquipmentPowerParityTest` 分维度）、一套满级 ≈ 1 月产出（`EquipmentEconomyCalibrationTest`，月产出锚 940 万）。
+- **静态数据**：**24 部件**（6 套 × 头/身/手/脚）× 6 品阶 + 6 套装 2/4 档 + 主/副词条池走 codegen 单源（`scripts/data/equipment_db_sample.json` → `gen-templates.mjs`/`gen-game-data.mjs`；E4 禁手改 `equip_*_db.h`，G0 幂等门）。
+- **存档面**：Room v71（`disciples` 四部位列 headId(112)..feetId(115) 扁平代理 + `equipment_instances` 实例表；版本号随单存档改造 SS0–SS4 递增 65→70、随四部位化 F2 删 weaponId/legsId 两列递增至 71，迁移注册清零走 destructive 重建）；镜像面 `equipmentInstances` 集合 + disciples 行四列（proto 67-70；122/123 删除 reserved），UI 一律经 `GameEngine.equipmentInstances` 只读流。
 
 ---
 
@@ -1024,7 +1024,7 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 
 ### 数据模型新增字段
 
-- `Disciple`: `cultivationCompletionMonth/Phase`, `manualCompletionMonth/Phase`, `equipmentNurturingCompletionMonth/Phase`
+- `Disciple`: `cultivationCompletionMonth/Phase`, `manualCompletionMonth/Phase`（`equipmentNurturing*` 已随 EQ-B3 孕养退役删列）
 - `ProductionSlot`: `completionMonth`, `completionPhase`
 - `SpiritFieldPlant`: `completionMonth`, `completionPhase`
 - DB Migration v32→v33：ALTER TABLE 新增 8 列
@@ -1033,7 +1033,7 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 
 > ⚠️ **已废弃** — 同"焦点分频机制"标注，FocusDomain 已随惰性结算重构移除，本段为历史记录。
 
-- **DISCIPLES Tab**: 随游戏时钟推进修炼值（`rate × phasesToSettle`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
+- **DISCIPLES Tab**: 随游戏时钟推进修炼值（`rate × phasesToSettle`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度
 - **BUILDINGS Tab**: 随旬推进检测生产槽位完成 + 触发自动锻造/自动炼丹
 - **三重兜底**: 实时 tick + 月度结算扣除（`highFreqData.cultivationUpdates`）+ 战斗前正常恢复（`CombatService`，满状态跳过）
 
