@@ -29,9 +29,9 @@ UI 操作事务）。本清单回答两个问题：
 镜像内容的唯一来源是 C++ `GameCore::exportStateJson`（`json_codec.cpp` 编解码面）：
 
 ### 2.1 gameData（`json_codec.cpp to_json/json GameData`，与 kotlinx 双向对齐）
-- 标量/时间：`id, sectName, currentSlot, gameYear, gameMonth, gamePhase, elapsedGameMs, lastSettleGameMs, spiritStones,
+- 标量/时间：`id, sectName, gameYear, gameMonth, gamePhase, elapsedGameMs, lastSettleGameMs, spiritStones,
   midGradeSpiritStones, highGradeSpiritStones, spiritHerbs, sectCultivation, activeSectId,
-  mapSeed, lastSaveTime, saveVersion, isGameOver, …`
+  mapSeed, lastSaveTime, saveVersion, isGameOver, …`（`currentSlot` 存档槽号已随 SS1 去槽退役，proto reserved）
 - 运营开关/筛选：`playerProtectionEnabled, playerHasAttackedAI, autoRecruitSpiritRootFilter,
   prisonerSpiritRootFilter, autoRejectSpiritRootFilter, breakthroughAutoPill*,
   autoEquipFromWarehouse*, autoLearnFromWarehouse*, daoCompanion*, autoSellMid/HighGradeForPurchase,
@@ -61,6 +61,14 @@ UI 操作事务）。本清单回答两个问题：
 - **明确不在 gameData 序列化面**（@Transient 运行态，Kotlin 侧权威）：`aiSectDisciples、
   aiSectBeastDirectTargets、aiSectBeastSkipCooldowns、lockedBeastIds、rngStates`
   （rngStates 是 C++ live RNG 的导出镜像，反向回导永久剔除）。
+- 玉符账本（SS9 账本模型，AUTHORITATIVE 写者 = C++ `jade_tx.h` 六事务，append-only 流水 +
+  派生缓存同事务双写；Kotlin 仅派生只读 + 镜像投影）：`jadeLedger`（余额真源，proto 240；
+  新档首条 `OPENING_BALANCE` 期初条目；不变式「Σdelta == 末条 balanceAfter == 派生缓存」由
+  `JadeLedgerInvariant` 守卫）。`jadeSymbols`（proto 220）/`jadeSymbolsToday`/`jadeDayAnchorMs`/
+  `jadeAccumMs` 四键维持原位，其中 `jadeSymbols` 语义 = 账本求和的派生缓存，**独立赋值即
+  `JadeSymbolConsumptionGuardTest` 违规**（正则已扩到账本字段名）。协议面：
+  `json_codec.cpp` GC_TO/GC_FROM（jadeLedger 双向）+ `GameDataFieldPatch.kt:178`
+  （coveredFields 解码臂）。UI 读玉符余额/流水一律经镜像 `jadeLedger`/派生缓存，禁自算第二份。
 
 ### 2.2 实体集合（B3 起 9 个，与 `state::DirtyTracker` 跟踪清单一致）
 `disciples（DiscipleStore 列存储）、equipmentInstances、manualStacks、
@@ -109,7 +117,7 @@ C++ 新状态，先扩 C++ 协议（`json_codec` + DirtyTracker + 对拍），�
 | sectLevelRewardClaimable | `sectLevelClaimRecords` + playerSectLevel |
 | recruitListAggregates | `recruitList` |
 | GachaViewModel.pityCounters / starMap / fragmentCounts / history（经 `GachaFacade` 只读流，G11） | `gachaPityCounters` / `gachaStarMap` / `gachaFragmentCounts` / `gachaHistory` |
-| playerSectId/activeSectId、sectName、currentSlot/slotId、mapSeed（存档链路） | 同名字段 |
+| playerSectId/activeSectId、sectName、mapSeed（存档链路） | 同名字段 |
 | prisonerSpiritRootFilter、autoRecruit/autoRejectSpiritRootFilter | 同名字段 |
 | `sectClock`（year/month/phase 投影流，B8——HUD 时间行读数）| 块① gameData 时间三件（HighFreqState 窄化 map，不直读整份 gameData） |
 | `monthProgressFraction`（月内时间进度 [0,1]，B8——炼丹/锻造/生产槽进度条）| `gamePhase` + `GameEngine.phaseProgressFlow`（旬内连续分量，INV-2 派生；`TimeProgressUtil` 纯函数合成，禁止 UI 自算第二份） |

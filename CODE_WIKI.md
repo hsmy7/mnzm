@@ -144,9 +144,15 @@ android/
 │   └── core/util/                    ← 工具类 (CoroutineScopeProvider, DomainLog, ...)
 │
 ├── :core:data                        ← Android 库模块（依赖 Room, MMKV, ProtoBuf）
-│   ├── data/local/                   ← Room DB, DAOs, Migrations, TypeConverters
+│   ├── data/local/                   ← Room DB, DAOs, TypeConverters（迁移注册已随 SS0 清零，走 destructive 重建）
 │   ├── data/facade/                  ← StorageFacade
-│   ├── data/engine/                  ← StorageEngine, RecoveryManager, SavMigrator
+│   ├── data/engine/                  ← StorageEngine 家族 + DirtySetTracker（增量落盘）+ StorageMetrics/StorageDiagnosticsFacade
+│   ├── data/account/                 ← AccountSpaceManager（账号数据空间分库，filesDir/accounts/<accountKey>/）
+│   ├── data/wipe/                    ← SaveWipeCoordinator（删档重置全量清理）
+│   ├── data/archive/                 ← DataArchiver + ArchiveReader（归档写/读面）
+│   ├── data/cloud/                   ← SaveArbiter / UploadLedger / UploadQueue / SaveBackend（云灾备）
+│   ├── data/integrity/               ← SaveValidator 规则引擎
+│   ├── data/backup/                  ← 启动前快照与恢复
 │   ├── data/serialization/           ← 序列化层 (ProtoBuf/JSON)
 │   ├── data/compression/             ← LZ4/Zstd 压缩
 │   ├── data/crypto/                  ← 加密
@@ -195,15 +201,20 @@ feature:game  ──→  core:ui  ──→  core:domain
 | `ForgeRepository` | domain | `:core:data` | 锻造槽位 |
 | `GameDataRepository` | domain | `:core:data` | 游戏主数据 CRUD + 清档 |
 | `MailRepository` | domain | `:app` (MailRepositoryImpl) | 邮件持久化 |
-| `SaveStorage` | domain | `:app` (SaveStorageImpl) | 存档持久化（封装 StorageFacade） |
 | `ProductionSlotDataPort` | domain | `:core:data` | 生产槽位 DAO 抽象 |
 | `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
 | `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
 
-> 📌 **存档入口（2026-09-27 §2.6 裁决修订）**：手动存档（5 槽位）+ 云存档 + 现实墙钟节拍自动存档
+> 📌 **持久化与存档体系（单存档终态；SS0–SS9 落地）**：单档存取（无槽位维度）+ 账号数据空间分库
+> （`filesDir/accounts/<accountKey>/`，登出五件套 `login/FullLogout.kt` 三入口收敛）+ 删档重置
+> （`SaveWipeCoordinator` 首启全量清理，兼容链/迁移注册清零走 destructive 重建）+ 增量落盘
+> （`DirtySetTracker` 脏集驱动，全量兜底 + 越界回退计数）+ 事件触发关键落盘
+> （`CriticalSaveEventBus` → `SaveOrchestrator` 合并窗，涉钱 `flushNow` 同步落盘）+ 云灾备
+> （单键 `mnzm_v2_save`，`W > C` 只读降级绝不静默覆盖）。现实墙钟节拍自动存档沿用
 > （每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控，与游戏速度/暂停/日历解耦）。
-> 禁止复活旧月变触发式 `AutoSaveTrigger` 体系；命名统一 `realtimeAutoSave*` 前缀
-> （旧 `autoSave*` 残留字段已 v50 清理；历史依据 docs/report-移除自动存档-接入云存档.md）。
+> 禁止复活旧月变触发式 `AutoSaveTrigger` 体系；命名统一 `realtimeAutoSave*` 前缀。
+> 玉符余额真源 = C++ append-only 账本（`GameData.jadeLedger`），`jadeSymbols` 仅为派生缓存。
+> 详情见 [docs/architecture.md](docs/architecture.md) 持久化与存档体系节。
 
 ### Hilt DI 桥接层
 
@@ -598,7 +609,7 @@ class ThermalMonitor @Inject constructor(@ApplicationContext context: Context) {
 - **写入口**：升级/分解 = native 事务 `equipment_tx.h`（ActionId **1486/1487**，`EquipmentUpgradeService` → `NativeEngineFlag.authoritative` 路由）；词条 roll/强化走 `RngPartition.EQUIPMENT(13)` 双端；穿卸走 `DiscipleEquipmentService`/`DiscipleEquipmentManager`（卸装 = 实例保留 `isEquipped=false`）。
 - **数值面**：`EquipStatResolver` 词条+套装加成解析单点（2/4/6 档相加口径；**恒等键整解析缓存**，值语义缓存已实测否决勿翻案）；品阶受境界钳制（`EquipmentFactory.create`，默认哨兵 `REALM_UNRESTRICTED`）；占比锚 [35,45]（`EquipmentPowerParityTest` 分维度）、一套满级 ≈ 1 月产出（`EquipmentEconomyCalibrationTest`，月产出锚 940 万）。
 - **静态数据**：12 部件 × 6 品阶 + 两套装 2/4/6 档 + 主/副词条池走 codegen 单源（`scripts/data/equipment_db_sample.json` → `gen-templates.mjs`/`gen-game-data.mjs`；E4 禁手改 `equip_*_db.h`，G0 幂等门）。
-- **存档面**：Room v64（`disciples` 六部位列 headId(112)..legsId(116) 扁平代理 + `equipment_instances` 实例表）；镜像面 `equipmentInstances` 集合 + disciples 行六列（proto 67-70/122/123），UI 一律经 `GameEngine.equipmentInstances` 只读流。
+- **存档面**：Room v70（`disciples` 六部位列 headId(112)..legsId(116) 扁平代理 + `equipment_instances` 实例表；版本号随单存档改造 SS0–SS4 递增 65→70，迁移注册清零走 destructive 重建）；镜像面 `equipmentInstances` 集合 + disciples 行六列（proto 67-70/122/123），UI 一律经 `GameEngine.equipmentInstances` 只读流。
 
 ---
 
