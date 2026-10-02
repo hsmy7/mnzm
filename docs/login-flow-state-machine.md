@@ -7,6 +7,12 @@
 > `EnterGame`，宿主实现改为 `enterGameAuto()`（`AutoEntryResolver` 决策：本地最新档自动读 /
 > 云端兜底 / 自动新建，全程加载界面承载）。下文转移表与副作用清单已同步为现状；历史章节
 > （背景/影响范围/实施步骤）保留原文。
+>
+> **2026-10-02 更新（SS8）**：登录门槛状态机化——`Idle` 更名 `RequireLogin`（未登录不可进
+> 游戏的显式门槛态，Q5）；`ColdStart` 事件收编 `loggedIn` 判定（门槛判定面单点收敛进状态机，
+> 宿主只读消费 SessionManager 既有缓存）。B1 离线宽限两分支显式化：已登录过离线照常进入、
+> 从未登录停留登录页。`enterGameAuto` 会话残缺兜底改经状态机 `LogoutRequested`（原直调界面
+> 切换会令状态机停在 `Verified` 吞掉后续登录事件）。下文转移表已同步为现状。
 
 ## 一、背景与目标
 
@@ -53,7 +59,7 @@ State/Event/SideEffect 全部 sealed class，宿主（MainActivity）经 `LoginF
 ```kotlin
 // ====== 1. 状态（六态） ======
 sealed interface LoginFlowState {
-    data object Idle : LoginFlowState              // 未登录：显示登录界面
+    data object RequireLogin : LoginFlowState      // 登录门槛态：未登录不可进游戏，唯一出口 = LoginRequested
     data object LoggingIn : LoginFlowState         // TapTap 授权页展示中
     data object VerifyPending : LoginFlowState     // 登录成功：等 Activity 稳定 RESUMED
     data object Verifying : LoginFlowState         // 防沉迷验证已启动：等 SDK 回调
@@ -74,7 +80,11 @@ sealed interface LoginFlowEvent {
     data object VerificationTimeout : LoginFlowEvent    // 30s 无回调
     data object RetryVerification : LoginFlowEvent      // 实名认证界面点"开始认证"（发送方先保证 SDK 就绪）
     data object LogoutRequested : LoginFlowEvent
-    data class ColdStart(val complianceVerified: Boolean, val unionId: String?) : LoginFlowEvent
+    data class ColdStart(                               // 冷启动路由：三参均来自 SessionManager 既有缓存（只读）
+        val loggedIn: Boolean,
+        val complianceVerified: Boolean,
+        val unionId: String?
+    ) : LoginFlowEvent
 }
 
 // ====== 3. 副作用（11 种） ======
@@ -83,7 +93,7 @@ sealed interface LoginFlowSideEffect {
     data class ShowComplianceVerificationScreen(val unionId: String) : LoginFlowSideEffect
     data object EnterGame : LoginFlowSideEffect    // 自动进入游戏（存档判定 + GameActivity）
     data object ShowLoginScreen : LoginFlowSideEffect
-    data object ClearSessionAndLogout : LoginFlowSideEffect   // 登出统一四件套唯一实现
+    data object ClearSessionAndLogout : LoginFlowSideEffect   // 登出统一五件套唯一实现
     data class ShowToast(val message: String) : LoginFlowSideEffect   // 网络异常/验证超时/登录超时提示
     data object RecoverSdkRunningState : LoginFlowSideEffect // exit() + 反射复位 isRunning
     data object ScheduleVerificationTimeout : LoginFlowSideEffect
@@ -95,7 +105,7 @@ sealed interface LoginFlowSideEffect {
 // ====== 4. 状态机 ======
 class LoginFlowStateMachine(private val host: LoginFlowHost) {
     interface LoginFlowHost { /* 12 个副作用方法 + onLog */ }
-    var state: LoginFlowState = Idle; private set
+    var state: LoginFlowState = RequireLogin; private set
     fun onEvent(event: LoginFlowEvent)   // 状态转移 + 副作用回调，全同步主线程
 }
 ```
@@ -104,26 +114,37 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
 
 | 当前状态 | 事件 | 新状态 | 副作用 |
 |---------|------|--------|--------|
-| Idle | LoginRequested | LoggingIn | ScheduleLoginTimeout |
-| Idle | ColdStart(true, _) | Verified | EnterGame |
-| Idle | ColdStart(false, null) | Idle | ClearSessionAndLogout, ShowLoginScreen |
-| Idle | ColdStart(false, u) | VerificationFailed | ShowComplianceVerificationScreen(u) |
+| RequireLogin | LoginRequested | LoggingIn | ScheduleLoginTimeout |
+| RequireLogin | ColdStart(true, true, u)（u 非空） | Verified | EnterGame（B1 离线宽限①：已登录过离线照常进入，进入链零网络依赖） |
+| RequireLogin | ColdStart(true, _, null) | RequireLogin | ClearSessionAndLogout, ShowLoginScreen（会话残缺：有登录标记但缺账号键，清会话回门槛态） |
+| RequireLogin | ColdStart(true, false, u)（u 非空） | VerificationFailed | ShowComplianceVerificationScreen(u) |
+| RequireLogin | ColdStart(false, _, _) | RequireLogin | ShowLoginScreen（B1 离线宽限②：从未登录停留登录页，无会话可清不触发登出） |
 | LoggingIn | LoginSuccess(u) | VerifyPending | CancelLoginTimeout（等 RESUMED，resumedReady 已置位则立即转移） |
-| LoggingIn | LoginFailure(m) | Idle | CancelLoginTimeout |
-| LoggingIn | LoginTimeout | Idle | CancelLoginTimeout |
+| LoggingIn | LoginFailure(m) | RequireLogin | CancelLoginTimeout |
+| LoggingIn | LoginTimeout | RequireLogin | CancelLoginTimeout |
 | VerifyPending | ActivityResumed | Verifying | StartComplianceVerification(u), ScheduleVerificationTimeout |
-| VerifyPending | LogoutRequested | Idle | ClearSessionAndLogout, ShowLoginScreen |
+| VerifyPending | LogoutRequested | RequireLogin | ClearSessionAndLogout, ShowLoginScreen |
 | Verifying | VerificationSuccess | Verified | CancelVerificationTimeout, EnterGame |
-| Verifying | VerificationExited | Idle | CancelVerificationTimeout, ClearSessionAndLogout, ShowLoginScreen |
+| Verifying | VerificationExited | RequireLogin | CancelVerificationTimeout, ClearSessionAndLogout, ShowLoginScreen |
 | Verifying | VerificationNetworkError | VerificationFailed | CancelVerificationTimeout, ShowToast(网络异常), ShowComplianceVerificationScreen(u) |
 | Verifying | VerificationTimeout | VerificationFailed | CancelVerificationTimeout, RecoverSdkRunningState, ShowToast(无响应), ShowComplianceVerificationScreen(u) |
-| Verifying | LogoutRequested | Idle | CancelVerificationTimeout, ClearSessionAndLogout, ShowLoginScreen |
+| Verifying | LogoutRequested | RequireLogin | CancelVerificationTimeout, ClearSessionAndLogout, ShowLoginScreen |
 | VerificationFailed | RetryVerification | VerifyPending | 等待 ActivityResumed（resumedReady 已置位则立即转移） |
-| VerificationFailed | LogoutRequested | Idle | ClearSessionAndLogout, ShowLoginScreen |
-| Verified | LogoutRequested | Idle | ClearSessionAndLogout, ShowLoginScreen |
+| VerificationFailed | LogoutRequested | RequireLogin | ClearSessionAndLogout, ShowLoginScreen |
+| Verified | LogoutRequested | RequireLogin | ClearSessionAndLogout, ShowLoginScreen |
 | 其他 | 不匹配事件 | 不变 | 记日志（幂等防重入） |
 
 **关键机制**：
+- **登录门槛（Q5）**：`RequireLogin` 是唯一不携带会话的状态，唯一出口 = `LoginRequested`；
+  进入游戏（Verified→EnterGame）的全部路径都要求会话缓存中有非空 unionId（账号数据空间
+  的派生键），ColdStart 判定面在状态机内单点完成，宿主不得绕过状态机直接切换界面
+  （`enterGameAuto` 发现会话残缺时经 `LogoutRequested` 回门槛态——直调界面切换会令状态机
+  停在 `Verified` 吞掉后续 LoginRequested/LoginSuccess）。
+- **B1 离线宽限**：已登录过（unionId 缓存存在）+ 离线 ⇒ 照常进入（进入链零网络依赖，云上传
+  由队列退避自然挂起）；从未登录 + 无网 ⇒ 停留门槛态（首次登录必须联网完成——无账号键无法
+  建数据空间）。
+- **会话残缺边界**：有登录标记但 unionId 被清（如加密存储降级重建）⇒ 按未登录处理，
+  清会话回门槛态，同账号重新登录后数据空间按 key 幂等重新激活。
 - **resumedReady 标志**：`ActivityResumed` 事件（任意状态）置位；进入 VerifyPending 时若已置位立即启动验证。
   登录成功路径：等 repeatOnLifecycle 回调；重试路径：用户在实名认证界面（Activity 已 RESUMED，标志早已置位）立即启动。
   **替代原 `complianceCheckDeferredStarted` 且可复位**（每次会话重置）——根因 B 根治。
@@ -144,7 +165,7 @@ ComplianceCallback ──VerificationSuccess▶ │  State   │ ──ScheduleV
 超时 job ──VerificationTimeout─────────▶ │  Machine  │ ──RecoverSdkRunningState──▶ exit() + 反射复位 isRunning
 "开始认证"按钮 ──RetryVerification──────▶ │          │ ──ShowComplianceVerificationScreen(u)──▶ setContent 实名认证界面
 登出入口 ──LogoutRequested─────────────▶ │          │ ──ClearSessionAndLogout──▶ 清会话+logout+停统计+解绑回调+ShowLoginScreen
-冷启动 ──ColdStart(v,u)────────────────▶ └──────────┘ ──EnterGame──▶ enterGameAuto（自动读档/自动建档）
+冷启动 ──ColdStart(loggedIn,v,u)───────▶ └──────────┘ ──EnterGame──▶ enterGameAuto（自动读档/自动建档）
 ```
 
 ### MainActivity 侧改造点
@@ -153,7 +174,7 @@ ComplianceCallback ──VerificationSuccess▶ │  State   │ ──ScheduleV
 2. `EnterGameButton.onSuccess`：全部 UI 操作包 `runOnUiThread`（线程加固），发 `LoginSuccess` 事件
 3. `repeatOnLifecycle(RESUMED)`：每帧进入 RESUMED 发 `ActivityResumed` 事件
 4. `complianceWindowPort` 回调：转发为 VerificationSuccess / VerificationExited / VerificationNetworkError 事件
-5. 登出入口统一：游戏内 / 合规弹窗 / 实名认证界面 / 防沉迷退出 → 全部发 `LogoutRequested`（不再各写四件套）
+5. 登出入口统一：游戏内 / 合规弹窗 / 实名认证界面 / 防沉迷退出 → 全部发 `LogoutRequested`（不再各写清单）
 6. 副作用处理器实现 `LoginFlowHost`（12 方法）
 
 ### ComplianceManager 重构
@@ -221,17 +242,20 @@ object ComplianceManager {
 | 用例 | 验证点 |
 |------|--------|
 | 正常登录路径 | LoginRequested→LoginSuccess→ActivityResumed→Verifying→VerificationSuccess→Verified（副作用序列断言） |
-| **根因 B 守卫：退出认证后再登录** | Verifying+VerificationExited→Idle→再次 LoginRequested→LoginSuccess→ActivityResumed→Verifying（验证可重新启动） |
-| **根因 B 守卫：切换账号后再登录** | VerificationFailed+LogoutRequested→Idle→再登录→正常启动验证 |
-| 冷启动已验证 | ColdStart(true)→Verified（EnterGame） |
-| 冷启动未验证 | ColdStart(false,u)→VerificationFailed（ShowComplianceVerificationScreen） |
-| 冷启动缺 unionId | ColdStart(false,null)→Idle（ClearSessionAndLogout） |
+| **根因 B 守卫：退出认证后再登录** | Verifying+VerificationExited→RequireLogin→再次 LoginRequested→LoginSuccess→ActivityResumed→Verifying（验证可重新启动） |
+| **根因 B 守卫：切换账号后再登录** | VerificationFailed+LogoutRequested→RequireLogin→再登录→正常启动验证 |
+| 冷启动已验证 | ColdStart(true,true,u)→Verified（EnterGame，B1 离线宽限①：副作用仅 EnterGame 零网络事件） |
+| 冷启动未验证 | ColdStart(true,false,u)→VerificationFailed（ShowComplianceVerificationScreen） |
+| 冷启动缺 unionId（会话残缺） | ColdStart(true,false,null)→RequireLogin（ClearSessionAndLogout） |
+| **门槛守卫：未登录** | ColdStart(false,_,_)→RequireLogin（仅 ShowLoginScreen，无 ClearSessionAndLogout，B1 离线宽限②） |
+| **门槛守卫：会话残缺即使合规已验证** | ColdStart(true,true,null)→RequireLogin（不得 EnterGame——wipe 后半态） |
+| **门槛守卫：门槛态不可绕过** | RequireLogin 中 VerificationSuccess/LoginSuccess/ActivityResumed → 仍 RequireLogin（无 EnterGame 无 startup） |
 | 超时恢复 | VerificationTimeout→VerificationFailed（副作用含 RecoverSdkRunningState+ShowVerificationTimeoutHint+界面） |
 | 重试立即启动 | VerificationFailed+RetryVerification→VerifyPending→（resumedReady 已置位）→Verifying |
 | 网络错误保留会话 | VerificationNetworkError→VerificationFailed（无 ClearSessionAndLogout） |
-| 登录失败/超时 | LoginFailure/LoginTimeout→Idle |
+| 登录失败/超时 | LoginFailure/LoginTimeout→RequireLogin |
 | 幂等防重入 | Verifying 中重复 VerificationSuccess / 任意状态收到不匹配事件 → no-op |
-| 登出全出口 | Verified/Verifying/VerifyPending/VerificationFailed + LogoutRequested → Idle + ClearSessionAndLogout |
+| 登出全出口 | Verified/Verifying/VerifyPending/VerificationFailed + LogoutRequested → RequireLogin + ClearSessionAndLogout |
 
 `ComplianceManagerSelfHealTest`（注入 fake registrar）：注册成功 / 注册抛异常后再次 ensure 重试成功 / callback 更新但 listener 不重复注册 / 幂等。
 
@@ -262,7 +286,7 @@ object ComplianceManager {
 | Compose setContent 切换与新流程组合 | 低 | 中 | 副作用处理器集中实现，行为与现状一致 |
 | 既有测试受 MainScreen 参数移除影响 | 低 | 低 | onLoginSuccess 为死参数（grep 确认无使用），无测试引用 |
 
-**兜底**：若状态机接入后真机异常，所有状态转移均有日志（`LoginFlowStateMachine: Idle --LoginSuccess--> VerifyPending`），
+**兜底**：若状态机接入后真机异常，所有状态转移均有日志（`LoginFlowStateMachine: RequireLogin --LoginSuccess--> VerifyPending`），
 对照转移表可 5 分钟内定位；极端情况可回滚到 4.01.04 提交（改动集中在登录链路，无存档/数据影响）。
 
 ## 七、未来场景推演（≥6 个月）

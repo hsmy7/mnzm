@@ -461,6 +461,35 @@ class UploadQueueTest {
         assertEquals(0, backend.uploadCount)
     }
 
+    // ── B1 离线宽限（SS8 验收⑤）：离线继续时云上传挂起不报错，恢复在线后队列自然排空。
+    //    D-3：不对离线做特殊处理（退避/熔断既有语义天然吸收），本用例锁定 NETWORK 失败形状
+    //    （既有 Q3=令牌失效 / Q4=并发，未直接覆盖网络不可达）──
+
+    @Test
+    fun `B1离线宽限 - 网络不可达按退避族重试 恢复在线后队列排空收敛`() = queueTest {
+        val queue = newQueue()
+        val events = collectEvents(queue)
+        val id = ledger.recordLocalSave()
+        // 离线：两次 NETWORK 失败（指数退避节奏，条目保留），随后网络恢复上传成功
+        backend.nextResponses.add(SaveBackendResult.Failure(SaveBackendError.NETWORK, "[network] offline-1"))
+        backend.nextResponses.add(SaveBackendResult.Failure(SaveBackendError.NETWORK, "[network] offline-2"))
+        backend.nextResponses.add(SaveBackendResult.Success(UploadReceipt(id)))
+        queue.enqueue(saveData, id)
+        advanceUntilIdle()
+
+        // 离线期间挂起不报错（退避重试而非丢弃），恢复在线后一次成功即排空
+        assertEquals(3, backend.uploadCount)
+        assertEquals(listOf(id, id, id), backend.uploadSaveIds)
+        assertEquals(id, ledger.lastConfirmedCloudId())
+        assertEquals(0L, ledger.pendingSaveId())
+        assertFalse(ledger.isLocalDirty())
+        val networkFailures = events.filterIsInstance<UploadQueue.Event.UploadFailed>()
+            .filter { it.error == SaveBackendError.NETWORK }
+        assertEquals(2, networkFailures.size)
+        assertTrue("离线失败全部可重试（挂起语义）", networkFailures.all { it.willRetry })
+        assertEquals(id, events.filterIsInstance<UploadQueue.Event.UploadConfirmed>().first().saveId)
+    }
+
     // ── 测试基建 ──
 
     private fun TestScope.collectEvents(queue: UploadQueue): MutableList<UploadQueue.Event> {
