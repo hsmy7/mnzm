@@ -308,3 +308,10 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
   ④ **过程中修的两个自身缺陷（实测发现）**：`$candidates[0]` 单元素时索引到字符串首字符（PowerShell 标量陷阱）⇒ `@()`+`Count`；ctest 直跑 bench 全 `0xc0000135`（缺 llvm-mingw 运行库 DLL，仓库历史记过）⇒ 脚本注入工具链 PATH。
   ⑤ **边界（诚实登记）**：`RUN_SERIAL`/`RESOURCE_LOCK` 只覆盖 `game-core-bench` 的 9 个用例；另有 4 个含 Bench 名的用例（`DiscipleStoreBench`/`DirtyTrackerBench`）在主测试目标、未加属性——**经核实它们只打印不断言耗时**（全 `std::printf`，无时间断言）⇒ 竞争不造成假红，无需保护。**(a) 解决执行环境、(b) 解决判据口径**；超量调度下 (b) 仍可能红，此时靠 (a) 的纪律/脚本保证不在过载环境取数。
   ⑥ **回归**：全量 `ctest` **1532/1532 全绿**（50.97s）。
+
+- **2026-10-02（装备设计会话 → 新需求立项：装备四部位化，F1–F4）**：用户要求"装备系统改为四件套套装，部位为头部/身体/手部/脚部"。已出实施方案 **`docs/design/equipment-four-slot-refactor-plan.md`**（v1.0，纯文档、零代码改动）。
+  ① **5 项决策已闭环（实施时无需再问）**：套装档位改 **2 件套 + 4 件套**（原 6 件套效果**并入 4 件套档**，满套口径守恒 = 本系 +30% + 暴击率 +12% 与原 6 件满套一致）；**武器/腿部彻底删除**（部位/实例/配方/掉落/存档字段/词条池/C++ 六处全链）；**维持装备占总战力 40%±5%、单件加成上调**（引入单一强度系数 `kEquipPowerScale` 初值 1.5，落 `EquipStatResolver` + `disciple_stats.h` 双端镜像）；**仍 6 套 × 4 件 = 24 部件**（精灵图 36→24）；**未上线、无存量装备 ⇒ 不补偿、不迁移**。
+  ② **关键实测锚点**：`EquipmentSlot` 现 6 值（`HEAD(10)/BODY(11)/HANDS(12)/FEET(13)/WEAPON(14)/LEGS(15)`，`Items.kt:265-273`）；套装档位硬编码三档 `count >= 2/4/6`（`EquipmentSetDatabase.kt:43-45`，4 部位后 6 档不可达）；弟子槽字段 6 个（`DiscipleComponents.kt:115-157`）；部位主词条池与系数各 6 项（`EquipMainStatPool.kt:25-44`）；中性源 `equipment_db_sample.json` 36 条（6 部位 × 6）；锻造 `recipe_db.h` 25 处武器/腿部引用；C++ 引用面含 `models.h`/`disciple_store.h`/`disciple_stats.h`/`auto_gear.h`/`json_codec.cpp`/`gameview_encode.cpp` 等。
+  ③ **架构要点**：`WEAPON(14)`/`LEGS(15)` 编号退役 reserved 禁复用；`weaponId(17)`（原复用锚定）随武器删除一并退役、`legsId(116)` 退役、`112..115` 保留；**武器池由手部承接**（同 3 词条、系数 1.15）、腿部池由脚部承接（0.95）；部位池/系数 6→4；套装 24 件命名 = 物理套 4 既有名 + 5 元素套统一后缀表（灵冠/法袍/灵护/云履）；Room schema 变更须**同 commit 更新 `MigrationRequiredGuardTest.BASELINE_ENTITIES`**（测试期不写迁移）。
+  ④ **批次编排**：**F1 领域与静态数据 → F2 引擎结算（Kotlin+C++）→ F3 外围清理（锻造/掉落/商店/AI 配装/UI 与 24 图）→ F4 数值校准 + 守卫全绿 + 文档/ADR/双日志**；含 12 条成功标准、11 条 DoD、6 条对抗点（如 FA1"6 件套分支必须删除而非注释"、FA4"双侧系数同值"）、6 条风险、7 条盲区自查。
+  ⑤ 本会话**未改任何代码**（仅新增方案文档 + 本条登记）。等用户下达"实施"后按 F1–F4 串行执行（执行前须重新实测 §二 各项，因并网代码持续变动）。
