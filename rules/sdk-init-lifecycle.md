@@ -10,7 +10,7 @@
 2. **进程级一次性** — 广告聚合 SDK（`DirichletSdk.init`）等全局初始化 API 进程内仅调用一次（`SdkInitGuard` CAS 守卫）；进程销毁复用后静态守卫清零是预期行为，靠"调用时机收敛"而非守卫兜底。
 3. **登出必须完整** — 登出 = 清本地会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调。漏清 SDK 会话会导致下次登录走"静默登录"，防沉迷验证不触发。
 4. **SDK 调用前必须就绪** — 任何 TapTap SDK 调用（`TapTapCompliance.registerComplianceCallback` / `startup` / `DirichletSdk.init`）前必须保证 `TapTapAuthManager.isReady()`（`TapTapKit.context` 已就绪）。登录路径靠 login 前置检查；冷启动/重试路径必须显式 `awaitTapTapSdkReady()`。**调用早于就绪 = 注册失败永久失去回调 / startup 静默失败。**
-5. **登录/防沉迷流程状态收敛于状态机** — 登录 → 防沉迷验证 → 进模式选择的全部状态与一次性标记收敛于 `LoginFlowStateMachine`（`complianceCheckInFlight` / `complianceCheckDeferredStarted` 等手工字段已删除）。**禁止**在 Activity 中新增"只置位不复位"的一次性布尔标记；流程状态变更必须经状态机事件驱动（副作用经 `LoginFlowHost` 执行）。
+5. **登录/防沉迷流程状态收敛于状态机** — 登录门槛 → 登录 → 防沉迷验证 → 自动进入游戏的全部状态与一次性标记收敛于 `LoginFlowStateMachine`（`complianceCheckInFlight` / `complianceCheckDeferredStarted` 等手工字段已删除）。**禁止**在 Activity 中新增"只置位不复位"的一次性布尔标记；流程状态变更必须经状态机事件驱动（副作用经 `LoginFlowHost` 执行）。**界面切换不得绕过状态机**：未登录门槛（`RequireLogin`，Q5 全部功能要求登录）与冷启动路由（`ColdStart`）判定面在状态机内单点完成，宿主（含 `enterGameAuto` 兜底路径）回登录页必须发 `LogoutRequested` 事件，直调界面切换会令状态机与 UI 脱节并吞掉后续登录事件。
 
 ## SDK 初始化清单与时机
 
@@ -69,7 +69,7 @@ internal fun safeRunAfterSdkInit(
 - [ ] 登出是否完整五件套（清单唯一实现 = `login/FullLogout.kt` 的 `performFullLogout`；MainActivity 经状态机 LogoutRequested 汇聚，GameActivity 直调共享函数）+ 进程重启（`restartToLoginScreen`）
 - [ ] 防沉迷验证（startup）的合规回调注册必须先于验证启动
 - [ ] 运行 `LoginFlowStateMachineTest` + `ComplianceManagerSelfHealTest` + `SafeRunAfterSdkInitTest` + `SdkInitGuardTest` + `TapDBManagerInitGuardTest`
-- [ ] 真机冒烟：登录 → 进游戏 → 退出 → 再登录（弹登录页确认）→ 防沉迷验证 → 进模式选择；杀进程重进（已登录直接进游戏）；登出后杀进程重进（登录界面）；登录后 SDK 认证页退出 → 再登录（正常进模式选择）
+- [ ] 真机冒烟：登录 → 自动进入游戏 → 退出 → 再登录（弹登录页确认）→ 防沉迷验证 → 自动进入游戏；杀进程重进（已登录直接进游戏）；登出后杀进程重进（登录界面）；登录后 SDK 认证页退出 → 再登录（正常自动进入游戏）；飞行模式杀进程重进（已登录过 ⇒ 离线照常进入，B1①）；首次安装飞行模式启动（停留登录页，B1②）
 
 ## 相关文档
 

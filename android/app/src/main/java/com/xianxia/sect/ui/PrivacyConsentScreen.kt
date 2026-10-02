@@ -360,7 +360,8 @@ private fun PrivacySummaryCollectedInfoFirst() {
             withStyle(itemTitleStyle) { append("1. 账户信息") }
             append("\n")
             withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、" +
-                "邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }
+                "邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信" +
+                "（本游戏全部功能需要登录后使用；存档按账号独立隔离存放，云端备份按账号归属）。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -682,7 +683,8 @@ private fun PrivacySummaryUsageAndStorageSections() {
     )
 
     listOf(
-        "提供游戏核心功能：存档管理、TapTap登录、防沉迷合规、玩家排行榜",
+        "提供游戏核心功能：存档管理、TapTap登录、防沉迷合规、玩家排行榜（全部功能需要登录后使用）",
+        "云存档备份：将游戏存档加密上传云端保存一份备份，用于恢复进度和更换设备后继续游戏",
         "广告变现：通过激励视频广告为玩家提供游戏内奖励",
         "保障本地数据安全：加密密钥派生、通信请求签名",
         "数据保护：所有存档数据加密存储在设备本地",
@@ -707,7 +709,9 @@ private fun PrivacySummaryUsageAndStorageSections() {
     )
 
     Text(
-        text = "• 账户信息使用AES-256加密存储于设备本地\n• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n" +
+        text = "• 存档按 TapTap 账号独立隔离存放，退出登录不删除存档，同一账号重新登录进度仍在\n" +
+            "• 账户信息使用AES-256加密存储于设备本地\n• 游戏存档加密上传云端保存一份备份（云存档）\n" +
+            "• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n" +
             "• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
         fontSize = 13.sp,
         color = Color.Black,
@@ -805,7 +809,7 @@ private fun FullPolicyIntroSection() {
     Spacer(modifier = Modifier.height(4.dp))
 
     Text(
-        text = "更新日期：2026年8月13日 | 生效日期：2026年8月13日",
+        text = "更新日期：2026年10月2日 | 生效日期：2026年10月2日",
         fontSize = 12.sp,
         color = GameColors.TextTertiary,
         modifier = Modifier.fillMaxWidth(),
@@ -915,13 +919,13 @@ private fun FullPolicyCollectedInfoSection() {
 private fun FullPolicyAccountInfoSubSection() {
     FullPolicySubSection(title = "1.1 账户信息") {
         Text(
-            text = "当您选择 TapTap 登录时，我们通过 TapTap SDK 收集以下信息：",
+            text = "当您选择 TapTap 登录时，我们通过 TapTap SDK 收集以下信息（本游戏全部功能需要登录后使用）：",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text =
-                "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联\n• 个人资料：昵称、头像 — 游戏内显示\n" +
+                "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联（存档按账号独立隔离存放，云端备份按账号归属）\n• 个人资料：昵称、头像 — 游戏内显示\n" +
                     "• 联系方式：电话号码、邮箱（TapTap 账户注册信息）— TapTap 账户身份验证和账户安全\n" +
                         "• 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）— 安全通信和请求签名",
             fontSize = 12.sp, color = Color.Black, lineHeight = 18.sp
@@ -1192,7 +1196,9 @@ private fun FullPolicyAdNetworkSubSections(context: Context) {
 private fun FullPolicyPurposeAndStorageSections() {
     FullPolicySection(title = "三、信息使用目的") {
         Text(
-            text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n" +
+            text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规、玩家排行榜（全部功能需要登录后使用）\n" +
+                "• 云存档备份：将游戏存档加密上传云端保存一份备份，用于恢复进度和更换设备后继续游戏\n" +
+                "• 广告变现：通过激励视频广告为玩家提供游戏内奖励\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n" +
                 "• 数据保护：所有存档数据加密存储在设备本地\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
@@ -1201,9 +1207,12 @@ private fun FullPolicyPurposeAndStorageSections() {
     FullPolicySection(title = "四、信息存储与保护") {
         Text(
             text =
-                "• 游戏存档和账户信息仅保存在您的设备本地\n• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n" +
+                "• 存档按 TapTap 账号独立隔离存放：不同账号的存档互不可见，退出登录只解除绑定不删除存档，同一账号重新登录后进度仍在\n" +
+                    "• 游戏存档保存在您的设备本地，并加密上传云端保存一份备份（云存档），随存档进度自动更新\n" +
+                    "• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n" +
                     "• 存档数据使用 AES-256-GCM 加密保护\n• 网络通信强制使用 TLS 1.2/1.3 加密传输\n• 启用证书固定防止中间人攻击\n" +
-                        "• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
+                        "• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n" +
+                        "• 所有数据存储在中国境内（本地存档在您的设备上，云端备份存储在境内的 TapTap 云服务），不存在跨境传输",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }
@@ -1216,6 +1225,7 @@ private fun FullPolicySharingAndRightsSections() {
         Text(
             text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n" +
                 "• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n" +
+                "• TapTap 云存档：您的加密存档数据会通过 TapTap 平台的云存储保存备份，用于恢复进度和更换设备后继续游戏\n" +
                 "• TapADN 聚合广告 SDK：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司（Dirichlet 自有广告）交互，" +
                 "并经聚合 SDK 与北京巨量引擎网络技术有限公司（穿山甲广告）、深圳市腾讯计算机系统有限公司（优量汇广告）、" +
                 "北京爱奇艺科技有限公司（爱奇艺广告）和北京百度网讯科技有限公司（百青藤广告）交互\n" +
@@ -1226,7 +1236,10 @@ private fun FullPolicySharingAndRightsSections() {
 
     FullPolicySection(title = "六、数据保留期限") {
         Text(
-            text = "• 游戏存档数据：保留至您主动删除存档或卸载应用\n• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n" +
+            text = "• 游戏存档数据（设备本地）：保留至您卸载应用\n" +
+                "• 游戏存档备份数据（云端）：在您使用云存档期间保留，随存档进度自动更新覆盖；卸载应用不会清除云端备份，重装后用同一 TapTap 账号登录即可恢复\n" +
+                "• 版本升级时的旧存档：如新版本存档格式不再兼容，我们会在更新说明中提前告知，并在升级时清除旧存档（含云端旧备份）\n" +
+                "• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n" +
                 "• 加密密钥：保留至卸载应用",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
@@ -1235,7 +1248,7 @@ private fun FullPolicySharingAndRightsSections() {
     FullPolicySection(title = "七、您的权利") {
         Text(
             text = "• 查询和更正：您可以在游戏内查看您的登录信息\n" +
-                "• 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n" +
+                "• 删除：游戏内您可以重新开始（清空当前进度并开始新档，云端备份随之更新为新档）；退出登录会清除本设备的登录信息（不清除云端备份）；卸载应用清除全部本地数据（包括加密密钥、本地存档和登录信息）\n" +
                 "• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n" +
                 "• 广告标识符：您可以卸载应用停止广告标识符收集；GAID 可在设备系统设置 → Google → 广告中重置或停用\n" +
                 "• 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
@@ -1253,7 +1266,9 @@ private fun FullPolicySharingAndRightsSections() {
 
     FullPolicySection(title = "九、隐私政策更新") {
         Text(
-            text = "我们可能会不时更新本隐私政策。更新后的政策将在应用内重新展示，您需要再次同意后方可继续使用。如果您不同意更新后的隐私政策，可以选择停止使用本应用。",
+            text = "我们可能会不时更新本隐私政策。更新后的政策将在应用内重新展示，您需要再次同意后方可继续使用。如果您不同意更新后的隐私政策，可以选择停止使用本应用。\n\n" +
+                "重大变更包括：我们的个人信息处理目的、处理方式和处理类型发生重大变化；我们收集您个人信息的目的发生变更" +
+                "（例如数据保存方式发生重大变化，如新增云存档备份、存档按账号隔离保存）；您参与个人信息处理方面的权利及其行使方式发生重大变化；我们的联络方式及投诉渠道发生变更。",
             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
         )
     }

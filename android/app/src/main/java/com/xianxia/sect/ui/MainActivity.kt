@@ -512,22 +512,22 @@ class MainActivity : ComponentActivity() {
                     block = {}
                 )
                 // 等待登录 SDK 就绪（"SDK 调用前必须就绪"契约——冷启动路径合规回调
-                // 注册早于 SDK 就绪会注册失败并永久失去回调），再经状态机 ColdStart
-                // 事件路由：已验证 → 自动进入游戏；未验证 → 显示实名认证界面手动重试
+                // 注册早于 SDK 就绪会注册失败并永久失去回调）
                 awaitTapTapSdkReady()
-                withContext(Dispatchers.Main) {
-                    loginFlowStateMachine.onEvent(
-                        LoginFlowEvent.ColdStart(
-                            complianceVerified = sessionManager.complianceVerified,
-                            unionId = sessionManager.unionId
-                        )
-                    )
-                }
-                return@launch
             }
 
+            // 冷启动路由统一经状态机（登录门槛判定面在状态机内单点完成）：
+            // 已登录已验证 → 自动进入游戏（B1 离线宽限①，离线照常）；已登录未验证 →
+            // 实名认证界面；会话残缺 → 清会话回门槛态；未登录 → 门槛态停留登录页
+            //（B1 离线宽限②，首次登录必须联网）。本处只读消费 SessionManager 既有缓存
             withContext(Dispatchers.Main) {
-                showMainScreen()
+                loginFlowStateMachine.onEvent(
+                    LoginFlowEvent.ColdStart(
+                        loggedIn = sessionManager.isLoggedIn,
+                        complianceVerified = sessionManager.complianceVerified,
+                        unionId = sessionManager.unionId
+                    )
+                )
             }
         }
     }
@@ -598,10 +598,13 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val unionId = sessionManager.unionId
             if (unionId.isNullOrEmpty()) {
-                // 无账号标识 = 验证链路程序错误之外的兜底：回登录页重新登录，
-                // 绝不建"匿名空间"（D-5）
-                Log.e(TAG, "auto-enter: 无 unionId，回登录页（不建数据空间）")
-                withContext(Dispatchers.Main) { showMainScreen() }
+                // 无账号标识 = 会话残缺（无法派生账号数据空间）：经状态机 LogoutRequested
+                // 清残缺会话并回登录门槛态。不得直调界面切换绕过状态机——状态机停在
+                // Verified 会吞掉后续 LoginRequested/LoginSuccess（登录成功也无法进游戏）
+                Log.e(TAG, "auto-enter: 无 unionId，经状态机回登录门槛态（不建数据空间）")
+                withContext(Dispatchers.Main) {
+                    loginFlowStateMachine.onEvent(LoginFlowEvent.LogoutRequested)
+                }
                 return@launch
             }
             withContext(ioDispatcher.dispatcher) { accountSpace.activate(unionId) }
@@ -730,14 +733,12 @@ class MainActivity : ComponentActivity() {
                 throw e
             } catch (e: java.util.concurrent.TimeoutException) {
                 // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）。
-                // 降级路径：SDK 不可用（无网络/SDK 异常）时同样自动进入游戏——
-                // 未登录时云端判定自然降级（查云恒为无档），本地档照常可读
+                // 进入路由不在此处兜底——冷启动统一由 onLoadingComplete 的 ColdStart 事件
+                // 经状态机路由（已登录离线照常进入 = B1 离线宽限①；未登录停留门槛态 =
+                // B1 离线宽限②），此处直调 enterGameAuto 会绕过状态机与冷启动链并发双跑
                 com.xianxia.sect.taptap.SdkInitGuard.releaseTapTapSdkInit()
                 tapTapReady.value = false
-                Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
-                withContext(Dispatchers.Main) {
-                    enterGameAuto()
-                }
+                Log.e(TAG, "TapTap SDK初始化超时，等待冷启动路由（登录按钮将提示稍后重试）", e)
             } catch (e: Exception) {
                 // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）
                 com.xianxia.sect.taptap.SdkInitGuard.releaseTapTapSdkInit()

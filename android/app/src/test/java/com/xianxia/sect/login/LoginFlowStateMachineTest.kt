@@ -14,7 +14,9 @@ import org.junit.Test
  * - 根因 C 回归守卫：SDK 就绪契约（resumedReady 前置 + 重试立即启动）
  * - 超时/网络错误可恢复路径（不再永久卡死）
  * - 单飞幂等（重复事件 no-op，不重复启动 startup）
- * - 登出全出口统一四件套副作用
+ * - 登出全出口统一五件套副作用
+ * - 登录门槛（Q5）：未登录不可进游戏——RequireLogin 态显式承载且不可绕过
+ * - B1 离线宽限：已登录过离线照常进入；从未登录停留登录页
  */
 class LoginFlowStateMachineTest {
 
@@ -67,7 +69,7 @@ class LoginFlowStateMachineTest {
         machine.onEvent(LoginFlowEvent.LoginRequested)
         machine.onEvent(LoginFlowEvent.LoginFailure("用户取消"))
 
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertEffects("setLoginTimeout(true)", "setLoginTimeout(false)")
     }
 
@@ -76,7 +78,7 @@ class LoginFlowStateMachineTest {
         machine.onEvent(LoginFlowEvent.LoginRequested)
         machine.onEvent(LoginFlowEvent.LoginTimeout)
 
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertEffects("setLoginTimeout(true)", "setLoginTimeout(false)")
     }
 
@@ -87,7 +89,7 @@ class LoginFlowStateMachineTest {
         loginToVerifying()
 
         machine.onEvent(LoginFlowEvent.VerificationExited)
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         host.effects.clear()
 
         // 再次完整登录：必须能重新走到 Verifying（历史缺陷：被一次性标记跳过）。
@@ -111,7 +113,7 @@ class LoginFlowStateMachineTest {
         host.effects.clear()
 
         machine.onEvent(LoginFlowEvent.LogoutRequested)
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         host.effects.clear()
 
         machine.onEvent(LoginFlowEvent.LoginRequested)
@@ -126,7 +128,9 @@ class LoginFlowStateMachineTest {
 
     @Test
     fun `冷启动已认证 - 自动进入游戏`() {
-        machine.onEvent(LoginFlowEvent.ColdStart(complianceVerified = true, unionId = "union-1"))
+        // B1 离线宽限①：已登录过（unionId 缓存）+ 已验证 ⇒ 副作用仅 enterGame，
+        // 进入不依赖任何网络/SDK 事件（离线照常；云上传由队列退避自然挂起）
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = true, complianceVerified = true, unionId = "union-1"))
 
         assertEquals(LoginFlowState.Verified, machine.state)
         assertEffects("enterGame")
@@ -134,7 +138,7 @@ class LoginFlowStateMachineTest {
 
     @Test
     fun `冷启动未认证 - 显示实名认证界面`() {
-        machine.onEvent(LoginFlowEvent.ColdStart(complianceVerified = false, unionId = "union-1"))
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = true, complianceVerified = false, unionId = "union-1"))
 
         assertEquals(LoginFlowState.VerificationFailed, machine.state)
         assertEffects("showVerify")
@@ -142,10 +146,77 @@ class LoginFlowStateMachineTest {
 
     @Test
     fun `冷启动缺 unionId - 清会话回登录界面`() {
-        machine.onEvent(LoginFlowEvent.ColdStart(complianceVerified = false, unionId = null))
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = true, complianceVerified = false, unionId = null))
 
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertEffects("clearLogout", "showLogin")
+    }
+
+    // ── 登录门槛与 B1 离线宽限（SS8）──
+
+    @Test
+    fun `门槛 - 冷启动未登录停留登录页且不触发登出（B1 离线宽限②）`() {
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = false, complianceVerified = false, unionId = null))
+
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        // 无会话可清：仅展示登录页，不得触发登出五件套（清空会话/SDK 登出对未登录态
+        // 是多余副作用，且登出伴随进程重启会打断登录页展示）
+        assertEffects("showLogin")
+        assertFalseContains("clearLogout")
+        assertFalseContains("enterGame")
+    }
+
+    @Test
+    fun `门槛 - 会话残缺即使合规已验证也不进游戏（wipe 后半态）`() {
+        // 边界态：加密存储降级/清缓存后 unionId 丢失但合规标记残留（或磁盘上数据空间
+        // 仍在）——无账号键即无法派生数据空间，必须重新登录，绝不能放行进游戏
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = true, complianceVerified = true, unionId = null))
+
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        assertFalseContains("enterGame")
+        assertTrueContains("clearLogout")
+    }
+
+    @Test
+    fun `门槛不可绕过 - 门槛态下验证成功与登录成功事件不得放行进游戏`() {
+        // 初始即门槛态：未经完整登录链（LoginRequested→LoggingIn→LoginSuccess→
+        // ActivityResumed→Verifying→VerificationSuccess），任何"验证/登录成功"类
+        // 事件都到不了 Verified——锁定"未登录不可进游戏"无旁路
+        machine.onEvent(LoginFlowEvent.VerificationSuccess)
+        machine.onEvent(LoginFlowEvent.LoginSuccess("union-x"))
+        machine.onEvent(LoginFlowEvent.ActivityResumed)
+
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        assertFalseContains("enterGame")
+        assertFalseContains("start(")
+    }
+
+    @Test
+    fun `门槛不可绕过 - 已进入游戏后回归门槛态则再次进入必须重新走完整登录链`() {
+        // 模拟 enterGameAuto 发现会话残缺（Verified 态下 unionId 失效）：
+        // 宿主发 LogoutRequested ⇒ 清会话回门槛态（不得直调界面切换绕过状态机）
+        loginToVerifying()
+        machine.onEvent(LoginFlowEvent.VerificationSuccess)
+        assertEquals(LoginFlowState.Verified, machine.state)
+        host.effects.clear()
+
+        machine.onEvent(LoginFlowEvent.LogoutRequested)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        host.effects.clear()
+
+        // 门槛态下直接补发"验证成功"不得重新放行（必须重新登录）
+        machine.onEvent(LoginFlowEvent.VerificationSuccess)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        assertFalseContains("enterGame")
+    }
+
+    @Test
+    fun `门槛 - 冷启动未登录时合规与unionId参数不改变门槛判定`() {
+        // 防御：未登录（loggedIn=false）时无论合规标记/unionId 残留什么值，
+        // 都必须停留门槛态——门槛判定以 loggedIn 为先决条件
+        machine.onEvent(LoginFlowEvent.ColdStart(loggedIn = false, complianceVerified = true, unionId = "union-x"))
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
+        assertFalseContains("enterGame")
     }
 
     // ── 超时恢复与重试 ──
@@ -244,7 +315,7 @@ class LoginFlowStateMachineTest {
         // Verifying 中登出
         loginToVerifying()
         machine.onEvent(LoginFlowEvent.LogoutRequested)
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertTrueContains("clearLogout")
         assertTrueContains("showLogin")
 
@@ -253,7 +324,7 @@ class LoginFlowStateMachineTest {
         loginToVerifying()
         machine.onEvent(LoginFlowEvent.VerificationTimeout)
         machine.onEvent(LoginFlowEvent.LogoutRequested)
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertTrueContains("clearLogout")
 
         // Verified 中登出（自动进入后游戏内退出登录回 MainActivity 触发）
@@ -261,7 +332,7 @@ class LoginFlowStateMachineTest {
         loginToVerifying()
         machine.onEvent(LoginFlowEvent.VerificationSuccess)
         machine.onEvent(LoginFlowEvent.LogoutRequested)
-        assertEquals(LoginFlowState.Idle, machine.state)
+        assertEquals(LoginFlowState.RequireLogin, machine.state)
         assertTrueContains("clearLogout")
     }
 

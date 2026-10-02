@@ -11,8 +11,20 @@ package com.xianxia.sect.login
  * - 一次性标记永不复位 → "退出认证/切换账号后再登录"验证被永久跳过
  * - 回调注册与 SDK 就绪时序无统一契约 → 冷启动路径注册失败后永久失去回调
  *
- * 本状态机将"登录 → 防沉迷验证 → 自动进入游戏"收敛为单一真相源：状态转移表唯一、
+ * 本状态机将"登录门槛 → 登录 → 防沉迷验证 → 自动进入游戏"收敛为单一真相源：状态转移表唯一、
  * 副作用经 [LoginFlowHost] 执行、事件幂等防重入。详见 docs/login-flow-state-machine.md。
+ *
+ * ## 登录门槛（Q5：全部功能要求登录）
+ *
+ * - [LoginFlowState.RequireLogin] 显式承载"未登录不可进游戏"：唯一不携带会话的状态，
+ *   唯一出口 = LoginRequested。进入游戏（Verified→EnterGame）的全部路径都要求
+ *   会话缓存中有非空 unionId（账号数据空间的派生键），ColdStart 判定面在状态机内
+ *   单点完成，宿主不得绕过状态机直接切换界面。
+ * - **B1 离线宽限**：已登录过（unionId 缓存存在）+ 离线 ⇒ 照常进入（进入链零网络
+ *   依赖，云上传由队列退避自然挂起）；从未登录 + 无网 ⇒ 停留门槛态（首次登录必须
+ *   联网完成——无账号键无法建数据空间）。
+ * - 会话残缺（有登录标记但 unionId 被清，如加密存储降级重建）：按未登录处理，
+ *   清会话回门槛态，同账号重新登录后数据空间按 key 幂等重新激活。
  *
  * ## 关键机制
  *
@@ -25,7 +37,7 @@ package com.xianxia.sect.login
 class LoginFlowStateMachine(private val host: LoginFlowHost) {
 
     /** 当前状态（只读暴露，供 UI 与测试断言） */
-    var state: LoginFlowState = LoginFlowState.Idle
+    var state: LoginFlowState = LoginFlowState.RequireLogin
         private set
 
     /** Activity 是否已稳定进入 RESUMED（ActivityResumed 事件无条件置位） */
@@ -59,7 +71,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
     }
 
     private fun onLoginRequested() {
-        if (state != LoginFlowState.Idle) {
+        if (state != LoginFlowState.RequireLogin) {
             host.onLog("忽略 LoginRequested（当前 $state）")
             return
         }
@@ -87,7 +99,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
             return
         }
         host.onSetLoginTimeout(false)
-        state = LoginFlowState.Idle
+        state = LoginFlowState.RequireLogin
         host.onLog(message)
     }
 
@@ -115,7 +127,7 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
             return
         }
         host.onSetVerificationTimeout(false)
-        clearToIdle()
+        clearToLoginGate()
     }
 
     private fun onVerificationNetworkError() {
@@ -153,33 +165,43 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
         when (state) {
             LoginFlowState.LoggingIn -> host.onSetLoginTimeout(false)
             LoginFlowState.VerifyPending, LoginFlowState.Verifying -> host.onSetVerificationTimeout(false)
-            LoginFlowState.Idle -> {
-                host.onLog("忽略 LogoutRequested（当前 Idle）")
+            LoginFlowState.RequireLogin -> {
+                host.onLog("忽略 LogoutRequested（当前 RequireLogin）")
                 return
             }
             LoginFlowState.Verified, LoginFlowState.VerificationFailed -> Unit
         }
-        clearToIdle()
+        clearToLoginGate()
     }
 
     private fun onColdStart(event: LoginFlowEvent.ColdStart) {
-        if (state != LoginFlowState.Idle) {
+        if (state != LoginFlowState.RequireLogin) {
             host.onLog("忽略 ColdStart（当前 $state）")
             return
         }
         pendingUnionId = event.unionId
         when {
-            event.complianceVerified -> {
+            // B1 离线宽限①：已登录过（unionId 缓存即凭证）且已验证 ⇒ 照常自动进入，
+            // 本分支与后续进入链均无网络依赖（云端兜底查询仅在本地无档时发生且带超时）
+            event.loggedIn && event.complianceVerified && !event.unionId.isNullOrEmpty() -> {
                 state = LoginFlowState.Verified
                 host.onEnterGame()
             }
-            event.unionId.isNullOrEmpty() -> {
-                host.onLog("已登录但缺少 unionId，需要重新登录")
-                clearToIdle()
+            // 会话残缺（有会话标记但缺账号键）：无法派生账号数据空间 ⇒ 清会话回门槛态
+            event.loggedIn && event.unionId.isNullOrEmpty() -> {
+                host.onLog("会话缺少 unionId，需要重新登录")
+                clearToLoginGate()
             }
-            else -> {
+            // 已登录但未通过防沉迷验证：实名认证界面手动重试
+            event.loggedIn -> {
                 state = LoginFlowState.VerificationFailed
                 showVerificationScreen()
+            }
+            // B1 离线宽限②：从未登录 ⇒ 门槛态停留登录页（首次登录必须联网完成；
+            // 无账号键无法建数据空间）。无会话可清，仅展示登录页
+            else -> {
+                host.onLog("未登录：登录门槛生效，停留登录页")
+                host.onShowLoginScreen()
             }
         }
     }
@@ -203,10 +225,10 @@ class LoginFlowStateMachine(private val host: LoginFlowHost) {
         host.onSetVerificationTimeout(true)
     }
 
-    /** 统一登出：清空会话上下文 + 登出四件套副作用 + 回登录界面 */
-    private fun clearToIdle() {
+    /** 清会话回门槛态：登出五件套副作用 + 回登录界面（登出与会话残缺清理的统一收敛点） */
+    private fun clearToLoginGate() {
         pendingUnionId = null
-        state = LoginFlowState.Idle
+        state = LoginFlowState.RequireLogin
         host.onClearSessionAndLogout()
         host.onShowLoginScreen()
     }

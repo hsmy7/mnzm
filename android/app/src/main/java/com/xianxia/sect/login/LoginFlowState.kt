@@ -3,13 +3,20 @@ package com.xianxia.sect.login
 /**
  * 登录/防沉迷验证流程状态定义（纯 Kotlin，零 Android 依赖，可 JVM 单测）。
  *
- * 覆盖"登录 → 防沉迷验证 → 自动进入游戏"全链路。以显式状态机消除
+ * 覆盖"登录门槛 → 登录 → 防沉迷验证 → 自动进入游戏"全链路。以显式状态机消除
  * "退出认证/切换账号后再登录被永久跳过""回调注册与 SDK 就绪时序竞态"
  * 等时序缺陷（详见 docs/login-flow-state-machine.md）。
+ * 登录门槛（未登录不可进游戏，Q5）由 [LoginFlowState.RequireLogin] 显式承载。
  */
 sealed interface LoginFlowState {
-    /** 未登录：显示登录界面 */
-    data object Idle : LoginFlowState
+    /**
+     * 登录门槛态：未登录，不可进入游戏。
+     *
+     * 全部功能要求登录（Q5）——本态是唯一不携带会话的状态，唯一出口 =
+     * [LoginFlowEvent.LoginRequested]（用户在登录页发起登录）。冷启动未登录、
+     * 登录中止、登出、会话残缺清理后均收敛到本态。
+     */
+    data object RequireLogin : LoginFlowState
 
     /** TapTap 授权页展示中（登录请求已发出，等待回调） */
     data object LoggingIn : LoginFlowState
@@ -67,8 +74,21 @@ sealed interface LoginFlowEvent {
     /** 任意登出入口（游戏内/合规弹窗/实名认证界面/防沉迷退出） */
     data object LogoutRequested : LoginFlowEvent
 
-    /** 冷启动恢复（进程销毁复用后已登录）：按合规标记与 unionId 路由 */
-    data class ColdStart(val complianceVerified: Boolean, val unionId: String?) : LoginFlowEvent
+    /**
+     * 冷启动恢复（进程启动后首次路由）：按登录门槛与合规标记路由。
+     *
+     * 三个参数均来自 SessionManager 既有会话缓存（只读消费，无新持久化键），
+     * 判定面收敛在状态机（唯一真源）：
+     * - 未登录（loggedIn=false）→ 门槛态停留登录页（B1：从未登录必须联网完成首次登录）；
+     * - 会话残缺（loggedIn=true 但 unionId 为空）→ 清会话回门槛态；
+     * - 已登录且已验证（B1：unionId 缓存即"已登录过"凭证，离线照常进入）→ 自动进入游戏；
+     * - 已登录未验证 → 实名认证界面手动重试。
+     */
+    data class ColdStart(
+        val loggedIn: Boolean,
+        val complianceVerified: Boolean,
+        val unionId: String?
+    ) : LoginFlowEvent
 }
 
 /**
@@ -89,7 +109,7 @@ sealed interface LoginFlowSideEffect {
     /** 回到登录界面 */
     data object ShowLoginScreen : LoginFlowSideEffect
 
-    /** 登出统一四件套：清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调（唯一实现点） */
+    /** 登出统一五件套：清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调 + 关数据空间（唯一实现点） */
     data object ClearSessionAndLogout : LoginFlowSideEffect
 
     /** 用户提示（Toast）：网络异常/验证超时/登录超时，保留会话可重试 */
@@ -131,7 +151,7 @@ interface LoginFlowHost {
     /** 回到登录界面 */
     fun onShowLoginScreen()
 
-    /** 登出统一四件套：清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调 */
+    /** 登出统一五件套：清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调 + 关数据空间 */
     fun onClearSessionAndLogout()
 
     /** 用户提示（Toast） */
