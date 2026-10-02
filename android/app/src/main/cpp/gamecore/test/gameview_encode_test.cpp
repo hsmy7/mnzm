@@ -154,8 +154,6 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
         {"bodyId", "b1"},
         {"handsId", "ha1"},
         {"feetId", "f1"},
-        {"weaponId", "w1"},
-        {"legsId", "l1"},
         {"storageBagItems", {{{"id", "s1"}, {"count", 9}}}},
         {"spiritStones", 88},
     };
@@ -201,20 +199,20 @@ TEST_F(GameViewEncodeTest, DiscipleRowTypedFields) {
     ASSERT_TRUE(decodeFields(status[0].bytes, se));
     EXPECT_EQ("k", fieldsWith(se, 1)[0].bytes);
     EXPECT_EQ("v", fieldsWith(se, 2)[0].bytes);
-    // B3 六部位：67-70 头/身/手/脚 + weaponId 122 / legsId 123；
-    // 71..74（旧四槽 + nurture 视图）退役禁复用 → 全空
+    // 四部位：67-70 头/身/手/脚；71..74（旧四槽 + nurture 视图）与
+    // 122/123（weaponId/legsId，F2 退役）禁复用 → 全空
     auto headF = fieldsWith(r, 67);
     ASSERT_EQ(1u, headF.size());
     EXPECT_EQ("h1", headF[0].bytes);
     EXPECT_EQ("b1", fieldsWith(r, 68)[0].bytes);
     EXPECT_EQ("ha1", fieldsWith(r, 69)[0].bytes);
     EXPECT_EQ("f1", fieldsWith(r, 70)[0].bytes);
-    EXPECT_EQ("w1", fieldsWith(r, 122)[0].bytes);
-    EXPECT_EQ("l1", fieldsWith(r, 123)[0].bytes);
     EXPECT_TRUE(fieldsWith(r, 71).empty());
     EXPECT_TRUE(fieldsWith(r, 72).empty());
     EXPECT_TRUE(fieldsWith(r, 73).empty());
     EXPECT_TRUE(fieldsWith(r, 74).empty());
+    EXPECT_TRUE(fieldsWith(r, 122).empty());     // weaponId/legsId 已随 F2 四部位化退役
+    EXPECT_TRUE(fieldsWith(r, 123).empty());
     EXPECT_TRUE(fieldsWith(r, 75).empty());      // storageBagItemsJson 停写保留（号冻结）
     auto bagRows = fieldsWith(r, 110);           // storageBagItemsTyped（TypedRow ×1）
     ASSERT_EQ(1u, bagRows.size());

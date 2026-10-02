@@ -15,7 +15,6 @@ import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -160,8 +159,6 @@ class DisciplePurchaseService @Inject constructor(
         val bodyId: String,
         val handsId: String,
         val feetId: String,
-        val weaponId: String,
-        val legsId: String,
         val manualIds: List<String>,
         val totalFunds: Long
     )
@@ -214,8 +211,6 @@ class DisciplePurchaseService @Inject constructor(
             bodyId = tables.bodyIds.getOrNull(id) ?: "",
             handsId = tables.handsIds.getOrNull(id) ?: "",
             feetId = tables.feetIds.getOrNull(id) ?: "",
-            weaponId = tables.weaponIds.getOrNull(id) ?: "",
-            legsId = tables.legsIds.getOrNull(id) ?: "",
             manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
             totalFunds = totalFunds
         )

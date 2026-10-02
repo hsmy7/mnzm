@@ -87,13 +87,11 @@ inline std::string toLowerAscii(const std::string& s) {
 struct DisciplePurchaseContext {
     std::size_t row = 0;
     int32_t realm = 9;
-    // B3 六部位（头/身/手/脚/武/腿 = displayOrder）
+    // 四部位（头/身/手/脚 = displayOrder）
     std::string headId;
     std::string bodyId;
     std::string handsId;
     std::string feetId;
-    std::string weaponId;
-    std::string legsId;
     std::vector<std::string> manualIds;
     int64_t totalFunds = 0;
 };
@@ -191,8 +189,6 @@ inline std::vector<DisciplePurchaseContext> collectDisciples(
         ctx.bodyId = ds.bodyIds[row];
         ctx.handsId = ds.handsIds[row];
         ctx.feetId = ds.feetIds[row];
-        ctx.weaponId = ds.weaponIds[row];
-        ctx.legsId = ds.legsIds[row];
         ctx.manualIds = ds.manualIds[row];
         ctx.totalFunds = totalFunds;
         out.push_back(std::move(ctx));
@@ -319,8 +315,6 @@ inline std::string equipIdBySlot(const DisciplePurchaseContext& ctx,
     if (slot == "BODY") return ctx.bodyId;
     if (slot == "HANDS") return ctx.handsId;
     if (slot == "FEET") return ctx.feetId;
-    if (slot == "WEAPON") return ctx.weaponId;
-    if (slot == "LEGS") return ctx.legsId;
     return std::string();
 }
 

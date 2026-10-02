@@ -31,7 +31,7 @@ import org.robolectric.annotation.Config
  * ① 已故弟子载荷往返逐字段等价；② 战斗日志载荷往返逐字段等价；
  * ③ 载荷非空（防回归到 `""`）且不同实体载荷可区分。
  *
- * 覆盖面（最小但非平凡夹具）：弟子含装备（weaponId + 孕育数据）、功法
+ * 覆盖面（最小但非平凡夹具）：弟子含装备（handsId，四部位化 F2）、功法
  * （manualIds/manualMasteries）、状态（status/statusData）、战斗与技能段；
  * 战斗日志含成员/敌人/回合/动作/drops。
  *
@@ -69,8 +69,7 @@ class ArchivePayloadRoundTripTest {
     private fun Disciple.withRichExtras(): Disciple = copy(
         equipment = EquipmentSet(
             headId = "head_1",
-            weaponId = "weapon_1",
-            legsId = "legs_1",
+            handsId = "hands_1",
             storageBagSpiritStones = 4321L,
             spiritStones = 999
         ),
@@ -150,7 +149,7 @@ class ArchivePayloadRoundTripTest {
         assertEquals(original, decoded)        // 非平凡字段抽查（防止整体 equals 因未来改动静默放宽）
         assertEquals("林寒", decoded.name)
         assertEquals(DiscipleStatus.DEAD, decoded.status)
-        assertEquals("weapon_1", decoded.equipment.weaponId)
+        assertEquals("hands_1", decoded.equipment.handsId)
         assertEquals("head_1", decoded.equipment.headId)
         assertEquals(listOf("manual_qingfeng"), decoded.manualIds)
         assertEquals(5000, decoded.combat.baseHp)

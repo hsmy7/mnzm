@@ -36,8 +36,6 @@ class HpMpColumnCoverageTest {
         "bodyId",
         "handsId",
         "feetId",
-        "legsId",
-        "weaponId",
         "manualIds",      // 功法（stats["hp"/"mp"] × 熟练度）
         "pillEffectDuration",  // 丹药生效判定
         "pillHpBonus",    // 丹药 HP/MP 加成

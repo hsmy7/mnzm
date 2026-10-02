@@ -173,14 +173,12 @@ constexpr RowField kDiscipleRowFields[] = {
     {"pillEffectDuration", 64, RowKind::kInt32},
     {"activePillTypes", 65, RowKind::kStringList},
     {"activePillCategory", 66, RowKind::kString},
-    // B3 六部位（67-70 头/身/手/脚；weaponId 新 122、legsId 123）；
-    // 71..74（旧 armorId/bootsId/accessoryId + 四 nurture 视图）退役禁复用
+    // 四部位（67-70 头/身/手/脚）；71..74（旧 armorId/bootsId/accessoryId +
+    // 四 nurture 视图）与 122/123（weaponId/legsId，F2 四部位化）退役禁复用
     {"headId", 67, RowKind::kString},
     {"bodyId", 68, RowKind::kString},
     {"handsId", 69, RowKind::kString},
     {"feetId", 70, RowKind::kString},
-    {"weaponId", 122, RowKind::kString},
-    {"legsId", 123, RowKind::kString},
     {"storageBagItems", 110, RowKind::kTypedRows},
     {"storageBagSpiritStones", 76, RowKind::kInt64},
     {"spiritStones", 77, RowKind::kInt32},

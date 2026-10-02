@@ -95,7 +95,7 @@ class EquipmentNoCapGuardTest {
         // 功法堆叠截断的清理分支只处理 manualIds；装备实例无截断、弟子六槽不受影响
         val d = Disciple(
             id = "d-1", name = "甲", realm = 9, realmLayer = 1, cultivation = 10.0, isAlive = true,
-            equipment = EquipmentSet(weaponId = "e1")
+            equipment = EquipmentSet(handsId = "e1")
         )
         val data = SaveData(
             gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
@@ -109,7 +109,7 @@ class EquipmentNoCapGuardTest {
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         result as IntegrityResult.Repaired
-        assertEquals("装备引用不因数量告警被清除", "e1", result.data.disciples.single().equipment.weaponId)
+        assertEquals("装备引用不因数量告警被清除", "e1", result.data.disciples.single().equipment.handsId)
     }
 
     @Test

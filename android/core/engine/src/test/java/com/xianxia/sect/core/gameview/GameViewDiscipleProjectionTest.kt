@@ -74,7 +74,12 @@ class GameViewDiscipleProjectionTest {
         // 稀疏行 = 只有三键的旧 JSON 臂形状（生产 C++ 恒 emit-always，此形状即协议漂移）
         val sparse = DiscipleRow.newBuilder().setId("1").setName("稀疏").setIsAlive(true).build()
         val missing = GameViewDiscipleRows.missingRequiredFields(sparse)
-        assertTrue("稀疏行应报出缺失标量字段（仅带 id/name/isAlive）：$missing", missing.size > 70)
+        // 稀疏行只带 id/name/isAlive 三键 ⇒ 缺失数 = 全部必在标量数 − 3（联动清单，
+        // 不用魔法数字——必在字段增删时本断言自动跟随）
+        assertEquals(
+            "稀疏行应报出全部缺失标量字段（仅带 id/name/isAlive）：$missing",
+            GameViewDiscipleRows.requiredScalarFields.size - 3, missing.size
+        )
         val error = assertThrows(IllegalArgumentException::class.java) {
             GameViewDiscipleRows.toDisciple(sparse, json)
         }

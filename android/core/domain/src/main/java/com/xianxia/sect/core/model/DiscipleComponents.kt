@@ -115,8 +115,6 @@ data class EquipmentSet(
     var bodyId: String = "",
     var handsId: String = "",
     var feetId: String = "",
-    var weaponId: String = "",
-    var legsId: String = "",
 
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
@@ -137,7 +135,7 @@ data class EquipmentSet(
 
     /** 清空全部部位（迁移/规则清理用） */
     fun clearedSlots(): EquipmentSet = copy(
-        headId = "", bodyId = "", handsId = "", feetId = "", weaponId = "", legsId = ""
+        headId = "", bodyId = "", handsId = "", feetId = ""
     )
 
     private fun slotName(part: EquipmentSlot): String = when (part) {

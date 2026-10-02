@@ -7,7 +7,7 @@ import com.xianxia.sect.data.model.SaveData
 /**
  * 检测同一 equipment ID 被多弟子引用。
  *
- * 遍历所有弟子的六部位装备槽（headId/bodyId/handsId/feetId/weaponId/legsId），
+ * 遍历所有弟子的四部位装备槽（headId/bodyId/handsId/feetId），
  * 统计每个 equipment ID 的引用次数。出现 >1 次时，从后续弟子的槽位中清除重复引用。
  *
  * 必须排在 [EquipmentRefRule]（order=6）之后，因为 EquipmentRefRule 先清理孤立引用。

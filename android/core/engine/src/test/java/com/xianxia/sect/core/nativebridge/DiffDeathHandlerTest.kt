@@ -3,7 +3,6 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -129,7 +128,7 @@ class DiffDeathHandlerTest {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
         val disciples = listOf(
-            Disciple(id = "1", name = "张三").apply { weaponId = "w-1" },
+            Disciple(id = "1", name = "张三").apply { equipment.handsId = "w-1" },
         )
         val tables = kotlinTables(disciples)
         val state = kotlinState(tables, annualDeceased = 0)

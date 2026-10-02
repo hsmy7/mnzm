@@ -262,15 +262,11 @@ inline void applyGearToAiDisciple(rng::DeterministicRng& rng, state::Disciple& d
     d.bodyId.clear();
     d.handsId.clear();
     d.feetId.clear();
-    d.weaponId.clear();
-    d.legsId.clear();
     for (const auto& kv : equipmentIds) {
         if (kv.first == "HEAD") d.headId = kv.second.id;
         else if (kv.first == "BODY") d.bodyId = kv.second.id;
         else if (kv.first == "HANDS") d.handsId = kv.second.id;
         else if (kv.first == "FEET") d.feetId = kv.second.id;
-        else if (kv.first == "WEAPON") d.weaponId = kv.second.id;
-        else if (kv.first == "LEGS") d.legsId = kv.second.id;
     }
     d.manualIds.clear();
     d.manualMasteries.clear();

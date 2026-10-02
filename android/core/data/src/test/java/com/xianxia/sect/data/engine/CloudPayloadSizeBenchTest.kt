@@ -227,8 +227,6 @@ class CloudPayloadSizeBenchTest {
             bodyId = "body_${idx % 200}",
             handsId = "hands_${idx % 100}",
             feetId = "feet_${idx % 100}",
-            weaponId = "weapon_${idx % 200}",
-            legsId = "legs_${idx % 100}",
             storageBagSpiritStones = (1000 + idx).toLong(),
             spiritStones = 100 + idx
         ),

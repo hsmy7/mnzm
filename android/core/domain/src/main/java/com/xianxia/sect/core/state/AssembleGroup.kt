@@ -47,13 +47,11 @@ internal fun discipleColumnGroupByName(): Map<String, AssembleGroup> = mapOf(
             "pillSkillExpSpeedBonuses" to AssembleGroup.PILL,
             "activePillCategories" to AssembleGroup.PILL,
             "activePillTypes" to AssembleGroup.PILL,
-            // assembleEquipment 读取列（B3 六部位：孕养列与旧四槽已退役，禁复活）
+            // assembleEquipment 读取列（四部位：孕养列与旧四槽已退役，禁复活）
             "headIds" to AssembleGroup.EQUIPMENT,
             "bodyIds" to AssembleGroup.EQUIPMENT,
             "handsIds" to AssembleGroup.EQUIPMENT,
             "feetIds" to AssembleGroup.EQUIPMENT,
-            "weaponIds" to AssembleGroup.EQUIPMENT,
-            "legsIds" to AssembleGroup.EQUIPMENT,
             "storageBagItems" to AssembleGroup.EQUIPMENT,
             "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
             "discipleSpiritStones" to AssembleGroup.EQUIPMENT,

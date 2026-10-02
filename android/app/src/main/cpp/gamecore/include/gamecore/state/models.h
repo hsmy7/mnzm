@@ -363,13 +363,12 @@ struct Disciple {
     std::vector<std::string> activePillTypes;   // 生效中丹药 pillType 集合
     std::string activePillCategory;             // 旧字段，仅旧存档兼容
 
-    // ── EquipmentSet（@Embedded 平铺；B3 六部位按显示序 头/身/手/脚/武/腿） ──
+    // ── EquipmentSet（@Embedded 平铺；四部位按显示序 头/身/手/脚；
+    //    武器/腿部槽位已随 F2 四部位化退役） ──
     std::string headId;
     std::string bodyId;
     std::string handsId;
     std::string feetId;
-    std::string weaponId;                 // 复用 Kotlin weaponId(17) 列
-    std::string legsId;
     std::vector<StorageBagItem> storageBagItems;
     int64_t storageBagSpiritStones = 0;
     int32_t spiritStones = 0;             // 弟子随身灵石

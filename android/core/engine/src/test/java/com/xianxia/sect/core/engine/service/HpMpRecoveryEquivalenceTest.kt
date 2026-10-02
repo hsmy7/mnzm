@@ -68,9 +68,7 @@ class HpMpRecoveryEquivalenceTest {
                 headId = equipment.getOrNull(0)?.id ?: "",
                 bodyId = equipment.getOrNull(1)?.id ?: "",
                 handsId = equipment.getOrNull(2)?.id ?: "",
-                feetId = equipment.getOrNull(3)?.id ?: "",
-                weaponId = equipment.getOrNull(4)?.id ?: "",
-                legsId = equipment.getOrNull(5)?.id ?: ""
+                feetId = equipment.getOrNull(3)?.id ?: ""
             ),
             manualIds = manuals.map { it.id }
         )

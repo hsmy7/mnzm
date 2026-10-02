@@ -245,8 +245,6 @@ inline std::string equipSlotId(const Disciple& d, const std::string& slot) {
     if (slot == "BODY") return d.bodyId;
     if (slot == "HANDS") return d.handsId;
     if (slot == "FEET") return d.feetId;
-    if (slot == "WEAPON") return d.weaponId;
-    if (slot == "LEGS") return d.legsId;
     return "";
 }
 
@@ -256,8 +254,6 @@ inline void setEquipSlot(Disciple& d, const std::string& slot,
     else if (slot == "BODY") d.bodyId = instanceId;
     else if (slot == "HANDS") d.handsId = instanceId;
     else if (slot == "FEET") d.feetId = instanceId;
-    else if (slot == "WEAPON") d.weaponId = instanceId;
-    else if (slot == "LEGS") d.legsId = instanceId;
 }
 
 /// 袋条目合并入袋（Kotlin StorageBagUtils.increaseItemQuantity 等价——
@@ -812,8 +808,7 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         Disciple d = ds.materialize(row);
         bool changed = false;
         if (hasAutoEquip && qualifiesForSectAuto(d, equipFocused, equipRootCounts)) {
-            for (const std::string& slotName :
-                 {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
+            for (const std::string& slotName : {"HEAD", "BODY", "HANDS", "FEET"}) {
                 if (autoEquipSlot(d, state, slotName)) changed = true;
             }
         }
@@ -827,8 +822,6 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         ds.bodyIds[row] = d.bodyId;
         ds.handsIds[row] = d.handsId;
         ds.feetIds[row] = d.feetId;
-        ds.weaponIds[row] = d.weaponId;
-        ds.legsIds[row] = d.legsId;
         ds.manualIds[row] = d.manualIds;
         ds.currentHps[row] = d.currentHp;
         ds.currentMps[row] = d.currentMp;
@@ -838,8 +831,6 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         ds.markCol(DiscipleColumn::BodyId, row);
         ds.markCol(DiscipleColumn::HandsId, row);
         ds.markCol(DiscipleColumn::FeetId, row);
-        ds.markCol(DiscipleColumn::WeaponId, row);
-        ds.markCol(DiscipleColumn::LegsId, row);
         ds.markCol(DiscipleColumn::ManualIds, row);
         ds.markCol(DiscipleColumn::CurrentHp, row);
         ds.markCol(DiscipleColumn::CurrentMp, row);

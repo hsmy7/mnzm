@@ -44,7 +44,6 @@ import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.storageBagSpiritStones
 import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.model.totalCultivation
-import com.xianxia.sect.core.model.weaponId
 
 internal fun DiscipleTables.writeAllFields(disciple: Disciple) {
     val id = disciple.id.toInt()
@@ -118,7 +117,6 @@ internal fun DiscipleTables.writeEquipmentFields(id: Int, disciple: Disciple) {
     val e = disciple.equipment
     headIds[id] = e.headId; bodyIds[id] = e.bodyId
     handsIds[id] = e.handsId; feetIds[id] = e.feetId
-    weaponIds[id] = e.weaponId; legsIds[id] = e.legsId
     storageBagItems[id] = e.storageBagItems; storageBagSpiritStones[id] = e.storageBagSpiritStones
     discipleSpiritStones[id] = e.spiritStones
     cultivationCompletionMonths[id] = disciple.cultivationCompletionMonth

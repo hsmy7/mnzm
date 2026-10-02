@@ -12,13 +12,13 @@ import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 
 /**
- * E1 存档编号冻结守卫（装备重构 B0 定稿 / B1 增量接线）。
+ * E1 存档编号冻结守卫（装备重构 B0 定稿 / B1 增量接线 / F2 四部位化收缩）。
  *
- * 冻结表（方案 §四 WP0 / 批次文档 §1 E1）：
- * - **装备段**：`weaponId(17)` = 六部位唯一复用号（武器部位列）；`18/19/20/24..27/47/98/99`
- *   退役在册（退役批落地前禁改指向）。
- * - **六部位新增段**：`headId(112)/bodyId(113)/handsId(114)/feetId(115)/legsId(116)`
- *   （按显示序 头/身/手/脚/武/腿），**B3 接线**，只声明占号、不写入/不读取。
+ * 冻结表（方案 §四 WP0 / 批次文档 §1 E1；F2 四部位化调整）：
+ * - **装备段**：`weaponId(17)`/`legsId(116)` 已随武器/腿部部位退役（F2），编号
+ *   **reserved 禁复用**；`18/19/20/24..27/47/98/99` 退役在册。
+ * - **四部位段**：`headId(112)/bodyId(113)/handsId(114)/feetId(115)`
+ *   （按显示序 头/身/手/脚），B3 接线。
  * - **B1 属性单列段**（本批接线）：`baseAttack(118)/baseDefense(119)/attackVariance(120)/`
  *   `defenseVariance(121)/pillAttackBonus(122)/pillDefenseBonus(123)` + `innateDamageType(117)`
  *   （B0 占号、B1 接线，String = DamageType.name）。
@@ -53,17 +53,16 @@ class EquipmentProtoNumberFrozenTest {
     fun `equipment section and new section match the frozen table`() {
         val numbers = protoNumbers(surrogate)
         val frozen = mapOf(
-            // 装备段：17 = 六部位唯一复用号（武器部位列）；28/30/31 仓储列不动
-            "weaponId" to 17,
+            // 装备段：weaponId(17)/legsId(116) 已随 F2 四部位化退役（见 reserved 面）；
+            // 28/30/31 仓储列不动
             "spiritStones" to 28,
             "storageBagItems" to 30,
             "storageBagSpiritStones" to 31,
-            // 六部位新增段（显示序 头/身/手/脚/武/腿；B3 接线）
+            // 四部位段（显示序 头/身/手/脚；B3 接线，F2 收缩）
             "headId" to 112,
             "bodyId" to 113,
             "handsId" to 114,
             "feetId" to 115,
-            "legsId" to 116,
             // B1 属性单列段（本批接线）
             "innateDamageType" to 117,
             "baseAttack" to 118,
@@ -123,10 +122,11 @@ class EquipmentProtoNumberFrozenTest {
     fun `existing reserved proto numbers stay unclaimed`() {
         val claimed = protoNumbers(surrogate).values.toSet()
         // 47 = pillNurtureSpeedBonus（EQ-B2 孕养丹退役批退役）；
-        // 98/99 = equipmentNurturingCompletionMonth/Phase（B3 孕养 checkpoint 退役，属性已删）
+        // 98/99 = equipmentNurturingCompletionMonth/Phase（B3 孕养 checkpoint 退役，属性已删）；
+        // 17 = weaponId / 116 = legsId（F2 四部位化：武器/腿部槽位退役，整属性删除）
         val reserved = listOf(
-            7, 8, 11, 12, 13, 14, 15, 16, 22, 29, 47, 50, 76, 88, 93, 95, 102, 104, 105, 110,
-            98, 99
+            7, 8, 11, 12, 13, 14, 15, 16, 17, 22, 29, 47, 50, 76, 88, 93, 95, 102, 104, 105, 110,
+            98, 99, 116
         )
         val reused = reserved.filter { it in claimed }
         assertTrue(
@@ -140,7 +140,8 @@ class EquipmentProtoNumberFrozenTest {
     fun `planned retirement numbers stay pointed at legacy properties`() {
         // B3 已落地：18/19/20/24..27（旧四槽 + 四 nurture）随 B3 退役但保留
         // @Deprecated 声明供旧档反序列化（HANDOVER-B3 §二 写面 B），仍在册指向；
-        // 98/99（孕养 checkpoint 两列）已随 B3 **整属性删除** → 移入 reserved 禁复用面。
+        // 98/99（孕养 checkpoint 两列）已随 B3 **整属性删除** → 移入 reserved 禁复用面；
+        // weaponId(17)/legsId(116) 已随 F2 四部位化整属性删除 → reserved 禁复用面。
         val numbers = protoNumbers(surrogate)
         val legacy = mapOf(
             "armorId" to 18,
@@ -177,11 +178,10 @@ class EquipmentProtoNumberFrozenTest {
     }
 
     @Test
-    fun `b3 section is wired in write path`() {
-        // B3 装备体系替换批（EQ-B3）接线后语义翻转：112..116 六部位列**必须**在
-        // buildSurrogate（唯一写入口）写入路径被引用；退役段 18/19/20/24..27
-        // （armorId/bootsId/accessoryId/四 nurture）**禁**再出现在写入路径；
-        // 117（innateDamageType）维持 B1 接线断言。
+    fun `four part section is wired in write path`() {
+        // F2 四部位化后语义：112..115 四部位列**必须**在 buildSurrogate（唯一写入口）
+        // 写入路径被引用；退役段 18/19/20/24..27 与 weaponId/legsId（17/116，F2）
+        // **禁**再出现在写入路径；117（innateDamageType）维持 B1 接线断言。
         val serializerFile = generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
             .map { File(it, "core/domain/src/main/java/com/xianxia/sect/core/model/" +
                 "DiscipleSerializer.kt") }
@@ -190,23 +190,24 @@ class EquipmentProtoNumberFrozenTest {
             ?: error("DiscipleSerializer.kt 未找到（cwd=" + System.getProperty("user.dir") + "）")
         val writeSegment = source.substringAfter("private fun buildSurrogate")
             .substringBefore("override fun deserialize")
-        val b3Fields = listOf("headId", "bodyId", "handsId", "feetId", "legsId")
-        val missing = b3Fields.filter { field ->
+        val fourPartFields = listOf("headId", "bodyId", "handsId", "feetId")
+        val missing = fourPartFields.filter { field ->
             !Regex("^[^\\n]*[=(,]\\s*$field\\b", RegexOption.MULTILINE).containsMatchIn(writeSegment)
         }
         assertTrue(
-            "B3 六部位列 $missing 未在 buildSurrogate 写入路径接线（EQ-B3 必写）。\n" +
-                "排查：withEquipmentUsageFields 是否漏搬运 112..116。",
+            "四部位列 $missing 未在 buildSurrogate 写入路径接线（F2 四部位必写）。\n" +
+                "排查：withEquipmentUsageFields 是否漏搬运 112..115。",
             missing.isEmpty()
         )
         val retired = listOf("armorId", "bootsId", "accessoryId",
-            "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture")
+            "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
+            "weaponId", "legsId")
         val stillWritten = retired.filter { field ->
             Regex("value\\.$field\\b").containsMatchIn(writeSegment)
         }
         assertTrue(
-            "退役装备字段 $stillWritten 仍在 buildSurrogate 写入路径（B3 已退役，禁写）。\n" +
-                "排查：withEquipmentUsageFields 是否残留旧四槽/nurture 搬运。",
+            "退役装备字段 $stillWritten 仍在 buildSurrogate 写入路径（B3/F2 已退役，禁写）。\n" +
+                "排查：withEquipmentUsageFields 是否残留旧四槽/nurture/武器腿部搬运。",
             stillWritten.isEmpty()
         )
         // 117（innateDamageType）必须已接线（B1 契约，写面反向断言）

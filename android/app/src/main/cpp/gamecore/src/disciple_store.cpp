@@ -83,13 +83,11 @@ Disciple DiscipleStore::materialize(std::size_t row) const {
     d.activePillTypes = activePillTypes[row];
     d.activePillCategory = activePillCategories[row];
 
-    // EquipmentSet（B3 六部位）
+    // EquipmentSet（四部位）
     d.headId = headIds[row];
     d.bodyId = bodyIds[row];
     d.handsId = handsIds[row];
     d.feetId = feetIds[row];
-    d.weaponId = weaponIds[row];
-    d.legsId = legsIds[row];
     d.storageBagItems = storageBagItems[row];
     d.storageBagSpiritStones = storageBagSpiritStones[row];
     d.spiritStones = spiritStones[row];
@@ -194,8 +192,6 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     bodyIds.push_back(d.bodyId);
     handsIds.push_back(d.handsId);
     feetIds.push_back(d.feetId);
-    weaponIds.push_back(d.weaponId);
-    legsIds.push_back(d.legsId);
     storageBagItems.push_back(d.storageBagItems);
     storageBagSpiritStones.push_back(d.storageBagSpiritStones);
     spiritStones.push_back(d.spiritStones);
@@ -292,8 +288,6 @@ void DiscipleStore::reserveRows(std::size_t n) {
     bodyIds.reserve(n);
     handsIds.reserve(n);
     feetIds.reserve(n);
-    weaponIds.reserve(n);
-    legsIds.reserve(n);
     storageBagItems.reserve(n);
     storageBagSpiritStones.reserve(n);
     spiritStones.reserve(n);
@@ -426,8 +420,6 @@ void DiscipleStore::clear() {
     bodyIds.clear();
     handsIds.clear();
     feetIds.clear();
-    weaponIds.clear();
-    legsIds.clear();
     storageBagItems.clear();
     storageBagSpiritStones.clear();
     spiritStones.clear();
@@ -515,8 +507,6 @@ void DiscipleStore::eraseAt(std::size_t row) {
     bodyIds.erase(bodyIds.begin() + static_cast<std::ptrdiff_t>(row));
     handsIds.erase(handsIds.begin() + static_cast<std::ptrdiff_t>(row));
     feetIds.erase(feetIds.begin() + static_cast<std::ptrdiff_t>(row));
-    weaponIds.erase(weaponIds.begin() + static_cast<std::ptrdiff_t>(row));
-    legsIds.erase(legsIds.begin() + static_cast<std::ptrdiff_t>(row));
     storageBagItems.erase(storageBagItems.begin() + static_cast<std::ptrdiff_t>(row));
     storageBagSpiritStones.erase(storageBagSpiritStones.begin() + static_cast<std::ptrdiff_t>(row));
     spiritStones.erase(spiritStones.begin() + static_cast<std::ptrdiff_t>(row));
@@ -622,8 +612,6 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(bodyIds[a], bodyIds[b]);
     swap(handsIds[a], handsIds[b]);
     swap(feetIds[a], feetIds[b]);
-    swap(weaponIds[a], weaponIds[b]);
-    swap(legsIds[a], legsIds[b]);
     swap(storageBagItems[a], storageBagItems[b]);
     swap(storageBagSpiritStones[a], storageBagSpiritStones[b]);
     swap(spiritStones[a], spiritStones[b]);

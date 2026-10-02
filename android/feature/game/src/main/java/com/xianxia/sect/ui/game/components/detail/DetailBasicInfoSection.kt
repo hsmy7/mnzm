@@ -85,7 +85,7 @@ fun BasicInfoSection(
 
         val equipmentMap = remember(
             disciple.headId, disciple.bodyId, disciple.handsId,
-            disciple.feetId, disciple.weaponId, disciple.legsId, allEquipment
+            disciple.feetId, allEquipment
         ) {
             discipleEquipmentMap(disciple, allEquipment)
         }
@@ -355,10 +355,9 @@ private fun discipleEquipmentMap(
     allEquipment: List<EquipmentInstance>
 ): Map<String, EquipmentInstance> {
     val map = mutableMapOf<String, EquipmentInstance>()
-    // B3 六部位（头/身/手/脚/武/腿 = displayOrder）
+    // 四部位（头/身/手/脚 = displayOrder）
     listOfNotNull(
-        disciple.headId, disciple.bodyId, disciple.handsId,
-        disciple.feetId, disciple.weaponId, disciple.legsId
+        disciple.headId, disciple.bodyId, disciple.handsId, disciple.feetId
     )
         .filter { it.isNotEmpty() }
         .forEach { id -> allEquipment.find { it.id == id }?.let { map[it.id] = it } }

@@ -360,7 +360,7 @@ object NullSafeProtoBuf {
     /**
      * 转换装备 ID 字段（String?，空字符串表示 null）
      *
-     * 适用字段：weaponId, armorId, bootsId, accessoryId
+     * 适用字段：headId, bodyId, handsId, feetId（四部位；武器/腿部槽位已退役）
      */
     fun equipmentIdToProto(value: String?): String = stringToProto(value)
 

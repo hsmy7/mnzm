@@ -112,7 +112,7 @@ internal object MirrorProtoFeedFixture {
 
     private fun richEquipment(): EquipmentSet = EquipmentSet(
         headId = "h1", bodyId = "a1", handsId = "g1",
-        feetId = "b1", weaponId = "w1", legsId = "l1",
+        feetId = "b1",
         storageBagItems = listOf(
             StorageBagItem(
                 itemId = "s1", itemType = "material", name = "兽皮", rarity = 1,

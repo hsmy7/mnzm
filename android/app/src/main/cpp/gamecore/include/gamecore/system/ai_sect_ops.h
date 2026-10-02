@@ -99,7 +99,7 @@ inline const char* aiSectLevelName(int32_t level) {
     }
 }
 
-/// 槽位 id 读取（B3 六部位；slot 0..5 = displayOrder 头/身/手/脚/武/腿）
+/// 槽位 id 读取（四部位；slot 0..3 = displayOrder 头/身/手/脚）
 inline const std::string& aiSlotId(const Disciple& d, int slot) {
     static const std::string kEmpty;
     switch (slot) {
@@ -107,21 +107,17 @@ inline const std::string& aiSlotId(const Disciple& d, int slot) {
         case 1: return d.bodyId;
         case 2: return d.handsId;
         case 3: return d.feetId;
-        case 4: return d.weaponId;
-        case 5: return d.legsId;
         default: return kEmpty;
     }
 }
 
-/// 槽位写入（B3 六部位单 id；slot 0..5 = displayOrder）
+/// 槽位写入（四部位单 id；slot 0..3 = displayOrder）
 inline void aiSetSlot(Disciple& d, int slot, const std::string& id) {
     switch (slot) {
         case 0: d.headId = id; break;
         case 1: d.bodyId = id; break;
         case 2: d.handsId = id; break;
         case 3: d.feetId = id; break;
-        case 4: d.weaponId = id; break;
-        case 5: d.legsId = id; break;
         default: break;
     }
 }
@@ -307,8 +303,7 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
         emptySlots = JavaRandomCompat::shuffle(emptySlots, javaSeed);
         const int32_t toAdd = std::min(expectedEquip - currentEquip,
                                        static_cast<int32_t>(emptySlots.size()));
-        static const char* kSlotNames[6] = {"HEAD", "BODY", "HANDS",
-                                            "FEET", "WEAPON", "LEGS"};
+        static const char* kSlotNames[4] = {"HEAD", "BODY", "HANDS", "FEET"};
         for (int32_t i = 0; i < toAdd; ++i) {
             const int slot = emptySlots[static_cast<std::size_t>(i)];
             const auto picked = aiPickEquipmentTemplate(
@@ -410,8 +405,6 @@ inline std::map<std::string, EquipmentInstance> aiBuildEquipmentMapForDisciple(
     addEntry(d.bodyId);
     addEntry(d.handsId);
     addEntry(d.feetId);
-    addEntry(d.weaponId);
-    addEntry(d.legsId);
     return out;
 }
 

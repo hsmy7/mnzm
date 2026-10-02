@@ -46,38 +46,36 @@ class EquipmentRefRuleTest {
 
     @Test
     fun `valid equipment refs return Passed`() {
-        val d = makeDisciple(weaponId = "sword-1")
+        val d = makeDisciple(handsId = "sword-1")
         val data = saveData(disciples = listOf(d), instances = listOf(instance("sword-1")))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
 
     @Test
-    fun `orphan weaponId is cleared`() {
-        val d = makeDisciple(weaponId = "ghost-weapon")
+    fun `orphan handsId is cleared`() {
+        val d = makeDisciple(handsId = "ghost-hands")
         val data = saveData(disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
-        assertEquals("", (result as IntegrityResult.Repaired).data.disciples.first().equipment.weaponId)
+        assertEquals("", (result as IntegrityResult.Repaired).data.disciples.first().equipment.handsId)
     }
 
     @Test
     fun `all orphan fields are cleared`() {
         val d = makeDisciple(
-            headId = "h", bodyId = "b", handsId = "ha", feetId = "f",
-            weaponId = "w", legsId = "l"
+            headId = "h", bodyId = "b", handsId = "ha", feetId = "f"
         )
         val data = saveData(disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
-        assertEquals("", equip.weaponId)
         assertEquals("", equip.headId)
-        assertEquals("", equip.legsId)
+        assertEquals("", equip.feetId)
     }
 
     @Test
     fun `ref to equipment instance is valid`() {
-        val d = makeDisciple(weaponId = "inst-1")
+        val d = makeDisciple(handsId = "inst-1")
         val data = saveData(disciples = listOf(d), instances = listOf(instance("inst-1")))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
@@ -91,13 +89,13 @@ class EquipmentRefRuleTest {
     private fun makeDisciple(
         id: String = "d-1", name: String = "甲",
         headId: String = "", bodyId: String = "", handsId: String = "",
-        feetId: String = "", weaponId: String = "", legsId: String = ""
+        feetId: String = ""
     ) = Disciple(
         id = id, name = name, realm = 9, realmLayer = 1, cultivation = 10.0,
         isAlive = true,
         equipment = EquipmentSet(
             headId = headId, bodyId = bodyId, handsId = handsId,
-            feetId = feetId, weaponId = weaponId, legsId = legsId
+            feetId = feetId
         )
     )
 

@@ -454,14 +454,13 @@ internal object GameViewMirrorCodec {
         i32("pillEffectDuration", { it.hasPillEffectDuration() }, { it.pillEffectDuration }),
         sl("activePillTypes", { it.activePillTypesList }),
         str("activePillCategory", { it.hasActivePillCategory() }, { it.activePillCategory }),
-        // B3 六部位槽位列（proto 67-70 头/身/手/脚 + weaponId=122 / legsId=123；
-        // 漏登记 = 镜像 JSON 树静默丢五列，投影两臂分歧——GameViewDiscipleProjection 守卫抓获）
+        // 四部位槽位列（proto 67-70 头/身/手/脚；weaponId/legsId 122/123 已随四部位化退役，
+        // proto reserved 禁复用。漏登记 = 镜像 JSON 树静默丢列，投影两臂分歧——
+        // GameViewDiscipleProjection 守卫抓获）
         str("headId", { it.hasHeadId() }, { it.headId }),
         str("bodyId", { it.hasBodyId() }, { it.bodyId }),
         str("handsId", { it.hasHandsId() }, { it.handsId }),
         str("feetId", { it.hasFeetId() }, { it.feetId }),
-        str("weaponId", { it.hasWeaponId() }, { it.weaponId }),
-        str("legsId", { it.hasLegsId() }, { it.legsId }),
         jx(
             "storageBagItems",
             { it.storageBagItemsTypedCount > 0 || it.storageBagItemsJson.isEmpty.not() },

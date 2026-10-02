@@ -35,7 +35,7 @@ class AssemblePatchEquivalenceTest {
             // 子对象数据填充（覆盖全部组装组）
             tables.comprehensions[i] = 60
             tables.currentHps[i] = 500
-            tables.weaponIds[i] = "w$i"
+            tables.headIds[i] = "w$i"
             tables.usedPermanentPillKeys[i] = setOf("pk$i")
             tables.storageBagItems[i] = listOf(
                 StorageBagItem(itemId = "bag$i", itemType = "pill", name = "丹", rarity = 2)
@@ -109,7 +109,7 @@ class AssemblePatchEquivalenceTest {
         for (i in 1..3) {
             tables.currentHps[i] = 1
             tables.pillHpBonuses[i] = 2
-            tables.legsIds[i] = "l$i"
+            tables.feetIds[i] = "l$i"
             tables.moralities[i] = 60
             tables.recruitedMonths[i] = 3
             tables.lifeEvents[i] = listOf("e$i")
@@ -118,7 +118,7 @@ class AssemblePatchEquivalenceTest {
 
         val changed = tables.changedIdTracker.consumeChangedIds()
         val dirty = dirtyIndices(
-            "currentHps", "pillHpBonuses", "legsIds",
+            "currentHps", "pillHpBonuses", "feetIds",
             "moralities", "recruitedMonths", "lifeEvents", "cultivations"
         )
         val patch = tables.assembleAllPatched(prev, changed, dirty)

@@ -162,8 +162,6 @@ class DiscipleModelsTest {
         assertEquals("", set.bodyId)
         assertEquals("", set.handsId)
         assertEquals("", set.feetId)
-        assertEquals("", set.weaponId)
-        assertEquals("", set.legsId)
         assertFalse(set.hasEquippedItems)
         assertEquals(emptyList<String>(), set.equippedItemIds)
         assertEquals(emptyList<StorageBagItem>(), set.storageBagItems)
@@ -293,8 +291,6 @@ class DiscipleModelsTest {
         assertEquals("", equip.bodyId)
         assertEquals("", equip.handsId)
         assertEquals("", equip.feetId)
-        assertEquals("", equip.weaponId)
-        assertEquals("", equip.legsId)
         assertEquals(emptyList<StorageBagItem>(), equip.storageBagItems)
         assertEquals(0L, equip.storageBagSpiritStones)
         assertEquals(0, equip.spiritStones)
@@ -321,10 +317,10 @@ class DiscipleModelsTest {
 
     @Test
     fun discipleEquipment_copy() {
-        val original = DiscipleEquipment(discipleId = "d1", weaponId = "w1")
-        val copied = original.copy(weaponId = "w2")
+        val original = DiscipleEquipment(discipleId = "d1", handsId = "w1")
+        val copied = original.copy(handsId = "w2")
         assertEquals("d1", copied.discipleId)
-        assertEquals("w2", copied.weaponId)
+        assertEquals("w2", copied.handsId)
     }
 
     // ---- DiscipleExtended ----

@@ -89,16 +89,14 @@ class GameViewDiscipleColumnApplyEquivalenceTest {
 
     @Test
     fun `装备六部位列直写等价（头身手脚武腿整列替换）`() {
-        // B3 装备重构：孕养嵌套消息列退役，装备面 = 六部位 id 标量列
-        // （head/body/hands/feet/weapon/legs，GameViewDiscipleRows.applyEquipmentPatchColumns
+        // F2 四部位化：装备面 = 四部位 id 标量列
+        // （head/body/hands/feet，GameViewDiscipleRows.applyEquipmentPatchColumns
         // 同清单）——直写与全行合并臂仍须逐列全等
-        assertEquivalence("六部位列") {
+        assertEquivalence("四部位列") {
             headId = "h1"
             bodyId = "b2"
             handsId = "h3"
             feetId = "f4"
-            weaponId = "w5"
-            legsId = "l6"
         }
     }
 

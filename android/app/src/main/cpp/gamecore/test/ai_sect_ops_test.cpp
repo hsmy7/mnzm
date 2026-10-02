@@ -174,21 +174,19 @@ TEST(AiSectLevelTest, LevelUpOnQualifyingRealmAndGearTopUp) {
     ASSERT_EQ(st.gameData.worldMapSects.size(), 1u);
     EXPECT_EQ(st.gameData.worldMapSects[0].level, 1);       // MEDIUM
     EXPECT_EQ(st.gameData.worldMapSects[0].levelName, "中型宗门");
-    // 升级补全：装备 2 件 + 功法 3 本（MEDIUM 档）——B3 六部位列计数
+    // 升级补全：装备 2 件 + 功法 3 本（MEDIUM 档）——四部位列计数
     const auto& members = st.aiSectDisciples["ai-1"];
     ASSERT_EQ(members.size(), 1u);
     int equipCount = (members[0].headId.empty() ? 0 : 1) +
                      (members[0].bodyId.empty() ? 0 : 1) +
                      (members[0].handsId.empty() ? 0 : 1) +
-                     (members[0].feetId.empty() ? 0 : 1) +
-                     (members[0].weaponId.empty() ? 0 : 1) +
-                     (members[0].legsId.empty() ? 0 : 1);
+                     (members[0].feetId.empty() ? 0 : 1);
     EXPECT_EQ(equipCount, 2);
     EXPECT_EQ(members[0].manualIds.size(), 3u);
-    // 直写 id 命中 72 条展开表（六部位条目 id 直写）
+    // 直写 id 命中 24 条展开表（四部位条目 id 直写）
     for (const std::string* eqId :
          {&members[0].headId, &members[0].bodyId, &members[0].handsId,
-          &members[0].feetId, &members[0].weaponId, &members[0].legsId}) {
+          &members[0].feetId}) {
         if (eqId->empty()) continue;
         EXPECT_NE(gamecore::data::equipmentEntryById(*eqId), nullptr) << *eqId;
     }

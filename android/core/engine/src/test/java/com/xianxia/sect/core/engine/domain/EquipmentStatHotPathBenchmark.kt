@@ -69,7 +69,6 @@ class EquipmentStatHotPathBenchmark {
         headId = pieces[0].id, bodyId = pieces[1].id, handsId = pieces[2].id,
         feetId = pieces[3].id,
         // 退役槽位字段（字段随存档模型在 F2 删除）：基准场景恒空
-        weaponId = "", legsId = "",
         manualIds = listOf("manual-probe"), pillEffectDuration = 3,
         pillHpBonus = 100, pillMpBonus = 50
     )

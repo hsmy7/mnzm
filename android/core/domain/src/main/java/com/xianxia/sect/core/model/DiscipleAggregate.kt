@@ -86,8 +86,6 @@ data class DiscipleAggregate(
     val bodyId: String get() = equipment?.bodyId ?: ""
     val handsId: String get() = equipment?.handsId ?: ""
     val feetId: String get() = equipment?.feetId ?: ""
-    val weaponId: String get() = equipment?.weaponId ?: ""
-    val legsId: String get() = equipment?.legsId ?: ""
     val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
@@ -265,14 +263,12 @@ data class DiscipleAggregate(
         hasClearAllEffect = hasClearAllEffect
     )
 
-    /** 装备构建（B3 六部位） */
+    /** 装备构建（四部位：头/身/手/脚） */
     private fun toEquipmentSet(): EquipmentSet = EquipmentSet(
         headId = headId,
         bodyId = bodyId,
         handsId = handsId,
         feetId = feetId,
-        weaponId = weaponId,
-        legsId = legsId,
         storageBagItems = storageBagItems,
         storageBagSpiritStones = storageBagSpiritStones,
         spiritStones = spiritStones

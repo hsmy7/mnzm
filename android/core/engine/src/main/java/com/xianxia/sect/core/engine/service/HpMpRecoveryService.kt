@@ -224,8 +224,6 @@ class HpMpRecoveryService @Inject constructor() {
             bodyId = tables.bodyIds.getOrNull(id),
             handsId = tables.handsIds.getOrNull(id),
             feetId = tables.feetIds.getOrNull(id),
-            weaponId = tables.weaponIds.getOrNull(id),
-            legsId = tables.legsIds.getOrNull(id),
             manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
             pillEffectDuration = tables.pillEffectDurations[id],
             pillHpBonus = tables.pillHpBonuses[id],

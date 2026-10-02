@@ -71,8 +71,6 @@ object DiscipleStatCalculator {
         val bodyId: String?,
         val handsId: String?,
         val feetId: String?,
-        val weaponId: String?,
-        val legsId: String?,
         val manualIds: List<String>,
         val pillEffectDuration: Int,
         val pillHpBonus: Int,

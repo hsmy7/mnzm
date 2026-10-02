@@ -269,10 +269,6 @@ class BattleSystem @Inject constructor(
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"
 
-        val weaponName = disciple.equipment.weaponId
-            .takeIf { it.isNotEmpty() }
-            ?.let { equipmentMap[it]?.name }
-
         // 类型伤害加成六路（装备/套装词条，五行路已按灵根 gate 折算；方案 §3.7②）
         val typeBonuses = DiscipleStatCalculator.typeDamageBonusesOf(
             disciple, equipmentMap, disciple.equipment.equippedItemIds
@@ -304,7 +300,6 @@ class BattleSystem @Inject constructor(
             realmName = GameConfig.Realm.getName(disciple.realm),
             realmLayer = disciple.realmLayer,
             element = primaryElement,
-            weaponName = weaponName,
             portraitRes = disciple.portraitRes
         )
     }

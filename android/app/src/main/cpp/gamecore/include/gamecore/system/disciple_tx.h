@@ -123,8 +123,6 @@ inline const std::string& equipSlotId(const DiscipleStore& ds, std::size_t row,
     if (slot == "BODY") return ds.bodyIds[row];
     if (slot == "HANDS") return ds.handsIds[row];
     if (slot == "FEET") return ds.feetIds[row];
-    if (slot == "WEAPON") return ds.weaponIds[row];
-    if (slot == "LEGS") return ds.legsIds[row];
     static const std::string kEmpty;
     return kEmpty;
 }
@@ -135,13 +133,10 @@ inline void setEquipSlot(DiscipleStore& ds, std::size_t row, const std::string& 
     else if (slot == "BODY") ds.bodyIds[row] = instanceId;
     else if (slot == "HANDS") ds.handsIds[row] = instanceId;
     else if (slot == "FEET") ds.feetIds[row] = instanceId;
-    else if (slot == "WEAPON") ds.weaponIds[row] = instanceId;
-    else if (slot == "LEGS") ds.legsIds[row] = instanceId;
 }
 
 inline bool isEquipSlotName(const std::string& slot) {
-    return slot == "HEAD" || slot == "BODY" || slot == "HANDS" ||
-           slot == "FEET" || slot == "WEAPON" || slot == "LEGS";
+    return slot == "HEAD" || slot == "BODY" || slot == "HANDS" || slot == "FEET";
 }
 
 inline void clearEquipSlot(DiscipleStore& ds, std::size_t row, const std::string& slot) {
@@ -149,8 +144,6 @@ inline void clearEquipSlot(DiscipleStore& ds, std::size_t row, const std::string
     else if (slot == "BODY") ds.bodyIds[row].clear();
     else if (slot == "HANDS") ds.handsIds[row].clear();
     else if (slot == "FEET") ds.feetIds[row].clear();
-    else if (slot == "WEAPON") ds.weaponIds[row].clear();
-    else if (slot == "LEGS") ds.legsIds[row].clear();
 }
 
 // ── 实例铸造辅助（功法堆叠 → 实例；auto_gear.h detail::manualInstanceFromStack
@@ -217,7 +210,7 @@ inline void deductManualStack(std::vector<ManualStack>& stacks, const std::strin
 //         Kotlin 同分支"槽位清空移到入袋成功后，失败时保留槽位不悬空"）
 inline bool unequipInternal(GameState& state, DiscipleStore& ds,
                             std::size_t row, const std::string& equipmentId) {
-    // 仅判断装备所属槽位（六部位；槽位清空移到入袋成功后）。
+    // 仅判断装备所属槽位（四部位；槽位清空移到入袋成功后）。
     // 槽位名由列显式映射（原实现解引用列单元格取到的是装备 id 而非槽位名，
     // clearEquipSlot 恒 no-op——卸下不清槽，测试暴露后根因修复）
     std::string slotName;
@@ -225,8 +218,6 @@ inline bool unequipInternal(GameState& state, DiscipleStore& ds,
     else if (ds.bodyIds[row] == equipmentId) slotName = "BODY";
     else if (ds.handsIds[row] == equipmentId) slotName = "HANDS";
     else if (ds.feetIds[row] == equipmentId) slotName = "FEET";
-    else if (ds.weaponIds[row] == equipmentId) slotName = "WEAPON";
-    else if (ds.legsIds[row] == equipmentId) slotName = "LEGS";
     if (slotName.empty()) return false;
 
     EquipmentInstance* eq = findEquipmentInstance(state, equipmentId);
@@ -461,9 +452,7 @@ inline DiscipleTxResult unequipTransaction(GameState& state,
     const bool isEquipped = ds.headIds[row] == equipmentId ||
                             ds.bodyIds[row] == equipmentId ||
                             ds.handsIds[row] == equipmentId ||
-                            ds.feetIds[row] == equipmentId ||
-                            ds.weaponIds[row] == equipmentId ||
-                            ds.legsIds[row] == equipmentId;
+                            ds.feetIds[row] == equipmentId;
     if (!isEquipped) {
         out.errorType = "SlotInvalid";
         out.message = "装备未穿戴在弟子身上";

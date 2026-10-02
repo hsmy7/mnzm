@@ -84,7 +84,7 @@ class DiscipleMergeCoverageTest {
         "pillEffectDuration", "pillCritRateBonus", "pillCritEffectBonus",
         "pillCultivationSpeedBonus", "pillSkillExpSpeedBonus", "pillNurtureSpeedBonus",
         "activePillCategory",
-        "weaponId", "armorId", "bootsId", "accessoryId",
+        "armorId", "bootsId", "accessoryId",
         "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
         "storageBagItems", "storageBagSpiritStones", "spiritStones",
         "intelligence", "charm", "comprehension",
