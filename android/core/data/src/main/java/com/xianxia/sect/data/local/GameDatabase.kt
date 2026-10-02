@@ -233,7 +233,7 @@ abstract class GameDatabase : RoomDatabase() {
      * 启动 DB 打开）+ DataPruningScheduler 周期任务（双保险）。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun pruneDatabaseSnapshots(keep: Int = SNAPSHOT_RETENTION) {
+    fun pruneDatabaseSnapshots(keep: Int = STARTUP_SNAPSHOT_KEEP_COUNT) {
         pruneDatabaseSnapshots(openHelper.writableDatabase.path, keep)
     }
 
@@ -343,11 +343,11 @@ abstract class GameDatabase : RoomDatabase() {
     companion object {
         private const val TAG = "GameDatabase"
 
-        /** 快照保留份数：最近 2 个版本供降级恢复 */
-        const val SNAPSHOT_RETENTION = 2
+        /** 启动前快照保留份数（不是时长；WAL 快照时长见 `SaveLimitsConfig.WAL_SNAPSHOT_RETENTION_HOURS`）：最近 2 个版本供降级恢复 */
+        const val STARTUP_SNAPSHOT_KEEP_COUNT = 2
     /** 静态实现（companion 可达——verifyAndRecoverDatabase 为 companion 域） */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun pruneDatabaseSnapshots(dbPath: String?, keep: Int = SNAPSHOT_RETENTION) {
+    fun pruneDatabaseSnapshots(dbPath: String?, keep: Int = STARTUP_SNAPSHOT_KEEP_COUNT) {
         try {
             if (dbPath.isNullOrEmpty()) return
             val dir = File(dbPath).parentFile ?: return
@@ -618,7 +618,7 @@ abstract class GameDatabase : RoomDatabase() {
 
             // Step 4: 版本达标后清理恢复 marker + 裁剪启动前快照
             //（注释承诺的维护任务接线——版本达标即旧版快照
-            // 价值衰减，按保留窗口留最近 SNAPSHOT_RETENTION 份）
+            // 价值衰减，按保留窗口留最近 STARTUP_SNAPSHOT_KEEP_COUNT 份）
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
                     File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
