@@ -146,7 +146,7 @@ fun EquipmentSelectionDialog(
     val watchedKeys = params.viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
     val slotEnum = EquipmentSlot.entries
         .find { it.name.equals(params.slotType, ignoreCase = true) }
-        ?: EquipmentSlot.WEAPON
+        ?: EquipmentSlot.HEAD
 
     val items = remember(
         params.allEquipment, slotEnum,

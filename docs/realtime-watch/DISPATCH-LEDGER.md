@@ -180,6 +180,12 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
 - 派发件：现场从 IMPLEMENTATION-BATCHES.md §4 对应节装配（纪律前言复用本目录 batch 模板 + §2 门禁命令 + 前批事实附录），存本目录 `batch-EQ-Bx.md`。
 - 收官/核验/间隔调整/最终合并删支：同 §4–§7 模型。
 
+### F 批：装备四部位化（2026-10-02 立项，方案 v1.0）
+
+- 方案：`docs/design/equipment-four-slot-refactor-plan.md`（Q1–Q5 已闭环）；报告：`docs/design/equipment-batches/reports/report-F1.md` 起。
+- 批次：**F1 领域与静态数据（枚举 4 值/池/系数/套装 2-4/中性源 24/codegen/枚举守卫）→ F2 弟子槽字段 6→4 + C++ 对偶 + 存档链 → F3 外围清理（旧 72 条通用配方族/掉落/商店/AI 配装/UI 与 24 图）→ F4 数值校准 + 全量门禁 + 文档/ADR/双日志**，全串行。
+- F1 关键口径：C++ 套装判定与三处槽位洗牌点（mission_completion/ai_sect_recruit/ai_sect_ops）必须与 Kotlin **同批**收敛 4 部位（洗牌长度=RNG 消耗量，不同步即 Diff 全红）；`bonus6` 改名 `bonusFull`（4 件触发，满套口径守恒）；Room 零 schema 变更（列删除随 F2）。
+
 ## 9. 留言区（实施会话可写；看护会读）
 
 （实施会话如对本批安排有异议或需用户拍板事项，写在此处并遵守：不改台账其他节、不自设 accepted。）
@@ -315,3 +321,5 @@ n> ℹ️ **推送通道暂断（2026-09-29 02:5x）**：7897 停机/9013 掐断
   ③ **架构要点**：`WEAPON(14)`/`LEGS(15)` 编号退役 reserved 禁复用；`weaponId(17)`（原复用锚定）随武器删除一并退役、`legsId(116)` 退役、`112..115` 保留；**武器池由手部承接**（同 3 词条、系数 1.15）、腿部池由脚部承接（0.95）；部位池/系数 6→4；套装 24 件命名 = 物理套 4 既有名 + 5 元素套统一后缀表（灵冠/法袍/灵护/云履）；Room schema 变更须**同 commit 更新 `MigrationRequiredGuardTest.BASELINE_ENTITIES`**（测试期不写迁移）。
   ④ **批次编排**：**F1 领域与静态数据 → F2 引擎结算（Kotlin+C++）→ F3 外围清理（锻造/掉落/商店/AI 配装/UI 与 24 图）→ F4 数值校准 + 守卫全绿 + 文档/ADR/双日志**；含 12 条成功标准、11 条 DoD、6 条对抗点（如 FA1"6 件套分支必须删除而非注释"、FA4"双侧系数同值"）、6 条风险、7 条盲区自查。
   ⑤ 本会话**未改任何代码**（仅新增方案文档 + 本条登记）。等用户下达"实施"后按 F1–F4 串行执行（执行前须重新实测 §二 各项，因并网代码持续变动）。
+
+- **2026-10-02（F1 实施会话：装备四部位化 F1 收官，待并网/看护核验）**：🟢 **F1「领域与静态数据」全量落地，门禁全绿，单笔待提交于 `feat/equipment-four-slot-f1`**。① **交付面**：`EquipmentSlot` 恰 4 值（`WEAPON(14)/LEGS(15)` 退役 reserved 禁复用，守卫双断言）；主词条池/系数 4 部位（手承接输出向 1.15、脚承接均衡向 0.95，单件数值表一字未改）；套装档位 2/4（`bonus6→bonusFull` 改名、`>=6` 分支删除非注释、满套 = 本系 +30% + 暴击 +12% 守恒）；中性源 36→24 + codegen 重生成（G0 sha256 零漂移）；Kotlin 配方 36→24（枚举编译强制；旧 72 条通用配方族不动留 F3）。② **连带面（枚举=编译前置）**：Kotlin 主源 17 文件 + C++ 手写面 7 文件——其中 **C++ 套装判定（disciple_stats.h）与三处槽位洗牌点（mission_completion:579/ai_sect_recruit:199/ai_sect_ops:302）必须与 Kotlin 同批收敛 4 部位**（Kotlin `EquipmentSlot.entries` 自动缩 4 改变洗牌 RNG 消耗，C++ 不同步即 Diff 全红）；购买部位回退双端对称改 HEAD；`EquipmentRefRule` 退役字段按孤儿判据清理（合法引用不误清）。③ **门禁实跑**：JVM 全量 **7489/0/0 19skip**（--max-workers=1，含桌面 JNI Diff 家族全绿）+ ctest **1538/1538** + lintRelease/detekt 绿 + jni-count 87/87 + agent-instructions 绿 + G0 零漂移；.so 重编（17:57 晚于全部头文件 17:04）。④ **实测占比**：四件满套五入口中位 0.259/0.276/0.297/0.345/0.320（金丹/元婴/化神/炼虚/大乘），`EquipmentPowerParityTest` 带宽重锚 [0.22,0.40]，与方案预测约 27% 吻合——F4 复核定稿。⑤ **Room 零 schema 变更**（枚举存 TEXT 不受值域影响；版本递增随 F2 列删除）；版本号未动。⑥ **途中发现**（报告 §五）：TemplateCodegenIntegrityGuardTest scripts 路径错配致两用例长期静默跳过且 pieceCount 断言陈旧（已修路径+计数）；detekt 主预存 UnusedImports ×2（已顺手修）；RecipeRegistryGuardTest 锻造面自 B3 起休眠跳过（留 F3 收口）。⑦ **F2/F3 交接**：weaponId/legsId 字段 25 文件 78 处 + C++ 六列链（F2）；旧 72 条通用配方族/精灵图 36→24/UI 文案（F3）。

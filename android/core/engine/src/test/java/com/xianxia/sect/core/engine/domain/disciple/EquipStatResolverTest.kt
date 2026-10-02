@@ -25,7 +25,7 @@ class EquipStatResolverTest {
     private fun instance(
         id: String = "e1",
         setId: String = "",
-        part: EquipmentSlot = EquipmentSlot.WEAPON,
+        part: EquipmentSlot = EquipmentSlot.HANDS,
         level: Int = 1,
         affix: EquipAffixSet = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
     ) = EquipmentInstance(

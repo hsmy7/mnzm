@@ -238,7 +238,8 @@ class ElementalDamageSystemTest {
                     instance(set.id, "PART_$i")
                 }
                 val bonus = resolver.resolveSetBonus(worn)
-                val expectedType = (if (count >= 2) 0.10 else 0.0) + (if (count >= 6) 0.20 else 0.0)
+                // 2/4 两档：4 件 = 满套（2 件档 +10% 与满套档 +20% 同时生效）
+                val expectedType = (if (count >= 2) 0.10 else 0.0) + (if (count >= 4) 0.20 else 0.0)
                 val typeValue = when (set.school.element) {
                     null -> bonus.physicalDamageBonus
                     "metal" -> bonus.metalDamageBonus
@@ -249,7 +250,7 @@ class ElementalDamageSystemTest {
                     else -> error("未知流派 ${set.school}")
                 }
                 assertEquals(
-                    "${set.id} count=$count 本系伤害应=${if (count >= 2) 0.10 else 0.0}+${if (count >= 6) 0.20 else 0.0}",
+                    "${set.id} count=$count 本系伤害应=${if (count >= 2) 0.10 else 0.0}+${if (count >= 4) 0.20 else 0.0}",
                     expectedType, typeValue, 1e-12
                 )
                 assertEquals("${set.id} count=$count 暴击率", if (count >= 4) 0.12 else 0.0, bonus.critRate, 1e-12)

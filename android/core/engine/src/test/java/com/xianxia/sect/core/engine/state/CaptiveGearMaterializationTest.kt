@@ -92,7 +92,7 @@ class CaptiveGearMaterializationTest {
             "testMind1" to 0
         ),
         equipment = EquipmentSet(
-            weaponId = "lietian_WEAPON_r1",
+            headId = "lietian_HEAD_r1",
             bodyId = "lietian_BODY_r1"
         )
     )
@@ -106,19 +106,19 @@ class CaptiveGearMaterializationTest {
 
         state.materializeCaptiveGear(captive, newId)
 
-        // 1. 装备实例：2 件（lietian_WEAPON_r1/lietian_BODY_r1），UUID id、ownerId、isEquipped
+        // 1. 装备实例：2 件（lietian_HEAD_r1/lietian_BODY_r1），UUID id、ownerId、isEquipped
         assertEquals("应创建 2 件装备实例", 2, state.equipmentInstances.size)
-        val weaponInstance = requireNotNull(
-            state.equipmentInstances.firstOrNull { it.name == "裂天罡煞·战刃" }
+        val headInstance = requireNotNull(
+            state.equipmentInstances.firstOrNull { it.name == "裂天罡煞·头冠" }
         )
-        assertNotEquals("实例 id 应为 UUID 而非模板 id", "lietian_WEAPON_r1", weaponInstance.id)
-        assertEquals("ownerId 应为新弟子 id", newId, weaponInstance.ownerId)
-        assertTrue("应标记为已装备", weaponInstance.isEquipped)
-        // B3 实例轨：AI 载荷不存词条/等级——占位空面（1 级 + ATTACK 0.0 主词条）
-        assertEquals("品阶应取部件条目品阶", 1, weaponInstance.rarity)
-        assertEquals("部位应为武器", EquipmentSlot.WEAPON, weaponInstance.part)
+        assertNotEquals("实例 id 应为 UUID 而非模板 id", "lietian_HEAD_r1", headInstance.id)
+        assertEquals("ownerId 应为新弟子 id", newId, headInstance.ownerId)
+        assertTrue("应标记为已装备", headInstance.isEquipped)
+        // 实例轨：AI 载荷不存词条/等级——占位空面（1 级主词条）
+        assertEquals("品阶应取部件条目品阶", 1, headInstance.rarity)
+        assertEquals("部位应为头部", EquipmentSlot.HEAD, headInstance.part)
         // 2. 槽位列回写实例 id
-        assertEquals("weaponIds 列应回写实例 id", weaponInstance.id, state.discipleTables.weaponIds[intId])
+        assertEquals("headIds 列应回写实例 id", headInstance.id, state.discipleTables.headIds[intId])
         assertNotEquals("bodyIds 列应回写实例 id", "lietian_BODY_r1", state.discipleTables.bodyIds[intId])
         assertTrue("bodyIds 列应非空", state.discipleTables.bodyIds[intId].isNotEmpty())
         // 3. 功法实例：3 本，isLearned

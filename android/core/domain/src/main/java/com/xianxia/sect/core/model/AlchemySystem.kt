@@ -93,7 +93,7 @@ data class ForgeSlot(
     val recipeName: String = "",
     val equipmentName: String = "",
     val equipmentRarity: Int = 1,
-    val equipmentSlot: EquipmentSlot = EquipmentSlot.WEAPON,
+    val equipmentSlot: EquipmentSlot = EquipmentSlot.HEAD,
     val startYear: Int = 0,
     val startMonth: Int = 0,
     val duration: Int = 0,

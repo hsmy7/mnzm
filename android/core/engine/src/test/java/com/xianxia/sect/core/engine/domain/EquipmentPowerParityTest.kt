@@ -60,14 +60,12 @@ class EquipmentPowerParityTest {
         )
     }
 
-    /** 满套六件（显示序） */
+    /** 满套四件（显示序：头/身/手/脚） */
     private fun fullSet(setId: String, rarity: Int, seed: Int): List<EquipmentInstance> = listOf(
         lv30Piece(setId, EquipmentSlot.HEAD, rarity, seed * 100 + 1),
         lv30Piece(setId, EquipmentSlot.BODY, rarity, seed * 100 + 2),
         lv30Piece(setId, EquipmentSlot.HANDS, rarity, seed * 100 + 3),
-        lv30Piece(setId, EquipmentSlot.FEET, rarity, seed * 100 + 4),
-        lv30Piece(setId, EquipmentSlot.WEAPON, rarity, seed * 100 + 5),
-        lv30Piece(setId, EquipmentSlot.LEGS, rarity, seed * 100 + 6)
+        lv30Piece(setId, EquipmentSlot.FEET, rarity, seed * 100 + 4)
     )
 
     /** 阶段基础面板（方差 0、层 1、技能 50——占比口径的干净基准面） */
@@ -102,26 +100,26 @@ class EquipmentPowerParityTest {
 
     // ── S9/S16：占比带 ───────────────────────────────────────
 
-    /** 五行属性伤害系统 E4 校准后的占比带：低品阶入口因副词条池权重重定
-     *  （类型词条 15+15→7+30、攻击/暴击下调）与 4 件套统一骨架（暴伤 25%→暴率 12%）
-     *  使 T2/T3 中位降 2–3.6pp——五入口实测 0.314/0.330/0.350/0.402（大乘 T6 满套另测），
-     *  带 [0.30,0.45] 按 B4 同方法论重锚（中位锚样本可复算）。 */
-    private val shareBand = 0.30..0.45
+    /** 四部位化占比带（件数 6→4、单件数值表一字不改、套装满套口径守恒）：
+     *  五入口中位实测 0.259/0.276/0.297/0.345/0.320（金丹/元婴/化神/炼虚/大乘），
+     *  带 [0.22,0.40] 按实测重锚（中位锚样本可复算）。终态带宽与装备总占比报告
+     *  由数值校准批（F4）复核定稿（方案 §3.3：预期约 27%，不设运行时补偿）。 */
+    private val shareBand = 0.22..0.40
 
     @Test
-    fun `锚定阶段大乘T6满套中位占比在40±5带内`() {
+    fun `锚定阶段大乘T6满套中位占比在带宽内`() {
         val share = medianFullSetShare(realm = 2, rarity = 6)
         assertTrue(
-            "大乘 T6 满套中位占比 $share 出带 $shareBand——T6 flat 主词条基数校准被改动？" +
-                "（校准锚口径见 EquipmentPowerParityTest KDoc 与 report-B4）",
+            "大乘 T6 满套中位占比 $share 出带 $shareBand——T6 flat 主词条基数被改动？" +
+                "（锚口径见 EquipmentPowerParityTest KDoc；四部位化带宽由 F4 复核定稿）",
             share in shareBand
         )
     }
 
     @Test
     fun `各品阶入口阶段中位占比在带内`() {
-        // T2@金丹 / T3@元婴 / T4@化神 / T5@炼虚 / T6@大乘——本批校准后全部带内。
-        // T1@炼气（54.6%）结构性越带：副词条单独占比 35.9%，主词条杠杆不可达（report-B4 §3）。
+        // T2@金丹 / T3@元婴 / T4@化神 / T5@炼虚 / T6@大乘——四部位化后全部带内（实测锚见 shareBand）。
+        // T1@炼气结构性越带：副词条占比即已超带，主词条杠杆不可达（report-B4 §3 同族口径）。
         val stages = listOf(
             "金丹/T2" to (7 to 2),
             "元婴/T3" to (6 to 3),
@@ -138,29 +136,29 @@ class EquipmentPowerParityTest {
         }
     }
 
-    // ── 2/4/6 件套（含套装档位效果）──────────────────────────
+    // ── 2/3/4 件套（含套装档位效果；4 件 = 满套）──────────────
 
     @Test
-    fun `两件四件六件套占比单调递增且满套含全档效果`() {
+    fun `两件三件四件套占比单调递增且满套含全档效果`() {
         val realm = 2
         val rarity = 6
         fun shareOf(parts: List<EquipmentSlot>, seed: Int): Double =
             equipmentShare(realm, parts.mapIndexed { i, p -> lv30Piece("lietian", p, rarity, seed * 100 + i + 1) })
 
         val twoParts = listOf(EquipmentSlot.HEAD, EquipmentSlot.BODY)
-        val fourParts = twoParts + listOf(EquipmentSlot.HANDS, EquipmentSlot.WEAPON)
-        val sixParts = fourParts + listOf(EquipmentSlot.FEET, EquipmentSlot.LEGS)
+        val threeParts = twoParts + listOf(EquipmentSlot.HANDS)
+        val fourParts = threeParts + listOf(EquipmentSlot.FEET)
 
-        val medians = listOf(twoParts, fourParts, sixParts).map { parts ->
+        val medians = listOf(twoParts, threeParts, fourParts).map { parts ->
             val shares = (1..scenarioCount).map { seed -> shareOf(parts, seed) }.sorted()
             (shares[scenarioCount / 2 - 1] + shares[scenarioCount / 2]) / 2.0
         }
         println(
-            "PARITY 件数梯度中位占比: 2件=%.4f 4件=%.4f 6件=%.4f".format(medians[0], medians[1], medians[2])
+            "PARITY 件数梯度中位占比: 2件=%.4f 3件=%.4f 4件=%.4f".format(medians[0], medians[1], medians[2])
         )
-        assertTrue("2 件套占比应低于 4 件套", medians[0] < medians[1])
-        assertTrue("4 件套占比应低于 6 件套", medians[1] < medians[2])
-        // 6 件满套 = 2/4/6 三档同时生效（EquipStatResolver 口径），占比锚落在满套状态
+        assertTrue("2 件套占比应低于 3 件套", medians[0] < medians[1])
+        assertTrue("3 件套占比应低于 4 件套（满套）", medians[1] < medians[2])
+        // 4 件满套 = 2 件档 + 4 件档（暴击 + 本系伤害满档）同时生效（EquipStatResolver 口径）
         assertTrue("满套中位占比 ${medians[2]} 应在带内", medians[2] in shareBand)
     }
 
@@ -194,7 +192,7 @@ class EquipmentPowerParityTest {
         assertTrue("血量维度贡献必须为正", hpPower > 0.0)
         assertTrue("防御维度贡献必须为正", defPower > 0.0)
         // 套装档位单独断言（主/副词条混算前，resolveSetBonus 是纯套装口径）：
-        // 裂天罡煞 2/6 档物理伤害 0.10+0.20、4 档暴击率 0.12
+        // 裂天罡煞满套（4 件）= 2 件档 + 满套档物理伤害 0.10+0.20、4 件档暴击率 0.12
         val setBonus = EquipStatResolver.resolveSetBonus(pieces)
         assertEquals("套装 2/6 档物理类型伤害合计", 0.30, setBonus.physicalDamageBonus, 1e-12)
         assertEquals("套装 4 档暴击率", 0.12, setBonus.critRate, 1e-12)

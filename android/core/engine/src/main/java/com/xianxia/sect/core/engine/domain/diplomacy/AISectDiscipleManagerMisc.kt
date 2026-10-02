@@ -86,8 +86,6 @@ internal fun EquipmentSet.withEquipped(slot: EquipmentSlot, id: String): Equipme
     EquipmentSlot.BODY -> copy(bodyId = id)
     EquipmentSlot.HANDS -> copy(handsId = id)
     EquipmentSlot.FEET -> copy(feetId = id)
-    EquipmentSlot.WEAPON -> copy(weaponId = id)
-    EquipmentSlot.LEGS -> copy(legsId = id)
 }
 
 /**

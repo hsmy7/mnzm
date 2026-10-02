@@ -7,8 +7,8 @@
  * 重跑零差异）。Kotlin 侧声明表由单一源守卫测试逐条比对兜底。
  *
  * 产物（6 份）：
- *   1. gamecore/include/gamecore/data/equipment_db.h        装备部件表（12 条）
- *   2. gamecore/include/gamecore/data/equip_set_db.h        套装效果表（2 套 × 3 档）
+ *   1. gamecore/include/gamecore/data/equipment_db.h        装备部件表（24 条）
+ *   2. gamecore/include/gamecore/data/equip_set_db.h        套装效果表（6 套 × 2/4 两档）
  *   3. gamecore/include/gamecore/data/equip_main_stat_db.h  部位主词条池表
  *   4. gamecore/include/gamecore/data/equip_affix_db.h      副词条池表（7 项）
  *   5. core/engine/src/test/resources/templates/equipment_db_sample.json   快照
@@ -65,15 +65,15 @@ function genCppTable(pieces) {
   lines.push('#include <vector>');
   lines.push('');
   lines.push('// ============================================================');
-  lines.push('// 装备套装部件静态表（B3：2 套 × 6 部位 = 12 条；按品阶展开为');
-  lines.push('// 72 条可生成条目的基表）');
+  lines.push('// 装备套装部件静态表（6 套 × 4 部位 = 24 条；按品阶展开为');
+  lines.push('// 144 条可生成条目的基表）');
   lines.push('// ============================================================');
   lines.push('namespace gamecore::data {');
   lines.push('');
   lines.push('struct SetPieceTemplate {');
   lines.push('    std::string id;        // "{setId}_{part}"，如 lietian_HEAD');
-  lines.push('    std::string setId;     // 套装 id（lietian/zifu）');
-  lines.push('    std::string part;      // 六部位 EquipmentSlot.name');
+  lines.push('    std::string setId;     // 套装 id（lietian/gengjin 等）');
+  lines.push('    std::string part;      // 四部位 EquipmentSlot.name');
   lines.push('    std::string name;');
   lines.push('    std::string description;');
   lines.push('    std::int32_t priceByRarity[6];   // 品阶 1..6 价格');
@@ -90,7 +90,7 @@ function genCppTable(pieces) {
   lines.push('    return true;');
   lines.push('}');
   lines.push('');
-  lines.push('/// 全部套装部件（12 条；Mutable 入口供 data_inject.h 运行期注入）');
+  lines.push('/// 全部套装部件（24 条；Mutable 入口供 data_inject.h 运行期注入）');
   lines.push('inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {');
   lines.push('    static std::vector<SetPieceTemplate> kPieces = {');
   for (const e of pieces) {
@@ -137,8 +137,8 @@ function genCppSetDb(defs) {
   lines.push('#include <vector>');
   lines.push('');
   lines.push('// ============================================================');
-  lines.push('// 套装效果静态表（B3：2 套 × 2/4/6 三档；件数达档即生效、');
-  lines.push('// 可越级不叠加，穿满 6 件三档同时生效）');
+  lines.push('// 套装效果静态表（6 套 × 2/4 两档；件数达档即生效、');
+  lines.push('// 可越级不叠加，穿满 4 件两档同时生效）');
   lines.push('// ============================================================');
   lines.push('namespace gamecore::data {');
   lines.push('');
@@ -154,16 +154,16 @@ function genCppSetDb(defs) {
   lines.push('struct EquipmentSetDef {');
   lines.push('    std::string id;');
   lines.push('    std::string name;');
-  lines.push('    std::string school; // PHYSICAL / MAGIC');
+  lines.push('    std::string school; // PHYSICAL / METAL / WOOD / WATER / FIRE / EARTH');
   lines.push('    std::vector<EquipStatValueDef> bonus2;');
   lines.push('    std::vector<EquipStatValueDef> bonus4;');
-  lines.push('    std::vector<EquipStatValueDef> bonus6;');
+  lines.push('    std::vector<EquipStatValueDef> bonusFull;   // 满套档（4 件触发）');
   lines.push('};');
   lines.push('');
   lines.push('// 幂等比较（data_inject 注入守卫逐字段比对面；四表 operator== 契约补齐）');
   lines.push('inline bool operator==(const EquipmentSetDef& a, const EquipmentSetDef& b) {');
   lines.push('    return a.id == b.id && a.name == b.name && a.school == b.school &&');
-  lines.push('           a.bonus2 == b.bonus2 && a.bonus4 == b.bonus4 && a.bonus6 == b.bonus6;');
+  lines.push('           a.bonus2 == b.bonus2 && a.bonus4 == b.bonus4 && a.bonusFull == b.bonusFull;');
   lines.push('}');
   lines.push('');
   lines.push('inline std::vector<EquipmentSetDef>& equipmentSetDefsMutable() {');
@@ -178,7 +178,7 @@ function genCppSetDb(defs) {
     for (const b of def.bonus4) lines.push(`                {"${b.stat}", ${b.value}},`);
     lines.push('            },');
     lines.push('            {');
-    for (const b of def.bonus6) lines.push(`                {"${b.stat}", ${b.value}},`);
+    for (const b of def.bonusFull) lines.push(`                {"${b.stat}", ${b.value}},`);
     lines.push('            },');
     lines.push('        },');
   }
@@ -434,7 +434,7 @@ mkdirSync(sampleDir, { recursive: true });
 writeFileSync(join(sampleDir, 'equipment_db_sample.json'),
   JSON.stringify(equipJson, null, 1));
 
-console.log(`装备表生成完成：${setPieces.length} 部件 + ${sets.length} 套装 + 六部位池 + ${subAffixes.length} 副词条`);
+console.log(`装备表生成完成：${setPieces.length} 部件 + ${sets.length} 套装 + 四部位池 + ${subAffixes.length} 副词条`);
 console.log(`  -> ${join(cppDir, 'equipment_db.h')}`);
 console.log(`  -> ${join(cppDir, 'equip_set_db.h')}`);
 console.log(`  -> ${join(cppDir, 'equip_main_stat_db.h')}`);

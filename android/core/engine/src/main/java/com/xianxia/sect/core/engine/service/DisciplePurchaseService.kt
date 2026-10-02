@@ -362,7 +362,7 @@ class DisciplePurchaseService @Inject constructor(
             // B3：货单装备 → 部位判定（按部件名反查；不 roll 词条——决策面只看部位/品阶）
             val eqPart = com.xianxia.sect.core.engine.system.MerchantItemConverter.companionInstance
                 .equipmentPartOf(item)
-                ?: EquipmentSlot.WEAPON
+                ?: EquipmentSlot.HEAD
 
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
@@ -445,8 +445,6 @@ class DisciplePurchaseService @Inject constructor(
         EquipmentSlot.BODY -> ctx.bodyId
         EquipmentSlot.HANDS -> ctx.handsId
         EquipmentSlot.FEET -> ctx.feetId
-        EquipmentSlot.WEAPON -> ctx.weaponId
-        EquipmentSlot.LEGS -> ctx.legsId
     }
     // ── Pill → ItemEffect ────────────────────────────────────────
 

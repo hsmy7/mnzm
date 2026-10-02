@@ -229,7 +229,7 @@ class LootCalculatorTest {
         state.equipmentInstances.add(
             com.xianxia.sect.core.model.EquipmentInstance(
                 id = "e1", name = "剑",
-                part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+                part = com.xianxia.sect.core.model.EquipmentSlot.HANDS,
                 growth = com.xianxia.sect.core.model.EquipGrowth(
                     affix = com.xianxia.sect.core.model.EquipAffixSet(
                         mainStat = com.xianxia.sect.core.model.EquipStatValue(

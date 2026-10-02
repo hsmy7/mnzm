@@ -30,8 +30,6 @@ inline std::vector<MainStatPoolDef>& mainStatPoolsMutable() {
         {"BODY", {"DEFENSE", "ATTACK", "CRIT_RATE", "CRIT_DAMAGE"}, 1},
         {"HANDS", {"ATTACK", "CRIT_RATE", "CRIT_DAMAGE"}, 1.15},
         {"FEET", {"DEFENSE", "ATTACK", "CRIT_RATE", "CRIT_DAMAGE", "HP"}, 0.95},
-        {"WEAPON", {"ATTACK", "CRIT_RATE", "CRIT_DAMAGE"}, 1.15},
-        {"LEGS", {"DEFENSE", "ATTACK", "CRIT_RATE", "CRIT_DAMAGE", "HP"}, 0.95},
     };
     return kPools;
 }

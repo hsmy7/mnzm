@@ -54,8 +54,6 @@ internal fun MutableGameState.equippedItemIdOf(id: Int, slot: EquipmentSlot): St
     EquipmentSlot.BODY -> discipleTables.bodyIds[id]
     EquipmentSlot.HANDS -> discipleTables.handsIds[id]
     EquipmentSlot.FEET -> discipleTables.feetIds[id]
-    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-    EquipmentSlot.LEGS -> discipleTables.legsIds[id]
 }
 
 /** 旧装备卸装入袋：实例直接铸造入袋并防双持有 */
@@ -88,8 +86,6 @@ internal fun MutableGameState.clearEquipmentSlot(id: Int, slot: EquipmentSlot) {
         EquipmentSlot.BODY -> discipleTables.bodyIds[id] = ""
         EquipmentSlot.HANDS -> discipleTables.handsIds[id] = ""
         EquipmentSlot.FEET -> discipleTables.feetIds[id] = ""
-        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
-        EquipmentSlot.LEGS -> discipleTables.legsIds[id] = ""
     }
 }
 
@@ -101,8 +97,6 @@ internal fun MutableGameState.setEquipmentSlot(id: Int, slot: EquipmentSlot, ins
         EquipmentSlot.BODY -> discipleTables.bodyIds[id] = instanceId
         EquipmentSlot.HANDS -> discipleTables.handsIds[id] = instanceId
         EquipmentSlot.FEET -> discipleTables.feetIds[id] = instanceId
-        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = instanceId
-        EquipmentSlot.LEGS -> discipleTables.legsIds[id] = instanceId
     }
 }
 

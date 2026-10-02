@@ -80,7 +80,7 @@ class TemplateRegistryGuardTest {
     fun `展开条目与快照部件展开一致`() {
         val root = loadSample() ?: return
         val pieces = root.getValue("setPieces").jsonArray
-        // 36 部件 × 品阶 1..6 = 216 条；展开口径逐部件核对 id/价格/门槛
+        // 24 部件 × 品阶 1..6 = 144 条；展开口径逐部件核对 id/价格/门槛
         var expectedCount = 0
         pieces.forEach { element ->
             val obj = element.jsonObject
@@ -99,8 +99,8 @@ class TemplateRegistryGuardTest {
                 assertEquals("$entryId.minRealm", minRealms[index], entry.minRealm)
             }
         }
-        assertEquals("展开条目总数应为 216", 216, EquipmentDatabase.entries.size)
-        assertEquals(216, expectedCount)
+        assertEquals("展开条目总数应为 144", 144, EquipmentDatabase.entries.size)
+        assertEquals(144, expectedCount)
     }
 
     @Test
@@ -116,7 +116,7 @@ class TemplateRegistryGuardTest {
             def ?: return@forEach
             assertEquals("$id.name", obj.getValue("name").jsonPrimitive.content, def.name)
             assertEquals("$id.school", obj.getValue("school").jsonPrimitive.content, def.school.name)
-            listOf("bonus2", "bonus4", "bonus6").forEach { tier ->
+            listOf("bonus2", "bonus4", "bonusFull").forEach { tier ->
                 val expected = obj.getValue(tier).jsonArray.map {
                     val entry = it.jsonObject
                     EquipStat.valueOf(entry.getValue("stat").jsonPrimitive.content) to
@@ -125,7 +125,7 @@ class TemplateRegistryGuardTest {
                 val actual = when (tier) {
                     "bonus2" -> def.bonus2.entries
                     "bonus4" -> def.bonus4.entries
-                    else -> def.bonus6.entries
+                    else -> def.bonusFull.entries
                 }.map { it.stat to it.value }
                 assertEquals("$id.$tier", expected, actual)
             }

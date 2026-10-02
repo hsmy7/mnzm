@@ -5,12 +5,15 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.data.model.SaveData
 
 /**
- * 检查弟子六部位装备引用（headId/bodyId/handsId/feetId/weaponId/legsId）指向的
- * 物品是否存在。对孤立引用（引用的 ID 不在 [RuleContext.allEquipmentIds] 中），
- * 清除该引用。
+ * 检查弟子部位装备引用指向的物品是否存在。对孤立引用（引用的 ID 不在
+ * [RuleContext.allEquipmentIds] 中），清除该引用。
  *
- * 使用 [context.allEquipmentIds] 避免重复遍历装备列表（B3 起 = equipmentInstances，
- * 装备堆叠已退役）。
+ * 扫描面 = 四活跃部位（[EquipmentSlot.displayOrder]）+ 退役槽位字段
+ * （weaponId/legsId，proto 17/116）：退役字段已无合法装备面，残留引用与
+ * 四部位同判据按孤立引用清除，直至字段随存档模型退役删除。
+ *
+ * 使用 [context.allEquipmentIds] 避免重复遍历装备列表（装备堆叠已退役，
+ * 引用目标恒为 equipmentInstances）。
  */
 object EquipmentRefRule : SaveValidationRule {
     override val id = "equipment_ref"
@@ -29,6 +32,12 @@ object EquipmentRefRule : SaveValidationRule {
                     localFixes.add("${part.name}=$id")
                 }
             }
+            if (equip.weaponId.isNotEmpty() && equip.weaponId !in context.allEquipmentIds) {
+                localFixes.add("weaponId=${equip.weaponId}")
+            }
+            if (equip.legsId.isNotEmpty() && equip.legsId !in context.allEquipmentIds) {
+                localFixes.add("legsId=${equip.legsId}")
+            }
 
             if (localFixes.isNotEmpty()) {
                 repairs.add("弟子[$name] 装备引用不存在: ${localFixes.joinToString(", ")}，已清除")
@@ -42,7 +51,7 @@ object EquipmentRefRule : SaveValidationRule {
         }
     }
 
-    /** 清除指向不存在装备的部位引用 */
+    /** 清除指向不存在装备的部位引用（含退役槽位字段） */
     private fun clearDanglingRefs(equip: EquipmentSet, knownIds: Set<String>): EquipmentSet {
         var result = equip
         for (part in EquipmentSlot.displayOrder) {
@@ -50,6 +59,12 @@ object EquipmentRefRule : SaveValidationRule {
             if (id.isNotEmpty() && id !in knownIds) {
                 result = result.copy().apply { setSlotId(part, "") }
             }
+        }
+        if (result.weaponId.isNotEmpty() && result.weaponId !in knownIds) {
+            result = result.copy(weaponId = "")
+        }
+        if (result.legsId.isNotEmpty() && result.legsId !in knownIds) {
+            result = result.copy(legsId = "")
         }
         return result
     }

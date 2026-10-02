@@ -82,7 +82,7 @@ class MerchantPriceValidationTest {
     /** B3 实例轨种子：精铁剑仓库实例（name/rarity 参与收购计数与扣减） */
     private fun swordInstance(id: String) = EquipmentInstance(
         id = id, name = "精铁剑",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 5.0))
         ),

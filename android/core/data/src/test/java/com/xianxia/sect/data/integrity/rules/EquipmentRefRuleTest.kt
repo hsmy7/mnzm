@@ -39,7 +39,7 @@ class EquipmentRefRuleTest {
         id = id,
         name = "部件",
         setId = "lietian",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 0.0))),
         meta = EquipInstanceMeta()
     )

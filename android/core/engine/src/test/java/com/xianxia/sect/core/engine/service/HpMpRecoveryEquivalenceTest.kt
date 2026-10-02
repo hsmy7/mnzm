@@ -189,14 +189,12 @@ class HpMpRecoveryEquivalenceTest {
     }
 
     @Test
-    fun `等价性 - 装备六部位全配与空`() {
+    fun `等价性 - 装备四部位全配与空`() {
         val eq = listOf(
             eq("h1", EquipmentSlot.HEAD, hp = 120.0),
             eq("b1", EquipmentSlot.BODY, hp = 80.0),
             eq("g1", EquipmentSlot.HANDS, hp = 20.0),
-            eq("f1", EquipmentSlot.FEET, hp = 50.0),
-            eq("w1", EquipmentSlot.WEAPON, hp = 60.0),
-            eq("l1", EquipmentSlot.LEGS, hp = 45.0)
+            eq("f1", EquipmentSlot.FEET, hp = 50.0)
         )
         assertEquivalence(equipment = eq, curHp = 100, curMp = 100)
         assertEquivalence(equipment = emptyList(), curHp = 100, curMp = 100)

@@ -897,10 +897,10 @@ TEST(AutoBuySettlement, DecemberAutoBuyMatchesKnownTemplate) {
     st.gameData.gameYear = 1;
     st.gameData.gameMonth = 12;
     st.gameData.spiritStones = 10000;
-    st.gameData.autoBuyList.push_back({"裂天罡煞·战刃", "equipment", 1});
+    st.gameData.autoBuyList.push_back({"裂天罡煞·头冠", "equipment", 1});
     st.gameData.autoBuyList.push_back({"聚气丹", "pill", 1});
     state::MerchantItem sword;
-    sword.id = "m1"; sword.name = "裂天罡煞·战刃"; sword.type = "equipment";
+    sword.id = "m1"; sword.name = "裂天罡煞·头冠"; sword.type = "equipment";
     sword.rarity = 1; sword.price = 100; sword.quantity = 3;
     state::MerchantItem pill;
     pill.id = "m2"; pill.name = "聚气丹"; pill.type = "pill";
@@ -909,16 +909,16 @@ TEST(AutoBuySettlement, DecemberAutoBuyMatchesKnownTemplate) {
 
     executeAutoBuy(st, core->rng().getRng(gamecore::rng::RngPartition::kEquipment));
 
-    // 灵石扣除：裂天罡煞·战刃 3×100 + 聚气丹 2×50 = 400 → 10000-400
+    // 灵石扣除：裂天罡煞·头冠 3×100 + 聚气丹 2×50 = 400 → 10000-400
     EXPECT_EQ(9600LL, st.gameData.spiritStones);
     // 商人库存清空（数量耗尽 → 移除）
     EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
-    // 仓库入库（B3 实例轨）：战刃实例 ×3 + 聚气丹堆叠 ×2
+    // 仓库入库（实例轨）：头冠实例 ×3 + 聚气丹堆叠 ×2
     ASSERT_EQ(3u, st.equipmentInstances.size());
     for (const auto& inst : st.equipmentInstances) {
-        EXPECT_EQ("裂天罡煞·战刃", inst.name);
+        EXPECT_EQ("裂天罡煞·头冠", inst.name);
         EXPECT_EQ("lietian", inst.setId);
-        EXPECT_EQ("WEAPON", inst.part);
+        EXPECT_EQ("HEAD", inst.part);
         EXPECT_EQ(1, inst.meta.rarity);
         EXPECT_EQ(3u, inst.growth.affix.subStats.size());
     }
@@ -943,9 +943,9 @@ TEST(AutoBuySettlement, DecemberAutoBuySkipsOnInsufficientFunds) {
     st.gameData.gameYear = 1;
     st.gameData.gameMonth = 12;
     st.gameData.spiritStones = 150;
-    st.gameData.autoBuyList.push_back({"裂天罡煞·战刃", "equipment", 1});
+    st.gameData.autoBuyList.push_back({"裂天罡煞·头冠", "equipment", 1});
     state::MerchantItem sword;
-    sword.id = "m1"; sword.name = "裂天罡煞·战刃"; sword.type = "equipment";
+    sword.id = "m1"; sword.name = "裂天罡煞·头冠"; sword.type = "equipment";
     sword.rarity = 1; sword.price = 100; sword.quantity = 3;
     st.gameData.travelingMerchantItems = {sword};
 
@@ -956,7 +956,7 @@ TEST(AutoBuySettlement, DecemberAutoBuySkipsOnInsufficientFunds) {
     ASSERT_EQ(1u, st.gameData.travelingMerchantItems.size());
     EXPECT_EQ(2, st.gameData.travelingMerchantItems[0].quantity);
     ASSERT_EQ(1u, st.equipmentInstances.size());
-    EXPECT_EQ("裂天罡煞·战刃", st.equipmentInstances[0].name);
+    EXPECT_EQ("裂天罡煞·头冠", st.equipmentInstances[0].name);
 }
 
 TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {

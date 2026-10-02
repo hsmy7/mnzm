@@ -24,17 +24,19 @@ import java.io.File
  */
 class TemplateCodegenIntegrityGuardTest {
 
-    /** android/ 根（Gradle 测试工作目录 = android/core/engine） */
+    /** 仓库根（Gradle 测试工作目录 = android/core/engine；scripts/ 在仓库根） */
+    private val repoRoot: File = File("..").resolve("..").resolve("..")
+
     private val androidRoot: File = File("..", "..")
 
     private val gamecoreData: File
         get() = File(androidRoot, "app/src/main/cpp/gamecore/include/gamecore/data")
 
     private val generator: File
-        get() = File(androidRoot, "scripts/gen-templates.mjs")
+        get() = File(repoRoot, "scripts/gen-templates.mjs")
 
     private val sampleJson: File
-        get() = File(androidRoot, "scripts/data/equipment_db_sample.json")
+        get() = File(repoRoot, "scripts/data/equipment_db_sample.json")
 
     // ── 生成器输出面 ─────────────────────────────────────────
 
@@ -129,7 +131,7 @@ class TemplateCodegenIntegrityGuardTest {
         // pieceCount 自洽
         val pieceCount = Regex("\"pieceCount\"\\s*:\\s*(\\d+)").find(text)
             ?.groupValues?.get(1)?.toInt()
-        assertEquals("pieceCount 应为 12（2 套 × 6 部位）", 12, pieceCount)
+        assertEquals("pieceCount 应为 24（6 套 × 4 部位）", 24, pieceCount)
         assertEquals(
             "Kotlin 部件表条数与中性源自洽",
             pieceCount, com.xianxia.sect.core.registry.EquipmentDatabase.setPieces.size

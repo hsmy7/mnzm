@@ -165,18 +165,18 @@ class CultivationEventProcessorAutoWarehouseTest {
         quantity = quantity
     )
 
-    /** B3 实例轨武器（随 StorageBagItem 袋条目携带，参与自动装配） */
+    /** 实例轨装备（随 StorageBagItem 袋条目携带，参与自动装配） */
     private fun equipmentInstance(id: String) = EquipmentInstance(
         id = id,
         name = "铁剑$id",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
         ),
         meta = EquipInstanceMeta(rarity = 1, minRealm = 9)
     )
 
-    /** 袋内武器实例条目（B3 候选源：equipment_instance payload） */
+    /** 袋内装备实例条目（候选源：equipment_instance payload） */
     private fun bagWeapon(id: String, ownerDiscipleId: String = "1") = StorageBagItem(
         itemId = id, itemType = "equipment_instance", name = "铁剑$id",
         rarity = 1, quantity = 1,
@@ -218,7 +218,7 @@ class CultivationEventProcessorAutoWarehouseTest {
     }
 
     @Test
-    fun `自动装备 - 袋内武器实例 → 装备且袋条目移除实例入表`() {
+    fun `自动装备 - 袋内装备实例 → 装备且袋条目移除实例入表`() {
         // B3 实例轨：自动装配候选源 = 袋内 equipment_instance 条目（仓库堆叠语义退役）
         val s = state(
             disciples = listOf(disciple(id = 1, bag = listOf(bagWeapon("e1")))),
@@ -226,8 +226,8 @@ class CultivationEventProcessorAutoWarehouseTest {
         )
         createProcessor().processAutoFromWarehouseRealtime(s)
 
-        // insert 时 weaponIds 列为空字符串，装备后为实例 id，用非空字符串判定"已装备"
-        assertFalse("袋内有武器实例的合格弟子必须自动装备", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
+        // insert 时 handsIds 列为空字符串，装备后为实例 id，用非空字符串判定"已装备"
+        assertFalse("袋内有装备实例的合格弟子必须自动装备", s.discipleTables.handsIds.getOrDefault(1, "").isEmpty())
         assertEquals("袋条目装配后应移除", 0,
             s.discipleTables.storageBagItems.getOrDefault(1, emptyList()).size)
         assertEquals("装配实例应入实例表", 1, s.equipmentInstances.all().size)
@@ -287,10 +287,10 @@ class CultivationEventProcessorAutoWarehouseTest {
         createProcessor().processAutoFromWarehouseRealtime(s)
 
         // id=1 仅匹配 equip（1根），id=2 仅匹配 learn（2根）
-        // insert 时 weaponIds 列默认为空字符串、manualIds 列为空列表，用 isEmpty 判定"未处理"
-        assertFalse("1根弟子应只被装备", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
+        // insert 时 handsIds 列默认为空字符串、manualIds 列为空列表，用 isEmpty 判定"未处理"
+        assertFalse("1根弟子应只被装备", s.discipleTables.handsIds.getOrDefault(1, "").isEmpty())
         assertTrue("1根弟子不应被学习", s.discipleTables.manualIds.getOrDefault(1, emptyList()).isEmpty())
-        assertTrue("2根弟子不应被装备", s.discipleTables.weaponIds.getOrDefault(2, "").isEmpty())
+        assertTrue("2根弟子不应被装备", s.discipleTables.handsIds.getOrDefault(2, "").isEmpty())
         assertEquals("2根弟子应只被学习", 1, s.discipleTables.manualIds.getOrDefault(2, emptyList()).size)
     }
 
@@ -353,7 +353,7 @@ class CultivationEventProcessorAutoWarehouseTest {
         assertEquals(2, s.manualStacks.all().single().quantity)
         assertEquals("实例轨零变化（无袋内候选不装配）", 1, s.equipmentInstances.all().size)
         assertTrue(s.manualInstances.all().isEmpty())
-        assertTrue("未装配不应写槽位", s.discipleTables.weaponIds.getOrDefault(1, "").isEmpty())
+        assertTrue("未装配不应写槽位", s.discipleTables.handsIds.getOrDefault(1, "").isEmpty())
     }
 
     // ── 写回完整性 ──────────────────────────────────────────────────

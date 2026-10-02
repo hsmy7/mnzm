@@ -49,8 +49,8 @@ object JsonConverters {
     @TypeConverter
     @JvmStatic
     fun toEquipmentSlot(value: String): EquipmentSlot {
-        // 退役枚举名（ARMOR/BOOTS/ACCESSORY 等）不再存在于六部位枚举：回退 HEAD
-        // 并记日志（D6 处置；此分支兜脏数据）
+        // 退役枚举名（ARMOR/BOOTS/ACCESSORY/WEAPON/LEGS 等）不在四部位枚举内：回退 HEAD
+        // 并记日志（此分支兜脏数据）
         return EquipmentSlot.entries.find { it.name == value } ?: run {
             Log.w(TAG_EQUIP_CONVERTER, "未知装备部位 \"$value\"，回退 HEAD")
             EquipmentSlot.HEAD

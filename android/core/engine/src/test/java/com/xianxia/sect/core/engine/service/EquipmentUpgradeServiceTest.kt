@@ -51,7 +51,7 @@ class EquipmentUpgradeServiceTest {
         id = id,
         name = "测试装备",
         setId = "lietian",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(level = level, affix = affix(rolls)),
         meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = rarity),
         isEquipped = isEquipped

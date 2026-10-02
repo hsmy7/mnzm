@@ -36,7 +36,7 @@ class ReplaceSelectionDataTest {
         id: String,
         name: String,
         rarity: Int,
-        part: EquipmentSlot = EquipmentSlot.WEAPON,
+        part: EquipmentSlot = EquipmentSlot.HANDS,
         ownerId: String? = null,
         minRealm: Int = 9,
         level: Int = 1,
@@ -240,10 +240,10 @@ class ReplaceSelectionDataTest {
     fun `buildEquipmentReplaceItems - 部位过滤`() {
         val items = buildEquipmentReplaceItems(
             instances = listOf(
-                equipmentInstance("w1", "青锋剑", 3, EquipmentSlot.WEAPON),
+                equipmentInstance("w1", "青锋剑", 3, EquipmentSlot.HANDS),
                 equipmentInstance("a1", "玄铁甲", 5, EquipmentSlot.BODY)
             ),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9
@@ -258,7 +258,7 @@ class ReplaceSelectionDataTest {
                 equipmentInstance("w1", "神兵", 6, minRealm = 3),
                 equipmentInstance("w2", "凡铁剑", 1)
             ),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 5
@@ -271,7 +271,7 @@ class ReplaceSelectionDataTest {
         // 当前穿着的装备为实例（ownerId 绑定），应从可选列表排除
         val items = buildEquipmentReplaceItems(
             instances = listOf(equipmentInstance("w1", "当前武器", 4, ownerId = "d1")),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = "w1",
             currentDiscipleId = "d1",
             discipleRealm = 9
@@ -287,7 +287,7 @@ class ReplaceSelectionDataTest {
                 equipmentInstance("i2", "自己剑", 2, ownerId = "d1"),
                 equipmentInstance("i3", "他人剑", 6, ownerId = "d2")
             ),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9
@@ -302,7 +302,7 @@ class ReplaceSelectionDataTest {
                 equipmentInstance("i1", "低品剑", 2),
                 equipmentInstance("i2", "高品剑", 5)
             ),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9
@@ -317,7 +317,7 @@ class ReplaceSelectionDataTest {
                 equipmentInstance("w1", "高品未关注", 6),
                 equipmentInstance("w2", "低品已关注", 1)
             ),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9,
@@ -330,7 +330,7 @@ class ReplaceSelectionDataTest {
     fun `buildEquipmentReplaceItems - 空输入返回空列表`() {
         val items = buildEquipmentReplaceItems(
             instances = emptyList(),
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             currentEquipmentId = null,
             currentDiscipleId = "d1",
             discipleRealm = 9
@@ -382,13 +382,13 @@ class ReplaceSelectionDataTest {
         // 旧 7 项面板/孕养差值标注已退役
         val instance = equipmentInstance(
             "i1", "传承剑", 4,
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             level = 3, mainValue = 100.0
         )
         val detail = equipmentInstanceDetail(instance)
         assertEquals("传承剑", detail.spriteName)
         // 副标题：部位 · 品阶 · LvN
-        assertTrue(detail.subtitle.contains("武器"))
+        assertTrue(detail.subtitle.contains("手部"))
         assertTrue(detail.subtitle.contains("Lv3"))
         // 主词条按等级成长（Lv3 = ×1.2 → 120）出现在属性行
         assertTrue(detail.attributeLines.any { it.contains("120") })

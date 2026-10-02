@@ -40,7 +40,7 @@ fun MutableGameState.materializeCaptiveGear(captive: Disciple, newId: String) {
  *
  * 落库哨兵双通道：① `gameData.manualProficiencies` 已注册该弟子（纯 Kotlin map，
  * 任何环境可靠）；② 任一装备槽位列已写入玩家实例 id（区别于俘虏模板 id）。
- * 仅依赖武器槽单列会漏掉"无武器俘虏"（小型宗门约 3/4 俘虏无武器），导致重复落库。
+ * 仅依赖单列会漏掉"空槽位俘虏"，导致重复落库。
  */
 private fun MutableGameState.shouldMaterializeCaptiveGear(
     captive: Disciple,
@@ -57,7 +57,7 @@ private fun MutableGameState.shouldMaterializeCaptiveGear(
     return !anySlotInstance
 }
 
-/** 按部件展开条目重建六槽位装备实例（新 UUID、ownerId、isEquipped；词条占位空面——AI 载荷不存词条，I5）。 */
+/** 按部件展开条目重建四部位装备实例（新 UUID、ownerId、isEquipped；词条占位空面——AI 载荷不存词条）。 */
 private fun MutableGameState.materializeEquipments(captive: Disciple, intId: Int) {
     for (slot in EquipmentSlot.displayOrder) {
         val pieceEntryId = captive.equipment.slotId(slot)
@@ -185,14 +185,12 @@ private fun createManualForCaptive(
     )
 }
 
-/** DiscipleTables 六部位槽位读写扩展（与 DiscipleEquipmentService 同族） */
+/** DiscipleTables 四部位槽位读写扩展（与 DiscipleEquipmentService 同族） */
 private fun DiscipleTables.slotIdOf(id: Int, slot: EquipmentSlot): String = when (slot) {
     EquipmentSlot.HEAD -> headIds[id]
     EquipmentSlot.BODY -> bodyIds[id]
     EquipmentSlot.HANDS -> handsIds[id]
     EquipmentSlot.FEET -> feetIds[id]
-    EquipmentSlot.WEAPON -> weaponIds[id]
-    EquipmentSlot.LEGS -> legsIds[id]
 }
 
 private fun DiscipleTables.setSlotId(id: Int, slot: EquipmentSlot, value: String) {
@@ -201,7 +199,5 @@ private fun DiscipleTables.setSlotId(id: Int, slot: EquipmentSlot, value: String
         EquipmentSlot.BODY -> bodyIds[id] = value
         EquipmentSlot.HANDS -> handsIds[id] = value
         EquipmentSlot.FEET -> feetIds[id] = value
-        EquipmentSlot.WEAPON -> weaponIds[id] = value
-        EquipmentSlot.LEGS -> legsIds[id] = value
     }
 }

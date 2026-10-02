@@ -332,9 +332,9 @@ inline void processEquipmentPurchases(
     gamecore::rng::DeterministicRng& rng) {
     for (const auto& item : listedItems) {
         if (item.type != kItemTypeEquipment) continue;
-        // B3：货单装备 → 部位判定（按部件名反查 12 部件表；缺省 WEAPON——
-        // Kotlin equipmentPartOf ?: EquipmentSlot.WEAPON；决策面不 roll 词条）
-        std::string eqPart = "WEAPON";
+        // 货单装备 → 部位判定（按部件名反查部件表；缺省 HEAD——
+        // Kotlin equipmentPartOf ?: EquipmentSlot.HEAD；决策面不 roll 词条）
+        std::string eqPart = "HEAD";
         for (const auto& piece : gamecore::data::setPieceTemplates()) {
             if (piece.name == item.name) { eqPart = piece.part; break; }
         }

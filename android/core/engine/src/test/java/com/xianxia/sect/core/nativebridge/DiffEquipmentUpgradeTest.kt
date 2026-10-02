@@ -59,9 +59,9 @@ class DiffEquipmentUpgradeTest {
     /** 双臂共用的初始装备（Lv1 / r2 / 3 副词条初始 [1,1,1]）。 */
     private fun seedInstance() = EquipmentInstance(
         id = INSTANCE_ID,
-        name = "对拍剑",
+        name = "对拍冠",
         setId = "lietian",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HEAD,
         growth = EquipGrowth(
             level = 1,
             exp = 0,

@@ -236,7 +236,7 @@ class DiffStateTest {
                 recipeName = "青锋剑", startYear = 3, startMonth = 1,
                 duration = 6, baseDuration = 6,
                 outputItemName = "青锋剑", outputItemRarity = 3,
-                outputItemSlot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON.name,
+                outputItemSlot = com.xianxia.sect.core.model.EquipmentSlot.HANDS.name,
                 expectedYield = 1, completionMonth = 7, completionPhase = 0
             )
         )

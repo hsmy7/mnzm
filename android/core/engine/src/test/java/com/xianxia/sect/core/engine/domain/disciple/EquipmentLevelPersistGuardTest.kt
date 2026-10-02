@@ -27,7 +27,7 @@ import org.junit.Test
  */
 class EquipmentLevelPersistGuardTest {
 
-    /** 带成长痕迹的武器实例：等级 7 / 经验 123 / 强化 [2,3,5]——任意一环丢失即红 */
+    /** 带成长痕迹的手部位实例：等级 7 / 经验 123 / 强化 [2,3,5]——任意一环丢失即红 */
     private fun loadedInstance(
         id: String = "w1",
         ownerId: String? = null,
@@ -36,7 +36,7 @@ class EquipmentLevelPersistGuardTest {
         id = id,
         name = "青霄剑",
         setId = "lietian",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             level = 7,
             exp = 123,
@@ -81,7 +81,7 @@ class EquipmentLevelPersistGuardTest {
             assertTrue(worn.isEquipped)
             assertEquals("1", worn.ownerId)
         }
-        assertEquals("槽位记录实例 id", "w1", store.discipleTables.weaponIds[1])
+        assertEquals("槽位记录实例 id", "w1", store.discipleTables.handsIds[1])
 
         // 卸下
         assertTrue(service.unequipEquipment("1", "w1") is DomainResult.Success)
@@ -90,7 +90,7 @@ class EquipmentLevelPersistGuardTest {
             assertEquals("卸下后下线态", false, stored.isEquipped)
             assertNull("ownerId 清空", stored.ownerId)
         }
-        assertEquals("槽位清空", "", store.discipleTables.weaponIds[1])
+        assertEquals("槽位清空", "", store.discipleTables.handsIds[1])
 
         // 第二次穿戴（换手再来一遍）
         assertTrue(service.equipEquipment("1", "w1") is DomainResult.Success)
@@ -98,7 +98,7 @@ class EquipmentLevelPersistGuardTest {
             assertEquals("往返后成长仍逐位不变", original, worn2.growth)
             assertTrue(worn2.isEquipped)
         }
-        assertEquals("w1", store.discipleTables.weaponIds[1])
+        assertEquals("w1", store.discipleTables.handsIds[1])
     }
 
     @Test
@@ -143,7 +143,7 @@ class EquipmentLevelPersistGuardTest {
         val worn = store.equipmentInstancesValue.single()
         assertEquals("跨弟子往返成长逐位不变", original, worn.growth)
         assertEquals("2", worn.ownerId)
-        assertEquals("w1", store.discipleTables.weaponIds[2])
+        assertEquals("w1", store.discipleTables.handsIds[2])
     }
 
     // ── 储物袋来源：自动装配 ─────────────────────────────────
@@ -167,7 +167,7 @@ class EquipmentLevelPersistGuardTest {
             )
         )
         val result = DiscipleEquipmentManager().processAutoEquipFromWarehouse(disciple = disciple)
-        assertEquals("应装配到武器位", "bag1", result.disciple.equipment.weaponId)
+        assertEquals("应装配到手部位", "bag1", result.disciple.equipment.handsId)
         assertEquals("袋条目应移除", 0, result.disciple.equipment.storageBagItems.size)
         assertEquals("attachedInstances 恰一件", 1, result.attachedInstances.size)
         assertEquals("装配实例成长逐位保真", instance.growth, result.attachedInstances[0].growth)
@@ -184,7 +184,7 @@ class EquipmentLevelPersistGuardTest {
         val disciple = Disciple(
             id = "1", name = "测试弟子", realm = 9,
             equipment = EquipmentSet(
-                weaponId = "old",
+                handsId = "old",
                 storageBagItems = listOf(
                     StorageBagItem(
                         itemId = new.id, itemType = "equipment_instance",
@@ -198,7 +198,7 @@ class EquipmentLevelPersistGuardTest {
             disciple = disciple,
             equipmentInstances = mapOf("old" to old)
         )
-        assertEquals("高品阶候选应替换", "new", result.disciple.equipment.weaponId)
+        assertEquals("高品阶候选应替换", "new", result.disciple.equipment.handsId)
         assertEquals("旧装备应登记为 replaced", listOf("old"), result.replacedInstances.map { it.id })
         assertEquals("旧装备成长保真", old.growth, result.replacedInstances[0].growth)
         val bagOld = result.disciple.equipment.storageBagItems
@@ -226,7 +226,7 @@ class EquipmentLevelPersistGuardTest {
             )
         )
         val result = DiscipleEquipmentManager().processAutoEquipFromWarehouse(disciple = disciple)
-        assertEquals("境界不足不装配", "", result.disciple.equipment.weaponId)
+        assertEquals("境界不足不装配", "", result.disciple.equipment.handsId)
         assertTrue("候选保留在袋内", result.disciple.equipment.storageBagItems.isNotEmpty())
         assertTrue(result.attachedInstances.isEmpty())
     }

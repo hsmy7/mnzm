@@ -35,7 +35,7 @@ class DiscipleStatCalculatorCritTest {
         id = id,
         name = "测试装备$id",
         setId = "",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             level = 1,
             affix = EquipAffixSet(mainStat = mainStat, subStats = subStats)

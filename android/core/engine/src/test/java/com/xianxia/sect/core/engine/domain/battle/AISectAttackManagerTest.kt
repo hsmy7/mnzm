@@ -421,7 +421,7 @@ class AISectAttackManagerTest {
         // 玩家实例表：装备/功法（scoutSect / PlayerDefenseProcessor 同款实例语义）
         val weapon = EquipmentInstance(
             id = "inst-weapon-uuid-1", name = "斩龙剑",
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 affix = EquipAffixSet(
                     mainStat = EquipStatValue(EquipStat.ATTACK, 5000.0)

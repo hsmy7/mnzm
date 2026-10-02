@@ -91,12 +91,12 @@ inline void from_json(const nlohmann::json& j, EquipmentSetDef& v) {
     jread(j, "school", v.school);
     jread(j, "bonus2", v.bonus2);
     jread(j, "bonus4", v.bonus4);
-    jread(j, "bonus6", v.bonus6);
+    jread(j, "bonusFull", v.bonusFull);
 }
 inline void to_json(nlohmann::json& j, const EquipmentSetDef& v) {
     j = nlohmann::json{{"id", v.id},    {"name", v.name},
                        {"school", v.school}, {"bonus2", v.bonus2},
-                       {"bonus4", v.bonus4}, {"bonus6", v.bonus6}};
+                       {"bonus4", v.bonus4}, {"bonusFull", v.bonusFull}};
 }
 
 inline void from_json(const nlohmann::json& j, MainStatPoolDef& v) {

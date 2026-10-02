@@ -5,19 +5,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * 锻造配方库测试（五行属性伤害系统后：36 条套装部件配方，按品阶产出）。
+ * 锻造配方库测试（24 条套装部件配方，按品阶产出）。
  *
  * 覆盖：静态数据合法性、id/部件唯一性、材料表六档完整、时长/成功率取档、
  * 各查询入口（byId/byPiece/byMaterial/byType）与 getCraftableRecipes 恒全量
- * （配方不分 tier，产出品阶由锻造槽位 tier 决定——交接决策 3）。
+ * （配方不分 tier，产出品阶由锻造槽位 tier 决定）。
  */
 class ForgeRecipeDatabaseTest {
 
-    // 1. 全量 36 条（6 套 × 6 部位，五行属性伤害系统）
+    // 1. 全量 24 条（6 套 × 4 部位）
     @Test
-    fun allRecipes_is36_andCoversSetsAndParts() {
+    fun allRecipes_is24_andCoversSetsAndParts() {
         val recipes = ForgeRecipeDatabase.getAllRecipes()
-        assertEquals("应为 6 套 × 6 部位 = 36 条配方", 36, recipes.size)
+        assertEquals("应为 6 套 × 4 部位 = 24 条配方", 24, recipes.size)
 
         val setIds = recipes.map { it.setId }.toSet()
         assertEquals(
@@ -29,7 +29,7 @@ class ForgeRecipeDatabaseTest {
         for (setId in setIds) {
             val parts = recipes.filter { it.setId == setId }.map { it.part }.toSet()
             assertEquals(
-                "套装 $setId 应覆盖全部六部位",
+                "套装 $setId 应覆盖全部四部位",
                 EquipmentSlot.entries.toSet(),
                 parts
             )

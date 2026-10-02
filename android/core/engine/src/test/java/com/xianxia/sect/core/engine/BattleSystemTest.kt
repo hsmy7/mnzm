@@ -661,7 +661,7 @@ class BattleSystemTest {
         )
         val weapon = EquipmentInstance(
                 id = "inst-w-1", name = "斩龙剑",
-                part = EquipmentSlot.WEAPON,
+                part = EquipmentSlot.HANDS,
                 growth = EquipGrowth(
                     affix = EquipAffixSet(
                         mainStat = EquipStatValue(EquipStat.ATTACK, 1000.0)

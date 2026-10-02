@@ -311,12 +311,12 @@ TEST(ProductionCompletionTest, AlchemyFailureStillCountsAndResets) {
 }
 
 TEST(ProductionCompletionTest, ForgeSuccessProducesEquipment) {
-    // B3：12 条部件配方（id = forge_{pieceId}）→ EquipmentFactory 实例产出
+    // 部件配方（id = forge_{pieceId}）→ EquipmentFactory 实例产出
     auto core = makeCore(42);
     auto& st = core->state();
     st.disciples.appendDisciple(baseDisciple("1"));
     st.gameData.productionSlots.push_back(
-        workingForgeSlot(0, "forge_lietian_WEAPON", /*successRate=*/1.0, "1"));
+        workingForgeSlot(0, "forge_lietian_HEAD", /*successRate=*/1.0, "1"));
     const size_t eqBefore = st.equipmentInstances.size();
 
     st.gameData.gameMonth = 2;  // 拨到 (1,2)：start (1,1) duration 1 → 到期
@@ -324,9 +324,9 @@ TEST(ProductionCompletionTest, ForgeSuccessProducesEquipment) {
 
     ASSERT_EQ(st.equipmentInstances.size(), eqBefore + 1);
     const auto& inst = st.equipmentInstances.back();
-    EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+    EXPECT_EQ(inst.name, "裂天罡煞·头冠");
     EXPECT_EQ(inst.setId, "lietian");
-    EXPECT_EQ(inst.part, "WEAPON");
+    EXPECT_EQ(inst.part, "HEAD");
     // 锻造品阶 = 全宗存活弟子最高 forgeLevel（无则 1）
     EXPECT_EQ(inst.meta.rarity, 1);
     ASSERT_EQ(inst.growth.affix.subStats.size(), 3u);

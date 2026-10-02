@@ -52,7 +52,7 @@ class BagItemReconstructorTest {
         // 装备堆叠条目（含 minRealm 保真元数据）一律不重建——B3 无装备堆叠语义
         val item = StorageBagItem(
             itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 2,
-            stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.WEAPON.name)
+            stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.HANDS.name)
         )
         assertNull("装备条目不再重建", BagItemReconstructor.reconstruct(item))
         // 无 stackedData / 空数据同口径

@@ -9,8 +9,8 @@ class ItemsTest {
     // ---- EquipmentSlot ----
 
     @Test
-    fun equipmentSlot_hasSixValues() {
-        assertEquals(6, EquipmentSlot.entries.size)
+    fun equipmentSlot_hasFourValues() {
+        assertEquals(4, EquipmentSlot.entries.size)
     }
 
     @Test
@@ -18,7 +18,7 @@ class ItemsTest {
         assertArrayEquals(
             arrayOf(
                 EquipmentSlot.HEAD, EquipmentSlot.BODY, EquipmentSlot.HANDS,
-                EquipmentSlot.FEET, EquipmentSlot.WEAPON, EquipmentSlot.LEGS
+                EquipmentSlot.FEET
             ),
             EquipmentSlot.entries.toTypedArray()
         )
@@ -30,8 +30,6 @@ class ItemsTest {
         assertEquals("身体", EquipmentSlot.BODY.displayName)
         assertEquals("手部", EquipmentSlot.HANDS.displayName)
         assertEquals("脚部", EquipmentSlot.FEET.displayName)
-        assertEquals("武器", EquipmentSlot.WEAPON.displayName)
-        assertEquals("腿部", EquipmentSlot.LEGS.displayName)
     }
 
     // ---- ManualType ----
@@ -166,7 +164,7 @@ class ItemsTest {
         assertEquals("", stack.name)
         assertEquals(1, stack.rarity)
         assertEquals("", stack.description)
-        assertEquals(EquipmentSlot.WEAPON, stack.slot)
+        assertEquals(EquipmentSlot.HEAD, stack.slot)
         assertEquals(0, stack.physicalAttack)
         assertEquals(0, stack.magicAttack)
         assertEquals(0, stack.physicalDefense)
@@ -187,7 +185,7 @@ class ItemsTest {
             name = "Test Sword",
             rarity = 3,
             description = "A test sword",
-            slot = EquipmentSlot.WEAPON,
+            slot = EquipmentSlot.HANDS,
             physicalAttack = 100,
             magicAttack = 50,
             physicalDefense = 20,
@@ -203,7 +201,7 @@ class ItemsTest {
         assertEquals("test-id", stack.id)
         assertEquals("Test Sword", stack.name)
         assertEquals(3, stack.rarity)
-        assertEquals(EquipmentSlot.WEAPON, stack.slot)
+        assertEquals(EquipmentSlot.HANDS, stack.slot)
         assertEquals(100, stack.physicalAttack)
         assertEquals(3, stack.quantity)
         assertTrue(stack.isLocked)

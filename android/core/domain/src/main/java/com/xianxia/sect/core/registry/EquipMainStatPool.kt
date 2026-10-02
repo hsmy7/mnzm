@@ -6,17 +6,18 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import kotlin.random.Random
 
 /**
- * 部位主词条池（装备重构 B3，方案 §3.4.2——**单一真源**，S15）。
+ * 部位主词条池（**单一真源**）。
  *
  * 主词条不按部位固定，生成时从该部位的候选池**等权随机**抽取一条（走
  * `RngPartition.EQUIPMENT`）。池的声明序参与抽取序列（`nextInt(size)` 索引
  * 抽取），禁止重排——重排会改变同种子抽取序列，破坏跨端对拍与存档确定性。
  *
  * 部位系数口径：`最终主词条值 = 品阶基数 × 部位系数 × 等级成长`；
- * 两套套装的部位池完全同构，流派差异全部由套装效果承担。
+ * 六套套装的部位池完全同构，流派差异全部由套装效果承担。
  *
- * 候选池与系数已拍板（2026-09-29）：武器 = 输出向（攻/暴率/暴伤，1.15）、
- * 腿部 = R9 原池（防/攻/暴率/暴伤/血，0.95）、手部保持 R9 原样（1.15）。
+ * 四部位池与系数（手部承接输出向池、脚部承接均衡向池）：头部 = 生存向
+ * （血/防，1.00）、身体 = 均衡向（防/攻/暴率/暴伤，1.00）、手部 = 输出向
+ * （攻/暴率/暴伤，1.15）、脚部 = 均衡向（防/攻/暴率/暴伤/血，0.95）。
  */
 object EquipMainStatPool {
 
@@ -27,21 +28,15 @@ object EquipMainStatPool {
         EquipmentSlot.HANDS to listOf(EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE),
         EquipmentSlot.FEET to listOf(
             EquipStat.DEFENSE, EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE, EquipStat.HP
-        ),
-        EquipmentSlot.WEAPON to listOf(EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE),
-        EquipmentSlot.LEGS to listOf(
-            EquipStat.DEFENSE, EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE, EquipStat.HP
         )
     )
 
-    /** 部位数值系数（生存向 1.00 / 均衡 1.00·0.95 / 输出向 1.15，方案 §3.4.2 表） */
+    /** 部位数值系数（生存向 1.00 / 均衡 1.00·0.95 / 输出向 1.15） */
     private val PART_COEFFICIENTS: Map<EquipmentSlot, Double> = mapOf(
         EquipmentSlot.HEAD to 1.00,
         EquipmentSlot.BODY to 1.00,
         EquipmentSlot.HANDS to 1.15,
-        EquipmentSlot.FEET to 0.95,
-        EquipmentSlot.WEAPON to 1.15,
-        EquipmentSlot.LEGS to 0.95
+        EquipmentSlot.FEET to 0.95
     )
 
     /**

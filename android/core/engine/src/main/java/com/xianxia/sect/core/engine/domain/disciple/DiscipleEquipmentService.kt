@@ -136,8 +136,6 @@ class DiscipleEquipmentService @Inject constructor(
         EquipmentSlot.BODY -> discipleTables.bodyIds[id]
         EquipmentSlot.HANDS -> discipleTables.handsIds[id]
         EquipmentSlot.FEET -> discipleTables.feetIds[id]
-        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-        EquipmentSlot.LEGS -> discipleTables.legsIds[id]
     }
 
     /** 穿戴装备入槽：单轨实例标记（等级/词条随实例，槽位只存 id） */
@@ -152,8 +150,6 @@ class DiscipleEquipmentService @Inject constructor(
             EquipmentSlot.BODY -> discipleTables.bodyIds[id] = equipmentId
             EquipmentSlot.HANDS -> discipleTables.handsIds[id] = equipmentId
             EquipmentSlot.FEET -> discipleTables.feetIds[id] = equipmentId
-            EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equipmentId
-            EquipmentSlot.LEGS -> discipleTables.legsIds[id] = equipmentId
         }
         equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
     }
@@ -248,19 +244,15 @@ class DiscipleEquipmentService @Inject constructor(
             EquipmentSlot.BODY -> discipleTables.bodyIds[id] = ""
             EquipmentSlot.HANDS -> discipleTables.handsIds[id] = ""
             EquipmentSlot.FEET -> discipleTables.feetIds[id] = ""
-            EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
-            EquipmentSlot.LEGS -> discipleTables.legsIds[id] = ""
         }
     }
 }
 
-/** DiscipleTables 六部位槽位 id 读取扩展（声明序=显示序单一真源） */
+/** DiscipleTables 四部位槽位 id 读取扩展（声明序=显示序单一真源） */
 private fun com.xianxia.sect.core.state.DiscipleTables.slotIdOf(id: Int, slot: EquipmentSlot): String =
     when (slot) {
         EquipmentSlot.HEAD -> headIds[id]
         EquipmentSlot.BODY -> bodyIds[id]
         EquipmentSlot.HANDS -> handsIds[id]
         EquipmentSlot.FEET -> feetIds[id]
-        EquipmentSlot.WEAPON -> weaponIds[id]
-        EquipmentSlot.LEGS -> legsIds[id]
     }

@@ -304,13 +304,13 @@ class DiffMonthSettlementTest {
 
     /**
      * 购买场景仓库装备实例（B3 实例轨：仓库装备 = 一行一实例，堆叠轨已退役）。
-     * 「精铁剑」非套装部件名 → 决策面 equipmentPartOf 回退 WEAPON，与实例
+     * 「精铁剑」非套装部件名 → 决策面 equipmentPartOf 回退 HEAD，与实例
      * part 语义一致；仓库存取门控只按 name+rarity+未锁定匹配。
      */
     private fun purchaseEquipmentInstances(): List<EquipmentInstance> = listOf(
         EquipmentInstance(
             id = "wh-e1", name = "精铁剑",
-            setId = "lietian", part = EquipmentSlot.WEAPON,
+            setId = "lietian", part = EquipmentSlot.HEAD,
             growth = EquipGrowth(
                 affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 18.0))
             ),

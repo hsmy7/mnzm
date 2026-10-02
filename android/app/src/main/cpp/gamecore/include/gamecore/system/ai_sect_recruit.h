@@ -195,8 +195,8 @@ inline std::vector<std::pair<std::string, gamecore::data::EquipPieceEntry>>
 aiGenerateEquipmentIds(rng::DeterministicRng& rng, int32_t maxRarity, int32_t count) {
     std::vector<std::pair<std::string, gamecore::data::EquipPieceEntry>> out;
     if (count <= 0) return out;
-    // 枚举声明序 = HEAD/BODY/HANDS/FEET/WEAPON/LEGS（Kotlin values() 序）
-    std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"};
+    // 枚举声明序 = HEAD/BODY/HANDS/FEET（Kotlin values() 序）
+    std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET"};
     // Kotlin: EquipmentSlot.values().shuffled(java.util.Random(rng.nextInt().toLong()))
     const int64_t javaSeed = static_cast<int64_t>(rng.nextInt());
     const auto shuffled = JavaRandomCompat::shuffle(slots, javaSeed);

@@ -182,10 +182,10 @@ inline void appendInstanceTotalBonus(EquipBonus& bonus, const EquipmentInstance&
     }
 }
 
-/// 套装档位（按 setId 统计件数，2/4/6 达档即生效、可越级不叠加——
-/// 穿满 6 件三档同时生效；同类百分比相加 0.2-7。Kotlin resolveSetBonus 逐位移植，
+/// 套装档位（按 setId 统计件数，2/4 达档即生效、可越级不叠加——
+/// 穿满 4 件两档同时生效；同类百分比相加 0.2-7。Kotlin activeBonuses 逐位移植，
 /// 迭代序 = C++ 侧按 equipmentSetDefs 声明序收集 setId（Kotlin groupingBy 保序
-/// 为首次出现序——两者对同一六件集合同序））
+/// 为首次出现序——两者对同一套集合同序））
 inline EquipBonus resolveSetBonus(const std::vector<const EquipmentInstance*>& equipped) {
     EquipBonus bonus;
     // 按 setId 首次出现序统计件数（与 Kotlin groupingBy.eachCount 序一致）
@@ -204,10 +204,10 @@ inline EquipBonus resolveSetBonus(const std::vector<const EquipmentInstance*>& e
             if (s.id == kv.first) { def = &s; break; }
         }
         if (def == nullptr) continue;
-        // activeBonuses(count)：count>=2 加 bonus2、>=4 加 bonus4、>=6 加 bonus6（声明序）
+        // activeBonuses(count)：count>=2 加 bonus2、>=4 加 bonus4 与 bonusFull（声明序）
         const std::vector<gamecore::data::EquipStatValueDef>* const tiers[] = {
-            &def->bonus2, &def->bonus4, &def->bonus6};
-        const bool active[] = {kv.second >= 2, kv.second >= 4, kv.second >= 6};
+            &def->bonus2, &def->bonus4, &def->bonusFull};
+        const bool active[] = {kv.second >= 2, kv.second >= 4, kv.second >= 4};
         for (int t = 0; t < 3; ++t) {
             if (!active[t]) continue;
             for (const auto& sv : *tiers[t]) {

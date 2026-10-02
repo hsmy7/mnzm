@@ -24,7 +24,7 @@ class EquipmentSingleSourceGuardTest {
     @Test
     fun `Registry与Database全量逐条一致`() {
         val fromDb = EquipmentDatabase.entries
-        assertEquals("条目总数应为 216（36 部件 × 6 品阶）", 216, fromDb.size)
+        assertEquals("条目总数应为 144（24 部件 × 6 品阶）", 144, fromDb.size)
         assertEquals("Registry 装载条目数与 Database 不一致", fromDb.size, registry.allTemplates.size)
         fromDb.forEach { (id, entry) ->
             val loaded = registry.getById(id)
@@ -38,7 +38,7 @@ class EquipmentSingleSourceGuardTest {
     fun `品阶分类视图完全划分`() {
         (1..6).forEach { rarity ->
             val fromDb = EquipmentDatabase.entries.values.filter { it.rarity == rarity }
-            assertEquals("品阶 $rarity 的 Database 侧条目数", 36, fromDb.size)
+            assertEquals("品阶 $rarity 的 Database 侧条目数", 24, fromDb.size)
             assertEquals(
                 "品阶 $rarity 的 Registry.getByRarity 与 Database 不一致",
                 fromDb.sortedBy { it.id }, registry.getByRarity(rarity).sortedBy { it.id }

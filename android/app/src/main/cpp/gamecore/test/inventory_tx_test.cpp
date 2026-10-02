@@ -735,12 +735,12 @@ gamecore::state::StorageBagItem stackedBagItem(const std::string& itemId,
     return e;
 }
 
-/// 商人商品（装备类——B3 部件表真名：裂天罡煞·战刃）
+/// 商人商品（装备类——部件表真名：裂天罡煞·头冠）
 MerchantItem merchantEquipment(const std::string& id, int64_t price,
                                int32_t quantity, int32_t rarity = 1) {
     MerchantItem item;
     item.id = id;
-    item.name = "裂天罡煞·战刃";
+    item.name = "裂天罡煞·头冠";
     item.type = "equipment";
     item.rarity = rarity;
     item.price = price;
@@ -760,7 +760,7 @@ TEST_F(InventoryTxFixture, BuyMerchantEquipmentProducesNInstances) {
                         {{"itemId", "bi1"}, {"quantity", 2}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("bought"), true);
-    EXPECT_EQ(r.at("data").at("itemName"), "裂天罡煞·战刃");
+    EXPECT_EQ(r.at("data").at("itemName"), "裂天罡煞·头冠");
     EXPECT_EQ(r.at("data").at("itemType"), "equipment");
     EXPECT_EQ(r.at("data").at("rarity"), 1);
     // 灵石精确扣减：5000 - 1000×2 = 3000
@@ -768,9 +768,9 @@ TEST_F(InventoryTxFixture, BuyMerchantEquipmentProducesNInstances) {
     // 先加物品（2 条实例），后扣费
     ASSERT_EQ(st.equipmentInstances.size(), 2u);
     for (const auto& inst : st.equipmentInstances) {
-        EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+        EXPECT_EQ(inst.name, "裂天罡煞·头冠");
         EXPECT_EQ(inst.setId, "lietian");
-        EXPECT_EQ(inst.part, "WEAPON");
+        EXPECT_EQ(inst.part, "HEAD");
         EXPECT_EQ(inst.meta.rarity, 1);
         EXPECT_FALSE(inst.id.empty());   // 实例 id 确定性占位非空
         EXPECT_EQ(inst.growth.affix.subStats.size(), 3u);   // 3 副词条
@@ -844,7 +844,7 @@ TEST_F(InventoryTxFixture, BuyMerchantItemInsufficientZeroWrite) {
 }
 
 TEST_F(InventoryTxFixture, BuyMerchantItemTemplateMissFallsBack) {
-    // 模板缺失（篡改档）：B3 部件表按名反查——旧模板名"精铁剑"不在 12 部件表
+    // 模板缺失（篡改档）：部件表按名反查——旧模板名"精铁剑"不在部件表
     // → TemplateMiss failure 信封回退，零写入
     auto& st = core_->state();
     st.gameData.spiritStones = 5000;

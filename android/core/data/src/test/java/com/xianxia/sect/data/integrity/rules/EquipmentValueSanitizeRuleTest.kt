@@ -41,7 +41,7 @@ class EquipmentValueSanitizeRuleTest {
         id = id,
         name = "测试装备",
         setId = "lietian",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(level = level, exp = exp, affix = affix)
     )
 

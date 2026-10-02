@@ -299,7 +299,7 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
         [&](int slot) { return !aiSlotId(d, slot).empty(); }));
     if (currentEquip < expectedEquip) {
         std::vector<int> emptySlots;
-        for (int slot = 0; slot < 6; ++slot) {
+        for (int slot = 0; slot < 4; ++slot) {
             if (aiSlotId(d, slot).empty()) emptySlots.push_back(slot);
         }
         // Kotlin: .shuffled(java.util.Random(rng.nextInt().toLong()))

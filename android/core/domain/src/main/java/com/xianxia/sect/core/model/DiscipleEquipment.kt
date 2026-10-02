@@ -26,8 +26,6 @@ data class DiscipleEquipment(
         EquipmentSlot.BODY -> bodyId
         EquipmentSlot.HANDS -> handsId
         EquipmentSlot.FEET -> feetId
-        EquipmentSlot.WEAPON -> weaponId
-        EquipmentSlot.LEGS -> legsId
     }
 
     val equippedItemIds: List<String> get() = EquipmentSlot.displayOrder

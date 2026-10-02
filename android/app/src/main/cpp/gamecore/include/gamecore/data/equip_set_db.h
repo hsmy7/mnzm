@@ -6,8 +6,8 @@
 #include <vector>
 
 // ============================================================
-// 套装效果静态表（B3：2 套 × 2/4/6 三档；件数达档即生效、
-// 可越级不叠加，穿满 6 件三档同时生效）
+// 套装效果静态表（6 套 × 2/4 两档；件数达档即生效、
+// 可越级不叠加，穿满 4 件两档同时生效）
 // ============================================================
 namespace gamecore::data {
 
@@ -23,16 +23,16 @@ inline bool operator==(const EquipStatValueDef& a, const EquipStatValueDef& b) {
 struct EquipmentSetDef {
     std::string id;
     std::string name;
-    std::string school; // PHYSICAL / MAGIC
+    std::string school; // PHYSICAL / METAL / WOOD / WATER / FIRE / EARTH
     std::vector<EquipStatValueDef> bonus2;
     std::vector<EquipStatValueDef> bonus4;
-    std::vector<EquipStatValueDef> bonus6;
+    std::vector<EquipStatValueDef> bonusFull;   // 满套档（4 件触发）
 };
 
 // 幂等比较（data_inject 注入守卫逐字段比对面；四表 operator== 契约补齐）
 inline bool operator==(const EquipmentSetDef& a, const EquipmentSetDef& b) {
     return a.id == b.id && a.name == b.name && a.school == b.school &&
-           a.bonus2 == b.bonus2 && a.bonus4 == b.bonus4 && a.bonus6 == b.bonus6;
+           a.bonus2 == b.bonus2 && a.bonus4 == b.bonus4 && a.bonusFull == b.bonusFull;
 }
 
 inline std::vector<EquipmentSetDef>& equipmentSetDefsMutable() {

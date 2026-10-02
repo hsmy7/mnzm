@@ -71,7 +71,7 @@ class InventorySystemTest {
         isLocked: Boolean = false
     ) = EquipmentInstance(
         id = id, name = name,
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = com.xianxia.sect.core.model.EquipGrowth(
             affix = com.xianxia.sect.core.model.EquipAffixSet(
                 mainStat = com.xianxia.sect.core.model.EquipStatValue(

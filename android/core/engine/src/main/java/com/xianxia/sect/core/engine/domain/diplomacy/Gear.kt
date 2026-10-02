@@ -34,9 +34,7 @@ fun AISectDiscipleManager.applyGearToDisciple(disciple: Disciple, sectLevel: Int
             headId = equipmentIds[EquipmentSlot.HEAD].orEmpty(),
             bodyId = equipmentIds[EquipmentSlot.BODY].orEmpty(),
             handsId = equipmentIds[EquipmentSlot.HANDS].orEmpty(),
-            feetId = equipmentIds[EquipmentSlot.FEET].orEmpty(),
-            weaponId = equipmentIds[EquipmentSlot.WEAPON].orEmpty(),
-            legsId = equipmentIds[EquipmentSlot.LEGS].orEmpty()
+            feetId = equipmentIds[EquipmentSlot.FEET].orEmpty()
         )
     )
 }

@@ -67,7 +67,7 @@ struct EquipmentInstance {
     std::string id;
     std::string name;
     std::string setId;                    // 套装 id（空 = 散件）
-    std::string part = "HEAD";            // 六部位 EquipmentSlot.name
+    std::string part = "HEAD";            // 四部位 EquipmentSlot.name
     EquipGrowth growth;
     EquipInstanceMeta meta;
     std::optional<std::string> ownerId;   // String? → nullopt = null

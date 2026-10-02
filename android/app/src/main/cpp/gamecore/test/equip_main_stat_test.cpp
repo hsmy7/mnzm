@@ -27,7 +27,7 @@ using gamecore::rng::DeterministicRng;
 TEST(EquipMainStatPoolTest, SixPartPoolsWithCoefficient) {
     // 六部位池齐全；部位系数：生存向 1.00 / 输出向 1.15 / 均衡 0.95
     const auto& pools = mainStatPools();
-    ASSERT_EQ(6u, pools.size());
+    ASSERT_EQ(4u, pools.size());
     std::set<std::string> parts;
     for (const auto& pool : pools) {
         EXPECT_FALSE(pool.stats.empty()) << pool.part;
@@ -39,12 +39,12 @@ TEST(EquipMainStatPoolTest, SixPartPoolsWithCoefficient) {
         }
         parts.insert(pool.part);
     }
-    EXPECT_EQ(6u, parts.size());
+    EXPECT_EQ(4u, parts.size());
     // 部位系数逐位（表常量引用）
     for (const auto& pool : pools) {
-        if (pool.part == "HANDS" || pool.part == "WEAPON") {
+        if (pool.part == "HANDS") {
             EXPECT_DOUBLE_EQ(1.15, pool.coefficient) << pool.part;
-        } else if (pool.part == "FEET" || pool.part == "LEGS") {
+        } else if (pool.part == "FEET") {
             EXPECT_DOUBLE_EQ(0.95, pool.coefficient) << pool.part;
         } else {
             EXPECT_DOUBLE_EQ(1.0, pool.coefficient) << pool.part;
@@ -124,8 +124,8 @@ TEST(EquipMainStatRollTest, MissingPoolFallsBackToAttack) {
 
 TEST(EquipMainStatValueTest, MainStatValueBaseTimesCoefficient) {
     // 主词条完整值 = 品阶基数 × 部位系数
-    // ATTACK r4 基数 84：WEAPON(1.15) → 96.6、FEET(0.95) → 79.8
-    EXPECT_DOUBLE_EQ(84.0 * 1.15, ef::mainStatValue("ATTACK", "WEAPON", 4).value);
+    // ATTACK r4 基数 84：HANDS(1.15) → 96.6、FEET(0.95) → 79.8
+    EXPECT_DOUBLE_EQ(84.0 * 1.15, ef::mainStatValue("ATTACK", "HANDS", 4).value);
     EXPECT_DOUBLE_EQ(84.0 * 0.95, ef::mainStatValue("ATTACK", "FEET", 4).value);
     // CRIT_DAMAGE = CRIT_RATE 同档 × 2：r1 = 0.002×2 = 0.004
     EXPECT_DOUBLE_EQ(0.004, ef::mainStatValue("CRIT_DAMAGE", "HEAD", 1).value);

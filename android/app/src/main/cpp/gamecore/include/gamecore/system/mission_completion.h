@@ -576,7 +576,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         // EquipmentFactory.create 唯一产出（套装随机二选一）；属性按逐件
         // totalBonus 累加——孕养随机等级逻辑已随孕养系统删除）
         JavaRandom javaRnd(static_cast<int64_t>(enemyRng.nextInt()));
-        std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"};
+        std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET"};
         slots = javaShuffled(slots, javaRnd);
         const int32_t equipmentCount = enemyRng.nextInt(5);
 

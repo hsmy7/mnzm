@@ -286,8 +286,8 @@ TEST(AiPrepareBattleTest, BuildsInstancesFromPersistedFields) {
     auto core = makeCore(kSeed);
     GameState& st = core->state();
     Disciple d = aiDisciple("1", 8, 1);
-    // B3 六部位：weaponId 直写 72 条展开表条目 id（AI 轻量实例查表）
-    d.weaponId = "lietian_WEAPON_r2";
+    // 四部位：headId 直写 144 条展开表条目 id（AI 轻量实例查表）
+    d.headId = "lietian_HEAD_r2";
     d.manualIds = {"ironSwordManualFake"};
     st.aiSectDisciples["ai-1"] = {d};
     st.gameData.worldLevels.push_back(beastLevel("b1"));
@@ -297,16 +297,16 @@ TEST(AiPrepareBattleTest, BuildsInstancesFromPersistedFields) {
     //（AI 不结算词条，与 Kotlin Gear.kt aiEquipmentInstance 一致）
     const auto& eqMap = prepared.equipmentMapByDisciple.at("1");
     ASSERT_EQ(eqMap.size(), 1u);
-    const auto& inst = eqMap.at("lietian_WEAPON_r2");
-    EXPECT_EQ(inst.id, "lietian_WEAPON_r2");
-    EXPECT_EQ(inst.part, "WEAPON");
+    const auto& inst = eqMap.at("lietian_HEAD_r2");
+    EXPECT_EQ(inst.id, "lietian_HEAD_r2");
+    EXPECT_EQ(inst.part, "HEAD");
     EXPECT_EQ(inst.setId, "lietian");
     EXPECT_EQ(inst.growth.level, 1);
     EXPECT_EQ(inst.growth.affix.mainStat.stat, "ATTACK");
     EXPECT_DOUBLE_EQ(inst.growth.affix.mainStat.value, 0.0);
     EXPECT_TRUE(inst.growth.affix.subStats.empty());
-    // 横切面来自 72 条表条目
-    const auto* entry = gamecore::data::equipmentEntryById("lietian_WEAPON_r2");
+    // 横切面来自 144 条表条目
+    const auto* entry = gamecore::data::equipmentEntryById("lietian_HEAD_r2");
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(inst.meta.rarity, entry->rarity);
     EXPECT_EQ(inst.meta.minRealm, entry->minRealm);
