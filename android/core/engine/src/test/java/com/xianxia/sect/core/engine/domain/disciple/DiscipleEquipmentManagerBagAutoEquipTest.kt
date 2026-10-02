@@ -30,13 +30,13 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     private val manager = DiscipleEquipmentManager()
 
     private fun disciple(
-        weaponId: String = "",
+        handsId: String = "",
         bag: List<StorageBagItem> = emptyList()
     ) = Disciple(
         id = "1",
         name = "测试弟子",
         realm = 9,
-        equipment = EquipmentSet(weaponId = weaponId, storageBagItems = bag)
+        equipment = EquipmentSet(handsId = handsId, storageBagItems = bag)
     )
 
     /** B3 实例轨袋条目：完整实例随条目携带（level/rarity 经 growth/meta 承载） */
@@ -49,7 +49,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     ): StorageBagItem {
         val instance = EquipmentInstance(
             id = itemId, name = name,
-            setId = setId, part = EquipmentSlot.WEAPON,
+            setId = setId, part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 level = level,
                 affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
@@ -75,7 +75,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             gameYear = 1, gameMonth = 1
         )
 
-        assertEquals("应装配袋内实例", "i1", result.disciple.equipment.weaponId)
+        assertEquals("应装配袋内实例", "i1", result.disciple.equipment.handsId)
         assertTrue("袋条目应移除", result.disciple.equipment.storageBagItems.isEmpty())
         assertEquals("attachedInstances 应含装配实例", 1, result.attachedInstances.size)
         assertEquals("等级保真", 2, result.attachedInstances[0].level)
@@ -90,7 +90,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     fun `更高品阶替换 - 低品阶换袋内高品阶且旧装备回袋`() {
         val old = EquipmentInstance(
             id = "w1", name = "铁剑",
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 15.0))
             ),
@@ -98,7 +98,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             ownerId = "1", isEquipped = true
         )
         val d = disciple(
-            weaponId = "w1",
+            handsId = "w1",
             bag = listOf(bagInstance("n1", "青云剑", 4))
         )
 
@@ -108,7 +108,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             gameYear = 3, gameMonth = 5
         )
 
-        assertEquals("应替换为高品阶", "n1", result.disciple.equipment.weaponId)
+        assertEquals("应替换为高品阶", "n1", result.disciple.equipment.handsId)
         assertEquals("replacedInstances 应含旧实例", listOf("w1"), result.replacedInstances.map { it.id })
         // 旧装备已回袋（equipment_instance 保真条目）
         val bagItems = result.disciple.equipment.storageBagItems
@@ -123,7 +123,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     fun `更高品阶替换 - 已装备高品阶不降级`() {
         val current = EquipmentInstance(
             id = "w1", name = "青云剑",
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 100.0))
             ),
@@ -131,7 +131,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             ownerId = "1", isEquipped = true
         )
         val d = disciple(
-            weaponId = "w1",
+            handsId = "w1",
             bag = listOf(bagInstance("n1", "铁剑", 1))
         )
 
@@ -141,7 +141,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             gameYear = 1, gameMonth = 1
         )
 
-        assertEquals("高品阶不应被低品阶替换", "w1", result.disciple.equipment.weaponId)
+        assertEquals("高品阶不应被低品阶替换", "w1", result.disciple.equipment.handsId)
         assertTrue("不应有替换", result.replacedInstances.isEmpty())
         assertTrue("低品阶候选应保留袋内", result.disciple.equipment.storageBagItems.size == 1)
     }
@@ -160,7 +160,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             gameYear = 1, gameMonth = 1
         )
 
-        assertEquals("同品阶应选高等级实例", "high", result.disciple.equipment.weaponId)
+        assertEquals("同品阶应选高等级实例", "high", result.disciple.equipment.handsId)
     }
 
     // ── 境界门槛 ──────────────────────────────────────────────────
@@ -169,7 +169,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
     fun `境界不足 - 袋内条目不装配`() {
         val instance = EquipmentInstance(
             id = "i1", name = "高阶剑",
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 500.0))
             ),
@@ -188,7 +188,7 @@ class DiscipleEquipmentManagerBagAutoEquipTest {
             gameYear = 1, gameMonth = 1
         )
 
-        assertTrue("境界不足不应装配", result.disciple.equipment.weaponId.isEmpty())
+        assertTrue("境界不足不应装配", result.disciple.equipment.handsId.isEmpty())
         assertTrue(result.attachedInstances.isEmpty())
         assertEquals("袋内条目应保留", 1, result.disciple.equipment.storageBagItems.size)
     }

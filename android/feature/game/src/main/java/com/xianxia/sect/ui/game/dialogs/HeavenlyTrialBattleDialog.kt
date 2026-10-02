@@ -390,9 +390,9 @@ private fun EnemyBeastSkills(enemy: Combatant) {
 private const val ENEMY_EQUIP_CARD_RARITY = 1
 
 /** 敌方装备六宫格每行列数（3×2：上行 头·身·手，下行 脚·武·腿） */
-private const val ENEMY_EQUIP_GRID_ROW_SIZE = 3
+private const val ENEMY_EQUIP_GRID_ROW_SIZE = 2
 
-/** 装备槽位区：六部位装备卡片（3×2，按显示序 头·身·手 / 脚·武·腿） */
+/** 装备槽位区：四部位装备卡片（2×2，按显示序 头·身 / 手·脚） */
 @Composable
 private fun EnemyEquipmentSection(enemy: Combatant) {
     // 装备槽位 — 卡片自带名称无需底部文字
@@ -400,8 +400,7 @@ private fun EnemyEquipmentSection(enemy: Combatant) {
     Text("装备", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
     Spacer(Modifier.height(4.dp))
     val partNames = listOf(
-        enemy.headName, enemy.bodyName, enemy.handsName,
-        enemy.feetName, enemy.weaponName, enemy.legsName
+        enemy.headName, enemy.bodyName, enemy.handsName, enemy.feetName
     )
     partNames.chunked(ENEMY_EQUIP_GRID_ROW_SIZE).forEach { rowNames ->
         Row(

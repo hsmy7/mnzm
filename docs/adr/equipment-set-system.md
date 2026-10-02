@@ -2,11 +2,13 @@
 
 > 状态：✅ **已实施收官**（EQ-B0–B5 六批全交付，2026-09-28~30；分支 `feat/equipment-set` 五笔收官笔
 > B0=`5280d1b46` / B1=`9068049a1` / B2=`fa36109fc` / B3=`45bf909cd` / B4=`762b83def`，B5=文档收口本笔）
-> ｜决策日期：2026-09-28（方案定稿）～2026-09-30（实施收官）｜Room v61→v64
+> ✅ **追加决策「四部位化收缩」已实施收官**（F1–F4 四批全交付，2026-10-02；分支 `feat/equipment-four-slot-f1`，见 §6）
+> ｜决策日期：2026-09-28（方案定稿）～2026-09-30（实施收官）｜Room v61→v64（EQ 线）→ v71（F 线）
 > ｜关联：[equipment-set-system-refactor-plan.md](../design/equipment-set-system-refactor-plan.md)（权威方案，R1–R12/D1–D10/I1–I10）
+> · [equipment-four-slot-refactor-plan.md](../design/equipment-four-slot-refactor-plan.md)（四部位化方案，F1–F4）
 > · [IMPLEMENTATION-BATCHES.md](../design/equipment-batches/IMPLEMENTATION-BATCHES.md)（批次编排）
-> · `docs/design/equipment-batches/reports/report-B0..B5.md`（各批验收）
-> · [architecture.md](../architecture.md)「属性与装备体系」节（活文档终态 + 遗留债 EQ-I11~I16）
+> · `docs/design/equipment-batches/reports/report-B0..B5.md`（各批验收）+ `report-F1..F4.md`（四部位化各批验收）
+> · [architecture.md](../architecture.md)「属性与装备体系」节（活文档终态 + 遗留债 EQ-I11~I17）
 > · [cpp-engine-migration.md](cpp-engine-migration.md)（C++ AUTHORITATIVE 总纲）
 
 ## 0. 实施状态快照（2026-09-30 收口）
@@ -19,8 +21,13 @@
 | EQ-B3 | **六部位实例轨原子替换**（R1–R10 + D1/D9/D10）：六部位两套装 2/4/6 档、一行一实例、升级 1–30、主副词条池、旧装备 100% 折算补偿（1 亿上限）、Room v64、C++ `equipment_tx.h` 双端对拍；~500 文件原子合并；途中真根因修复 16 处 | ✅ |
 | EQ-B4 | 数值对齐验收：S9 占比带（仅 T6 档 flat 主词条 ×1.8，五入口全入 [35,45]、大乘锚 38.25%）/ S16 经济（940 万月产出锚，比值 0.9996）/ 速度灵力结论维持不补偿 / 恒等键热点缓存 / 期望成本量化入 I9 | ✅ |
 | EQ-B5 | 文档与发布收口：双更新日志、本 ADR、knowledge-base/architecture/cpp-engine/CODE_WIKI/ui-read-surface/threading-contract、债表全景登记 | ✅ |
+| F1 | **四部位化·领域与静态数据**：`EquipmentSlot` 6→4 值（WEAPON(14)/LEGS(15) 退役 reserved）、主词条池/系数 4 部位（手 1.15 承接武器池、脚 0.95 承接腿部池）、套装 2/4 两档（`bonus6→bonusFull`）、中性源 36→24 + codegen 零漂移 | ✅ |
+| F2 | **四部位化·弟子槽位与存档 + 引擎结算**：`weaponId`/`legsId` 字段删除（proto 17/116 退役）、Room v70→v71、列式存储/镜像 proto 四列、C++ 列链对偶、武器名战斗展示链退役 | ✅ |
+| F3 | **四部位化·锻造配方链全量迁移 + 外围收口**：C++ 旧 72 条配方体系整链替换为新形状 24 条、自动/启动/晋升锻造面按 Kotlin 现行重写、精灵图 72→24（2 真源 + 22 占位）、退役守卫排除面清零 | ✅ |
+| F4 | **四部位化·数值校准 + 文档收口**：占比实测五入口中位 0.259–0.345（带 [22,40] 定稿，FR7 不触发）、文档/ADR/双 changelog/债 EQ-I17 登记（本节） | ✅ |
 
 门禁终态基线（B4 后）：六模块 JVM **7652/0/0 · 22skip** · ctest **1521/1521** · jni-count **87/87** · detekt 零违规 · G0 codegen 零差异。
+四部位化终态基线（F4 后）：JVM 全量 **7493/0/0 · 18skip** · ctest **1538/1538** · Diff 家族 **277/0 · 0skip** · jni-count **87/87** · G0 codegen 零漂移。
 
 ---
 
@@ -57,8 +64,8 @@
 
 | # | 决策 | 拍板口径 | 关键依据 |
 |---|---|---|---|
-| 1 | 六部位构成 | 头/身/手/脚/**武**/**腿**（移除饰品位、腿部回归；3×2 宫格） | 用户指定（2026-09-29）；改 `displayOrder` 一行可换序 |
-| 2 | 套装 | 物理套 + 法术套各 6 部位，2/4/6 档全给（读法①） | §0.1 已拍板；字段全部有消费者 |
+| 1 | 六部位构成 | 头/身/手/脚/**武**/**腿**（移除饰品位、腿部回归；3×2 宫格）——**已被 F 线收缩为四部位，见 §6** | 用户指定（2026-09-29）；改 `displayOrder` 一行可换序 |
+| 2 | 套装 | 物理套 + 法术套各 6 部位，2/4/6 档全给（读法①）——法术套已随五行线作废重建为 6 套；**2/4/6 档已被 F 线收缩为 2/4，见 §6** | §0.1 已拍板；字段全部有消费者 |
 | 3 | 孕养 → 升级 | 升级 1–30 替换孕养，每 3 级强化一条副词条；孕养类加成丹药**删除**并补偿（R11） | 用户指定；补偿口径 §5.7 |
 | 4 | 词条 | 主词条按部位池随机 + 3 副词条（7 项权重池 13/13/14/15/15/15/15 不放回） | 权重合计 100 = 直接概率（Q11） |
 | 5 | 保底/定向 | **不做保底，纯随机**（拍板 #2） | 缓解 = 分解 50% 返还 + 锻造 12 配方天然定向；债 I9 已量化（掉落链理想套 11,389 件 / 锻造 88 次） |
@@ -78,3 +85,26 @@
 - 六项条件式遗留债 **EQ-I11~I16**（对拍两缺口桥端口 / 暴击面板 uncapped 评审 / 秘境旧堆叠轨 / TIER_DURATION 单位歧义 / AI 装备加成决策 / 结构性数值两条）——定义与触发条件见 `docs/architecture.md`「装备线遗留债登记」表，触发前不产生工作。
 
 **热点缓存实测修正（记录在案，勿按方案字面翻案）**：`EquipStatResolver` 缓存采用**恒等键整解析**而非方案 §13-6 字面的"值语义缓存"——值语义键每调用 6 次全树深哈希，实测 6.3× 劣化（1286 ns vs 基线 242 ns）；恒等键 124–161 ns。版本安全性由 `EquipmentInstance` 全 val + copy 纪律保证（内容变必然新键）。
+
+---
+
+## 6. 追加决策：四部位化收缩（F1–F4，2026-10-02）
+
+> 权威方案 [equipment-four-slot-refactor-plan.md](../design/equipment-four-slot-refactor-plan.md)（Q1–Q5 决策闭环）；
+> 各批验收 `docs/design/equipment-batches/reports/report-F1..F4.md`。**性质 = 对未上线装备系统的收缩型重构**
+> （用户确认无存量产出装备 ⇒ 无迁移、无补偿，测试期 destructive rebuild）。
+
+**决策内容**：
+1. **部位 6 → 4**（头/身/手/脚）：`WEAPON(14)`/`LEGS(15)` 枚举退役 reserved 禁复用；存档编号 `weaponId(17)`（原复用锚定，随武器删除失去对象）与 `legsId(116)` 一并退役；`112..115` 保留。武器池（输出向）由**手部承接**（同 3 词条、系数 1.15），腿部池（均衡向）由**脚部承接**（0.95）——删除部位后保持输出/均衡流派可配性的关键。
+2. **套装档位 2/4/6 → 2/4**：`bonus6` 改名 `bonusFull` 且 **4 件触发**；`>=6` 分支删除非注释（FA1）；4 件套档 = 本系伤害 +20% + 暴击率 +12% 双效果同发 ⇒ **满套口径守恒**（本系 +30% + 暴击 +12%，与原 6 件满套完全一致）。
+3. **不做件数补偿**：单件数值表一字未改（主词条基数/副词条档位/部位系数），装备总贡献随件数 6→4 自然下降；**不设运行时强度系数**（曾拍板的 `kEquipPowerScale=1.5` 方案被后续精度修正否决——强度系数只该作用于单件词条、套装效果不乘系数，故直接放弃补偿，占比自然降至约 30%）。占比带经 F4 实测定稿 **[22,40]**（五入口中位 0.259–0.345）；回补唯一路径 = 直接改数值表（债 EQ-I17 登记）。
+4. **部件 36 → 24**（6 套 × 4 部位）：中性源/codegen/配方 24 条/精灵图 24 张（72 件旧独立装备图全退，2 真源烘焙 + 22 程序化占位）全链同批删净（FA3/FA5 死数据风险双守卫：`EquipmentSlotRetirementGuardTest` + `ForgeRecipeSlotGuardTest`）。
+
+**理由**：
+- 装备可镶嵌位减少本身应体量下降；强行补偿会让单件过重（抽到一件即质变）；
+- 套装满套效果守恒 ⇒ 凑套动机与流派玩法（物理 + 五行）完全保留，减少的只是"堆件数"收益；
+- 未上线窗口是零成本收缩的唯一时机——上线后同规模收缩需迁移 + 补偿 + 公告三件套。
+
+**替代方案（已否决）**：维持六部位 + 强度系数补偿（`kEquipPowerScale` 双端镜像）——用户精度修正后确认系数语义不可自洽（套装效果不乘系数则满套超锚，乘系数则守恒失效），且引入永久性双端镜像面；"改名保留"（LEGS→SLOT_A）被 FA2 符号面+数据源双重扫描否决。
+
+**影响面与守卫**：Room v70→v71（`disciples` 表 weaponId/legsId 两列随 `@Embedded` 删除）；proto 镜像 122/123 删 reserved；C++ 列链（models/disciple_store/column_dirty）四列对偶；锻造配方链整链重写（`ForgeRecipeTemplate` 新形状 + 自动/启动/晋升面按 Kotlin 现行重写，修正 B3 遗留启动面行为分叉）；武器动词表退役（普攻恒徒手动词表，salt 键不变掷点序零漂移）。F 线新增/升级守卫：`EquipmentSlotOrderGuardTest`（退役名/编号双断言）、`EquipmentSlotRetirementGuardTest`（全仓符号面归零）、`ForgeRecipeSlotGuardTest`、`EquipmentProtoNumberFrozenTest`（退役号 17/116 禁复用）。

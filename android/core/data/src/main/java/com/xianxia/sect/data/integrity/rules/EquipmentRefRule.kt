@@ -5,12 +5,14 @@ import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.data.model.SaveData
 
 /**
- * 检查弟子六部位装备引用（headId/bodyId/handsId/feetId/weaponId/legsId）指向的
- * 物品是否存在。对孤立引用（引用的 ID 不在 [RuleContext.allEquipmentIds] 中），
- * 清除该引用。
+ * 检查弟子部位装备引用指向的物品是否存在。对孤立引用（引用的 ID 不在
+ * [RuleContext.allEquipmentIds] 中），清除该引用。
  *
- * 使用 [context.allEquipmentIds] 避免重复遍历装备列表（B3 起 = equipmentInstances，
- * 装备堆叠已退役）。
+ * 扫描面 = 四活跃部位（[EquipmentSlot.displayOrder]，头/身/手/脚）；武器/腿部
+ * 槽位字段已随四部位化退役（F2），扫描面不再含退役槽位。
+ *
+ * 使用 [context.allEquipmentIds] 避免重复遍历装备列表（装备堆叠已退役，
+ * 引用目标恒为 equipmentInstances）。
  */
 object EquipmentRefRule : SaveValidationRule {
     override val id = "equipment_ref"

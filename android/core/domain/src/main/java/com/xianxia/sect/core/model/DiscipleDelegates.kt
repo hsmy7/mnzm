@@ -84,8 +84,6 @@ var Disciple.activePillCategory: kotlin.String get() = pillEffects.activePillCat
 
 // ── EquipmentSet ──
 
-/** @deprecated 请改用 [equipment.weaponId] */
-var Disciple.weaponId: kotlin.String get() = equipment.weaponId; set(value) { equipment.weaponId = value }
 /** @deprecated 请改用 [equipment.headId] */
 var Disciple.headId: kotlin.String get() = equipment.headId; set(value) { equipment.headId = value }
 /** @deprecated 请改用 [equipment.bodyId] */
@@ -94,8 +92,6 @@ var Disciple.bodyId: kotlin.String get() = equipment.bodyId; set(value) { equipm
 var Disciple.handsId: kotlin.String get() = equipment.handsId; set(value) { equipment.handsId = value }
 /** @deprecated 请改用 [equipment.feetId] */
 var Disciple.feetId: kotlin.String get() = equipment.feetId; set(value) { equipment.feetId = value }
-/** @deprecated 请改用 [equipment.legsId] */
-var Disciple.legsId: kotlin.String get() = equipment.legsId; set(value) { equipment.legsId = value }
 /** @deprecated 请改用 [equipment.storageBagItems] */
 var Disciple.storageBagItems: kotlin.collections.List<StorageBagItem> get() = equipment
     .storageBagItems; set(value) { equipment.storageBagItems = value }

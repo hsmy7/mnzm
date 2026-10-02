@@ -99,7 +99,7 @@ class InventoryBagTransferTest {
         val count = inventorySystem.materializeBagItemsToWarehouse(listOf(
             StorageBagItem(
                 itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1,
-                quantity = 2, stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.WEAPON.name)
+                quantity = 2, stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.HANDS.name)
             )
         ))
 

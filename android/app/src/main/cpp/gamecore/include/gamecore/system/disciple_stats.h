@@ -182,10 +182,10 @@ inline void appendInstanceTotalBonus(EquipBonus& bonus, const EquipmentInstance&
     }
 }
 
-/// 套装档位（按 setId 统计件数，2/4/6 达档即生效、可越级不叠加——
-/// 穿满 6 件三档同时生效；同类百分比相加 0.2-7。Kotlin resolveSetBonus 逐位移植，
+/// 套装档位（按 setId 统计件数，2/4 达档即生效、可越级不叠加——
+/// 穿满 4 件两档同时生效；同类百分比相加 0.2-7。Kotlin activeBonuses 逐位移植，
 /// 迭代序 = C++ 侧按 equipmentSetDefs 声明序收集 setId（Kotlin groupingBy 保序
-/// 为首次出现序——两者对同一六件集合同序））
+/// 为首次出现序——两者对同一套集合同序））
 inline EquipBonus resolveSetBonus(const std::vector<const EquipmentInstance*>& equipped) {
     EquipBonus bonus;
     // 按 setId 首次出现序统计件数（与 Kotlin groupingBy.eachCount 序一致）
@@ -204,10 +204,10 @@ inline EquipBonus resolveSetBonus(const std::vector<const EquipmentInstance*>& e
             if (s.id == kv.first) { def = &s; break; }
         }
         if (def == nullptr) continue;
-        // activeBonuses(count)：count>=2 加 bonus2、>=4 加 bonus4、>=6 加 bonus6（声明序）
+        // activeBonuses(count)：count>=2 加 bonus2、>=4 加 bonus4 与 bonusFull（声明序）
         const std::vector<gamecore::data::EquipStatValueDef>* const tiers[] = {
-            &def->bonus2, &def->bonus4, &def->bonus6};
-        const bool active[] = {kv.second >= 2, kv.second >= 4, kv.second >= 6};
+            &def->bonus2, &def->bonus4, &def->bonusFull};
+        const bool active[] = {kv.second >= 2, kv.second >= 4, kv.second >= 4};
         for (int t = 0; t < 3; ++t) {
             if (!active[t]) continue;
             for (const auto& sv : *tiers[t]) {
@@ -288,7 +288,7 @@ inline int32_t manualStatWithMastery(const std::map<std::string, int32_t>& stats
 }
 
 /// 装备段求和（桶查找版：owner 行索引桶逐槽 find——R1.3 第二步；
-/// B3 六部位（头/身/手/脚/武/腿 = displayOrder）：EquipStatResolver 解析
+/// 四部位（头/身/手/脚 = displayOrder）：EquipStatResolver 解析
 /// 全部已装备实例（含套装档位）后 flatHp **一次截断**——Kotlin
 /// getMaxHpMpColumn「hp += equipBonus.flatHp.toInt()」逐位一致，
 /// maxMp 不吃装备加成（Kotlin 列版无 mp 装备项，参数面保留对称））
@@ -296,17 +296,16 @@ inline void accumulateEquipmentHpMp(
         const instance_bucket::EquipmentInstanceBuckets& equipmentBuckets,
         std::size_t ownerRow, const std::string& headId,
         const std::string& bodyId, const std::string& handsId,
-        const std::string& feetId, const std::string& weaponId,
-        const std::string& legsId, int32_t& outMaxHp, int32_t& outMaxMp) {
+        const std::string& feetId, int32_t& outMaxHp, int32_t& outMaxMp) {
     // 空表快速通道：实例表为空 ⇒ 任何槽位 id 的 find 必未命中，装备贡献
-    // 恒为零（悬空 id 亦归零——现有 nullptr 守卫同口径）；跳过六槽字符串
-    // 列读取。该段在连续积分轨每 tick × 每弟子执行，空表逐行扫六列是
-    // 装备六部位化引入的纯开销（R3 整改实测 +46ns/行）。
+    // 恒为零（悬空 id 亦归零——现有 nullptr 守卫同口径）；跳过槽位字符串
+    // 列读取。该段在连续积分轨每 tick × 每弟子执行，空表逐行扫列是
+    // 装备部位化引入的纯开销（R3 整改实测 +46ns/行）。
     if (equipmentBuckets.empty()) return;
     std::vector<const state::EquipmentInstance*> equipped;
-    equipped.reserve(6);
+    equipped.reserve(4);
     for (const std::string* eqId :
-         {&headId, &bodyId, &handsId, &feetId, &weaponId, &legsId}) {
+         {&headId, &bodyId, &handsId, &feetId}) {
         if (eqId->empty()) continue;
         equipped.push_back(equipmentBuckets.find(ownerRow, *eqId));
     }
@@ -354,7 +353,7 @@ inline void getMaxHpMp(
     computeBaseHpMpResolved(d.realm, d.realmLayer, d.hpVariance, d.mpVariance,
                             outMaxHp, outMaxMp);
     accumulateEquipmentHpMp(equipmentBuckets, ownerRow, d.headId, d.bodyId,
-                            d.handsId, d.feetId, d.weaponId, d.legsId,
+                            d.handsId, d.feetId,
                             outMaxHp, outMaxMp);
     accumulateManualHpMp(manualBuckets, ownerRow, d.manualIds, proficiencies,
                          d.id, outMaxHp, outMaxMp);
@@ -377,7 +376,6 @@ inline void getMaxHpMp(
                             outMaxHp, outMaxMp);
     accumulateEquipmentHpMp(equipmentBuckets, row, ds.headIds[row],
                             ds.bodyIds[row], ds.handsIds[row], ds.feetIds[row],
-                            ds.weaponIds[row], ds.legsIds[row],
                             outMaxHp, outMaxMp);
     accumulateManualHpMp(manualBuckets, row, ds.manualIds[row], proficiencies,
                          ds.ids[row], outMaxHp, outMaxMp);
@@ -463,13 +461,13 @@ inline ::gamecore::disciple::DiscipleStats finalStats(
     ::gamecore::disciple::DiscipleStats total = baseStats(d);
     double totalCritRate = total.critRate;
 
-    // 装备（B3：六槽位 id 顺序 头/身/手/脚/武/腿 = Kotlin equippedItemIds；
+    // 装备（四槽位 id 顺序 头/身/手/脚 = Kotlin equippedItemIds；
     // EquipStatResolver 单点结算 + applyEquipBonusToAccum 乘区口径）
     {
         std::vector<const EquipmentInstance*> equipped;
-        equipped.reserve(6);
+        equipped.reserve(4);
         for (const std::string* eqId :
-             {&d.headId, &d.bodyId, &d.handsId, &d.feetId, &d.weaponId, &d.legsId}) {
+             {&d.headId, &d.bodyId, &d.handsId, &d.feetId}) {
             if (eqId->empty()) continue;
             const auto it = equipmentMap.find(*eqId);
             if (it == equipmentMap.end()) continue;

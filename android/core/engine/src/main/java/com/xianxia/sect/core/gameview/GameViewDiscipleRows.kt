@@ -119,8 +119,6 @@ internal object GameViewDiscipleRows {
         "bodyId" to DiscipleRow::hasBodyId,
         "handsId" to DiscipleRow::hasHandsId,
         "feetId" to DiscipleRow::hasFeetId,
-        "weaponId" to DiscipleRow::hasWeaponId,
-        "legsId" to DiscipleRow::hasLegsId,
         "storageBagSpiritStones" to DiscipleRow::hasStorageBagSpiritStones,
         "spiritStones" to DiscipleRow::hasSpiritStones,
         "intelligence" to DiscipleRow::hasIntelligence,
@@ -160,7 +158,8 @@ internal object GameViewDiscipleRows {
                 missing.joinToString(",")
         }
         val disciple = Disciple(
-            id = row.id,            name = row.name,
+            id = row.id,
+            name = row.name,
             surname = row.surname,
             realm = row.realm,
             realmLayer = row.realmLayer,
@@ -235,8 +234,6 @@ internal object GameViewDiscipleRows {
                 bodyId = row.bodyId,
                 handsId = row.handsId,
                 feetId = row.feetId,
-                weaponId = row.weaponId,
-                legsId = row.legsId,
                 storageBagItems = row.storageBagItems(bagItemSerializer, json),
                 storageBagSpiritStones = row.storageBagSpiritStones,
                 spiritStones = row.spiritStones
@@ -412,7 +409,8 @@ internal object GameViewDiscipleRows {
         val id = row.id.toIntOrNull() ?: return false
         return tables.patchExistingMirrorRow(id) {
             // 协议外瞬态列净效果（全行臂恒写：lifeEvents 空 / slotIds 0）
-            lifeEvents[id] = emptyList()            applyBasicPatchColumns(id, row)
+            lifeEvents[id] = emptyList()
+            applyBasicPatchColumns(id, row)
             applyCombatPatchColumns(id, row)
             applyPillPatchColumns(id, row)
             applyEquipmentPatchColumns(id, row, json)
@@ -522,8 +520,6 @@ internal object GameViewDiscipleRows {
         if (row.hasBodyId()) bodyIds[id] = row.bodyId
         if (row.hasHandsId()) handsIds[id] = row.handsId
         if (row.hasFeetId()) feetIds[id] = row.feetId
-        if (row.hasWeaponId()) weaponIds[id] = row.weaponId
-        if (row.hasLegsId()) legsIds[id] = row.legsId
         // 储物袋：净效果 = 全行臂 merged 行的解码分派（typed 优先，基线 typed
         // 经 toRow 进入 merged 行）——故补丁携带位（typed/present）在位 ⇒ 整列
         // 替换（typed → 75 → 空）；**75-only 且基线袋为空** ⇒ 75 解码（merged
@@ -680,8 +676,6 @@ internal object GameViewDiscipleRows {
         b.bodyId = d.equipment.bodyId
         b.handsId = d.equipment.handsId
         b.feetId = d.equipment.feetId
-        b.weaponId = d.equipment.weaponId
-        b.legsId = d.equipment.legsId
         // storageBagItems（B18-P1-A2）：typed 行承载（旧 75 号 JSON 原文停写保留）；
         // 列携带位恒置 true（全量行 = emit-always；列级补丁侧由 C++ 按"该列脏"置位）
         // ——repeated 零条目无法区分"列缺省"与"列脏且清空"，清空语义全靠本位置

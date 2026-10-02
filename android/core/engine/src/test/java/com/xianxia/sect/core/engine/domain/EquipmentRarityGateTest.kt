@@ -60,14 +60,14 @@ class EquipmentRarityGateTest {
     @Test
     fun `凡人请求T6被钳制到T1`() {
         val clamped = EquipmentFactory.create(
-            setId = "lietian", part = EquipmentSlot.WEAPON,
+            setId = "lietian", part = EquipmentSlot.HANDS,
             rarity = 6, rng = Random(1), discipleRealm = 9
         )
         assertEquals("产出品阶钳到可穿上限", 1, clamped.rarity)
         assertEquals("门槛元数据随实际品阶", GameConfig.Realm.getMinRealmForRarity(1), clamped.minRealm)
         // 数值面必须按 T1 生成（与同种子直接 T1 生成逐位一致）
         val direct = EquipmentFactory.create(
-            setId = "lietian", part = EquipmentSlot.WEAPON,
+            setId = "lietian", part = EquipmentSlot.HANDS,
             rarity = 1, rng = Random(1), discipleRealm = Int.MAX_VALUE
         )
         assertEquals(direct.growth.affix.mainStat, clamped.growth.affix.mainStat)

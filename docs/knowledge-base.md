@@ -12,7 +12,7 @@
 - [弟子分配门卫系统](#弟子分配门卫系统)
 - [增量落盘（真增量写）](#增量落盘真增量写)
 - [探索系统](#探索系统)
-- [装备系统（六部位套装体系）](#装备系统六部位套装体系)
+- [装备系统（四部位套装体系）](#装备系统四部位套装体系)
 - [确定性 RNG 系统](#确定性-rng-系统)
 - [弟子属性生成](#弟子属性生成)
 - [Component Table 架构](#component-table-architecture)
@@ -153,29 +153,29 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ---
 
-## 装备系统（六部位套装体系）
+## 装备系统（四部位套装体系）
 
-> 2026-09 装备系统重构线（EQ-B0–B5）落地后的终态。权威方案 `docs/design/equipment-set-system-refactor-plan.md`（R1–R12/D1–D10/I1–I10）、批次编排与各批报告 `docs/design/equipment-batches/`、决策记录 [docs/adr/equipment-set-system.md](adr/equipment-set-system.md)、债务与遗留登记 `docs/architecture.md`「属性与装备体系」节。
+> 2026-09 装备系统重构线（EQ-B0–B5）+ 2026-10 四部位化收缩线（F1–F4）落地后的终态。权威方案 `docs/design/equipment-set-system-refactor-plan.md`（R1–R12/D1–D10/I1–I10）+ `docs/design/equipment-four-slot-refactor-plan.md`（四部位化 F1–F4）、批次编排与各批报告 `docs/design/equipment-batches/`、决策记录 [docs/adr/equipment-set-system.md](adr/equipment-set-system.md)、债务与遗留登记 `docs/architecture.md`「属性与装备体系」节。
 
 | 组件 | 位置 | 职责 |
 |------|------|------|
-| `EquipmentSlot` | core/domain | 六部位枚举（HEAD/BODY/HANDS/FEET/WEAPON/LEGS，`@ProtoNumber` 10..15，显示序 = 声明序；移除饰品位） |
+| `EquipmentSlot` | core/domain | 四部位枚举（HEAD/BODY/HANDS/FEET，`@ProtoNumber` 10..13，显示序 = 声明序；WEAPON(14)/LEGS(15) 退役 reserved 禁复用，退役守卫 `EquipmentSlotRetirementGuardTest`） |
 | `EquipmentInstance` | core/domain | 一行一实例模型：`setId/part/growth{level,exp,mainStat,subStats,subRolls}/meta`；等级/词条/强化随实例单点（装卸往返逐位保真）；全字段 val（恒等键缓存版本安全前提） |
-| `EquipmentDatabase` / `EquipmentSetDatabase` | core/domain registry | 12 部件 × 6 品阶 72 展开条目；两套装（物理/法术）2/4/6 件档；`EquipmentRegistry` 只是纯转发层（D1 防复发守卫） |
-| `EquipMainStatPool` / `EquipAffixPool` | core/domain registry | 主词条部位池随机（武器 1.15 输出向/腿部 0.95）+ 3 副词条 7 项权重池（13/13/14/15/15/15/15）不放回 |
+| `EquipmentDatabase` / `EquipmentSetDatabase` | core/domain registry | **24 部件 × 6 品阶 144 展开条目**（6 套 × 4 部位：物理套 + 庚金白虎/青木长生/玄水寒渊/离火焚天/厚土镇岳）；**2/4 两档**（`bonusFull`=原 6 件档 4 件触发，满套 = 本系 +30% + 暴击率 +12% 守恒）；`EquipmentRegistry` 只是纯转发层（D1 防复发守卫） |
+| `EquipMainStatPool` / `EquipAffixPool` | core/domain registry | 主词条**四部位**池随机（手部 1.15 输出向承接原武器池/脚部 0.95 均衡向承接原腿部池）+ 3 副词条 **11 项权重池（合计 100）**不放回 |
 | `EquipmentFactory` | core/engine | **唯一产出入口**：品阶受境界钳制（S17，双端默认哨兵 `REALM_UNRESTRICTED`）；词条 roll 走 `RngPartition.EQUIPMENT(13)` 双端 |
 | `EquipmentLevelSystem` / `EquipmentUpgradeService` | core/engine | 升级 1–30（替换孕养）：曲线 `100×level×rarityMul`、每 3 级强化一条副词条、分解返还 50%；升级/分解走 native 事务（ActionId 1486/1487，C++ `equipment_tx.h`） |
-| `EquipStatResolver` | core/engine | 词条+套装加成解析单点（2/4/6 档相加口径）；**恒等键整解析缓存**（4096 清空护栏；值语义键深哈希 6.3× 劣化实测否定，勿翻案） |
-| `DiscipleEquipmentService` / `DiscipleEquipmentManager` | core/engine | 穿卸单轨六部位（卸装 = 实例保留 `isEquipped=false`，非删除）；`DiscipleSurrogate` 六部位列 headId(112)..legsId(116) 扁平代理 |
+| `EquipStatResolver` | core/engine | 词条+套装加成解析单点（**2/4 档**相加口径，`>=6` 分支已删除非注释）；**恒等键整解析缓存**（4096 清空护栏；值语义键深哈希 6.3× 劣化实测否定，勿翻案） |
+| `DiscipleEquipmentService` / `DiscipleEquipmentManager` | core/engine | 穿卸单轨**四部位**（卸装 = 实例保留 `isEquipped=false`，非删除）；`DiscipleSurrogate` 四部位列 headId(112)..feetId(115) 扁平代理（weaponId(17)/legsId(116) 退役 reserved） |
 | `EquipmentValueSanitizeRule` | core/data integrity | 词条完整性消毒（order=28，coerce 双端一致）；旧装备折算补偿规则（原 order=27）已随 SS0 删档重置退役 |
 | C++ 对偶 | `gamecore/data/equip_*.h`、`equipment_tx.h`、`equipment_factory.h`、`equipment_entries.h` | AUTHORITATIVE 真相源：装备事务/词条抽取/套装结算与 Kotlin 逐位对拍（`DiffEquipmentUpgradeTest` + `equip_*_test.cpp`） |
 | codegen 链 | `scripts/data/equipment_db_sample.json` + `scripts/gen-templates.mjs` / `gen-game-data.mjs` | 静态数据单一真源（E4 禁手改生成物；G0 幂等门 + `TemplateCodegenIntegrityGuardTest`） |
 
-**属性接口（B1 单列口径；五行属性伤害系统 2026-09-30 终态）**：装备/功法/丹药加成汇入弟子 `attack/defense` 单列；伤害类型走**普攻按角色配置（`innateDamageType`，当前全部角色设定物理——内容现状非架构恒等式）+ 技能按功法自带元素（`DamageType` 六活跃值：物理+金木水火土）+ 类型增伤/减伤 12 桶**；五行加成受**灵根 gate**（`SpiritRoot.elementGate`：灵根含该元素→全额、不含→0、物理恒全额，弟子侧 `typeDamageBonusesOf` 折算后进 Combatant 桶）；速度/灵力**不在**装备加成通道（S14 拍板）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`，装备占比锚 [30,45]（五行化 E4 校准重锚；`EquipmentPowerParityTest` 分维度钉死）。
+**属性接口（B1 单列口径；五行属性伤害系统 2026-09-30 终态）**：装备/功法/丹药加成汇入弟子 `attack/defense` 单列；伤害类型走**普攻按角色配置（`innateDamageType`，当前全部角色设定物理——内容现状非架构恒等式）+ 技能按功法自带元素（`DamageType` 六活跃值：物理+金木水火土）+ 类型增伤/减伤 12 桶**；五行加成受**灵根 gate**（`SpiritRoot.elementGate`：灵根含该元素→全额、不含→0、物理恒全额，弟子侧 `typeDamageBonusesOf` 折算后进 Combatant 桶）；速度/灵力**不在**装备加成通道（S14 拍板）。战力公式 `attack×5 + maxHp×4 + defense×3 + speed×2`，装备占比锚 **[22,40]**（四部位化 F4 实测定稿，五入口中位 0.259–0.345；`EquipmentPowerParityTest` 分维度钉死）。
 
-**守卫测试族**：`EquipmentSlotOrderGuardTest` / `EquipmentSingleSourceGuardTest` / `EquipmentLevelPersistGuardTest`（R5 根因）/ `EquipmentStackRemovalGuardTest`（R6 符号面归零+白名单）/ `EquipmentRarityGateTest`（S17+产出链单点路由）/ `EquipmentProtoNumberFrozenTest`（E1 编号冻结）/ `EquipmentPowerParityTest`（S9）/ `EquipmentEconomyCalibrationTest`（S16）/ `EquipmentStatHotPathBenchmark`（S18 门 ≤1.10）。
+**守卫测试族**：`EquipmentSlotOrderGuardTest` / `EquipmentSlotRetirementGuardTest`（F2 立，全仓武器/腿部符号面归零）/ `ForgeRecipeSlotGuardTest`（F2 立，配方产出 ∈ 四部位）/ `EquipmentSingleSourceGuardTest` / `EquipmentLevelPersistGuardTest`（R5 根因）/ `EquipmentStackRemovalGuardTest`（R6 符号面归零+白名单）/ `EquipmentRarityGateTest`（S17+产出链单点路由）/ `EquipmentProtoNumberFrozenTest`（E1 编号冻结 + F2 退役号 17/116 禁复用）/ `EquipmentPowerParityTest`（S9，四部位带 F4 定稿）/ `EquipmentEconomyCalibrationTest`（S16）/ `EquipmentStatHotPathBenchmark`（S18 门 ≤1.10）。
 
-**镜像面**：`equipmentInstances` 实体集合（ui-read-surface §2.2）+ disciples 行六部位列（proto 67-70/122/123）；UI 消费一律经 `GameEngine.equipmentInstances` 只读流，禁止 UI 侧自算第二份词条加成。
+**镜像面**：`equipmentInstances` 实体集合（ui-read-surface §2.2）+ disciples 行四部位列（proto 67-70，weaponId=122/legsId=123 删除 reserved）；UI 消费一律经 `GameEngine.equipmentInstances` 只读流，禁止 UI 侧自算第二份词条加成。
 
 ---
 

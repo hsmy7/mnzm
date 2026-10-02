@@ -72,8 +72,9 @@ protected:
     }
 
     /// 挂一件未穿戴装备实例（B3 单轨：part 定槽位、meta.rarity/minRealm 横切面）
+    /// 默认手部（四部位化 F2：手部承接原武器的输出位语义）
     void addUnequippedInstance(const std::string& id, int32_t minRealm = 9,
-                               const std::string& part = "WEAPON") {
+                               const std::string& part = "HANDS") {
         EquipmentInstance e;
         e.id = id;
         e.name = "宝剑" + id;
@@ -115,25 +116,25 @@ TEST_F(DiscipleTxFixture, EquipInstanceTrackMarksEquipped) {
 
     const auto r = disciple_tx::equipTransaction(core_->state(), "1", "i1");
     ASSERT_TRUE(r.base.ok);
-    // 单轨实例：置位 + 六部位槽位列写（part=WEAPON → weaponIds）
+    // 单轨实例：置位 + 四部位槽位列写（part=HANDS → handsIds）
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     EXPECT_TRUE(core_->state().equipmentInstances[0].isEquipped);
     EXPECT_EQ(core_->state().equipmentInstances[0].ownerId, "1");
-    EXPECT_EQ(core_->state().disciples.weaponIds[row], "i1");
+    EXPECT_EQ(core_->state().disciples.handsIds[row], "i1");
     EXPECT_EQ(r.logLine, "装备了宝剑i1");
 }
 
-TEST_F(DiscipleTxFixture, EquipWritesSixPartSlotColumn) {
-    // 六部位适配：part 决定槽位列（HEAD → headIds），不串写其他五列
+TEST_F(DiscipleTxFixture, EquipWritesFourPartSlotColumn) {
+    // 四部位适配：part 决定槽位列（HEAD → headIds），不串写其他三列
     const std::size_t row = addDisciple("1");
     addUnequippedInstance("h1", /*minRealm=*/9, /*part=*/"HEAD");
 
     const auto r = disciple_tx::equipTransaction(core_->state(), "1", "h1");
     ASSERT_TRUE(r.base.ok);
     EXPECT_EQ(core_->state().disciples.headIds[row], "h1");
-    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
     EXPECT_TRUE(core_->state().disciples.bodyIds[row].empty());
-    EXPECT_TRUE(core_->state().disciples.legsIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.handsIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.feetIds[row].empty());
 }
 
 TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
@@ -141,7 +142,7 @@ TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
     addUnequippedInstance("old");
     addUnequippedInstance("new");
     ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "old").base.ok);
-    ASSERT_EQ(core_->state().disciples.weaponIds[row], "old");
+    ASSERT_EQ(core_->state().disciples.handsIds[row], "old");
 
     const auto r = disciple_tx::equipTransaction(core_->state(), "1", "new");
     ASSERT_TRUE(r.base.ok);
@@ -163,7 +164,7 @@ TEST_F(DiscipleTxFixture, EquipReplacesOldIntoBag) {
         }
     }
     EXPECT_TRUE(oldUnequipped);
-    EXPECT_EQ(core_->state().disciples.weaponIds[row], "new");
+    EXPECT_EQ(core_->state().disciples.handsIds[row], "new");
     // 日志为替换式（oldName 在卸下后查实例表 → B3 实例保留表内可查到真名）
     EXPECT_EQ(r.logLine, "将宝剑old替换为宝剑new");
 }
@@ -188,7 +189,7 @@ TEST_F(DiscipleTxFixture, EquipFailureArmsAreZeroWrite) {
     // 零写入断言：实例表/槽位列/袋全不动
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     EXPECT_FALSE(core_->state().equipmentInstances[0].isEquipped);
-    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.handsIds[row].empty());
     EXPECT_TRUE(core_->state().disciples.storageBagItems[row].empty());
 }
 
@@ -202,7 +203,7 @@ TEST_F(DiscipleTxFixture, EquipAlreadyEquippedFails) {
     EXPECT_FALSE(r.base.ok);
     EXPECT_EQ(r.base.errorType, "AlreadyEquipped");
     // 槽位不被顶替
-    EXPECT_EQ(core_->state().disciples.weaponIds[row], "i1");
+    EXPECT_EQ(core_->state().disciples.handsIds[row], "i1");
 }
 
 // ── 事务 2：装备卸下（B3：实例保留表内 isEquipped=false + 袋条目）──
@@ -215,7 +216,7 @@ TEST_F(DiscipleTxFixture, UnequipKeepsInstanceInTableAndBagsCopy) {
     const auto r = disciple_tx::unequipTransaction(core_->state(), "1", "i1");
     ASSERT_TRUE(r.ok);
     // 槽位清空 + 袋条目（payload 保真）+ 实例保留表内（等级/词条随实例单点）
-    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.handsIds[row].empty());
     const auto& bag = core_->state().disciples.storageBagItems[row];
     ASSERT_EQ(bag.size(), 1u);
     ASSERT_TRUE(bag[0].equipmentInstance.has_value());
@@ -241,11 +242,11 @@ TEST_F(DiscipleTxFixture, UnequipNotWornFailsZeroWrite) {
 TEST_F(DiscipleTxFixture, UnequipMissingInstanceClearsSlotOnly) {
     // 损坏态：槽位有 id 但实例表缺失 → Kotlin 同分支仅清槽
     const std::size_t row = addDisciple("1");
-    core_->state().disciples.weaponIds[row] = "ghost";
+    core_->state().disciples.handsIds[row] = "ghost";
 
     const auto r = disciple_tx::unequipTransaction(core_->state(), "1", "ghost");
     ASSERT_TRUE(r.ok);
-    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.handsIds[row].empty());
     EXPECT_TRUE(core_->state().disciples.storageBagItems[row].empty());
 }
 
@@ -482,7 +483,7 @@ TEST_F(DiscipleTxFixture, AllSixTransactionsConsumeZeroRng) {
 
     ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "i1").base.ok);
     ASSERT_TRUE(disciple_tx::unequipTransaction(
-        core_->state(), "1", core_->state().disciples.weaponIds[row]).ok);
+        core_->state(), "1", core_->state().disciples.handsIds[row]).ok);
     ASSERT_TRUE(disciple_tx::equipTransaction(core_->state(), "1", "i1").base.ok);
     ASSERT_TRUE(disciple_tx::learnManualTransaction(core_->state(), "1", "m1").ok);
     ASSERT_TRUE(disciple_tx::unlearnManualTransaction(
@@ -520,7 +521,7 @@ TEST_F(DiscipleTxFixture, DispatchFailureEnvelopeFallsBackSignal) {
     EXPECT_EQ(r.at("code"), "RealmTooLow");
     // 失败零写入
     EXPECT_FALSE(core_->state().equipmentInstances[0].isEquipped);
-    EXPECT_TRUE(core_->state().disciples.weaponIds[row].empty());
+    EXPECT_TRUE(core_->state().disciples.handsIds[row].empty());
 }
 
 TEST_F(DiscipleTxFixture, DispatchAssignSlotEnvelope) {

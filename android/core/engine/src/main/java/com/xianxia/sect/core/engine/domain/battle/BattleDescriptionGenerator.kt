@@ -38,41 +38,6 @@ object BattleDescriptionGenerator {
         "拳劲爆发，攻向", "双拳齐出，攻向", "一记掌击拍向", "拳影重重，攻向"
     )
 
-    private val swordVerbs = listOf(
-        "一剑刺向", "挥剑斩向", "剑光闪烁，攻向", "剑气纵横，斩向", "长剑横空，刺向"
-    )
-    private val bladeVerbs = listOf(
-        "一刀劈向", "挥刀砍向", "刀光一闪，斩向", "利刃破空，劈向", "刀气凛然，砍向"
-    )
-    private val staffVerbs = listOf(
-        "一杖击向", "舞杖砸向", "杖影重重，攻向", "法杖挥动，击向", "杖风呼啸，砸向"
-    )
-    private val orbVerbs = listOf(
-        "灵珠旋转，轰向", "宝珠发光，攻向", "珠光闪耀，击向", "灵珠飞旋，轰向", "宝珠璀璨，攻向"
-    )
-    private val bowVerbs = listOf(
-        "弯弓搭箭，射向", "一箭破空，射向", "弓弦响处，箭射", "利箭疾射", "弓如满月，射向"
-    )
-    private val fanVerbs = listOf(
-        "折扇一挥，攻向", "扇影翻飞，击向", "折扇轻挥，攻向", "扇风卷起，击向", "折扇展开，攻向"
-    )
-    private val genericWeaponVerbs = listOf(
-        "挥动武器攻向", "猛然一击", "挥舞兵器攻向", "奋力一击", "猛力攻击"
-    )
-
-    private fun getWeaponVerbs(weaponName: String?): List<String> {
-        if (weaponName == null) return unarmedAttackVerbs
-        return when {
-            weaponName.contains("剑") -> swordVerbs
-            weaponName.contains("刀") -> bladeVerbs
-            weaponName.contains("杖") -> staffVerbs
-            weaponName.contains("珠") || weaponName.contains("球") -> orbVerbs
-            weaponName.contains("弓") -> bowVerbs
-            weaponName.contains("扇") -> fanVerbs
-            else -> genericWeaponVerbs
-        }
-    }
-
     private val magicAttackVerbs = listOf(
         "凝聚灵力攻向", "施法轰向", "灵力涌动，攻向", "法力凝聚，轰向", "一记法术攻向",
         "灵光闪烁，攻向", "法力流转，轰向", "凝聚真元攻向", "施放法术轰向", "灵力爆发攻向"
@@ -130,7 +95,8 @@ object BattleDescriptionGenerator {
             }
         } else {
             if (isPhysical) {
-                getWeaponVerbs(attacker.weaponName).pick(saltOf("w", attacker.id, target.id, turn))
+                // 武器部位已随四部位化退役：普攻恒用徒手动词表（salt 键不变，掷点序不变）
+                unarmedAttackVerbs.pick(saltOf("w", attacker.id, target.id, turn))
             } else {
                 magicAttackVerbs.pick(saltOf("mag", attacker.id, target.id, turn))
             }

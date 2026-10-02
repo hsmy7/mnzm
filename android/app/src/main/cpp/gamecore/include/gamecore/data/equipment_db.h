@@ -6,15 +6,15 @@
 #include <vector>
 
 // ============================================================
-// 装备套装部件静态表（B3：2 套 × 6 部位 = 12 条；按品阶展开为
-// 72 条可生成条目的基表）
+// 装备套装部件静态表（6 套 × 4 部位 = 24 条；按品阶展开为
+// 144 条可生成条目的基表）
 // ============================================================
 namespace gamecore::data {
 
 struct SetPieceTemplate {
     std::string id;        // "{setId}_{part}"，如 lietian_HEAD
-    std::string setId;     // 套装 id（lietian/zifu）
-    std::string part;      // 六部位 EquipmentSlot.name
+    std::string setId;     // 套装 id（lietian/gengjin 等）
+    std::string part;      // 四部位 EquipmentSlot.name
     std::string name;
     std::string description;
     std::int32_t priceByRarity[6];   // 品阶 1..6 价格
@@ -31,7 +31,7 @@ inline bool operator==(const SetPieceTemplate& a, const SetPieceTemplate& b) {
     return true;
 }
 
-/// 全部套装部件（12 条；Mutable 入口供 data_inject.h 运行期注入）
+/// 全部套装部件（24 条；Mutable 入口供 data_inject.h 运行期注入）
 inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
     static std::vector<SetPieceTemplate> kPieces = {
         {
@@ -51,16 +51,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
         },
         {
             "lietian_FEET", "lietian", "FEET", "裂天罡煞·战靴", "裂天罡煞套装战靴，踏罡步斗势如奔雷",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "lietian_WEAPON", "lietian", "WEAPON", "裂天罡煞·战刃", "裂天罡煞套装战刃，煞刃出鞘天地震动",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "lietian_LEGS", "lietian", "LEGS", "裂天罡煞·胫甲", "裂天罡煞套装胫甲，罡气缠腿稳若山岳",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
         },
@@ -85,16 +75,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
             {9, 7, 6, 5, 4, 2}
         },
         {
-            "gengjin_WEAPON", "gengjin", "WEAPON", "庚金白虎·灵兵", "庚金白虎套装灵兵，庚金锋芒斩伐万邪",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "gengjin_LEGS", "gengjin", "LEGS", "庚金白虎·护胫", "庚金白虎套装护胫，金甲裹腿坚逾精钢",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
             "qingmu_HEAD", "qingmu", "HEAD", "青木长生·灵冠", "青木长生套装灵冠，青木灵韵清心明神",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
@@ -111,16 +91,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
         },
         {
             "qingmu_FEET", "qingmu", "FEET", "青木长生·云履", "青木长生套装云履，踏叶而行轻若春风",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "qingmu_WEAPON", "qingmu", "WEAPON", "青木长生·灵兵", "青木长生套装灵兵，万木之灵催芽成兵",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "qingmu_LEGS", "qingmu", "LEGS", "青木长生·护胫", "青木长生套装护胫，根须盘结稳如古树",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
         },
@@ -145,16 +115,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
             {9, 7, 6, 5, 4, 2}
         },
         {
-            "xuanshui_WEAPON", "xuanshui", "WEAPON", "玄水寒渊·灵兵", "玄水寒渊套装灵兵，玄冰凝刃寒光凛冽",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "xuanshui_LEGS", "xuanshui", "LEGS", "玄水寒渊·护胫", "玄水寒渊套装护胫，渊水绕腿暗流涌动",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
             "lihuo_HEAD", "lihuo", "HEAD", "离火焚天·灵冠", "离火焚天套装灵冠，离火真焰炼神涤魄",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
@@ -175,16 +135,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
             {9, 7, 6, 5, 4, 2}
         },
         {
-            "lihuo_WEAPON", "lihuo", "WEAPON", "离火焚天·灵兵", "离火焚天套装灵兵，焚天之焰斩灭诸邪",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "lihuo_LEGS", "lihuo", "LEGS", "离火焚天·护胫", "离火焚天套装护胫，火甲缠腿烈焰不熄",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
             "houtu_HEAD", "houtu", "HEAD", "厚土镇岳·灵冠", "厚土镇岳套装灵冠，厚土之德沉稳心神",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
@@ -201,16 +151,6 @@ inline std::vector<SetPieceTemplate>& setPieceTemplatesMutable() {
         },
         {
             "houtu_FEET", "houtu", "FEET", "厚土镇岳·云履", "厚土镇岳套装云履，踏地生根移山填谷",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "houtu_WEAPON", "houtu", "WEAPON", "厚土镇岳·灵兵", "厚土镇岳套装灵兵，崩岳之锋无坚不摧",
-            {4000, 16000, 80000, 480000, 3360000, 26880000},
-            {9, 7, 6, 5, 4, 2}
-        },
-        {
-            "houtu_LEGS", "houtu", "LEGS", "厚土镇岳·护胫", "厚土镇岳套装护胫，大地之基重若千钧",
             {4000, 16000, 80000, 480000, 3360000, 26880000},
             {9, 7, 6, 5, 4, 2}
         },

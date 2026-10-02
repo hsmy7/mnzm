@@ -341,10 +341,10 @@ private fun DiscipleDetailTabContent(
     vmPlacedBuildings: List<GridBuildingData>,
     state: DiscipleDetailDialogState
 ) {
-    // 六部位已穿装备（B3 实例轨：显示序单一真源 = EquipmentSlot.displayOrder）
+    // 四部位已穿装备（实例轨：显示序单一真源 = EquipmentSlot.displayOrder）
     val equippedByPart: Map<EquipmentSlot, EquipmentInstance?> = remember(
         disciple.headId, disciple.bodyId, disciple.handsId,
-        disciple.feetId, disciple.weaponId, disciple.legsId, allEquipment
+        disciple.feetId, allEquipment
     ) {
         EquipmentSlot.displayOrder.associateWith { part ->
             val id = disciple.equipment?.slotId(part).orEmpty()

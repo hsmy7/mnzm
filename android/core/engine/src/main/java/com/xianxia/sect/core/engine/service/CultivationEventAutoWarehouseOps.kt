@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.MutableGameState
 
@@ -244,8 +243,6 @@ internal fun CultivationEventProcessor.writeAutoWarehouseResults(
         tables.bodyIds[id] = disciple.equipment.bodyId
         tables.handsIds[id] = disciple.equipment.handsId
         tables.feetIds[id] = disciple.equipment.feetId
-        tables.weaponIds[id] = disciple.equipment.weaponId
-        tables.legsIds[id] = disciple.equipment.legsId
 
         // 清理被替换功法的残留熟练度
         val oldManualIds = tables.manualIds.getOrDefault(id, emptyList())

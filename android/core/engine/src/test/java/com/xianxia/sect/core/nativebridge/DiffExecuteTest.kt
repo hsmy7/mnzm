@@ -78,7 +78,7 @@ class DiffExecuteTest {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
         val instanceJson = """
-            {"id":"eq-1","name":"木剑","setId":"lietian","part":"WEAPON",
+            {"id":"eq-1","name":"木剑","setId":"lietian","part":"HANDS",
              "growth":{"level":1,"exp":0,
                        "affix":{"mainStat":{"stat":"ATTACK","value":10.0},
                                 "subStats":[{"stat":"DEFENSE","value":3.0}],
@@ -96,7 +96,7 @@ class DiffExecuteTest {
         val inst = decoded.equipmentInstances.single()
         assertEquals("eq-1", inst.id)
         assertEquals("lietian", inst.setId)
-        assertEquals(com.xianxia.sect.core.model.EquipmentSlot.WEAPON, inst.part)
+        assertEquals(com.xianxia.sect.core.model.EquipmentSlot.HANDS, inst.part)
         assertEquals("ATTACK", inst.growth.affix.mainStat.stat.name)
         // 重复 id 拒绝（实例轨防双持有）；信封外层恒 success，业务结果在 data.status
         val dup = exec(ActionIds.INV_ADD_EQUIPMENT_STACK, json.parseToJsonElement(instanceJson) as JsonObject)
@@ -113,7 +113,7 @@ class DiffExecuteTest {
         assumeTrue(DiffRngBridge.isAvailable())
         freshCore()
         val instanceJson = """
-            {"id":"eq-1","name":"木剑","setId":"lietian","part":"WEAPON",
+            {"id":"eq-1","name":"木剑","setId":"lietian","part":"HANDS",
              "growth":{"level":1,"exp":0,
                        "affix":{"mainStat":{"stat":"ATTACK","value":10.0},"subStats":[],"subRolls":[]}},
              "meta":{"rarity":1,"minRealm":9,"description":"","isLocked":false},

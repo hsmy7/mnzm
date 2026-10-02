@@ -216,7 +216,7 @@ class DiscipleLifecycleProcessorTest {
         mockStore.update {
             equipmentInstances.replaceAll(listOf(
                 EquipmentInstance(id = "i1", name = "精铁剑",
-                part = EquipmentSlot.WEAPON,
+                part = EquipmentSlot.HANDS,
                 growth = com.xianxia.sect.core.model.EquipGrowth(
                     affix = com.xianxia.sect.core.model.EquipAffixSet(
                         mainStat = com.xianxia.sect.core.model.EquipStatValue(

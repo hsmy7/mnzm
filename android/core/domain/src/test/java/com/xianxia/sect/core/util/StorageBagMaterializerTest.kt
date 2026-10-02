@@ -44,7 +44,7 @@ class StorageBagMaterializerTest {
     )
 
     private fun eqStack(id: String, qty: Int, minRealm: Int = 0) = EquipmentStack(
-        id = id, name = "精铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = qty, minRealm = minRealm
+        id = id, name = "精铁剑", rarity = 1, slot = EquipmentSlot.HANDS, quantity = qty, minRealm = minRealm
     )
 
     private fun mnStack(id: String, qty: Int, minRealm: Int = 0) = ManualStack(
@@ -174,7 +174,7 @@ class StorageBagMaterializerTest {
         // 此处移动会破坏实例表与袋条目的一致面（与 manual_instance 语义有意分叉）
         val item = StorageBagItem(itemId = "i1", itemType = "equipment_instance", name = "传承剑", rarity = 3)
         val instance = EquipmentInstance(
-            id = "i1", name = "传承剑", part = EquipmentSlot.WEAPON,
+            id = "i1", name = "传承剑", part = EquipmentSlot.HANDS,
             meta = EquipInstanceMeta(rarity = 3)
         )
         val result = StorageBagMaterializer.materializeDiscipleBagItems(
@@ -262,7 +262,7 @@ class StorageBagMaterializerTest {
     @Test
     fun `already materialized items skipped - idempotent`() {
         val instance = EquipmentInstance(
-            id = "i1", name = "传承剑", part = EquipmentSlot.WEAPON,
+            id = "i1", name = "传承剑", part = EquipmentSlot.HANDS,
             meta = EquipInstanceMeta(rarity = 3)
         )
         val materialized = StorageBagItem(

@@ -147,14 +147,15 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
     EXPECT_EQ(pillExpected, pillRecipes());
 
     // 行数断言（消费面枚举清单的权威口径）
-    // 五行属性伤害系统：装备 = 36 部件模板（×品阶展开 216 条目，equipment_entries.h 派生）
-    EXPECT_EQ(36u, setPieceTemplates().size());
-    EXPECT_EQ(216u, equipmentEntries().size());
+    // 四部位体系：装备 = 24 部件模板（×品阶展开 144 条目，equipment_entries.h 派生）
+    EXPECT_EQ(24u, setPieceTemplates().size());
+    EXPECT_EQ(144u, equipmentEntries().size());
     EXPECT_EQ(54u, herbTemplates().size());
     EXPECT_EQ(54u, seedTemplates().size());
     EXPECT_EQ(540u, manualTemplates().size());
     EXPECT_EQ(192u, beastMaterialTemplates().size());
-    EXPECT_EQ(72u, forgeRecipes().size());
+    // 四部位化 F3：锻造配方 = 6 套 × 4 部位 = 24
+    EXPECT_EQ(24u, forgeRecipes().size());
     // R11 孕养丹退役：660 − 36 = 624
     EXPECT_EQ(624u, pillRecipes().size());
 
@@ -194,8 +195,8 @@ TEST_F(DataStoreGuardTest, 卡池两表注入计数与段长一致且关键字�
     EXPECT_EQ(1, counts.gachaPools);
     EXPECT_EQ(6, counts.characterTemplates);
     // 其余八段计数非零（一次注入喂满九张表，零段被静默跳过）
-    // 五行属性伤害系统：counts.equipment = setPieces 数（36）
-    EXPECT_EQ(36, counts.equipment);
+    // 四部位体系：counts.equipment = setPieces 数（24）
+    EXPECT_EQ(24, counts.equipment);
     EXPECT_GT(counts.gachaPools, 0);
 
     // 按 id 查询入口命中注入值；池关键字段可读（抽卡前置校验的输入面）。
@@ -342,7 +343,7 @@ TEST_F(DataStoreGuardTest, 注入前为未注入态且表等于内联默认) {
               std::string(stateName(gameDataStoreState().state)));
     EXPECT_FALSE(setPieceTemplates().empty());
     EXPECT_FALSE(manualTemplates().empty());
-    EXPECT_EQ(36u, setPieceTemplates().size());
+    EXPECT_EQ(24u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, 解析失败落兜底且表非空) {
@@ -352,8 +353,8 @@ TEST_F(DataStoreGuardTest, 解析失败落兜底且表非空) {
     EXPECT_EQ(std::string("fallbackDefault"),
               std::string(stateName(gameDataStoreState().state)));
     EXPECT_EQ(1, gameDataStoreState().stats.failedParse);
-    EXPECT_FALSE(setPieceTemplates().empty());  // 兜底：仍是 36 条内联默认
-    EXPECT_EQ(36u, setPieceTemplates().size());
+    EXPECT_FALSE(setPieceTemplates().empty());  // 兜底：仍是 24 条内联默认
+    EXPECT_EQ(24u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, schema版本不符落兜底) {
@@ -367,14 +368,14 @@ TEST_F(DataStoreGuardTest, 段类型不符落兜底) {
     EXPECT_FALSE(inject::injectFromJson(
         R"({"schemaVersion":1,"db":{"equipment":"oops"}})"));
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
-    EXPECT_EQ(36u, setPieceTemplates().size());
+    EXPECT_EQ(24u, setPieceTemplates().size());
 }
 
 TEST_F(DataStoreGuardTest, 空段落兜底) {
     EXPECT_FALSE(inject::injectFromJson(
         R"({"schemaVersion":1,"db":{"equipment":{"setPieces":[]}}})"));
     EXPECT_EQ(gameDataStoreState().state, GameDataState::kFallbackDefault);
-    EXPECT_EQ(36u, setPieceTemplates().size());
+    EXPECT_EQ(24u, setPieceTemplates().size());
 }
 
 // ── 层 3：注入纪律（硬门）────────────────────────────────────

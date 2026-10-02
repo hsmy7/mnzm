@@ -48,7 +48,7 @@ fun EquipmentSection(
             color = Color.Black
         )
 
-        // 六部位宫格（显示序单一真源 = EquipmentSlot.displayOrder）
+        // 四部位宫格（显示序单一真源 = EquipmentSlot.displayOrder）
         EquipmentSlot.displayOrder.chunked(EQUIP_GRID_ROW_SIZE).forEach { rowParts ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -146,7 +146,7 @@ fun EquipmentSelectionDialog(
     val watchedKeys = params.viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
     val slotEnum = EquipmentSlot.entries
         .find { it.name.equals(params.slotType, ignoreCase = true) }
-        ?: EquipmentSlot.WEAPON
+        ?: EquipmentSlot.HEAD
 
     val items = remember(
         params.allEquipment, slotEnum,

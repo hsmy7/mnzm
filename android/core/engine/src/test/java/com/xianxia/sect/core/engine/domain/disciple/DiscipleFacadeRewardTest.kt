@@ -91,7 +91,7 @@ class DiscipleFacadeRewardTest {
         tables.realms[id] = realm
     }
 
-    /** B3 实例轨种子装备（武器部位、可配境界门槛/穿戴态） */
+    /** 实例轨种子装备（手部位、可配境界门槛/穿戴态） */
     private fun eqInstance(
         id: String,
         minRealm: Int = 0,
@@ -99,7 +99,7 @@ class DiscipleFacadeRewardTest {
         ownerId: String? = null
     ) = EquipmentInstance(
         id = id, name = "精铁剑",
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
         ),
@@ -129,7 +129,7 @@ class DiscipleFacadeRewardTest {
         // B3：实例保留实例表（下线态），未装备
         val instance = requireNotNull(mockStore.equipmentInstances.value.firstOrNull { it.id == "eq1" })
         assertTrue("实例表保留下线态", !instance.isEquipped)
-        assertEquals("未装备", "", tables.weaponIds[1])
+        assertEquals("未装备", "", tables.handsIds[1])
     }
 
     @Test
@@ -148,7 +148,7 @@ class DiscipleFacadeRewardTest {
         ))
 
         assertEquals("袋无条目（已穿戴/缺失不赏赐）", 0, tables.storageBagItems[1].size)
-        assertEquals("已穿戴实例穿戴态不变", "", tables.weaponIds[1])
+        assertEquals("已穿戴实例穿戴态不变", "", tables.handsIds[1])
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -158,17 +158,17 @@ class DiscipleFacadeRewardTest {
     @Test
     fun `equipment reward meeting realm equips and old instance casts into bag`() {
         insertDisciple(1, realm = 5) // 数值越小境界越高：5 <= minRealm=7 满足（境界足够装）
-        // 弟子已穿旧武器实例 i-old
+        // 弟子已穿旧手部位实例 i-old
         val oldInstance = eqInstance("i-old", isEquipped = true, ownerId = "1")
         setStore { equipmentInstances = EntityStore(listOf(oldInstance, eqInstance("eq-new", minRealm = 7))) }
-        tables.weaponIds[1] = "i-old"
+        tables.handsIds[1] = "i-old"
 
         facade.rewardItemsToDisciple("1", listOf(
             RewardSelectedItem(id = "eq-new", type = "equipment", name = "精铁剑", rarity = 1, quantity = 1)
         ))
 
         // 新装备上身
-        val newEquipId = tables.weaponIds[1]
+        val newEquipId = tables.handsIds[1]
         assertTrue("新实例已装备", newEquipId.isNotEmpty() && newEquipId != "i-old")
         assertEquals("新实例穿戴态", true,
             mockStore.equipmentInstances.value.firstOrNull { it.id == "eq-new" }?.isEquipped)

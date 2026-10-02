@@ -21,7 +21,7 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * **战斗属性** → `disciple.combat.baseHp`, `disciple.combat.baseAttack` 等
  * **丹药效果** → `disciple.pillEffects.pillHpBonus`, `disciple.pillEffects.pillEffectDuration` 等
- * **装备数据** → `disciple.equipment.weaponId`, `disciple.equipment.spiritStones` 等
+ * **装备数据** → `disciple.equipment.headId`, `disciple.equipment.spiritStones` 等
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
  * **使用追踪** → `disciple.usage.usedFunctionalPillTypes`, `disciple.usage.recruitedMonth` 等
  *
@@ -30,7 +30,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * 以下快捷访问属性用于简化访问，内部委托给子结构：
  * - `disciple.baseHp` → `disciple.combat.baseHp`
  * - `disciple.pillHpBonus` → `disciple.pillEffects.pillHpBonus`
- * - `disciple.weaponId` → `disciple.equipment.weaponId`
  * - `disciple.intelligence` → `disciple.skills.intelligence`
  *
  * ## 属性计算方法（晚绑定 DiscipleStatsProvider）

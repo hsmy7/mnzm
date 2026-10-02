@@ -7,12 +7,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 套装注册表守卫（五行属性伤害系统，方案 §3.4/§6.1）。
+ * 套装注册表守卫（四部位套装体系）。
  *
  * 六套：物理套「裂天罡煞」（lietian）+ 五行套（庚金白虎/青木长生/玄水寒渊/
- * 离火焚天/厚土镇岳），各 2/4/6 三档。**同构骨架仅元素不同**：2 件套 = 本系
- * 伤害 +10%、4 件套 = 暴击率 +12%、6 件套 = 本系伤害 +20%；穿满一套 = 该系
- * +30% 类型伤害。本测试钉死表内容、档位门槛与同构骨架。
+ * 离火焚天/厚土镇岳），各 **2/4 两档**。**同构骨架仅元素不同**：2 件套 = 本系
+ * 伤害 +10%、4 件套 = 暴击率 +12% + 本系伤害 +20%；穿满一套 = 该系 +30%
+ * 类型伤害且暴击率 +12%。本测试钉死表内容、档位门槛与同构骨架。
  */
 class EquipmentSetDatabaseTest {
 
@@ -32,12 +32,12 @@ class EquipmentSetDatabaseTest {
         val pieceSetIds = EquipmentDatabase.setPieces.map { it.setId }.toSet()
         assertEquals("套装表与部件表的 setId 集合应一致", setIds, pieceSetIds)
         assertEquals("六套（物理 + 五行）", 6, EquipmentSetDatabase.sets.size)
-        // 36 部件 = 6 套 × 6 部位
-        assertEquals("每套 6 部位", 36, EquipmentDatabase.setPieces.size)
+        // 24 部件 = 6 套 × 4 部位
+        assertEquals("每套 4 部位", 24, EquipmentDatabase.setPieces.size)
         EquipmentSetDatabase.sets.forEach { set ->
             assertEquals(
                 "套装 ${set.id} 部件数",
-                6, EquipmentDatabase.setPieces.count { it.setId == set.id }
+                4, EquipmentDatabase.setPieces.count { it.setId == set.id }
             )
         }
     }
@@ -65,13 +65,13 @@ class EquipmentSetDatabaseTest {
             assertTrue("1 件不应有档位生效", set.activeBonuses(1).isEmpty())
             assertEquals("2 件生效 1 档", 1, set.activeBonuses(2).size)
             assertEquals("3 件仍只 1 档（2 件档）", 1, set.activeBonuses(3).size)
-            assertEquals("4 件生效 2 档", 2, set.activeBonuses(4).size)
-            assertEquals("5 件仍 2 档", 2, set.activeBonuses(5).size)
-            assertEquals("6 件三档全生效（不叠加不越级=全部列出）", 3, set.activeBonuses(6).size)
-            // 档位引用与表声明一致
+            assertEquals("4 件（满套）全档生效 = 2 件档+4 件档+满套档", 3, set.activeBonuses(4).size)
+            assertEquals("5 件同满套", 3, set.activeBonuses(5).size)
+            assertEquals("6 件同满套", 3, set.activeBonuses(6).size)
+            // 档位引用与表声明一致：4 件档同时给暴击档与满套档
             assertEquals(listOf(set.bonus2), set.activeBonuses(2))
-            assertEquals(listOf(set.bonus2, set.bonus4), set.activeBonuses(4))
-            assertEquals(listOf(set.bonus2, set.bonus4, set.bonus6), set.activeBonuses(6))
+            assertEquals(listOf(set.bonus2, set.bonus4, set.bonusFull), set.activeBonuses(4))
+            assertEquals(listOf(set.bonus2, set.bonus4, set.bonusFull), set.activeBonuses(6))
         }
     }
 
@@ -81,13 +81,13 @@ class EquipmentSetDatabaseTest {
             val stat = expectedSets[index][3] as EquipStat
             val bonus2 = set.bonus2.entries.single()
             val bonus4 = set.bonus4.entries.single()
-            val bonus6 = set.bonus6.entries.single()
+            val bonusFull = set.bonusFull.entries.single()
             assertEquals("套装 ${set.id} 2 件套本系词条", stat, bonus2.stat)
-            assertEquals("套装 ${set.id} 6 件套本系词条", stat, bonus6.stat)
+            assertEquals("套装 ${set.id} 满套档本系词条", stat, bonusFull.stat)
             assertEquals("套装 ${set.id} 4 件套统一暴击率", EquipStat.CRIT_RATE, bonus4.stat)
             assertEquals(0.10, bonus2.value, 1e-12)
             assertEquals(0.12, bonus4.value, 1e-12)
-            assertEquals(0.20, bonus6.value, 1e-12)
+            assertEquals(0.20, bonusFull.value, 1e-12)
         }
     }
 
@@ -95,9 +95,9 @@ class EquipmentSetDatabaseTest {
     fun `穿满一套为该系加30类型伤害`() {
         EquipmentSetDatabase.sets.forEach { set ->
             val bonus2 = set.bonus2.entries.single()
-            val bonus6 = set.bonus6.entries.single()
-            assertEquals("套装 ${set.id} 6 件套应与其 2 件套同通道", bonus2.stat, bonus6.stat)
-            assertEquals("套装 ${set.id} 2+6 件套类型伤害合计 +30%", 0.30, bonus2.value + bonus6.value, 1e-12)
+            val bonusFull = set.bonusFull.entries.single()
+            assertEquals("套装 ${set.id} 满套档应与其 2 件套同通道", bonus2.stat, bonusFull.stat)
+            assertEquals("套装 ${set.id} 2 件套 + 满套档类型伤害合计 +30%", 0.30, bonus2.value + bonusFull.value, 1e-12)
             assertTrue("套装 ${set.id} 每档应为单条词条", set.bonus4.entries.size == 1)
         }
     }

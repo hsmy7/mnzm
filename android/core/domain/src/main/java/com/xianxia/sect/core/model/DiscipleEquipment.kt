@@ -11,8 +11,6 @@ data class DiscipleEquipment(
     var bodyId: String = "",
     var handsId: String = "",
     var feetId: String = "",
-    var weaponId: String = "",
-    var legsId: String = "",
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0
@@ -26,8 +24,6 @@ data class DiscipleEquipment(
         EquipmentSlot.BODY -> bodyId
         EquipmentSlot.HANDS -> handsId
         EquipmentSlot.FEET -> feetId
-        EquipmentSlot.WEAPON -> weaponId
-        EquipmentSlot.LEGS -> legsId
     }
 
     val equippedItemIds: List<String> get() = EquipmentSlot.displayOrder
@@ -41,8 +37,6 @@ data class DiscipleEquipment(
                 bodyId = disciple.equipment.bodyId,
                 handsId = disciple.equipment.handsId,
                 feetId = disciple.equipment.feetId,
-                weaponId = disciple.equipment.weaponId,
-                legsId = disciple.equipment.legsId,
                 storageBagItems = disciple.equipment.storageBagItems,
                 storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
                 spiritStones = disciple.equipment.spiritStones

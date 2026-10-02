@@ -81,8 +81,6 @@ internal fun DiscipleTables.buildCopyableRefs(): List<CopyableTableRef> = listOf
     RefTableRef(bodyIds, DiscipleTables::bodyIds, "bodyIds"),
     RefTableRef(handsIds, DiscipleTables::handsIds, "handsIds"),
     RefTableRef(feetIds, DiscipleTables::feetIds, "feetIds"),
-    RefTableRef(weaponIds, DiscipleTables::weaponIds, "weaponIds"),
-    RefTableRef(legsIds, DiscipleTables::legsIds, "legsIds"),
 
     // ── Set 表（需深拷贝 toSet） ──
     MutableTableRef(activePillTypes, DiscipleTables::activePillTypes, "activePillTypes") { it.toSet() },

@@ -90,7 +90,7 @@ void populateGameDataContainers(GameData& gd) {
 /// 5000 功法 + 10000 装备实例 = rest 域实体大头）
 void populateRestCollections(GameState& state) {
     state.disciples.manualIds.resize(kBenchDisciples);
-    state.disciples.weaponIds.resize(kBenchDisciples);
+    state.disciples.handsIds.resize(kBenchDisciples);
     state.disciples.bodyIds.resize(kBenchDisciples);
     for (std::int32_t n = 1; n <= kBenchDisciples; ++n) {
         const std::string id = std::to_string(n);
@@ -107,11 +107,11 @@ void populateRestCollections(GameState& state) {
         EquipmentInstance w;
         w.id = "w" + id;
         w.name = "剑" + id;
-        w.part = "WEAPON";
+        w.part = "HANDS";
         w.ownerId = id;
         w.isEquipped = true;
         state.equipmentInstances.push_back(w);
-        state.disciples.weaponIds[n - 1] = w.id;
+        state.disciples.handsIds[n - 1] = w.id;
 
         EquipmentInstance a;
         a.id = "a" + id;

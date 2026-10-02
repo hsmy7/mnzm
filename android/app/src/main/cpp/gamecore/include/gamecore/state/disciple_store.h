@@ -88,13 +88,11 @@ enum class DiscipleColumn : uint16_t {
     PillEffectDuration,
     ActivePillTypes,
     ActivePillCategory,
-    // EquipmentSet（B3 六部位：显示序 头/身/手/脚/武/腿）
+    // EquipmentSet（四部位：显示序 头/身/手/脚；WeaponId/LegsId 列已随 F2 退役）
     HeadId,
     BodyId,
     HandsId,
     FeetId,
-    WeaponId,
-    LegsId,
     StorageBagItems,
     StorageBagSpiritStones,
     SpiritStones,
@@ -197,13 +195,11 @@ public:
     std::vector<std::vector<std::string>> activePillTypes;
     std::vector<std::string> activePillCategories;
 
-    // ── EquipmentSet 列（B3 六部位；单轨实例 id，空串 = 未穿戴）──
+    // ── EquipmentSet 列（四部位；单轨实例 id，空串 = 未穿戴）──
     std::vector<std::string> headIds;
     std::vector<std::string> bodyIds;
     std::vector<std::string> handsIds;
     std::vector<std::string> feetIds;
-    std::vector<std::string> weaponIds;
-    std::vector<std::string> legsIds;
     std::vector<std::vector<StorageBagItem>> storageBagItems;
     std::vector<int64_t> storageBagSpiritStones;
     std::vector<int32_t> spiritStones;

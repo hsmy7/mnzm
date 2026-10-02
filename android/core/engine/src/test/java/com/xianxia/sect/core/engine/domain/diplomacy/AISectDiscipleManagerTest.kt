@@ -381,13 +381,11 @@ class AISectDiscipleManagerTest {
         )
         assertTrue("满配弟子应达标", AISectDiscipleManager.isGearCompleteForLevel(full, SectLevel.LARGE))
         // 只有 1 件装备 1 本功法的旧档弟子：达标判定须为 false（数量而非"有"）
-        // B3 六部位后 generateEquipmentIds 从 6 槽随机取 4，不保证含武器——
-        // "留 1 件"须显式落一件真实武器条目，不得依赖随机选槽恰好命中
-        val weaponEntry = EquipmentDatabase.getBySlot(EquipmentSlot.WEAPON).first()
+        // "留 1 件"须显式落一件真实装备条目（手部位），不得依赖随机选槽恰好命中
+        val handsEntry = EquipmentDatabase.getBySlot(EquipmentSlot.HANDS).first()
         val partial = full.copy(
             equipment = full.equipment.copy(
-                headId = "", bodyId = "", handsId = "", feetId = "", legsId = "",
-                weaponId = weaponEntry.id
+                headId = "", bodyId = "", handsId = handsEntry.id, feetId = ""
             ),
             manualIds = full.manualIds.take(1),
             manualMasteries = full.manualMasteries.filterKeys { it == full.manualIds.first() }

@@ -89,13 +89,12 @@ data class Combatant(
     val realmName: String = "",
     val realmLayer: Int = 0,
     val element: String = "",
-    // 六部位装备展示名（0.2-12：四具名字段六部位化；C++ 侧不入战斗状态，仅展示）
+    // 四部位装备展示名（0.2-12：四具名字段；C++ 侧不入战斗状态，仅展示；
+    // 武器/腿部名已随四部位化退役）
     val headName: String? = null,
     val bodyName: String? = null,
     val handsName: String? = null,
     val feetName: String? = null,
-    val weaponName: String? = null,
-    val legsName: String? = null,
     val portraitRes: String = "",
     val isBeast: Boolean = false
 ) {

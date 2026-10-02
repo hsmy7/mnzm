@@ -122,7 +122,7 @@ class GameEngineDiscipleTxForwardTest {
     fun `unequipItem resolves slot then falls back`() = runTest {
         // 弟子不存在（store 空）→ getDiscipleById null → 原方法契约返回 null，
         // 不触碰 discipleService（预读早退先于转发）
-        val result = engine.unequipItem("1", EquipmentSlot.WEAPON)
+        val result = engine.unequipItem("1", EquipmentSlot.HANDS)
 
         assertEquals(null, result)
         verify(discipleService, org.mockito.kotlin.never()).unequipEquipment(

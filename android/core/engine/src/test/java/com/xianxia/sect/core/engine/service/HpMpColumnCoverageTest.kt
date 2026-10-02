@@ -32,12 +32,10 @@ class HpMpColumnCoverageTest {
         "realmLayer",     // 层数乘区
         "hpVariance",     // HP 方差乘区
         "mpVariance",     // MP 方差乘区
-        "headId",         // 装备六部位（HP/MP 加成；B3：四槽 → HEAD/BODY/HANDS/FEET/WEAPON/LEGS）
+        "headId",         // 装备四部位（HP/MP 加成：HEAD/BODY/HANDS/FEET）
         "bodyId",
         "handsId",
         "feetId",
-        "legsId",
-        "weaponId",
         "manualIds",      // 功法（stats["hp"/"mp"] × 熟练度）
         "pillEffectDuration",  // 丹药生效判定
         "pillHpBonus",    // 丹药 HP/MP 加成

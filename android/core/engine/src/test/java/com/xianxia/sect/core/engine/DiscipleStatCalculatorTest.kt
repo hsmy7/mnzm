@@ -31,7 +31,6 @@ class DiscipleStatCalculatorTest {
         teaching: Int = 50,
         morality: Int = 50,
         manualIds: List<String> = emptyList(),
-        weaponId: String = "",
         bodyId: String = "",
         feetId: String = "",
         handsId: String = "",
@@ -75,7 +74,6 @@ class DiscipleStatCalculatorTest {
                 morality = morality
             ),
             equipment = EquipmentSet(
-                weaponId = weaponId,
                 bodyId = bodyId,
                 feetId = feetId,
                 handsId = handsId

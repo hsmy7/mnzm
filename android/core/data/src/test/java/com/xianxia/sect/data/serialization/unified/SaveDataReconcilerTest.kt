@@ -67,8 +67,8 @@ class SaveDataReconcilerTest {
         val data = baseSaveData().copy(
             stacksSerialized = false,
             equipmentInstances = listOf(
-                instance("青锋剑", EquipmentSlot.WEAPON),
-                instance("青锋剑", EquipmentSlot.WEAPON),
+                instance("青锋剑", EquipmentSlot.HANDS),
+                instance("青锋剑", EquipmentSlot.HANDS),
                 instance("玄铁甲", EquipmentSlot.BODY, ownerId = "d1", isEquipped = true)
             ),
             manualInstances = listOf(
@@ -86,7 +86,7 @@ class SaveDataReconcilerTest {
         val data = baseSaveData().copy(
             stacksSerialized = false,
             equipmentInstances = listOf(
-                instance("青锋剑", EquipmentSlot.WEAPON, ownerId = "d1", isEquipped = true)
+                instance("青锋剑", EquipmentSlot.HANDS, ownerId = "d1", isEquipped = true)
             )
         )
         val result = SaveDataReconciler.reconcileStacks(data)

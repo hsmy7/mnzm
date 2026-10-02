@@ -394,7 +394,7 @@ class AISectAttackManagerTest {
         val player = Disciple(
             id = "player-1", name = "玩家元婴", realm = 3, realmLayer = 3, isAlive = true,
             manualIds = listOf("inst-manual-uuid-1"),
-            equipment = EquipmentSet(weaponId = "inst-weapon-uuid-1")
+            equipment = EquipmentSet(handsId = "inst-weapon-uuid-1")
         )
         val combatant = AISectAttackManager.convertToCombatant(player, CombatantSide.ATTACKER)
         // 行为守卫：convertToCombatant 是 AI 模板语义专用；若未来误用它处理玩家弟子，
@@ -414,14 +414,14 @@ class AISectAttackManagerTest {
             id = "player-1", name = "玩家元婴", realm = 3, realmLayer = 3, isAlive = true,
             manualIds = listOf("inst-manual-uuid-1"),
             equipment = EquipmentSet(
-                weaponId = "inst-weapon-uuid-1",
+                handsId = "inst-weapon-uuid-1",
                 bodyId = "inst-armor-uuid-1"
             )
         )
         // 玩家实例表：装备/功法（scoutSect / PlayerDefenseProcessor 同款实例语义）
         val weapon = EquipmentInstance(
             id = "inst-weapon-uuid-1", name = "斩龙剑",
-            part = EquipmentSlot.WEAPON,
+            part = EquipmentSlot.HANDS,
             growth = EquipGrowth(
                 affix = EquipAffixSet(
                     mainStat = EquipStatValue(EquipStat.ATTACK, 5000.0)

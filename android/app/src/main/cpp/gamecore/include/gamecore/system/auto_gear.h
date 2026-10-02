@@ -22,7 +22,7 @@
 // 自动装备/学习
 //
 // 等价移植 Kotlin CultivationEventProcessor.processAutoFromWarehouse +
-// DiscipleEquipmentManager.processAutoEquipFromWarehouse（B3 六部位版） +
+// DiscipleEquipmentManager.processAutoEquipFromWarehouse（B3 套装部件版，四部位化 F3 收敛 4 槽） +
 // DiscipleManualManager.processAutoLearnFromWarehouse：
 //   1. 装备候选源 = 弟子储物袋内 equipment_instance 完整实例（装备堆叠已随
 //      B3 退役——仓库轨不存在，R6）；功法候选源不变（仓库堆叠 + 袋条目）。
@@ -35,7 +35,7 @@
 // 编排（对齐 Kotlin）：
 //   - 资格：autoEquip/autoLearn 各自 focused/rootCounts 判定（或语义）
 //   - 弟子排序：followed 降序 → realm 升序 → realmLayer 降序
-//   - 每弟子先装备（六部位 displayOrder 槽序）后学习
+//   - 每弟子先装备（四部位 displayOrder 槽序）后学习
 //   - 每槽位每旬至多一次装配/替换
 //
 // 已知范围边界（对拍约定）：
@@ -107,7 +107,7 @@ inline bool resolvedInnateIsPhysical(const Disciple& d) {
 // ── 装备候选（B3：储物袋内完整实例单源——装备堆叠轨已退役） ────────
 
 struct EquipCandidate {
-    std::string slot;                        // 六部位 EquipmentSlot.name
+    std::string slot;                        // 四部位 EquipmentSlot.name
     int32_t rarity = 0;
     int32_t minRealm = 0;
     std::string setId;                       // 套装流派（空 = 散件中性）
@@ -245,8 +245,6 @@ inline std::string equipSlotId(const Disciple& d, const std::string& slot) {
     if (slot == "BODY") return d.bodyId;
     if (slot == "HANDS") return d.handsId;
     if (slot == "FEET") return d.feetId;
-    if (slot == "WEAPON") return d.weaponId;
-    if (slot == "LEGS") return d.legsId;
     return "";
 }
 
@@ -256,8 +254,6 @@ inline void setEquipSlot(Disciple& d, const std::string& slot,
     else if (slot == "BODY") d.bodyId = instanceId;
     else if (slot == "HANDS") d.handsId = instanceId;
     else if (slot == "FEET") d.feetId = instanceId;
-    else if (slot == "WEAPON") d.weaponId = instanceId;
-    else if (slot == "LEGS") d.legsId = instanceId;
 }
 
 /// 袋条目合并入袋（Kotlin StorageBagUtils.increaseItemQuantity 等价——
@@ -812,8 +808,7 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         Disciple d = ds.materialize(row);
         bool changed = false;
         if (hasAutoEquip && qualifiesForSectAuto(d, equipFocused, equipRootCounts)) {
-            for (const std::string& slotName :
-                 {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
+            for (const std::string& slotName : {"HEAD", "BODY", "HANDS", "FEET"}) {
                 if (autoEquipSlot(d, state, slotName)) changed = true;
             }
         }
@@ -827,8 +822,6 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         ds.bodyIds[row] = d.bodyId;
         ds.handsIds[row] = d.handsId;
         ds.feetIds[row] = d.feetId;
-        ds.weaponIds[row] = d.weaponId;
-        ds.legsIds[row] = d.legsId;
         ds.manualIds[row] = d.manualIds;
         ds.currentHps[row] = d.currentHp;
         ds.currentMps[row] = d.currentMp;
@@ -838,8 +831,6 @@ inline void processAutoFromWarehouse(GameState& state, ecs::World& world) {
         ds.markCol(DiscipleColumn::BodyId, row);
         ds.markCol(DiscipleColumn::HandsId, row);
         ds.markCol(DiscipleColumn::FeetId, row);
-        ds.markCol(DiscipleColumn::WeaponId, row);
-        ds.markCol(DiscipleColumn::LegsId, row);
         ds.markCol(DiscipleColumn::ManualIds, row);
         ds.markCol(DiscipleColumn::CurrentHp, row);
         ds.markCol(DiscipleColumn::CurrentMp, row);

@@ -168,20 +168,16 @@ class HeavenlyTrialService @Inject constructor(
             bodyName = equipment.body?.name,
             handsName = equipment.hands?.name,
             feetName = equipment.feet?.name,
-            weaponName = equipment.weapon?.name,
-            legsName = equipment.legs?.name,
             isBeast = false
         )
     }
 
-    /** 试炼敌人装备选取（装备重构 B3 六部位口径：部件模板 = 12 条 ForgeRecipe） */
+    /** 试炼敌人装备选取（四部位口径） */
     internal data class TrialEquipmentSelection(
         val head: ForgeRecipeDatabase.ForgeRecipe? = null,
         val body: ForgeRecipeDatabase.ForgeRecipe? = null,
         val hands: ForgeRecipeDatabase.ForgeRecipe? = null,
-        val feet: ForgeRecipeDatabase.ForgeRecipe? = null,
-        val weapon: ForgeRecipeDatabase.ForgeRecipe? = null,
-        val legs: ForgeRecipeDatabase.ForgeRecipe? = null
+        val feet: ForgeRecipeDatabase.ForgeRecipe? = null
     )
 
     internal data class TrialBaseStats(

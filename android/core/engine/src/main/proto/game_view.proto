@@ -187,15 +187,13 @@ message DiscipleRow {
   repeated string activePillTypes = 65;
   optional string activePillCategory = 66;
 
-  // ── EquipmentSet（B3 六部位按显示序 头/身/手/脚/武/腿） ──
+  // ── EquipmentSet（四部位按显示序 头/身/手/脚） ──
   optional string headId = 67;
   optional string bodyId = 68;
   optional string handsId = 69;
   optional string feetId = 70;
-  // reserved 71..74;（armorId/bootsId/accessoryId 旧槽列与四 nurture 视图，B3 退役，禁复用；
-  // weaponId 旧 67 号随六部位改造让位于 headId，weaponId 新取 122）
-  optional string weaponId = 122;
-  optional string legsId = 123;
+  // reserved 71..74;（armorId/bootsId/accessoryId 旧槽列与四 nurture 视图，B3 退役，禁复用）
+  // reserved 122,123;（weaponId/legsId 槽位列，F2 四部位化随武器/腿部退役，禁复用）
   /// 🔴 停写保留（B18-P1-A2，号冻结永不复用）：储物袋条目 JSON 数组原文
   /// （v1 过渡编码历史形态）。C++ 编码器已改走 110 号 typed 行；本字段
   /// 保留供**旧格式 golden 夹具**解码（对照面保留，非删断言）。

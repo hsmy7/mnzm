@@ -95,7 +95,7 @@ internal fun HeavenlyTrialService.selectTrialManuals(
     else selectManuals(eligible, def.realm)
 }
 
-/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则全部 12 条部件配方。
+/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则全部 24 条部件配方。
  * 六部位口径（装备重构 B3）；部件配方不再携带品阶/tier，实例化品阶由
  * [getMaxTierForRealm] 按敌人境界上定（见 [sumEquipStatBonuses]）。
  */
@@ -110,9 +110,7 @@ internal fun HeavenlyTrialService.selectTrialEquipment(def: TrialEnemyDef): Tria
         head = recipes.find { it.part == EquipmentSlot.HEAD },
         body = recipes.find { it.part == EquipmentSlot.BODY },
         hands = recipes.find { it.part == EquipmentSlot.HANDS },
-        feet = recipes.find { it.part == EquipmentSlot.FEET },
-        weapon = recipes.find { it.part == EquipmentSlot.WEAPON },
-        legs = recipes.find { it.part == EquipmentSlot.LEGS }
+        feet = recipes.find { it.part == EquipmentSlot.FEET }
     )
 }
 
@@ -166,8 +164,7 @@ internal fun HeavenlyTrialService.sumEquipStatBonuses(
     var physicalPct = 0.0; var metalPct = 0.0; var woodPct = 0.0
     var waterPct = 0.0; var firePct = 0.0; var earthPct = 0.0
     val recipes = listOfNotNull(
-        equipment.head, equipment.body, equipment.hands,
-        equipment.feet, equipment.weapon, equipment.legs
+        equipment.head, equipment.body, equipment.hands, equipment.feet
     )
     for (recipe in recipes) {
         // 试炼敌人种子 RNG（enemySeed 派生）经适配器进 EquipmentFactory

@@ -107,14 +107,12 @@ object DiscipleSerializer : KSerializer<Disciple> {
     /** 装备 + 使用追踪段 */
     private fun withEquipmentUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
         surrogate.copy(
-            // ===== EquipmentSet @Embedded（六部位，B3 接线：weaponId(17) 复用 +
-            // headId(112)..legsId(116) 新增段；旧四槽 id 与 nurture 退役不写） =====
+            // ===== EquipmentSet @Embedded（四部位：headId(112)..feetId(115)；17/116 已随
+            // 武器/腿部退役 reserved 不写） =====
             headId = value.equipment.headId,
             bodyId = value.equipment.bodyId,
             handsId = value.equipment.handsId,
             feetId = value.equipment.feetId,
-            weaponId = value.equipment.weaponId,
-            legsId = value.equipment.legsId,
             storageBagItems = value.equipment.storageBagItems,
             storageBagSpiritStones = value.equipment.storageBagSpiritStones,
             spiritStones = value.equipment.spiritStones,
@@ -233,15 +231,13 @@ object DiscipleSerializer : KSerializer<Disciple> {
     private fun withEquipmentUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
         disciple.copy(
             equipment = EquipmentSet(
-                // 六部位读面（B3 接线）：weaponId(17) 复用 + headId(112)..legsId(116)；
-                // 旧四槽 id（18/19/20）与 nurture（24..27）退役不读——旧档值由
-                // 旧档字节按未知字段忽略，读默认值即正确语义
+                // 四部位读面（F2）：headId(112)..feetId(115)；weaponId(17)/legsId(116)
+                // 已退役（旧档字节按未知字段忽略，读默认值即正确语义）；
+                // 旧四槽 id（18/19/20）与 nurture（24..27）退役不读
                 headId = surrogate.headId,
                 bodyId = surrogate.bodyId,
                 handsId = surrogate.handsId,
                 feetId = surrogate.feetId,
-                weaponId = surrogate.weaponId,
-                legsId = surrogate.legsId,
                 storageBagItems = surrogate.storageBagItems,
                 storageBagSpiritStones = surrogate.storageBagSpiritStones,
                 spiritStones = surrogate.spiritStones
@@ -385,12 +381,11 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(89) val activePillTypes: List<String> = emptyList(),
 
         // ===== EquipmentSet @Embedded =====
-        // 🔴 E1 冻结表（equipment-batches §1 / 方案 §四 WP0，B0 定稿；B3 落地退役）：
-        // weaponId(17) 复用为六部位的武器部位列（唯一复用号，禁再映射其他语义）；
-        // 18/19/20 与 24..27 已退役（B3/EQ-B3）——保留声明仅供旧档反序列化
-        // （旧档字节可读、值恒丢弃），写入/读取面已全部切六部位，退役号禁复用
-        // （守卫 EquipmentProtoNumberFrozenTest）。
-        @ProtoNumber(17) val weaponId: String = "",
+        // 🔴 E1 冻结表（equipment-batches §1 / 方案 §四 WP0，B0 定稿）：18/19/20 与
+        // 24..27 已退役（B3/EQ-B3）——保留声明仅供旧档反序列化（旧档字节可读、值恒
+        // 丢弃），退役号禁复用（守卫 EquipmentProtoNumberFrozenTest）。
+        // weaponId(17)/legsId(116) 已随武器/腿部部位退役（F2 四部位化）：编号 reserved，
+        // 禁复用；旧档字节按未知字段忽略。
         @Deprecated("旧护甲部位列，B3 退役；保留声明仅供旧档反序列化，写入走 bodyId(113)")
         @ProtoNumber(18) val armorId: String = "",
         @Deprecated("旧靴子部位列，B3 退役；保留声明仅供旧档反序列化，写入走 feetId(115)")
@@ -409,14 +404,13 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(31) val storageBagSpiritStones: Long = 0,
         @ProtoNumber(28) val spiritStones: Int = 0,
 
-        // ===== 六部位新增段（E1 冻结表，B0 占号定稿：112..116 部位列按显示序 头/身/手/脚/武/腿） =====
-        // 112..116 已于 B3 接线（weaponId(17) 复用为武器部位）；117 innateDamageType 已于 B1 接线。
+        // ===== 四部位新增段（E1 冻结表；F2 收缩为 112..115 头/身/手/脚） =====
+        // legsId(116) 已随腿部退役（F2）reserved；117 innateDamageType 已于 B1 接线。
         // 后续批只允许使用已冻结编号，禁临时新增、禁改号（守卫 EquipmentProtoNumberFrozenTest）。
         @ProtoNumber(112) val headId: String = "",
         @ProtoNumber(113) val bodyId: String = "",
         @ProtoNumber(114) val handsId: String = "",
         @ProtoNumber(115) val feetId: String = "",
-        @ProtoNumber(116) val legsId: String = "",
 
         // reserved 11,12,13,14,15,16,102;（partnerId/partnerSectId/parentId1/parentId2/
         // lastChildYear/griefEndYear/childBirthMonth 字段号已退役，禁止复用）

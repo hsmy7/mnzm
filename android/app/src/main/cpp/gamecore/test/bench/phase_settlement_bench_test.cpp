@@ -99,7 +99,7 @@ void populateInstances(GameState& state) {
     // TimingPerPhase 以 n=100/1000/5000 复用本装配（此前固定 5000 与小场景列长不匹配）
     const int32_t dn = static_cast<int32_t>(state.disciples.ids.size());
     state.disciples.manualIds.resize(dn);
-    state.disciples.weaponIds.resize(dn);
+    state.disciples.handsIds.resize(dn);
     state.disciples.bodyIds.resize(dn);
     for (int32_t n = 1; n <= dn; ++n) {
         const std::string id = std::to_string(n);
@@ -116,11 +116,11 @@ void populateInstances(GameState& state) {
         EquipmentInstance w;
         w.id = "w" + id;
         w.name = "剑" + id;
-        w.part = "WEAPON";
+        w.part = "HANDS";
         w.ownerId = id;
         w.isEquipped = true;
         state.equipmentInstances.push_back(w);
-        state.disciples.weaponIds[n - 1] = w.id;
+        state.disciples.handsIds[n - 1] = w.id;
 
         EquipmentInstance a;
         a.id = "a" + id;

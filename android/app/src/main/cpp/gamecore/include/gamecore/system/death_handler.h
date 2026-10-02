@@ -37,14 +37,13 @@ inline constexpr int32_t kDeathYearNone = 0;
 /// markDead 结果
 struct MarkDeadResult {
     bool marked = false;         // 弟子存在且已重伤（不存在 → false，静默跳过）
-    bool hadEquipment = false;   // 标记时六装备位任一非空（诊断用；重伤不清装）
+    bool hadEquipment = false;   // 标记时四装备位任一非空（诊断用；重伤不清装）
 };
 
-/// 装备断言守卫：六装备位任一非空 → true
+/// 装备断言守卫：四装备位任一非空 → true
 inline bool hasEquipmentHeld(const state::DiscipleStore& store, std::size_t row) {
     return !store.headIds[row].empty() || !store.bodyIds[row].empty() ||
-           !store.handsIds[row].empty() || !store.feetIds[row].empty() ||
-           !store.weaponIds[row].empty() || !store.legsIds[row].empty();
+           !store.handsIds[row].empty() || !store.feetIds[row].empty();
 }
 
 /// 标记单个弟子重伤（G07；原 markDead 名保留兼容调用点）。

@@ -134,8 +134,6 @@ constexpr const char* discipleColumnName(DiscipleColumn col) {
         case DiscipleColumn::BodyId: return "bodyId";
         case DiscipleColumn::HandsId: return "handsId";
         case DiscipleColumn::FeetId: return "feetId";
-        case DiscipleColumn::WeaponId: return "weaponId";
-        case DiscipleColumn::LegsId: return "legsId";
         case DiscipleColumn::StorageBagItems: return "storageBagItems";
         case DiscipleColumn::StorageBagSpiritStones: return "storageBagSpiritStones";
         case DiscipleColumn::SpiritStones: return "spiritStones";
@@ -270,8 +268,6 @@ inline void serializeDiscipleColumn(nlohmann::json& row,
         case DiscipleColumn::BodyId: row["bodyId"] = ds.bodyIds[r]; break;
         case DiscipleColumn::HandsId: row["handsId"] = ds.handsIds[r]; break;
         case DiscipleColumn::FeetId: row["feetId"] = ds.feetIds[r]; break;
-        case DiscipleColumn::WeaponId: row["weaponId"] = ds.weaponIds[r]; break;
-        case DiscipleColumn::LegsId: row["legsId"] = ds.legsIds[r]; break;
         case DiscipleColumn::StorageBagItems: row["storageBagItems"] = ds.storageBagItems[r]; break;
         case DiscipleColumn::StorageBagSpiritStones:
             row["storageBagSpiritStones"] = ds.storageBagSpiritStones[r];

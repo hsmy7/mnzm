@@ -1,5 +1,5 @@
 {
- "pieceCount": 36,
+ "pieceCount": 24,
  "setPieces": [
   {
    "id": "lietian_HEAD",
@@ -76,52 +76,6 @@
    "part": "FEET",
    "name": "裂天罡煞·战靴",
    "description": "裂天罡煞套装战靴，踏罡步斗势如奔雷",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "lietian_WEAPON",
-   "setId": "lietian",
-   "part": "WEAPON",
-   "name": "裂天罡煞·战刃",
-   "description": "裂天罡煞套装战刃，煞刃出鞘天地震动",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "lietian_LEGS",
-   "setId": "lietian",
-   "part": "LEGS",
-   "name": "裂天罡煞·胫甲",
-   "description": "裂天罡煞套装胫甲，罡气缠腿稳若山岳",
    "priceByRarity": [
     4000,
     16000,
@@ -232,52 +186,6 @@
    ]
   },
   {
-   "id": "gengjin_WEAPON",
-   "setId": "gengjin",
-   "part": "WEAPON",
-   "name": "庚金白虎·灵兵",
-   "description": "庚金白虎套装灵兵，庚金锋芒斩伐万邪",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "gengjin_LEGS",
-   "setId": "gengjin",
-   "part": "LEGS",
-   "name": "庚金白虎·护胫",
-   "description": "庚金白虎套装护胫，金甲裹腿坚逾精钢",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
    "id": "qingmu_HEAD",
    "setId": "qingmu",
    "part": "HEAD",
@@ -352,52 +260,6 @@
    "part": "FEET",
    "name": "青木长生·云履",
    "description": "青木长生套装云履，踏叶而行轻若春风",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "qingmu_WEAPON",
-   "setId": "qingmu",
-   "part": "WEAPON",
-   "name": "青木长生·灵兵",
-   "description": "青木长生套装灵兵，万木之灵催芽成兵",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "qingmu_LEGS",
-   "setId": "qingmu",
-   "part": "LEGS",
-   "name": "青木长生·护胫",
-   "description": "青木长生套装护胫，根须盘结稳如古树",
    "priceByRarity": [
     4000,
     16000,
@@ -508,52 +370,6 @@
    ]
   },
   {
-   "id": "xuanshui_WEAPON",
-   "setId": "xuanshui",
-   "part": "WEAPON",
-   "name": "玄水寒渊·灵兵",
-   "description": "玄水寒渊套装灵兵，玄冰凝刃寒光凛冽",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "xuanshui_LEGS",
-   "setId": "xuanshui",
-   "part": "LEGS",
-   "name": "玄水寒渊·护胫",
-   "description": "玄水寒渊套装护胫，渊水绕腿暗流涌动",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
    "id": "lihuo_HEAD",
    "setId": "lihuo",
    "part": "HEAD",
@@ -628,52 +444,6 @@
    "part": "FEET",
    "name": "离火焚天·云履",
    "description": "离火焚天套装云履，踏火而行燎原疾影",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "lihuo_WEAPON",
-   "setId": "lihuo",
-   "part": "WEAPON",
-   "name": "离火焚天·灵兵",
-   "description": "离火焚天套装灵兵，焚天之焰斩灭诸邪",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "lihuo_LEGS",
-   "setId": "lihuo",
-   "part": "LEGS",
-   "name": "离火焚天·护胫",
-   "description": "离火焚天套装护胫，火甲缠腿烈焰不熄",
    "priceByRarity": [
     4000,
     16000,
@@ -782,52 +552,6 @@
     4,
     2
    ]
-  },
-  {
-   "id": "houtu_WEAPON",
-   "setId": "houtu",
-   "part": "WEAPON",
-   "name": "厚土镇岳·灵兵",
-   "description": "厚土镇岳套装灵兵，崩岳之锋无坚不摧",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
-  },
-  {
-   "id": "houtu_LEGS",
-   "setId": "houtu",
-   "part": "LEGS",
-   "name": "厚土镇岳·护胫",
-   "description": "厚土镇岳套装护胫，大地之基重若千钧",
-   "priceByRarity": [
-    4000,
-    16000,
-    80000,
-    480000,
-    3360000,
-    26880000
-   ],
-   "minRealmByRarity": [
-    9,
-    7,
-    6,
-    5,
-    4,
-    2
-   ]
   }
  ],
  "sets": [
@@ -847,7 +571,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "PHYSICAL_DAMAGE_PCT",
      "value": 0.2
@@ -870,7 +594,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "METAL_DAMAGE_PCT",
      "value": 0.2
@@ -893,7 +617,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "WOOD_DAMAGE_PCT",
      "value": 0.2
@@ -916,7 +640,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "WATER_DAMAGE_PCT",
      "value": 0.2
@@ -939,7 +663,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "FIRE_DAMAGE_PCT",
      "value": 0.2
@@ -962,7 +686,7 @@
      "value": 0.12
     }
    ],
-   "bonus6": [
+   "bonusFull": [
     {
      "stat": "EARTH_DAMAGE_PCT",
      "value": 0.2
@@ -996,24 +720,6 @@
    "coefficient": 1.15
   },
   "FEET": {
-   "stats": [
-    "DEFENSE",
-    "ATTACK",
-    "CRIT_RATE",
-    "CRIT_DAMAGE",
-    "HP"
-   ],
-   "coefficient": 0.95
-  },
-  "WEAPON": {
-   "stats": [
-    "ATTACK",
-    "CRIT_RATE",
-    "CRIT_DAMAGE"
-   ],
-   "coefficient": 1.15
-  },
-  "LEGS": {
    "stats": [
     "DEFENSE",
     "ATTACK",

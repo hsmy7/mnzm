@@ -45,7 +45,7 @@ class RecipeRegistryGuardTest {
         val entries = root.getValue("forgeRecipes").jsonArray
 
         val kotlinAll = ForgeRecipeDatabase.getAllRecipes()
-        // B3 装备重构：配方收敛为 12 条套装部件配方（新形状 pieceId/setId/part/
+        // B3 装备重构、四部位化 F3：配方收敛为 24 条套装部件配方（新形状 pieceId/setId/part/
         // tierMaterials）。旧 73 条形状快照（type/tier/rarity 单档）未重生成前跳过——
         // 修复指引：node scripts/gen-recipe-db.mjs 重生成快照与 C++ 表
         val stale = entries.any { e ->
@@ -54,7 +54,7 @@ class RecipeRegistryGuardTest {
             ) == null
         }
         assumeTrue(
-            "锻造配方快照为旧形状（B3 已收敛为 12 条套装部件配方），" +
+            "锻造配方快照为旧形状（四部位化后应为 24 条套装部件配方），" +
                 "先运行 node scripts/gen-recipe-db.mjs 重生成",
             !stale
         )

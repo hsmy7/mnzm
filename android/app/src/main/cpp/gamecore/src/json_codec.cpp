@@ -278,11 +278,10 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, pillCultivationSpeedBonus); GC_TO(v, j, pillSkillExpSpeedBonus);
     GC_TO(v, j, pillEffectDuration);
     GC_TO(v, j, activePillTypes); GC_TO(v, j, activePillCategory);
-    // EquipmentSet（B3 六部位：显示序 头/身/手/脚/武/腿；旧四槽 id 与
-    // nurture 四列退役——键不再写出，读面宽松忽略旧档旧键）
+    // EquipmentSet（四部位：显示序 头/身/手/脚；旧四槽 id/nurture/weaponId(17)/
+    // legsId(116) 退役——键不再写出，读面宽松忽略旧档旧键）
     GC_TO(v, j, headId); GC_TO(v, j, bodyId);
     GC_TO(v, j, handsId); GC_TO(v, j, feetId);
-    GC_TO(v, j, weaponId); GC_TO(v, j, legsId);
     GC_TO(v, j, storageBagItems); GC_TO(v, j, storageBagSpiritStones);
     GC_TO(v, j, spiritStones);
     // SkillStats
@@ -344,11 +343,10 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, pillCultivationSpeedBonus); GC_FROM(j, v, pillSkillExpSpeedBonus);
     GC_FROM(j, v, pillEffectDuration);
     GC_FROM(j, v, activePillTypes); GC_FROM(j, v, activePillCategory);
-    // EquipmentSet（B3 六部位；旧四槽 id/nurture 键宽松忽略——旧档读入后
-    // 装备面由迁移清空六槽位，与 Kotlin v64 迁移⑤同口径）
+    // EquipmentSet（四部位；旧四槽 id/nurture/weaponId/legsId 键宽松忽略——
+    // 与 Kotlin 存档读面同口径）
     GC_FROM(j, v, headId); GC_FROM(j, v, bodyId);
     GC_FROM(j, v, handsId); GC_FROM(j, v, feetId);
-    GC_FROM(j, v, weaponId); GC_FROM(j, v, legsId);
     GC_FROM(j, v, storageBagItems); GC_FROM(j, v, storageBagSpiritStones);
     GC_FROM(j, v, spiritStones);
     // SkillStats

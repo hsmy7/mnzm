@@ -1,1086 +1,966 @@
 {
- "forgeRecipeCount": 72,
+ "forgeRecipeCount": 24,
  "pillRecipeCount": 624,
  "forgeRecipes": [
   {
-   "id": "ironSword",
-   "name": "精铁剑",
-   "type": "WEAPON",
-   "tier": 1,
-   "rarity": 1,
-   "description": "普通铁匠打造的精铁剑",
-   "materials": {
-    "tigerBlood0": 3,
-    "tigerTooth0": 2
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "bronzeDagger",
-   "name": "精铁刀",
-   "type": "WEAPON",
-   "tier": 1,
-   "rarity": 1,
-   "description": "精铁锻造的宝刀",
-   "materials": {
-    "eagleClaw0": 2,
-    "tigerTooth0": 4
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "woodenStaff",
-   "name": "桃木杖",
-   "type": "WEAPON",
-   "tier": 1,
-   "rarity": 1,
-   "description": "百年桃木制成的法杖",
-   "materials": {
-    "snakeBlood0": 3,
-    "snakeCore0": 2
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "crystalOrb",
-   "name": "碧木扇",
-   "type": "WEAPON",
-   "tier": 1,
-   "rarity": 1,
-   "description": "蕴含微量灵气的碧木扇",
-   "materials": {
-    "foxCore0": 2,
-    "snakeCore0": 3
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "leatherArmor",
-   "name": "皮甲",
-   "type": "ARMOR",
-   "tier": 1,
-   "rarity": 1,
-   "description": "野兽皮革制成的护甲",
-   "materials": {
-    "bearBone0": 2,
-    "bearHide0": 4
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "chainMail",
-   "name": "锁子甲",
-   "type": "ARMOR",
-   "tier": 1,
-   "rarity": 1,
-   "description": "铁环相扣的护甲",
-   "materials": {
-    "bearBone0": 5,
-    "bearHide0": 2
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "bronzePlate",
-   "name": "精铁甲",
-   "type": "ARMOR",
-   "tier": 1,
-   "rarity": 1,
-   "description": "精铁铸造的铠甲",
-   "materials": {
-    "turtleBone0": 2,
-    "turtleShell0": 4
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "clothRobe",
-   "name": "灵竹衣",
-   "type": "ARMOR",
-   "tier": 1,
-   "rarity": 1,
-   "description": "灵竹纤维制成的衣物",
-   "materials": {
-    "snakeScale0": 2,
-    "turtleShell0": 3
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "clothBoots",
-   "name": "青澜靴",
-   "type": "BOOTS",
-   "tier": 1,
-   "rarity": 1,
-   "description": "青澜丝线织就的轻靴",
-   "materials": {
-    "wolfBone0": 2,
-    "wolfHide0": 3
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "leatherBoots",
-   "name": "兽皮靴",
-   "type": "BOOTS",
-   "tier": 1,
-   "rarity": 1,
-   "description": "兽皮鞣制的厚靴",
-   "materials": {
-    "wolfHide0": 4,
-    "wolfTooth0": 1
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "jadeRing",
-   "name": "玉戒指",
-   "type": "ACCESSORY",
-   "tier": 1,
-   "rarity": 1,
-   "description": "蕴含微量灵气的玉戒指",
-   "materials": {
-    "foxBone0": 3,
-    "foxCore0": 2
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "copperNecklace",
-   "name": "铜项链",
-   "type": "ACCESSORY",
-   "tier": 1,
-   "rarity": 1,
-   "description": "铜制项链",
-   "materials": {
-    "foxBone0": 3,
-    "foxTail0": 2
-   },
-   "duration": 3,
-   "successRate": 0.7
-  },
-  {
-   "id": "spiritSword",
-   "name": "灵锋剑",
-   "type": "WEAPON",
-   "tier": 2,
-   "rarity": 2,
-   "description": "注入灵气的锋利长剑",
-   "materials": {
-    "tigerBlood1": 4,
-    "tigerTooth1": 3
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "battleAxe",
-   "name": "凌华刀",
-   "type": "WEAPON",
-   "tier": 2,
-   "rarity": 2,
-   "description": "刀光凌厉如华",
-   "materials": {
-    "eagleClaw1": 2,
-    "tigerBlood1": 5
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "jadeStaff",
-   "name": "碧玉杖",
-   "type": "WEAPON",
-   "tier": 2,
-   "rarity": 2,
-   "description": "碧玉雕刻的法杖",
-   "materials": {
-    "snakeBlood1": 4,
-    "snakeCore1": 2
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "spiritFan",
-   "name": "灵风扇",
-   "type": "WEAPON",
-   "tier": 2,
-   "rarity": 2,
-   "description": "可扇出灵风的法器",
-   "materials": {
-    "eagleFeather1": 4,
-    "snakeCore1": 2
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "ironPlate",
-   "name": "碧叶甲",
-   "type": "ARMOR",
-   "tier": 2,
-   "rarity": 2,
-   "description": "碧玉叶片打造的护甲",
-   "materials": {
-    "bearBone1": 2,
-    "bearHide1": 5
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "steelArmor",
-   "name": "丹羽衣",
-   "type": "ARMOR",
-   "tier": 2,
-   "rarity": 2,
-   "description": "丹砂羽线织成的法衣",
-   "materials": {
-    "bearBone1": 4,
-    "bearCore1": 2
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "spiritRobe",
-   "name": "灵丝袍",
-   "type": "ARMOR",
-   "tier": 2,
-   "rarity": 2,
-   "description": "灵蚕丝织成的法袍",
-   "materials": {
-    "snakeScale1": 2,
-    "turtleShell1": 4
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "cloudRobe",
-   "name": "云纹袍",
-   "type": "ARMOR",
-   "tier": 2,
-   "rarity": 2,
-   "description": "绣有云纹的法袍",
-   "materials": {
-    "turtleBone1": 3,
-    "turtleShell1": 3
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "swiftBoots",
-   "name": "疾风靴",
-   "type": "BOOTS",
-   "tier": 2,
-   "rarity": 2,
-   "description": "穿上可大幅提升移动速度",
-   "materials": {
-    "wolfBone1": 2,
-    "wolfHide1": 4
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "lightBoots",
-   "name": "轻羽靴",
-   "type": "BOOTS",
-   "tier": 2,
-   "rarity": 2,
-   "description": "如羽毛般轻盈",
-   "materials": {
-    "eagleFeather1": 3,
-    "wolfHide1": 3
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "spiritPendant",
-   "name": "灵玉佩",
-   "type": "ACCESSORY",
-   "tier": 2,
-   "rarity": 2,
-   "description": "蕴含灵气的玉佩",
-   "materials": {
-    "foxBone1": 3,
-    "foxCore1": 3
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "healthRing",
-   "name": "蕴灵戒",
-   "type": "ACCESSORY",
-   "tier": 2,
-   "rarity": 2,
-   "description": "可蕴养灵力的戒指",
-   "materials": {
-    "foxTail1": 2,
-    "wolfTooth1": 3
-   },
-   "duration": 6,
-   "successRate": 0.65
-  },
-  {
-   "id": "frostBlade",
-   "name": "青碧刃",
-   "type": "WEAPON",
-   "tier": 3,
-   "rarity": 3,
-   "description": "蕴含青碧灵力的宝刀",
-   "materials": {
-    "snakeScale2": 3,
-    "tigerBlood2": 5,
-    "tigerTooth2": 2
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "flameSword",
-   "name": "烈焰剑",
-   "type": "WEAPON",
-   "tier": 3,
-   "rarity": 3,
-   "description": "燃烧着火焰的灵剑",
-   "materials": {
-    "tigerBlood2": 4,
-    "tigerCore2": 2,
-    "tigerTooth2": 3
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "thunderStaff",
-   "name": "玄雷杖",
-   "type": "WEAPON",
-   "tier": 3,
-   "rarity": 3,
-   "description": "可召唤雷电的法杖",
-   "materials": {
-    "eagleFeather2": 2,
-    "snakeBlood2": 4,
-    "snakeCore2": 3
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "frostOrb",
-   "name": "玄冰扇",
-   "type": "WEAPON",
-   "tier": 3,
-   "rarity": 3,
-   "description": "蕴含玄冰之力的宝扇",
-   "materials": {
-    "foxCore2": 2,
-    "snakeBlood2": 2,
-    "snakeCore2": 4
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "scaleArmor",
-   "name": "青鳞铠",
-   "type": "ARMOR",
-   "tier": 3,
-   "rarity": 3,
-   "description": "妖兽青鳞打造的铠甲",
-   "materials": {
-    "snakeBlood2": 3,
-    "snakeCore2": 2,
-    "snakeScale2": 5
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "plateArmor",
-   "name": "银板铠",
-   "type": "ARMOR",
-   "tier": 3,
-   "rarity": 3,
-   "description": "厚重的银板护甲",
-   "materials": {
-    "bearBone2": 3,
-    "bearCore2": 2,
-    "bearHide2": 4
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "mysticRobe",
-   "name": "汐流衣",
-   "type": "ARMOR",
-   "tier": 3,
-   "rarity": 3,
-   "description": "蕴含汐流之力的法衣",
-   "materials": {
-    "turtleBone2": 3,
-    "turtleCore2": 2,
-    "turtleShell2": 5
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "starRobe",
-   "name": "星辰袍",
-   "type": "ARMOR",
-   "tier": 3,
-   "rarity": 3,
-   "description": "绣有星辰图案的法袍",
-   "materials": {
-    "bearCore2": 2,
-    "bearHide2": 3,
-    "snakeScale2": 3
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "windBoots",
-   "name": "追风靴",
-   "type": "BOOTS",
-   "tier": 3,
-   "rarity": 3,
-   "description": "追逐风的速度",
-   "materials": {
-    "wolfBone2": 3,
-    "wolfCore2": 2,
-    "wolfHide2": 4
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "mistBoots",
-   "name": "云栖靴",
-   "type": "BOOTS",
-   "tier": 3,
-   "rarity": 3,
-   "description": "云栖之处步履轻盈",
-   "materials": {
-    "eagleFeather2": 2,
-    "wolfHide2": 4,
-    "wolfTooth2": 2
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "storageRing",
-   "name": "灵泉戒",
-   "type": "ACCESSORY",
-   "tier": 3,
-   "rarity": 3,
-   "description": "蕴含灵泉之力的戒指",
-   "materials": {
-    "foxBone2": 3,
-    "foxCore2": 4,
-    "foxTail2": 2
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "wisdomOrb",
-   "name": "迅捷珠",
-   "type": "ACCESSORY",
-   "tier": 3,
-   "rarity": 3,
-   "description": "可提升身法速度的宝珠",
-   "materials": {
-    "eagleClaw2": 2,
-    "foxCore2": 2,
-    "wolfTooth2": 4
-   },
-   "duration": 12,
-   "successRate": 0.6
-  },
-  {
-   "id": "thunderSword",
-   "name": "雷霆剑",
-   "type": "WEAPON",
-   "tier": 4,
-   "rarity": 4,
-   "description": "引动天雷的玄妙飞剑",
-   "materials": {
-    "tigerBlood3": 6,
-    "tigerCore3": 2,
-    "tigerHide3": 4
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "shadowBlade",
-   "name": "暗影刃",
-   "type": "WEAPON",
-   "tier": 4,
-   "rarity": 4,
-   "description": "融入暗影的短刃",
-   "materials": {
-    "eagleClaw3": 4,
-    "foxCore3": 2,
-    "tigerBlood3": 5
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "voidStaff",
-   "name": "虚华杖",
-   "type": "WEAPON",
-   "tier": 4,
-   "rarity": 4,
-   "description": "虚华流转的玄妙法杖",
-   "materials": {
-    "foxCore3": 2,
-    "snakeBlood3": 5,
-    "snakeCore3": 4
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "phoenixFan",
-   "name": "凰焰扇",
-   "type": "WEAPON",
-   "tier": 4,
-   "rarity": 4,
-   "description": "凰焰淬炼的神扇",
-   "materials": {
-    "eagleClaw3": 3,
-    "eagleCore3": 2,
-    "eagleFeather3": 6
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "dragonScale",
-   "name": "龙鳞铠",
-   "type": "ARMOR",
-   "tier": 4,
-   "rarity": 4,
-   "description": "真龙鳞片锻造的铠甲",
-   "materials": {
-    "snakeBlood3": 4,
-    "snakeCore3": 2,
-    "snakeScale3": 6
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "titanArmor",
-   "name": "渊岩铠",
-   "type": "ARMOR",
-   "tier": 4,
-   "rarity": 4,
-   "description": "深渊岩铁铸造的铠甲",
-   "materials": {
-    "bearBone3": 4,
-    "bearCore3": 3,
-    "bearHide3": 5
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "voidRobe",
-   "name": "瑶光袍",
-   "type": "ARMOR",
-   "tier": 4,
-   "rarity": 4,
-   "description": "蕴含瑶光之力的法袍",
-   "materials": {
-    "turtleBone3": 4,
-    "turtleCore3": 2,
-    "turtleShell3": 6
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "moonRobe",
-   "name": "月华袍",
-   "type": "ARMOR",
-   "tier": 4,
-   "rarity": 4,
-   "description": "吸收月华之力织成的法袍",
-   "materials": {
-    "bearCore3": 3,
-    "bearHide3": 5,
-    "snakeScale3": 3
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "cloudBoots",
-   "name": "踏云履",
-   "type": "BOOTS",
-   "tier": 4,
-   "rarity": 4,
-   "description": "踏云而行的仙家法宝",
-   "materials": {
-    "eagleFeather3": 4,
-    "wolfCore3": 2,
-    "wolfHide3": 5
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "thunderBoots",
-   "name": "奔雷靴",
-   "type": "BOOTS",
-   "tier": 4,
-   "rarity": 4,
-   "description": "如雷电般迅捷的靴子",
-   "materials": {
-    "wolfBone3": 3,
-    "wolfCore3": 3,
-    "wolfHide3": 5
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "dragonEye",
-   "name": "龙灵珠",
-   "type": "ACCESSORY",
-   "tier": 4,
-   "rarity": 4,
-   "description": "真龙之灵凝聚的宝珠",
-   "materials": {
-    "foxBone3": 4,
-    "foxCore3": 5,
-    "foxHide3": 2
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "phoenixHeart",
-   "name": "凤羽坠",
-   "type": "ACCESSORY",
-   "tier": 4,
-   "rarity": 4,
-   "description": "凤凰羽翼炼制的坠饰",
-   "materials": {
-    "eagleClaw3": 3,
-    "foxTail3": 3,
-    "wolfTooth3": 5
-   },
-   "duration": 36,
-   "successRate": 0.35
-  },
-  {
-   "id": "dragonSlayer",
-   "name": "凤炎刃",
-   "type": "WEAPON",
-   "tier": 5,
-   "rarity": 5,
-   "description": "蕴含凤炎之力的绝世神兵",
-   "materials": {
-    "dragonHorn4": 2,
-    "tigerBlood4": 6,
-    "tigerCore4": 2,
-    "tigerTooth4": 4
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "godSlayer",
-   "name": "青莲剑",
-   "type": "WEAPON",
-   "tier": 5,
-   "rarity": 5,
-   "description": "自青莲中诞生的神剑",
-   "materials": {
-    "eagleClaw4": 3,
-    "tigerBlood4": 5,
-    "tigerCore4": 2,
-    "tigerTooth4": 4
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "phoenixWing",
-   "name": "阴阳扇",
-   "type": "WEAPON",
-   "tier": 5,
-   "rarity": 5,
-   "description": "蕴含阴阳之力的神扇",
-   "materials": {
-    "eagleClaw4": 4,
-    "eagleCore4": 2,
-    "eagleFeather4": 6,
-    "snakeCore4": 2
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "celestialOrb",
-   "name": "天玄杖",
-   "type": "WEAPON",
-   "tier": 5,
-   "rarity": 5,
-   "description": "蕴含天玄之力的神杖",
-   "materials": {
-    "dragonCore4": 2,
-    "foxCore4": 2,
-    "snakeBlood4": 5,
-    "snakeCore4": 4
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "earthArmor",
-   "name": "玄幽袍",
-   "type": "ARMOR",
-   "tier": 5,
-   "rarity": 5,
-   "description": "承载玄幽之力的法袍",
-   "materials": {
-    "dragonScale4": 2,
-    "snakeBlood4": 4,
-    "snakeCore4": 2,
-    "snakeScale4": 6
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "divinePlate",
-   "name": "墨幽铠",
-   "type": "ARMOR",
-   "tier": 5,
-   "rarity": 5,
-   "description": "墨幽玄铁铸造的铠甲",
-   "materials": {
-    "bearBone4": 4,
-    "bearClaw4": 2,
-    "bearCore4": 2,
-    "bearHide4": 6
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "celestialRobe",
-   "name": "凌星袍",
-   "type": "ARMOR",
-   "tier": 5,
-   "rarity": 5,
-   "description": "凌驾星辰之力的法袍",
-   "materials": {
-    "dragonScale4": 2,
-    "turtleBone4": 4,
-    "turtleCore4": 2,
-    "turtleShell4": 6
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "voidShadowRobe",
-   "name": "定海铠",
-   "type": "ARMOR",
-   "tier": 5,
-   "rarity": 5,
-   "description": "定海之力凝聚的铠甲",
-   "materials": {
-    "bearCore4": 3,
-    "bearHide4": 5,
-    "foxCore4": 2,
-    "snakeScale4": 3
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "voidBoots",
-   "name": "溯光靴",
-   "type": "BOOTS",
-   "tier": 5,
-   "rarity": 5,
-   "description": "溯光逐影穿梭虚空",
-   "materials": {
-    "dragonScale4": 2,
-    "wolfCore4": 2,
-    "wolfHide4": 5,
-    "wolfTooth4": 4
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "shadowStepBoots",
-   "name": "赤煞靴",
-   "type": "BOOTS",
-   "tier": 5,
-   "rarity": 5,
-   "description": "赤煞之气凝聚的战靴",
-   "materials": {
-    "eagleClaw4": 3,
-    "foxTail4": 2,
-    "wolfCore4": 2,
-    "wolfHide4": 5
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "earthCore",
-   "name": "渡厄佩",
-   "type": "ACCESSORY",
-   "tier": 5,
-   "rarity": 5,
-   "description": "可渡厄解难的灵佩",
-   "materials": {
-    "dragonCore4": 2,
-    "foxBone4": 4,
-    "foxCore4": 6,
-    "foxHide4": 2
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "dragonEyePendant",
-   "name": "隐云佩",
-   "type": "ACCESSORY",
-   "tier": 5,
-   "rarity": 5,
-   "description": "隐于云端的灵佩",
-   "materials": {
-    "eagleClaw4": 4,
-    "foxTail4": 2,
-    "wolfCore4": 2,
-    "wolfTooth4": 5
-   },
-   "duration": 72,
-   "successRate": 0.3
-  },
-  {
-   "id": "immortalSword",
-   "name": "诛仙剑",
-   "type": "WEAPON",
-   "tier": 6,
-   "rarity": 6,
-   "description": "上古仙人遗留的仙器",
-   "materials": {
-    "dragonHorn5": 3,
-    "tigerBlood5": 8,
-    "tigerCore5": 3,
-    "tigerTooth5": 5
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "chaosBlade",
-   "name": "玄玉刃",
-   "type": "WEAPON",
-   "tier": 6,
-   "rarity": 6,
-   "description": "玄玉淬炼的神刃",
-   "materials": {
-    "eagleClaw5": 4,
-    "tigerBlood5": 6,
-    "tigerCore5": 3,
-    "tigerTooth5": 5
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "primordialStaff",
-   "name": "天星杖",
-   "type": "WEAPON",
-   "tier": 6,
-   "rarity": 6,
-   "description": "凝聚天星之力的法杖",
-   "materials": {
-    "dragonCore5": 3,
-    "eagleFeather5": 3,
-    "snakeBlood5": 7,
-    "snakeCore5": 5
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "yinYangOrb",
-   "name": "天玄扇",
-   "type": "WEAPON",
-   "tier": 6,
-   "rarity": 6,
-   "description": "蕴含天玄道韵的至宝",
-   "materials": {
-    "dragonCore5": 3,
-    "foxCore5": 3,
-    "snakeBlood5": 6,
-    "snakeCore5": 5
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "immortalArmor",
-   "name": "不朽铠",
-   "type": "ARMOR",
-   "tier": 6,
-   "rarity": 6,
-   "description": "仙界神甲",
-   "materials": {
-    "dragonScale5": 3,
-    "snakeBlood5": 5,
-    "snakeCore5": 3,
-    "snakeScale5": 8
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "primordialArmor",
-   "name": "苍罡铠",
-   "type": "ARMOR",
-   "tier": 6,
-   "rarity": 6,
-   "description": "苍罡之力凝聚的神甲",
-   "materials": {
-    "bearBone5": 5,
-    "bearCore5": 3,
-    "bearHide5": 8,
-    "dragonClaw5": 3
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "immortalRobe",
-   "name": "曦光铠",
-   "type": "ARMOR",
-   "tier": 6,
-   "rarity": 6,
-   "description": "蕴含曦光之力的铠甲",
-   "materials": {
-    "dragonScale5": 3,
-    "turtleBone5": 5,
-    "turtleCore5": 3,
-    "turtleShell5": 8
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "chaosRobe",
-   "name": "云影袍",
-   "type": "ARMOR",
-   "tier": 6,
-   "rarity": 6,
-   "description": "云影交织的法袍",
-   "materials": {
-    "bearCore5": 4,
-    "bearHide5": 6,
-    "dragonClaw5": 3,
-    "snakeScale5": 4
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "immortalBoots",
-   "name": "鸾羽履",
-   "type": "BOOTS",
-   "tier": 6,
-   "rarity": 6,
-   "description": "鸾鸟仙羽织就的灵履",
-   "materials": {
-    "dragonScale5": 3,
-    "wolfCore5": 3,
-    "wolfHide5": 7,
-    "wolfTooth5": 5
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "chaosStepBoots",
-   "name": "鹤岚靴",
-   "type": "BOOTS",
-   "tier": 6,
-   "rarity": 6,
-   "description": "鹤翔岚雾而行",
-   "materials": {
-    "dragonClaw5": 3,
-    "eagleClaw5": 4,
-    "wolfCore5": 4,
-    "wolfHide5": 6
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "chaosBead",
-   "name": "幽朔珠",
-   "type": "ACCESSORY",
-   "tier": 6,
-   "rarity": 6,
-   "description": "蕴含幽朔之力的灵珠",
-   "materials": {
-    "dragonCore5": 3,
-    "foxBone5": 5,
-    "foxCore5": 8,
-    "foxHide5": 3
-   },
-   "duration": 120,
-   "successRate": 0.25
-  },
-  {
-   "id": "heavenRing",
-   "name": "长明坠",
-   "type": "ACCESSORY",
-   "tier": 6,
-   "rarity": 6,
-   "description": "长明不灭的灵坠",
-   "materials": {
-    "dragonScale5": 3,
-    "eagleClaw5": 5,
-    "foxTail5": 3,
-    "wolfTooth5": 7
-   },
-   "duration": 120,
-   "successRate": 0.25
+   "id": "forge_lietian_HEAD",
+   "pieceId": "lietian_HEAD",
+   "setId": "lietian",
+   "part": "HEAD",
+   "name": "裂天罡煞·头冠",
+   "description": "裂天罡煞套装头冠，罡煞之气护持识海",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_lietian_BODY",
+   "pieceId": "lietian_BODY",
+   "setId": "lietian",
+   "part": "BODY",
+   "name": "裂天罡煞·重铠",
+   "description": "裂天罡煞套装重铠，煞气凝甲坚不可摧",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_lietian_HANDS",
+   "pieceId": "lietian_HANDS",
+   "setId": "lietian",
+   "part": "HANDS",
+   "name": "裂天罡煞·战手",
+   "description": "裂天罡煞套装护手，罡风附刃裂石开碑",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_lietian_FEET",
+   "pieceId": "lietian_FEET",
+   "setId": "lietian",
+   "part": "FEET",
+   "name": "裂天罡煞·战靴",
+   "description": "裂天罡煞套装战靴，踏罡步斗势如奔雷",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
+  },
+  {
+   "id": "forge_gengjin_HEAD",
+   "pieceId": "gengjin_HEAD",
+   "setId": "gengjin",
+   "part": "HEAD",
+   "name": "庚金白虎·灵冠",
+   "description": "庚金白虎套装灵冠，白虎金睛洞察秋毫",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_gengjin_BODY",
+   "pieceId": "gengjin_BODY",
+   "setId": "gengjin",
+   "part": "BODY",
+   "name": "庚金白虎·法袍",
+   "description": "庚金白虎套装法袍，金气织体刀兵不侵",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_gengjin_HANDS",
+   "pieceId": "gengjin_HANDS",
+   "setId": "gengjin",
+   "part": "HANDS",
+   "name": "庚金白虎·灵护",
+   "description": "庚金白虎套装灵护，锐金凝爪裂金断玉",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_gengjin_FEET",
+   "pieceId": "gengjin_FEET",
+   "setId": "gengjin",
+   "part": "FEET",
+   "name": "庚金白虎·云履",
+   "description": "庚金白虎套装云履，虎啸风生金戈疾行",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
+  },
+  {
+   "id": "forge_qingmu_HEAD",
+   "pieceId": "qingmu_HEAD",
+   "setId": "qingmu",
+   "part": "HEAD",
+   "name": "青木长生·灵冠",
+   "description": "青木长生套装灵冠，青木灵韵清心明神",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_qingmu_BODY",
+   "pieceId": "qingmu_BODY",
+   "setId": "qingmu",
+   "part": "BODY",
+   "name": "青木长生·法袍",
+   "description": "青木长生套装法袍，生生不息缠枝为衣",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_qingmu_HANDS",
+   "pieceId": "qingmu_HANDS",
+   "setId": "qingmu",
+   "part": "HANDS",
+   "name": "青木长生·灵护",
+   "description": "青木长生套装灵护，藤蔓缠腕生机盎然",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_qingmu_FEET",
+   "pieceId": "qingmu_FEET",
+   "setId": "qingmu",
+   "part": "FEET",
+   "name": "青木长生·云履",
+   "description": "青木长生套装云履，踏叶而行轻若春风",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
+  },
+  {
+   "id": "forge_xuanshui_HEAD",
+   "pieceId": "xuanshui_HEAD",
+   "setId": "xuanshui",
+   "part": "HEAD",
+   "name": "玄水寒渊·灵冠",
+   "description": "玄水寒渊套装灵冠，寒渊之息凝神静念",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_xuanshui_BODY",
+   "pieceId": "xuanshui_BODY",
+   "setId": "xuanshui",
+   "part": "BODY",
+   "name": "玄水寒渊·法袍",
+   "description": "玄水寒渊套装法袍，玄水环身百法不沾",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_xuanshui_HANDS",
+   "pieceId": "xuanshui_HANDS",
+   "setId": "xuanshui",
+   "part": "HANDS",
+   "name": "玄水寒渊·灵护",
+   "description": "玄水寒渊套装灵护，寒潮覆掌冻结万机",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_xuanshui_FEET",
+   "pieceId": "xuanshui_FEET",
+   "setId": "xuanshui",
+   "part": "FEET",
+   "name": "玄水寒渊·云履",
+   "description": "玄水寒渊套装云履，凌波微步踏水无痕",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
+  },
+  {
+   "id": "forge_lihuo_HEAD",
+   "pieceId": "lihuo_HEAD",
+   "setId": "lihuo",
+   "part": "HEAD",
+   "name": "离火焚天·灵冠",
+   "description": "离火焚天套装灵冠，离火真焰炼神涤魄",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_lihuo_BODY",
+   "pieceId": "lihuo_BODY",
+   "setId": "lihuo",
+   "part": "BODY",
+   "name": "离火焚天·法袍",
+   "description": "离火焚天套装法袍，炎纹织体烈焰随身",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_lihuo_HANDS",
+   "pieceId": "lihuo_HANDS",
+   "setId": "lihuo",
+   "part": "HANDS",
+   "name": "离火焚天·灵护",
+   "description": "离火焚天套装灵护，火灵附掌焚尽八荒",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_lihuo_FEET",
+   "pieceId": "lihuo_FEET",
+   "setId": "lihuo",
+   "part": "FEET",
+   "name": "离火焚天·云履",
+   "description": "离火焚天套装云履，踏火而行燎原疾影",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
+  },
+  {
+   "id": "forge_houtu_HEAD",
+   "pieceId": "houtu_HEAD",
+   "setId": "houtu",
+   "part": "HEAD",
+   "name": "厚土镇岳·灵冠",
+   "description": "厚土镇岳套装灵冠，厚土之德沉稳心神",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 3
+    },
+    "tier2": {
+     "bearBone1": 3,
+     "bearHide1": 4
+    },
+    "tier3": {
+     "bearBone2": 3,
+     "bearCore2": 2,
+     "bearHide2": 5
+    },
+    "tier4": {
+     "bearBone3": 4,
+     "bearCore3": 3,
+     "bearHide3": 5
+    },
+    "tier5": {
+     "bearBone4": 4,
+     "bearCore4": 2,
+     "bearHide4": 6,
+     "dragonScale4": 2
+    },
+    "tier6": {
+     "bearBone5": 5,
+     "bearCore5": 3,
+     "bearHide5": 8,
+     "dragonClaw5": 3
+    }
+   }
+  },
+  {
+   "id": "forge_houtu_BODY",
+   "pieceId": "houtu_BODY",
+   "setId": "houtu",
+   "part": "BODY",
+   "name": "厚土镇岳·法袍",
+   "description": "厚土镇岳套装法袍，山岳之甲岿然不动",
+   "tierMaterials": {
+    "tier1": {
+     "bearBone0": 2,
+     "bearHide0": 4
+    },
+    "tier2": {
+     "bearBone1": 2,
+     "bearHide1": 5
+    },
+    "tier3": {
+     "snakeBlood2": 3,
+     "snakeCore2": 2,
+     "snakeScale2": 5
+    },
+    "tier4": {
+     "snakeBlood3": 4,
+     "snakeCore3": 2,
+     "snakeScale3": 6
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "snakeBlood4": 4,
+     "snakeCore4": 2,
+     "snakeScale4": 6
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "snakeBlood5": 5,
+     "snakeCore5": 3,
+     "snakeScale5": 8
+    }
+   }
+  },
+  {
+   "id": "forge_houtu_HANDS",
+   "pieceId": "houtu_HANDS",
+   "setId": "houtu",
+   "part": "HANDS",
+   "name": "厚土镇岳·灵护",
+   "description": "厚土镇岳套装灵护，镇岳之力撼地崩山",
+   "tierMaterials": {
+    "tier1": {
+     "eagleClaw0": 3,
+     "eagleFeather0": 2
+    },
+    "tier2": {
+     "eagleClaw1": 4,
+     "eagleFeather1": 3
+    },
+    "tier3": {
+     "eagleClaw2": 3,
+     "eagleCore2": 2,
+     "eagleFeather2": 5
+    },
+    "tier4": {
+     "eagleClaw3": 4,
+     "eagleCore3": 2,
+     "eagleFeather3": 6
+    },
+    "tier5": {
+     "eagleClaw4": 4,
+     "eagleCore4": 2,
+     "eagleFeather4": 6,
+     "snakeCore4": 2
+    },
+    "tier6": {
+     "dragonCore5": 3,
+     "eagleClaw5": 5,
+     "eagleCore5": 3,
+     "eagleFeather5": 7
+    }
+   }
+  },
+  {
+   "id": "forge_houtu_FEET",
+   "pieceId": "houtu_FEET",
+   "setId": "houtu",
+   "part": "FEET",
+   "name": "厚土镇岳·云履",
+   "description": "厚土镇岳套装云履，踏地生根移山填谷",
+   "tierMaterials": {
+    "tier1": {
+     "wolfBone0": 2,
+     "wolfHide0": 3
+    },
+    "tier2": {
+     "wolfBone1": 2,
+     "wolfHide1": 4
+    },
+    "tier3": {
+     "wolfBone2": 3,
+     "wolfCore2": 2,
+     "wolfHide2": 4
+    },
+    "tier4": {
+     "wolfBone3": 3,
+     "wolfCore3": 2,
+     "wolfHide3": 5
+    },
+    "tier5": {
+     "dragonScale4": 2,
+     "wolfCore4": 2,
+     "wolfHide4": 5,
+     "wolfTooth4": 4
+    },
+    "tier6": {
+     "dragonScale5": 3,
+     "wolfCore5": 3,
+     "wolfHide5": 7,
+     "wolfTooth5": 5
+    }
+   }
   }
  ],
  "pillRecipes": [

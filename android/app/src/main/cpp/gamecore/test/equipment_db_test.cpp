@@ -13,7 +13,7 @@ namespace gamecore::data {
 namespace {
 
 // ============================================================
-// 装备静态表守卫测试（B3 重写：12 部件 / 2 套装 / 72 展开条目 /
+// 装备静态表守卫测试（四部位口径：24 部件 / 6 套装 / 144 展开条目 /
 // 7 项字段面，逐项对齐 Kotlin EquipmentDatabase.kt / EquipmentSetDatabase.kt）
 //
 // 守护目标：C++ 装备四表（equipment_db.h / equip_set_db.h /
@@ -28,8 +28,8 @@ constexpr int32_t kRarityPrices[6] = {4000, 16000, 80000, 480000, 3360000, 26880
 constexpr int32_t kRarityMinRealms[6] = {9, 7, 6, 5, 4, 2};
 
 TEST(EquipmentDbTest, PieceTemplateCount) {
-    // Kotlin EquipmentDatabase.setPieces：6 套 × 6 部位 = 36 条部件模板
-    EXPECT_EQ(36u, setPieceTemplates().size());
+    // Kotlin EquipmentDatabase.setPieces：6 套 × 4 部位 = 24 条部件模板
+    EXPECT_EQ(24u, setPieceTemplates().size());
 }
 
 TEST(EquipmentDbTest, SetCountAndSchool) {
@@ -48,12 +48,15 @@ TEST(EquipmentDbTest, SetCountAndSchool) {
 }
 
 TEST(EquipmentDbTest, ExpandedEntryCount) {
-    // 36 部件 × 品阶 1..6 = 216 条展开条目
-    EXPECT_EQ(216u, equipmentEntries().size());
+    // 24 部件 × 品阶 1..6 = 144 条展开条目
+    EXPECT_EQ(144u, equipmentEntries().size());
     // 每套每部位 × 6 品阶：按部位过滤面各 36 条
-    for (const char* part : {"HEAD", "BODY", "HANDS", "FEET", "WEAPON", "LEGS"}) {
+    for (const char* part : {"HEAD", "BODY", "HANDS", "FEET"}) {
         EXPECT_EQ(36u, equipmentEntriesByPart(part).size()) << part;
     }
+    // 退役部位（WEAPON/LEGS）条目必须为零
+    EXPECT_EQ(0u, equipmentEntriesByPart("WEAPON").size());
+    EXPECT_EQ(0u, equipmentEntriesByPart("LEGS").size());
 }
 
 TEST(EquipmentDbTest, PieceTemplateSevenFieldSurface) {
@@ -61,22 +64,22 @@ TEST(EquipmentDbTest, PieceTemplateSevenFieldSurface) {
     // priceByRarity/minRealmByRarity）：抽样断言首尾条目 + 全量价格/门槛表校验
     const auto& pieces = setPieceTemplates();
     const SetPieceTemplate* lietianHead = nullptr;
-    const SetPieceTemplate* lihuoLegs = nullptr;
+    const SetPieceTemplate* lihuoFeet = nullptr;
     for (const auto& p : pieces) {
         if (p.id == "lietian_HEAD") lietianHead = &p;
-        if (p.id == "lihuo_LEGS") lihuoLegs = &p;
+        if (p.id == "lihuo_FEET") lihuoFeet = &p;
     }
     ASSERT_NE(nullptr, lietianHead);
     EXPECT_EQ("lietian", lietianHead->setId);
     EXPECT_EQ("HEAD", lietianHead->part);
     EXPECT_EQ("裂天罡煞·头冠", lietianHead->name);
     EXPECT_EQ("裂天罡煞套装头冠，罡煞之气护持识海", lietianHead->description);
-    ASSERT_NE(nullptr, lihuoLegs);
-    EXPECT_EQ("lihuo", lihuoLegs->setId);
-    EXPECT_EQ("LEGS", lihuoLegs->part);
-    EXPECT_EQ("离火焚天·护胫", lihuoLegs->name);
+    ASSERT_NE(nullptr, lihuoFeet);
+    EXPECT_EQ("lihuo", lihuoFeet->setId);
+    EXPECT_EQ("FEET", lihuoFeet->part);
+    EXPECT_EQ("离火焚天·云履", lihuoFeet->name);
 
-    // 全量 36 条：六套部件；价格/门槛两表逐品阶一致（表常量引用，无魔法数字）
+    // 全量 24 条：六套部件；价格/门槛两表逐品阶一致（表常量引用，无魔法数字）
     std::set<std::string> parts;
     for (const auto& p : pieces) {
         parts.insert(p.part);
@@ -87,7 +90,7 @@ TEST(EquipmentDbTest, PieceTemplateSevenFieldSurface) {
                 << p.id << " rarity=" << r;
         }
     }
-    EXPECT_EQ(6u, parts.size());
+    EXPECT_EQ(4u, parts.size());
 }
 
 TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
@@ -98,7 +101,7 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
     const EquipPieceEntry* last = nullptr;
     for (const auto& e : equipmentEntries()) {
         if (e.id == "lietian_HEAD_r1") first = &e;
-        if (e.id == "houtu_LEGS_r6") last = &e;
+        if (e.id == "houtu_FEET_r6") last = &e;
     }
     ASSERT_NE(nullptr, first);
     EXPECT_EQ("lietian_HEAD", first->pieceId);
@@ -109,7 +112,7 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
     EXPECT_EQ(kRarityPrices[0], first->price);
     EXPECT_EQ(kRarityMinRealms[0], first->minRealm);
     ASSERT_NE(nullptr, last);
-    EXPECT_EQ("houtu_LEGS", last->pieceId);
+    EXPECT_EQ("houtu_FEET", last->pieceId);
     EXPECT_EQ(6, last->rarity);
     EXPECT_EQ(kRarityPrices[5], last->price);
     EXPECT_EQ(kRarityMinRealms[5], last->minRealm);
@@ -117,13 +120,16 @@ TEST(EquipmentDbTest, ExpandedEntryFieldFace) {
 
 TEST(EquipmentDbTest, EntryLookupAndMiss) {
     // equipmentEntryById 命中/未命中（Kotlin getById null 臂）
-    const EquipPieceEntry* hit = equipmentEntryById("lihuo_WEAPON_r3");
+    const EquipPieceEntry* hit = equipmentEntryById("lihuo_FEET_r3");
     ASSERT_NE(nullptr, hit);
     EXPECT_EQ(3, hit->rarity);
-    EXPECT_EQ("WEAPON", hit->part);
+    EXPECT_EQ("FEET", hit->part);
     EXPECT_EQ(nullptr, equipmentEntryById("godSlayer"));
     EXPECT_EQ(nullptr, equipmentEntryById("lietian_HEAD_r7"));   // 品阶越界
     EXPECT_EQ(nullptr, equipmentEntryById(""));
+    // 退役部位条目（原 lietian_WEAPON_r1 / lietian_LEGS_r1）不得存在
+    EXPECT_EQ(nullptr, equipmentEntryById("lietian_WEAPON_r1"));
+    EXPECT_EQ(nullptr, equipmentEntryById("lietian_LEGS_r1"));
 }
 
 TEST(EquipmentDbTest, IdsUnique) {
@@ -139,14 +145,14 @@ TEST(EquipmentDbTest, IdsUnique) {
 }
 
 TEST(EquipmentDbTest, MainStatPoolSurface) {
-    // 六部位池齐全（equip_main_stat_db.h）；部位系数来自表常量
-    ASSERT_EQ(6u, mainStatPools().size());
+    // 四部位池齐全（equip_main_stat_db.h）；部位系数来自表常量
+    ASSERT_EQ(4u, mainStatPools().size());
     std::set<std::string> parts;
     for (const auto& pool : mainStatPools()) {
         EXPECT_FALSE(pool.stats.empty()) << pool.part;
         parts.insert(pool.part);
     }
-    EXPECT_EQ(6u, parts.size());
+    EXPECT_EQ(4u, parts.size());
     // 品阶基数表 4 行（ATTACK/DEFENSE/HP/CRIT_RATE），各 6 档
     ASSERT_EQ(4u, mainStatBase().size());
     for (const auto& row : mainStatBase()) {

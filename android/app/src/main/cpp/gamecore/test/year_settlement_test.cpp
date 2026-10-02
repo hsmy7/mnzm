@@ -964,17 +964,17 @@ TEST(YearSettlementTest, Y4bT2MerchantPoolsCoverAllCategories) {
         total += static_cast<int>(pool.size());
     }
     EXPECT_GT(total, 0);
-    // B3：装备池 = 72 条展开条目（部件名入池；旧模板名"精铁剑"不在池）
+    // 装备池 = 144 条展开条目（部件名入池；旧模板名"精铁剑"不在池）
     EXPECT_TRUE(pools.rarityMap.count("精铁剑") == 0);
-    EXPECT_TRUE(pools.rarityMap.count("裂天罡煞·战刃") == 1);   // 装备入池
+    EXPECT_TRUE(pools.rarityMap.count("裂天罡煞·头冠") == 1);   // 装备入池
     // 名称键去重面：6 品阶同名条目互相覆盖 → rarityMap/priceMap 收敛到末条（r6）
-    EXPECT_EQ(6, pools.rarityMap.at("裂天罡煞·战刃"));
+    EXPECT_EQ(6, pools.rarityMap.at("裂天罡煞·头冠"));
     {
-        // 价格取自 72 条表条目（无魔法数字）
-        const auto* entry = gamecore::data::equipmentEntryById("lietian_WEAPON_r6");
+        // 价格取自 144 条表条目（无魔法数字）
+        const auto* entry = gamecore::data::equipmentEntryById("lietian_HEAD_r6");
         ASSERT_NE(nullptr, entry);
         EXPECT_EQ(static_cast<int64_t>(entry->price),
-                  pools.priceMap.at("裂天罡煞·战刃"));
+                  pools.priceMap.at("裂天罡煞·头冠"));
     }
     EXPECT_TRUE(pools.rarityMap.count("中品灵石") == 1);
     EXPECT_EQ(10000L, pools.priceMap.at("中品灵石"));     // RATIO

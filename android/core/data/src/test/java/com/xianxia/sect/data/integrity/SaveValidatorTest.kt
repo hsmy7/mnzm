@@ -50,9 +50,7 @@ class SaveValidatorTest {
         headId: String = "",
         bodyId: String = "",
         handsId: String = "",
-        feetId: String = "",
-        weaponId: String = "",
-        legsId: String = ""
+        feetId: String = ""
     ): Disciple {
         return Disciple(
             id = id,
@@ -65,9 +63,7 @@ class SaveValidatorTest {
                 headId = headId,
                 bodyId = bodyId,
                 handsId = handsId,
-                feetId = feetId,
-                weaponId = weaponId,
-                legsId = legsId
+                feetId = feetId
             )
         )
     }
@@ -107,7 +103,7 @@ class SaveValidatorTest {
     @Test
     fun `validate - valid disciples with equipment instance - 零修复`() {
         val instance = makeEquipmentInstance("eq-1")
-        val disciple = makeDisciple(weaponId = "eq-1")
+        val disciple = makeDisciple(handsId = "eq-1")
         val data = minimalValidSaveData().copy(
             equipmentInstances = listOf(instance),
             disciples = listOf(disciple)
@@ -229,20 +225,19 @@ class SaveValidatorTest {
     // ── 5. Equipment orphan refs ─────────────────────────────
 
     @Test
-    fun `validate - orphan weaponId - clears field`() {
-        val disciple = makeDisciple(weaponId = "nonexistent-weapon")
+    fun `validate - orphan handsId - clears field`() {
+        val disciple = makeDisciple(handsId = "nonexistent-hands")
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
-        assertEquals("", repaired.data.disciples.first().equipment.weaponId)
+        assertEquals("", repaired.data.disciples.first().equipment.handsId)
     }
 
     @Test
     fun `validate - all equipment fields orphan - clears all`() {
         val disciple = makeDisciple(
-            headId = "h", bodyId = "b", handsId = "ha",
-            feetId = "f", weaponId = "w", legsId = "l"
+            headId = "h", bodyId = "b", handsId = "ha", feetId = "f"
         )
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
@@ -252,15 +247,13 @@ class SaveValidatorTest {
         assertEquals("", equip.bodyId)
         assertEquals("", equip.handsId)
         assertEquals("", equip.feetId)
-        assertEquals("", equip.weaponId)
-        assertEquals("", equip.legsId)
     }
 
     @Test
     fun `validate - equipment ref to legacy stack - cleared（B3 堆叠退役）`() {
         // B3 起装备一行一实例，装备堆叠已退役：堆叠载体中的 id 不再是合法引用目标，
         // 指向堆叠的引用按孤立引用清除（与 allEquipmentIds 仅含 instances 一致）。
-        val disciple = makeDisciple(weaponId = "sword-1", headId = "armor-1")
+        val disciple = makeDisciple(handsId = "sword-1", headId = "armor-1")
         val stack1 = makeEquipmentStack("sword-1", "青云剑")
         val stack2 = makeEquipmentStack("armor-1", "玄铁甲")
         val data = minimalValidSaveData().copy(
@@ -270,13 +263,13 @@ class SaveValidatorTest {
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
-        assertEquals("", equip.weaponId)
+        assertEquals("", equip.handsId)
         assertEquals("", equip.headId)
     }
 
     @Test
     fun `validate - equipment ref to existing instance - keeps`() {
-        val disciple = makeDisciple(weaponId = "inst-1")
+        val disciple = makeDisciple(handsId = "inst-1")
         val instance = makeEquipmentInstance("inst-1", "神兵")
         val data = minimalValidSaveData().copy(
             equipmentInstances = listOf(instance),
@@ -288,7 +281,7 @@ class SaveValidatorTest {
     @Test
     fun `validate - mixed valid and orphan equipment - only clears orphan`() {
         val disciple = makeDisciple(
-            weaponId = "valid-sword", headId = "ghost-armor"
+            handsId = "valid-sword", headId = "ghost-armor"
         )
         val instance = makeEquipmentInstance("valid-sword", "好剑")
         val data = minimalValidSaveData().copy(
@@ -298,7 +291,7 @@ class SaveValidatorTest {
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val equip = (result as IntegrityResult.Repaired).data.disciples.first().equipment
-        assertEquals("valid-sword", equip.weaponId)
+        assertEquals("valid-sword", equip.handsId)
         assertEquals("", equip.headId)
     }
 
@@ -373,7 +366,7 @@ class SaveValidatorTest {
     @Test
     fun `validate - multiple disciples multiple issues - all repaired`() {
         val d1 = makeDisciple("d-1", "甲", realm = 9, realmLayer = 1, cultivation = 999.0,
-            weaponId = "ghost-sword")
+            handsId = "ghost-sword")
         val d2 = makeDisciple("d-2", "乙", realm = 8, realmLayer = 5, cultivation = 1e6,
             headId = "ghost-armor")
         val data = minimalValidSaveData().copy(disciples = listOf(d1, d2))
@@ -381,9 +374,9 @@ class SaveValidatorTest {
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val disciples = repaired.data.disciples
-        // d1: cultivation capped to 490, weapon cleared
+        // d1: cultivation capped to 490, hands cleared
         assertEquals(490.0, disciples[0].cultivation, 0.001)
-        assertEquals("", disciples[0].equipment.weaponId)
+        assertEquals("", disciples[0].equipment.handsId)
         // d2: cultivation capped, armor cleared
         val expectedMaxD2 = 1950.0 + 4.0 * (7800.0 - 1950.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)

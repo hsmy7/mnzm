@@ -63,9 +63,9 @@ fun DiscipleStatCalculator.getMaxHpMpColumn(
     var hp = baseHp
     var mp = baseMp
 
-    // 装备（B3：六槽位实例 flat HP 求和 + 套装档位；与 EquipStatResolver 一字一致）
+    // 装备（四部位：槽位实例 flat HP 求和 + 套装档位；与 EquipStatResolver 一字一致）
     val equippedInstances = listOfNotNull(
-        input.headId, input.bodyId, input.handsId, input.feetId, input.weaponId, input.legsId
+        input.headId, input.bodyId, input.handsId, input.feetId
     ).mapNotNull { equipments[it] }
     val equipBonus = EquipStatResolver.resolve(equippedInstances)
     hp += equipBonus.flatHp.toInt()

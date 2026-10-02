@@ -651,17 +651,17 @@ class BattleSystemTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `convertDiscipleToCombatant - 玩家弟子实例语义完整传递 realmLayer武器名技能装备`() {
+    fun `convertDiscipleToCombatant - 玩家弟子实例语义完整传递 realmLayer技能装备`() {
         // scoutSect 收敛回归：原 buildScoutPlayerCombatants 未传 realmLayer（默认 0，
-        // 小层境界压制判定失效）、未带武器名；统一走本入口后全部生效。
+        // 小层境界压制判定失效）；统一走本入口后全部生效。
         val disciple = Disciple(
             id = "p1", name = "玩家弟子", realm = 3, realmLayer = 5, isAlive = true,
             manualIds = listOf("inst-m-1"),
-            equipment = EquipmentSet(weaponId = "inst-w-1", bodyId = "inst-a-1")
+            equipment = EquipmentSet(handsId = "inst-w-1", bodyId = "inst-a-1")
         )
         val weapon = EquipmentInstance(
-                id = "inst-w-1", name = "斩龙剑",
-                part = EquipmentSlot.WEAPON,
+                id = "inst-w-1", name = "斩龙手甲",
+                part = EquipmentSlot.HANDS,
                 growth = EquipGrowth(
                     affix = EquipAffixSet(
                         mainStat = EquipStatValue(EquipStat.ATTACK, 1000.0)
@@ -705,7 +705,8 @@ class BattleSystemTest {
             "小层境界必须传递（原 buildScoutPlayerCombatants 丢失，压制判定失效）",
             5, combatant.realmLayer
         )
-        assertEquals("武器名应从实例 map 解析", "斩龙剑", combatant.weaponName)
+        assertEquals("装备名不再入战斗模型（四部位化 F2：weaponName 退役）",
+            null, combatant.handsName)
         assertTrue("功法技能必须保留", combatant.skills.isNotEmpty())
         assertTrue("装备攻击加成必须生效", combatant.attack >= 1000)
         assertTrue("装备血量加成必须生效", combatant.maxHp >= 5000)

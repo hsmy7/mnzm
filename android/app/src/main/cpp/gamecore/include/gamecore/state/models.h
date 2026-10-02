@@ -32,7 +32,7 @@ namespace gamecore::state {
 // ── 物品（字段扁平，对应 Kotlin data class 顶层字段；可空 String? 用
 // std::optional 保留 null 语义；嵌套如 Pill.effects(PillEffect) 留待后续子步） ─
 
-// ── 装备（B3 六部位：一行一实例、无堆叠、等级/词条随实例单点；旧
+// ── 装备（B3 套装部件制、四部位化后 4 部位：一行一实例、无堆叠、等级/词条随实例单点；旧
 // EquipmentStack 与 7 项面板属性模型整体退役） ─────────────
 
 /// 单条装备加成值（词条/套装共用；stat = EquipStat.name）
@@ -67,7 +67,7 @@ struct EquipmentInstance {
     std::string id;
     std::string name;
     std::string setId;                    // 套装 id（空 = 散件）
-    std::string part = "HEAD";            // 六部位 EquipmentSlot.name
+    std::string part = "HEAD";            // 四部位 EquipmentSlot.name
     EquipGrowth growth;
     EquipInstanceMeta meta;
     std::optional<std::string> ownerId;   // String? → nullopt = null
@@ -363,13 +363,12 @@ struct Disciple {
     std::vector<std::string> activePillTypes;   // 生效中丹药 pillType 集合
     std::string activePillCategory;             // 旧字段，仅旧存档兼容
 
-    // ── EquipmentSet（@Embedded 平铺；B3 六部位按显示序 头/身/手/脚/武/腿） ──
+    // ── EquipmentSet（@Embedded 平铺；四部位按显示序 头/身/手/脚；
+    //    武器/腿部槽位已随 F2 四部位化退役） ──
     std::string headId;
     std::string bodyId;
     std::string handsId;
     std::string feetId;
-    std::string weaponId;                 // 复用 Kotlin weaponId(17) 列
-    std::string legsId;
     std::vector<StorageBagItem> storageBagItems;
     int64_t storageBagSpiritStones = 0;
     int32_t spiritStones = 0;             // 弟子随身灵石

@@ -95,7 +95,7 @@ class InventoryFacadeConfiscateTest {
 
     private fun eqInstance(id: String, name: String) = EquipmentInstance(
         id = id, name = name,
-        part = EquipmentSlot.WEAPON,
+        part = EquipmentSlot.HANDS,
         growth = EquipGrowth(
             affix = EquipAffixSet(mainStat = EquipStatValue(EquipStat.ATTACK, 10.0))
         ),
@@ -176,7 +176,7 @@ class InventoryFacadeConfiscateTest {
         insertDiscipleWithBag(1, listOf(
             StorageBagItem(
                 itemId = "bag1", itemType = "equipment_stack", name = "精铁剑", rarity = 1, quantity = 1,
-                stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.WEAPON.name)
+                stackedData = BagStackedData(minRealm = 7, slot = EquipmentSlot.HANDS.name)
             )
         ))
 

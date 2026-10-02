@@ -53,7 +53,7 @@ data class EquipmentStack(
     override val description: String = "",
 
     @ProtoNumber(3)
-    val slot: EquipmentSlot = EquipmentSlot.WEAPON,
+    val slot: EquipmentSlot = EquipmentSlot.HEAD,
     @ProtoNumber(50)
     val physicalAttack: Int = 0,
     @ProtoNumber(51)
@@ -263,32 +263,27 @@ data class EquipmentInstance(
 @Keep
 @Serializable
 enum class EquipmentSlot {
-    // 编号 0..3 为已退役的四部位（原 WEAPON/ARMOR/BOOTS/ACCESSORY）：保留 reserved
-    // 语义，禁复用。
+    // 编号 0..3 与 14/15 为退役段（更早的 WEAPON/ARMOR/BOOTS/ACCESSORY 与
+    // 四部位化前的 WEAPON/LEGS）：保留 reserved 语义，禁复用。
     @ProtoNumber(10) HEAD,      // 头部
     @ProtoNumber(11) BODY,      // 身体
     @ProtoNumber(12) HANDS,     // 手部
-    @ProtoNumber(13) FEET,      // 脚部
-    @ProtoNumber(14) WEAPON,    // 武器
-    @ProtoNumber(15) LEGS;      // 腿部
+    @ProtoNumber(13) FEET;      // 脚部
 
     val displayName: String get() = when (this) {
         HEAD -> "头部"
         BODY -> "身体"
         HANDS -> "手部"
         FEET -> "脚部"
-        WEAPON -> "武器"
-        LEGS -> "腿部"
     }
 
     /**
-     * UI 六宫格顺序（单一真源；声明序 = 显示序 = R1 指定序 头/身/手/脚/武/腿；
-     * 3×2 宫格：上行 头·身·手，下行 脚·武·腿）。
+     * UI 部位顺序（单一真源；声明序 = 显示序：头/身/手/脚 2×2 宫格）。
      * `EquipmentSlotOrderGuardTest` 同时断言它与枚举声明序一致。
      */
     companion object {
         val displayOrder: List<EquipmentSlot> =
-            listOf(HEAD, BODY, HANDS, FEET, WEAPON, LEGS)
+            listOf(HEAD, BODY, HANDS, FEET)
     }
 }
 

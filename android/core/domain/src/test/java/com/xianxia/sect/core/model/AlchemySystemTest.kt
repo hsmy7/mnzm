@@ -190,7 +190,7 @@ class AlchemySystemTest {
         assertEquals("", slot.recipeName)
         assertEquals("", slot.equipmentName)
         assertEquals(1, slot.equipmentRarity)
-        assertEquals(EquipmentSlot.WEAPON, slot.equipmentSlot)
+        assertEquals(EquipmentSlot.HEAD, slot.equipmentSlot)
         assertEquals(0, slot.startYear)
         assertEquals(0, slot.startMonth)
         assertEquals(0, slot.duration)
@@ -263,14 +263,14 @@ class AlchemySystemTest {
             equipmentName = "武器1",
             equipmentRarity = 3,
             tier = 2,
-            equipmentSlot = EquipmentSlot.WEAPON,
+            equipmentSlot = EquipmentSlot.HANDS,
             description = "描述",
             materials = mapOf("m1" to 5),
             duration = 4,
             successRate = 0.7
         )
         assertEquals("fr1", recipe.id)
-        assertEquals(EquipmentSlot.WEAPON, recipe.equipmentSlot)
+        assertEquals(EquipmentSlot.HANDS, recipe.equipmentSlot)
         assertEquals(mapOf("m1" to 5), recipe.requiredMaterials)
     }
 
@@ -325,12 +325,10 @@ class AlchemySystemTest {
         assertEquals("身体", EquipmentSlot.BODY.displayName)
         assertEquals("手部", EquipmentSlot.HANDS.displayName)
         assertEquals("脚部", EquipmentSlot.FEET.displayName)
-        assertEquals("武器", EquipmentSlot.WEAPON.displayName)
-        assertEquals("腿部", EquipmentSlot.LEGS.displayName)
     }
 
     @Test
     fun equipmentSlot_values() {
-        assertEquals(6, EquipmentSlot.values().size)
+        assertEquals(4, EquipmentSlot.values().size)
     }
 }

@@ -311,12 +311,12 @@ TEST(ProductionCompletionTest, AlchemyFailureStillCountsAndResets) {
 }
 
 TEST(ProductionCompletionTest, ForgeSuccessProducesEquipment) {
-    // B3：12 条部件配方（id = forge_{pieceId}）→ EquipmentFactory 实例产出
+    // 部件配方（id = forge_{pieceId}）→ EquipmentFactory 实例产出
     auto core = makeCore(42);
     auto& st = core->state();
     st.disciples.appendDisciple(baseDisciple("1"));
     st.gameData.productionSlots.push_back(
-        workingForgeSlot(0, "forge_lietian_WEAPON", /*successRate=*/1.0, "1"));
+        workingForgeSlot(0, "forge_lietian_HEAD", /*successRate=*/1.0, "1"));
     const size_t eqBefore = st.equipmentInstances.size();
 
     st.gameData.gameMonth = 2;  // 拨到 (1,2)：start (1,1) duration 1 → 到期
@@ -324,9 +324,9 @@ TEST(ProductionCompletionTest, ForgeSuccessProducesEquipment) {
 
     ASSERT_EQ(st.equipmentInstances.size(), eqBefore + 1);
     const auto& inst = st.equipmentInstances.back();
-    EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+    EXPECT_EQ(inst.name, "裂天罡煞·头冠");
     EXPECT_EQ(inst.setId, "lietian");
-    EXPECT_EQ(inst.part, "WEAPON");
+    EXPECT_EQ(inst.part, "HEAD");
     // 锻造品阶 = 全宗存活弟子最高 forgeLevel（无则 1）
     EXPECT_EQ(inst.meta.rarity, 1);
     ASSERT_EQ(inst.growth.affix.subStats.size(), 3u);
@@ -521,12 +521,12 @@ TEST(ProductionAutoTest, AutoRestartForgeConsumesMaterials) {
     st.disciples.appendDisciple(baseDisciple("1"));
     state::Material m1;
     m1.id = "m1";
-    m1.name = "凡虎血";
+    m1.name = "凡熊皮";
     m1.rarity = 1;
     m1.quantity = 10;
     state::Material m2;
     m2.id = "m2";
-    m2.name = "凡虎牙";
+    m2.name = "凡熊骨";
     m2.rarity = 1;
     m2.quantity = 10;
     st.materials.push_back(m1);
@@ -535,13 +535,15 @@ TEST(ProductionAutoTest, AutoRestartForgeConsumesMaterials) {
 
     production::processAutoProductionStep(st);
 
-    // tier1 无职业可锻 → ironSword（rarity 降序稳定排序后首个 tier<=1 的配方）
+    // 四部位化 F3：表序首个材料充足配方 = forge_lietian_HEAD（凡品档
+    // bearHide0 ×3 + bearBone0 ×2——无排序键，配方恒全量候选）
     const auto& slot = st.gameData.productionSlots[0];
     EXPECT_EQ(slot.status, "WORKING");
     ASSERT_TRUE(slot.recipeId.has_value());
-    EXPECT_EQ(*slot.recipeId, "ironSword");
+    EXPECT_EQ(*slot.recipeId, "forge_lietian_HEAD");
     EXPECT_EQ(slot.duration, 3);
-    // 材料扣减 tigerBlood0 ×3 / tigerTooth0 ×2
+    EXPECT_EQ(slot.outputItemRarity, 0);
+    // 材料扣减 bearHide0 ×3 / bearBone0 ×2
     EXPECT_EQ(st.materials[0].quantity, 7);
     EXPECT_EQ(st.materials[1].quantity, 8);
 }
@@ -601,15 +603,16 @@ TEST(ProductionAutoTest, ForgeTwoSlotContentionSecondSkips) {
     auto core = makeCore(42);
     auto& st = core->state();
     st.disciples.appendDisciple(baseDisciple("1"));
-    // 恰好一份 ironSword 材料（tigerBlood0 ×3 + tigerTooth0 ×2）——只够槽 1
+    // 恰好一份 forge_lietian_HEAD 凡品档材料（bearHide0 ×3 + bearBone0 ×2）
+    //——只够槽 1
     state::Material m1;
     m1.id = "m1";
-    m1.name = "凡虎血";
+    m1.name = "凡熊皮";
     m1.rarity = 1;
     m1.quantity = 3;
     state::Material m2;
     m2.id = "m2";
-    m2.name = "凡虎牙";
+    m2.name = "凡熊骨";
     m2.rarity = 1;
     m2.quantity = 2;
     st.materials.push_back(m1);

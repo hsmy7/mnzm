@@ -26,7 +26,7 @@ import kotlin.random.Random
  * 报告另记**缓存未命中对照臂**（每次新内容实例 = 缓存永 miss + 每帧构造分配），
  * 量化缓存收益；UI 反序列化路径（每次新实例、值语义命中）介于两臂之间。
  *
- * 最坏情形场景：大乘 T6 六件 Lv30 满强化 + 1 功法 + 丹药生效。
+ * 最坏情形场景：大乘 T6 四件 Lv30 满强化 + 1 功法 + 丹药生效。
  */
 class EquipmentStatHotPathBenchmark {
 
@@ -49,14 +49,13 @@ class EquipmentStatHotPathBenchmark {
         )
     }
 
-    private val sixParts = listOf(
-        EquipmentSlot.HEAD, EquipmentSlot.BODY, EquipmentSlot.HANDS,
-        EquipmentSlot.FEET, EquipmentSlot.WEAPON, EquipmentSlot.LEGS
+    private val fourParts = listOf(
+        EquipmentSlot.HEAD, EquipmentSlot.BODY, EquipmentSlot.HANDS, EquipmentSlot.FEET
     )
 
-    /** 六件 T6 Lv30 实例与查表（id → 实例） */
+    /** 四件 T6 Lv30 实例与查表（id → 实例） */
     private val pieces: List<EquipmentInstance> =
-        sixParts.mapIndexed { i, part -> lv30Piece(part, 1000 + i) }
+        fourParts.mapIndexed { i, part -> lv30Piece(part, 1000 + i) }
 
     private val equipments: Map<String, EquipmentInstance> = pieces.associateBy { it.id }
 
@@ -64,11 +63,12 @@ class EquipmentStatHotPathBenchmark {
 
     private val proficiencies: Map<String, ManualProficiencyData> = emptyMap()
 
-    /** 新六槽列直读输入（现行槽位面） */
+    /** 新四槽列直读输入（现行槽位面） */
     private val input = HpMpColumnInput(
         realm = 2, realmLayer = 1, hpVariance = 0, mpVariance = 0,
         headId = pieces[0].id, bodyId = pieces[1].id, handsId = pieces[2].id,
-        feetId = pieces[3].id, weaponId = pieces[4].id, legsId = pieces[5].id,
+        feetId = pieces[3].id,
+        // 退役槽位字段（字段随存档模型在 F2 删除）：基准场景恒空
         manualIds = listOf("manual-probe"), pillEffectDuration = 3,
         pillHpBonus = 100, pillMpBonus = 50
     )
@@ -98,7 +98,7 @@ class EquipmentStatHotPathBenchmark {
         )
         var hp = baseHp
         var mp = baseMp
-        val slots = listOfNotNull(input.weaponId, input.bodyId, input.feetId, input.handsId)
+        val slots = listOfNotNull(input.headId, input.bodyId, input.feetId, input.handsId)
         val pieces4 = slots.mapNotNull { equipments[it] }
         val finalHpMp = legacyFinalHpCache[LegacyPieceKey(pieces4)] ?: run {
             val computed = Pair(pieces4.sumOf { p -> p.totalBonus().sumOf { it.value } }.toInt(), 0)

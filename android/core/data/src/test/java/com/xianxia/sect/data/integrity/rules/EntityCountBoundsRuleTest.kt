@@ -65,13 +65,13 @@ class EntityCountBoundsRuleTest {
         // B3（0.2-2 拍板）：装备实例无硬上限，超阈值只告警不截断、引用不动；
         // 旧堆叠载体（deprecated）由补偿链接管，本规则完全不触碰
         val instances = (0 until 801).map { EquipmentInstance(id = "inst-$it", name = "剑") }
-        val d = makeDisciple(equipment = EquipmentSet(weaponId = "inst-500"))
+        val d = makeDisciple(equipment = EquipmentSet(handsId = "inst-500"))
         val data = saveData(equipmentInstances = instances, disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         val fixed = (result as IntegrityResult.Repaired)
         assertEquals("装备实例不截断", 801, fixed.data.equipmentInstances.size)
-        assertEquals("引用不动", "inst-500", fixed.data.disciples.first().equipment.weaponId)
+        assertEquals("引用不动", "inst-500", fixed.data.disciples.first().equipment.handsId)
         assertTrue("告警详情点名装备阈值", fixed.details.any { it.contains("装备实例") })
     }
 
@@ -100,7 +100,7 @@ class EntityCountBoundsRuleTest {
     fun `kept equipment refs untouched when only legacy stacks present`() {
         // B3：旧堆叠载体不在本规则检查面（补偿链所有物）；仅堆叠在场时恒 Passed
         val stacks = (0 until 6000).map { EquipmentStack(id = "eq-$it", name = "剑") }
-        val d = makeDisciple(equipment = EquipmentSet(weaponId = "eq-5000"))
+        val d = makeDisciple(equipment = EquipmentSet(handsId = "eq-5000"))
         val data = saveData(equipmentStacks = stacks, disciples = listOf(d))
         val result = SaveValidator.validate(data)
         // 仅旧堆叠载体在场：不告警不截断恒 Passed（弟子引用不在本规则管辖内，原样保留）
@@ -113,12 +113,12 @@ class EntityCountBoundsRuleTest {
 
     @Test
     fun `storageBagItems kept when equipment only warned - D03 independent storage`() {
-        // B3：装备只告警不截断，袋条目（含旧装备三类）与六槽引用全部原样保留；
+        // B3：装备只告警不截断，袋条目（含旧装备三类）与四槽引用全部原样保留；
         // 引用式旧装备袋条目按防复制删除清点
         val instances = (0 until 801).map { EquipmentInstance(id = "inst-$it", name = "剑") }
         val d = makeDisciple(
             equipment = EquipmentSet(
-                weaponId = "inst-0",
+                handsId = "inst-0",
                 storageBagItems = listOf(
                     StorageBagItem("eq-50000", "equipment", "旧装备", 1),
                     StorageBagItem("inst-keep", "equipment_instance", "实例", 1)
@@ -131,7 +131,7 @@ class EntityCountBoundsRuleTest {
         val fixed = (result as IntegrityResult.Repaired)
         val keptIds = fixed.data.disciples.first().equipment.storageBagItems.map { it.itemId }
         assertEquals("袋条目全部保留", listOf("eq-50000", "inst-keep"), keptIds)
-        assertEquals("六槽引用保留", "inst-0", fixed.data.disciples.first().equipment.weaponId)
+        assertEquals("四槽引用保留", "inst-0", fixed.data.disciples.first().equipment.handsId)
         assertEquals("装备实例不截断", 801, fixed.data.equipmentInstances.size)
     }
 

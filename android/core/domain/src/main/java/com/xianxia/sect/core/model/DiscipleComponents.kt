@@ -105,9 +105,8 @@ data class PillEffects(
 )
 
 /**
- * 装备套装组件（装备重构 B3，方案 §3.1）：六部位（头/身/手/脚/武/腿，按显示序）
- * + 储物袋资源。孕养四字段（weaponNurture..accessoryNurture）已随孕养体系退役——
- * 等级/词条只存 [EquipmentInstance.growth] 单点（清偿 D2）。
+ * 装备套装组件：四部位（头/身/手/脚，按显示序）+ 储物袋资源。
+ * 等级/词条只存 [EquipmentInstance.growth] 单点。
  */
 @Serializable
 @Immutable
@@ -116,8 +115,6 @@ data class EquipmentSet(
     var bodyId: String = "",
     var handsId: String = "",
     var feetId: String = "",
-    var weaponId: String = "",
-    var legsId: String = "",
 
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
@@ -136,9 +133,9 @@ data class EquipmentSet(
     /** 按部位写装备 id */
     fun setSlotId(part: EquipmentSlot, id: String) = setSlotName(part, id)
 
-    /** 清空全部六个部位（迁移/规则清理用） */
+    /** 清空全部部位（迁移/规则清理用） */
     fun clearedSlots(): EquipmentSet = copy(
-        headId = "", bodyId = "", handsId = "", feetId = "", weaponId = "", legsId = ""
+        headId = "", bodyId = "", handsId = "", feetId = ""
     )
 
     private fun slotName(part: EquipmentSlot): String = when (part) {
@@ -146,8 +143,6 @@ data class EquipmentSet(
         EquipmentSlot.BODY -> bodyId
         EquipmentSlot.HANDS -> handsId
         EquipmentSlot.FEET -> feetId
-        EquipmentSlot.WEAPON -> weaponId
-        EquipmentSlot.LEGS -> legsId
     }
 
     private fun setSlotName(part: EquipmentSlot, id: String) {
@@ -156,8 +151,6 @@ data class EquipmentSet(
             EquipmentSlot.BODY -> bodyId = id
             EquipmentSlot.HANDS -> handsId = id
             EquipmentSlot.FEET -> feetId = id
-            EquipmentSlot.WEAPON -> weaponId = id
-            EquipmentSlot.LEGS -> legsId = id
         }
     }
 }

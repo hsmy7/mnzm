@@ -65,8 +65,8 @@ TEST_F(GameCoreFixture, WalletTotalSellValue) {
 TEST_F(GameCoreFixture, InvAddEquipmentInstanceShape) {
     // 1010 实例形状：setId/part/growth{level,exp,affix}/meta{rarity,...} 全面
     const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
-                        {{"id", "eq-1"}, {"name", "裂天罡煞·战刃"},
-                         {"setId", "lietian"}, {"part", "WEAPON"},
+                        {{"id", "eq-1"}, {"name", "裂天罡煞·战手"},
+                         {"setId", "lietian"}, {"part", "HANDS"},
                          {"growth",
                           {{"level", 3}, {"exp", 40},
                            {"affix",
@@ -77,16 +77,16 @@ TEST_F(GameCoreFixture, InvAddEquipmentInstanceShape) {
                              {"subRolls", nlohmann::json::array({2})}}}}},
                          {"meta",
                           {{"rarity", 2}, {"minRealm", 7},
-                           {"description", "套装战刃"}, {"isLocked", false}}},
+                           {"description", "套装战手"}, {"isLocked", false}}},
                          {"isEquipped", false}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("status"), "success");
     ASSERT_EQ(core_->state().equipmentInstances.size(), 1u);
     const auto& inst = core_->state().equipmentInstances[0];
     EXPECT_EQ(inst.id, "eq-1");
-    EXPECT_EQ(inst.name, "裂天罡煞·战刃");
+    EXPECT_EQ(inst.name, "裂天罡煞·战手");
     EXPECT_EQ(inst.setId, "lietian");
-    EXPECT_EQ(inst.part, "WEAPON");
+    EXPECT_EQ(inst.part, "HANDS");
     EXPECT_EQ(inst.growth.level, 3);
     EXPECT_EQ(inst.growth.exp, 40);
     EXPECT_EQ(inst.growth.affix.mainStat.stat, "ATTACK");
@@ -101,7 +101,7 @@ TEST_F(GameCoreFixture, InvAddEquipmentInstanceShape) {
 
 TEST_F(GameCoreFixture, InvAddEquipmentRejectsDuplicateId) {
     const nlohmann::json payload = {
-        {"id", "eq-1"}, {"name", "裂天罡煞·战刃"},
+        {"id", "eq-1"}, {"name", "裂天罡煞·战手"},
         {"meta", {{"rarity", 1}, {"minRealm", 9}}}, {"isEquipped", false}};
     ASSERT_EQ(exec(action::INV_ADD_EQUIPMENT_STACK, payload).at("status"),
               "success");
@@ -115,7 +115,7 @@ TEST_F(GameCoreFixture, InvRemoveEquipment) {
     gamecore::state::EquipmentInstance item;
     item.id = "eq-1";
     item.name = "木剑";
-    item.part = "WEAPON";
+    item.part = "HANDS";
     item.meta.rarity = 1;
     core_->state().equipmentInstances.push_back(item);
     // B3 实例轨：quantity 协议占位（1 件 = 1 条目整条移除）
@@ -177,8 +177,8 @@ TEST_F(GameCoreFixture, EquipUpgradeDeductsAndLevelsUp) {
     st.materials.push_back(high);
     gamecore::state::EquipmentInstance inst;
     inst.id = "eq-1";
-    inst.name = "裂天罡煞·战刃";
-    inst.part = "WEAPON";
+    inst.name = "裂天罡煞·战手";
+    inst.part = "HANDS";
     inst.growth.affix.mainStat = gamecore::state::EquipStatValue{"ATTACK", 3.0};
     inst.growth.affix.subStats = {gamecore::state::EquipStatValue{"HP", 14.0}};
     inst.growth.affix.subRolls = {1};
@@ -217,7 +217,7 @@ TEST_F(GameCoreFixture, EquipUpgradeReinforceNodeConsumesEquipmentPartition) {
     st.materials.push_back(m);
     gamecore::state::EquipmentInstance inst;
     inst.id = "eq-1";
-    inst.name = "裂天罡煞·战刃";
+    inst.name = "裂天罡煞·战手";
     inst.growth.affix.mainStat = gamecore::state::EquipStatValue{"ATTACK", 3.0};
     inst.growth.affix.subStats = {
         gamecore::state::EquipStatValue{"HP", 14.0},
@@ -267,7 +267,7 @@ TEST_F(GameCoreFixture, EquipDismantleRefundsHalfAndStripsBag) {
     st.gameData.spiritStones = 0;
     gamecore::state::EquipmentInstance inst;
     inst.id = "eq-1";
-    inst.name = "裂天罡煞·战刃";
+    inst.name = "裂天罡煞·战手";
     inst.meta.rarity = 1;
     inst.growth.level = 2;   // Lv2（已付 1 级消耗）
     st.equipmentInstances.push_back(inst);

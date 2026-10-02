@@ -163,13 +163,11 @@ class DiscipleTables {
     val activePillCategories = ComponentTable<String>()
     val activePillTypes = ComponentTable<Set<String>>()
 
-    // === 装备（B3 六部位：头/身/手/脚/武/腿 按显示序；孕养与旧四槽列随迁移删除） ===
+    // === 装备（四部位：头/身/手/脚 按显示序；孕养与旧四槽列随迁移删除） ===
     val headIds = ComponentTable<String>()
     val bodyIds = ComponentTable<String>()
     val handsIds = ComponentTable<String>()
     val feetIds = ComponentTable<String>()
-    val weaponIds = ComponentTable<String>()
-    val legsIds = ComponentTable<String>()
     val storageBagItems = ComponentTable<List<StorageBagItem>>()
     val storageBagSpiritStones = ComponentTable<Long>()
     val discipleSpiritStones = IntComponentTable()

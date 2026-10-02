@@ -456,7 +456,7 @@ TEST(PhaseSettlementTest, AutoEquipAllOffIsNoOp) {
     state::EquipmentInstance inst;
     inst.id = "i1";
     inst.name = "青云剑";
-    inst.part = "WEAPON";
+    inst.part = "HANDS";
     inst.meta.rarity = 1;
     inst.meta.minRealm = 9;
     state::StorageBagItem bag;
@@ -470,7 +470,7 @@ TEST(PhaseSettlementTest, AutoEquipAllOffIsNoOp) {
     st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
-    EXPECT_TRUE(st.disciples.materialize(0).weaponId.empty());
+    EXPECT_TRUE(st.disciples.materialize(0).handsId.empty());
     ASSERT_EQ(1u, st.disciples.materialize(0).storageBagItems.size());
     EXPECT_TRUE(st.equipmentInstances.empty());
 }
@@ -486,7 +486,7 @@ TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
     state::EquipmentInstance inst;
     inst.id = "i1";
     inst.name = "青云剑";
-    inst.part = "WEAPON";
+    inst.part = "HANDS";
     inst.meta.rarity = 4;
     inst.meta.minRealm = 9;
     inst.growth.level = 7;
@@ -507,7 +507,7 @@ TEST(PhaseSettlementTest, AutoEquipFromBagInstanceDirectly) {
 
     core->advancePhases(1);
     const auto after = st.disciples.materialize(0);
-    EXPECT_EQ("i1", after.weaponId);
+    EXPECT_EQ("i1", after.handsId);
     EXPECT_TRUE(after.storageBagItems.empty());
     ASSERT_EQ(1u, st.equipmentInstances.size());
     EXPECT_EQ("i1", st.equipmentInstances[0].id);
@@ -529,11 +529,11 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
     auto& st = core->state();
     st.gameData.autoEquipFromWarehouseRootCounts = {1};
     Disciple d = baseDisciple("1");
-    d.weaponId = "w1";
+    d.handsId = "w1";
     state::EquipmentInstance oldInst;
     oldInst.id = "w1";
     oldInst.name = "精铁剑";
-    oldInst.part = "WEAPON";
+    oldInst.part = "HANDS";
     oldInst.meta.rarity = 1;
     oldInst.meta.minRealm = 9;
     oldInst.ownerId = "1";
@@ -541,7 +541,7 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
     state::EquipmentInstance newInst;
     newInst.id = "n1";
     newInst.name = "青云剑";
-    newInst.part = "WEAPON";
+    newInst.part = "HANDS";
     newInst.meta.rarity = 4;
     newInst.meta.minRealm = 9;
     newInst.ownerId = "1";
@@ -560,7 +560,7 @@ TEST(PhaseSettlementTest, AutoEquipReplacesWithStrictlyBetterFromBag) {
 
     core->advancePhases(1);
     const auto after = st.disciples.materialize(0);
-    EXPECT_EQ("n1", after.weaponId);                       // 已替换为高品阶
+    EXPECT_EQ("n1", after.handsId);                       // 已替换为高品阶
     ASSERT_EQ(1u, after.storageBagItems.size());
     EXPECT_EQ("w1", after.storageBagItems[0].itemId);      // 旧装备回袋
     EXPECT_EQ("equipment_instance", after.storageBagItems[0].itemType);
@@ -689,7 +689,7 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
     state::EquipmentInstance inst;
     inst.id = "i1";
     inst.name = "青云剑";
-    inst.part = "WEAPON";
+    inst.part = "HANDS";
     inst.meta.rarity = 1;
     inst.meta.minRealm = 9;
     state::StorageBagItem bag;
@@ -707,7 +707,7 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
     st.gameData.secretRealmSession.members.push_back(member);
 
     core->advancePhases(1);
-    EXPECT_TRUE(st.disciples.materialize(0).weaponId.empty());
+    EXPECT_TRUE(st.disciples.materialize(0).handsId.empty());
     ASSERT_EQ(1u, st.disciples.materialize(0).storageBagItems.size());
     EXPECT_TRUE(st.equipmentInstances.empty());
 }
@@ -726,14 +726,14 @@ namespace {
 
 GameState makePhaseCoreState() {
     GameState st;
-    // 弟子 1：外门（既是讲道长老 teaching=90，又装备武器 e1、修功法 m1/m2）
+    // 弟子 1：外门（既是讲道长老 teaching=90，又装备手部 e1、修功法 m1/m2）
     Disciple d1 = baseDisciple("1");
     d1.cultivation = 50.0;
     d1.currentHp = 100;
     d1.currentMp = 50;
     d1.teaching = 90;
     d1.manualIds = {"m1", "m2"};
-    d1.weaponId = "e1";
+    d1.handsId = "e1";
     // 弟子 2：外门，修功法 m1
     Disciple d2 = baseDisciple("2");
     d2.cultivation = 40.0;
@@ -754,11 +754,11 @@ GameState makePhaseCoreState() {
     st.disciples.appendDisciple(d3);
     st.disciples.appendDisciple(d4);
 
-    // 装备实例 e1（弟子 1 武器，B3 六部位字段面）
+    // 装备实例 e1（弟子 1 手部装备，B3 六部位字段面）
     state::EquipmentInstance eq;
     eq.id = "e1";
     eq.name = "木剑";
-    eq.part = "WEAPON";
+    eq.part = "HANDS";
     eq.meta.rarity = 1;
     eq.meta.minRealm = 9;
     eq.ownerId = "1";

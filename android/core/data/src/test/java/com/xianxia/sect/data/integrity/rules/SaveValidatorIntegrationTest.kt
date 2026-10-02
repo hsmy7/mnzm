@@ -6,7 +6,6 @@ import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
@@ -58,7 +57,7 @@ class SaveValidatorIntegrationTest {
         val d1 = Disciple(
             id = "d-1", name = "甲", realm = 9, realmLayer = 1, cultivation = 999.0,
             isAlive = true,
-            equipment = EquipmentSet(weaponId = "ghost-sword"))
+            equipment = EquipmentSet(handsId = "ghost-sword"))
         val d2 = Disciple(
             equipment = EquipmentSet(headId = "ghost-helm"))
 

@@ -39,7 +39,7 @@ class DiffStateSyncTest {
         store.equipmentInstancesValue = listOf(
             EquipmentInstance(
                 id = "eq-1", name = "木剑",
-                part = EquipmentSlot.WEAPON,
+                part = EquipmentSlot.HANDS,
                 growth = com.xianxia.sect.core.model.EquipGrowth(
                     affix = com.xianxia.sect.core.model.EquipAffixSet(
                         mainStat = com.xianxia.sect.core.model.EquipStatValue(
@@ -84,7 +84,7 @@ class DiffStateSyncTest {
             equipmentInstances = listOf(
                 EquipmentInstance(
                     id = "eq-9", name = "铁剑",
-                    part = EquipmentSlot.WEAPON,
+                    part = EquipmentSlot.HANDS,
                     growth = com.xianxia.sect.core.model.EquipGrowth(
                         affix = com.xianxia.sect.core.model.EquipAffixSet(
                             mainStat = com.xianxia.sect.core.model.EquipStatValue(
@@ -125,7 +125,7 @@ class DiffStateSyncTest {
         store.equipmentInstancesValue = listOf(
             EquipmentInstance(
                 id = "eq-1", name = "玄铁剑",
-                part = EquipmentSlot.WEAPON,
+                part = EquipmentSlot.HANDS,
                 growth = com.xianxia.sect.core.model.EquipGrowth(
                     affix = com.xianxia.sect.core.model.EquipAffixSet(
                         mainStat = com.xianxia.sect.core.model.EquipStatValue(

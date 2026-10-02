@@ -64,7 +64,7 @@ using gamecore::state::ManualStack;
 using gamecore::state::WorldLevel;
 using gamecore::state::WorldSect;
 
-// ai_sect_recruit.h 的 detail 域助手（装备链，B3 六部位条目版）
+// ai_sect_recruit.h 的 detail 域助手（装备链，B3 套装部件条目版）
 using gamecore::system::detail::aiGenerateManuals;
 using gamecore::system::detail::aiPickEquipmentTemplate;
 using gamecore::system::detail::aiRealmMaxRarity;
@@ -99,7 +99,7 @@ inline const char* aiSectLevelName(int32_t level) {
     }
 }
 
-/// 槽位 id 读取（B3 六部位；slot 0..5 = displayOrder 头/身/手/脚/武/腿）
+/// 槽位 id 读取（四部位；slot 0..3 = displayOrder 头/身/手/脚）
 inline const std::string& aiSlotId(const Disciple& d, int slot) {
     static const std::string kEmpty;
     switch (slot) {
@@ -107,21 +107,17 @@ inline const std::string& aiSlotId(const Disciple& d, int slot) {
         case 1: return d.bodyId;
         case 2: return d.handsId;
         case 3: return d.feetId;
-        case 4: return d.weaponId;
-        case 5: return d.legsId;
         default: return kEmpty;
     }
 }
 
-/// 槽位写入（B3 六部位单 id；slot 0..5 = displayOrder）
+/// 槽位写入（四部位单 id；slot 0..3 = displayOrder）
 inline void aiSetSlot(Disciple& d, int slot, const std::string& id) {
     switch (slot) {
         case 0: d.headId = id; break;
         case 1: d.bodyId = id; break;
         case 2: d.handsId = id; break;
         case 3: d.feetId = id; break;
-        case 4: d.weaponId = id; break;
-        case 5: d.legsId = id; break;
         default: break;
     }
 }
@@ -292,14 +288,14 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
     const int32_t expectedManuals = aiManualCountByLevel(sectLevel);
 
     // 装备：空槽洗牌（java.util.Random 种子 1×nextInt）补至等级数量
-    //（B3 六部位 displayOrder 槽序）
+    //（四部位 displayOrder 槽序——HEAD/BODY/HANDS/FEET）
     static constexpr int kAllSlots[6] = {0, 1, 2, 3, 4, 5};
     const int32_t currentEquip = static_cast<int32_t>(std::count_if(
         std::begin(kAllSlots), std::end(kAllSlots),
         [&](int slot) { return !aiSlotId(d, slot).empty(); }));
     if (currentEquip < expectedEquip) {
         std::vector<int> emptySlots;
-        for (int slot = 0; slot < 6; ++slot) {
+        for (int slot = 0; slot < 4; ++slot) {
             if (aiSlotId(d, slot).empty()) emptySlots.push_back(slot);
         }
         // Kotlin: .shuffled(java.util.Random(rng.nextInt().toLong()))
@@ -307,8 +303,7 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
         emptySlots = JavaRandomCompat::shuffle(emptySlots, javaSeed);
         const int32_t toAdd = std::min(expectedEquip - currentEquip,
                                        static_cast<int32_t>(emptySlots.size()));
-        static const char* kSlotNames[6] = {"HEAD", "BODY", "HANDS",
-                                            "FEET", "WEAPON", "LEGS"};
+        static const char* kSlotNames[4] = {"HEAD", "BODY", "HANDS", "FEET"};
         for (int32_t i = 0; i < toAdd; ++i) {
             const int slot = emptySlots[static_cast<std::size_t>(i)];
             const auto picked = aiPickEquipmentTemplate(
@@ -410,8 +405,6 @@ inline std::map<std::string, EquipmentInstance> aiBuildEquipmentMapForDisciple(
     addEntry(d.bodyId);
     addEntry(d.handsId);
     addEntry(d.feetId);
-    addEntry(d.weaponId);
-    addEntry(d.legsId);
     return out;
 }
 

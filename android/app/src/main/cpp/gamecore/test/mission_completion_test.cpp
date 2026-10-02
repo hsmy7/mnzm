@@ -457,7 +457,7 @@ TEST(JavaRandomTest, KnownLcgValues) {
     EXPECT_EQ(rnd2.next(32), -1170105035);
     // 洗牌：固定 seed 的 4 槽排列确定性
     mc::detail::JavaRandom rnd3(7);
-    std::vector<std::string> slots = {"WEAPON", "ARMOR", "BOOTS", "ACCESSORY"};
+    std::vector<std::string> slots = {"HEAD", "BODY", "HANDS", "FEET"};
     auto shuffled = mc::detail::javaShuffled(slots, rnd3);
     EXPECT_EQ(shuffled.size(), 4u);
     // 同 seed 重放结果一致

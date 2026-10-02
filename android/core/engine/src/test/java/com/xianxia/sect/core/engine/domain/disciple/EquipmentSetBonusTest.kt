@@ -10,10 +10,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 套装效果档位守卫（装备重构 B3，方案 §3.3/§6.1）。
+ * 套装效果档位守卫（四部位体系）。
  *
- * 0..6 件逐一断言：2/4/6 达档即生效、可越级不叠加（穿满 6 件时三档同时生效）；
- * 两套混穿按各自件数独立计档；同一 setId 的件数只按六槽位内实例条数统计。
+ * 0..6 件逐一断言：2/4 达档即生效、可越级不叠加（穿满 4 件时全档同时生效）；
+ * 两套混穿按各自件数独立计档；同一 setId 的件数只按四槽位内实例条数统计。
  */
 class EquipmentSetBonusTest {
 
@@ -30,7 +30,7 @@ class EquipmentSetBonusTest {
             meta = com.xianxia.sect.core.model.EquipInstanceMeta(rarity = 1)
         )
 
-    /** 六部位表（声明序即穿戴组合基准序） */
+    /** 四部位表（声明序即穿戴组合基准序） */
     private val parts = EquipmentSlot.entries.toList()
 
     @Test
@@ -55,49 +55,50 @@ class EquipmentSetBonusTest {
     }
 
     @Test
-    fun `4件套生效且5件不越级`() {
+    fun `4件套满套全档生效且5件不越级`() {
         val four = parts.take(4).map { setPiece("lietian", it) }
         val bonus4 = EquipStatResolver.resolveSetBonus(four)
-        assertEquals("2 件档 +10% 类型伤害", 0.10, bonus4.physicalDamageBonus, 1e-12)
+        assertEquals("2 件档 + 满套档类型伤害合计 +30%", 0.30, bonus4.physicalDamageBonus, 1e-12)
         assertEquals("4 件档 +12% 暴击率", 0.12, bonus4.critRate, 1e-12)
 
-        val five = parts.take(5).map { setPiece("lietian", it) }
+        val five = parts.map { setPiece("lietian", it) } + setPiece("lietian", parts[0], id = "extra")
         val bonus5 = EquipStatResolver.resolveSetBonus(five)
-        assertEquals("5 件仍只有 2+4 档", 0.12, bonus5.critRate, 1e-12)
+        assertEquals("5 件同满套（类型伤害不越级）", 0.30, bonus5.physicalDamageBonus, 1e-12)
+        assertEquals("5 件暴击率仍 0.12", 0.12, bonus5.critRate, 1e-12)
     }
 
     @Test
-    fun `穿满6件三档同时生效合计30类型伤害`() {
-        val six = parts.map { setPiece("lietian", it) }
-        val bonus6 = EquipStatResolver.resolveSetBonus(six)
-        assertEquals("2+6 件档类型伤害合计 +30%", 0.30, bonus6.physicalDamageBonus, 1e-12)
-        assertEquals("4 件档暴击率 +12%", 0.12, bonus6.critRate, 1e-12)
+    fun `穿满4件全档同时生效合计30类型伤害`() {
+        val four = parts.map { setPiece("lietian", it) }
+        val bonus = EquipStatResolver.resolveSetBonus(four)
+        assertEquals("2 件档 + 满套档类型伤害合计 +30%", 0.30, bonus.physicalDamageBonus, 1e-12)
+        assertEquals("4 件档暴击率 +12%", 0.12, bonus.critRate, 1e-12)
     }
 
     @Test
     fun `火套通道独立`() {
-        val six = parts.map { setPiece("lihuo", it) }
-        val bonus6 = EquipStatResolver.resolveSetBonus(six)
-        assertEquals(0.30, bonus6.fireDamageBonus, 1e-12)
-        assertEquals("4 件档统一暴击率", 0.12, bonus6.critRate, 1e-12)
-        assertEquals("物理通道零串扰", 0.0, bonus6.physicalDamageBonus, 1e-12)
-        assertEquals("其余元素零串扰", 0.0, bonus6.waterDamageBonus, 1e-12)
+        val four = parts.map { setPiece("lihuo", it) }
+        val bonus = EquipStatResolver.resolveSetBonus(four)
+        assertEquals(0.30, bonus.fireDamageBonus, 1e-12)
+        assertEquals("4 件档统一暴击率", 0.12, bonus.critRate, 1e-12)
+        assertEquals("物理通道零串扰", 0.0, bonus.physicalDamageBonus, 1e-12)
+        assertEquals("其余元素零串扰", 0.0, bonus.waterDamageBonus, 1e-12)
     }
 
     @Test
     fun `两套混穿按各自件数独立计档`() {
-        // 2 件裂天（物理 +10%）+ 4 件离火（火 +10%、暴率 +12%）
+        // 2 件裂天（物理 +10%）+ 4 件离火满套（火 +30%、暴率 +12%）
         val mixed = parts.take(2).map { setPiece("lietian", it) } +
             parts.take(4).map { setPiece("lihuo", it, id = "lihuo-${it.name}") }
         val bonus = EquipStatResolver.resolveSetBonus(mixed)
         assertEquals(0.10, bonus.physicalDamageBonus, 1e-12)
-        assertEquals(0.10, bonus.fireDamageBonus, 1e-12)
+        assertEquals(0.30, bonus.fireDamageBonus, 1e-12)
         assertEquals("离火达 4 件档产暴率", 0.12, bonus.critRate, 1e-12)
     }
 
     @Test
     fun `同套件数按实例条数统计不越表`() {
-        // 同一 setId 的 6 件 = 12 件同样只算穿满（档位封顶三档）
+        // 同一 setId 的 4 件 = 8 件同样只算穿满（档位封顶全档）
         val twelve = parts.map { setPiece("lietian", it) } +
             parts.map { setPiece("lietian", it, id = "dup-${it.name}") }
         val bonus = EquipStatResolver.resolveSetBonus(twelve)

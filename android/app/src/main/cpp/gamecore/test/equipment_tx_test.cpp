@@ -49,9 +49,9 @@ EquipmentInstance instance(const std::string& id, int32_t rarity,
                            int32_t level = 1) {
     EquipmentInstance e;
     e.id = id;
-    e.name = "裂天罡煞·战刃";
+    e.name = "裂天罡煞·战手";
     e.setId = "lietian";
-    e.part = "WEAPON";
+    e.part = "HANDS";
     e.growth.level = level;
     e.growth.affix.mainStat = EquipStatValue{"ATTACK", 3.0};
     e.growth.affix.subStats = {EquipStatValue{"HP", 14.0},

@@ -108,7 +108,7 @@ class DiffPhaseSettlementTest {
     /**
      * 构建对拍场景：
      * - 弟子1 炼气1层 cult=50 单灵根 低血量 —— 恢复 + 累积
-     * - 弟子2 筑基1层 cult=300 双灵根 藏经阁 + 功法 m1 + 武器 w1 —— 熟练度/孕养/多乘区
+     * - 弟子2 筑基1层 cult=300 双灵根 藏经阁 + 功法 m1 + 头饰 w1 —— 熟练度/多乘区
      * - 弟子3 炼气1层 cult=98 满 满血 —— 每旬突破候选（BREAKTHROUGH RNG 序列）
      *   储物袋带 cultivationAdd 丹药 ×2 —— 自动服药路径
      */
@@ -122,8 +122,8 @@ class DiffPhaseSettlementTest {
         )
         val equipments = listOf(
             EquipmentInstance(
-                id = "w1", name = "青锋剑", setId = "lietian",
-                part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+                id = "w1", name = "青云冠", setId = "lietian",
+                part = com.xianxia.sect.core.model.EquipmentSlot.HEAD,
                 growth = com.xianxia.sect.core.model.EquipGrowth(
                     affix = com.xianxia.sect.core.model.EquipAffixSet(
                         mainStat = com.xianxia.sect.core.model.EquipStatValue(
@@ -158,7 +158,7 @@ class DiffPhaseSettlementTest {
                     id = "2", name = "青二", realm = 8, realmLayer = 1,
                     cultivation = 300.0, spiritRootType = "fire,water",
                     manualIds = listOf("m1"),
-                    equipment = EquipmentSet(weaponId = "w1"),
+                    equipment = EquipmentSet(headId = "w1"),
                     combat = CombatAttributes(currentHp = -1, currentMp = -1)
                 ),
                 Disciple(
@@ -621,7 +621,7 @@ class DiffPhaseSettlementTest {
 
         val instance = EquipmentInstance(
             id = "i1", name = "青云剑",
-            part = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+            part = com.xianxia.sect.core.model.EquipmentSlot.HANDS,
             growth = com.xianxia.sect.core.model.EquipGrowth(
                 level = 2,
                 affix = com.xianxia.sect.core.model.EquipAffixSet(

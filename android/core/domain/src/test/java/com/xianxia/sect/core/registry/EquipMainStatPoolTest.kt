@@ -8,7 +8,7 @@ import org.junit.Test
 import kotlin.random.Random
 
 /**
- * 部位主词条池守卫（装备重构 B3，方案 §3.4.2/§6.1）。
+ * 部位主词条池守卫（四部位口径）。
  *
  * 主词条从部位候选池等权抽取（`nextInt(size)` 索引抽取），**池的声明序参与
  * 抽取序列**——重排即改写同种子抽取结果，破坏跨端对拍与存档确定性。
@@ -17,15 +17,13 @@ import kotlin.random.Random
 class EquipMainStatPoolTest {
 
     @Test
-    fun `六部位池容量与方案拍板表一致`() {
-        // 头 2 / 身 4 / 手 3 / 脚 5 / 武 3 / 腿 5（2026-09-29 拍板：武器输出向、腿部 R9 原池）
+    fun `四部位池容量钉死`() {
+        // 头 2 / 身 4 / 手 3 / 脚 5（手部 = 输出向池、脚部 = 均衡向池）
         val expectedSizes = mapOf(
             EquipmentSlot.HEAD to 2,
             EquipmentSlot.BODY to 4,
             EquipmentSlot.HANDS to 3,
-            EquipmentSlot.FEET to 5,
-            EquipmentSlot.WEAPON to 3,
-            EquipmentSlot.LEGS to 5
+            EquipmentSlot.FEET to 5
         )
         expectedSizes.forEach { (part, size) ->
             assertEquals("部位 $part 的主词条候选池容量", size, EquipMainStatPool.poolFor(part).size)
@@ -65,10 +63,6 @@ class EquipMainStatPoolTest {
             EquipmentSlot.HANDS to listOf(EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE),
             EquipmentSlot.FEET to listOf(
                 EquipStat.DEFENSE, EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE, EquipStat.HP
-            ),
-            EquipmentSlot.WEAPON to listOf(EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE),
-            EquipmentSlot.LEGS to listOf(
-                EquipStat.DEFENSE, EquipStat.ATTACK, EquipStat.CRIT_RATE, EquipStat.CRIT_DAMAGE, EquipStat.HP
             )
         )
         expected.forEach { (part, pool) ->
@@ -85,9 +79,7 @@ class EquipMainStatPoolTest {
             EquipmentSlot.HEAD to 1.00,
             EquipmentSlot.BODY to 1.00,
             EquipmentSlot.HANDS to 1.15,
-            EquipmentSlot.FEET to 0.95,
-            EquipmentSlot.WEAPON to 1.15,
-            EquipmentSlot.LEGS to 0.95
+            EquipmentSlot.FEET to 0.95
         )
         expected.forEach { (part, coefficient) ->
             assertEquals("部位 $part 数值系数", coefficient, EquipMainStatPool.partCoefficient(part), 1e-12)

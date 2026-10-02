@@ -276,8 +276,6 @@ void GameCore::markMonthYearBoundaryColumns() {
         state::DiscipleColumn::BodyId,
         state::DiscipleColumn::HandsId,
         state::DiscipleColumn::FeetId,
-        state::DiscipleColumn::WeaponId,
-        state::DiscipleColumn::LegsId,
         state::DiscipleColumn::StorageBagItems,
         state::DiscipleColumn::StorageBagSpiritStones,
         state::DiscipleColumn::SpiritStones,

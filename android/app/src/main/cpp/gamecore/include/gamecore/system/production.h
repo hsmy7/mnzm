@@ -338,12 +338,12 @@ inline bool produceForgeEquipment(GameState& state, const ProductionSlot& slot,
                                   OverflowMailCollector& overflowMail) {
     (void)overflowMail;
     const std::string recipeId = slot.recipeId.value_or("");
-    // B3 12 条套装部件配方（Kotlin ForgeRecipeDatabase 同构派生）：配方 id
-    // 规则 = "forge_{pieceId}"，pieceId ∈ 12 部件表——setId/part 由部件表
-    // 反查（产出品阶 = forgeTier，配方材料/时长/成功率按 tier 取档在
-    // Kotlin SlotOps 启动面，C++ 完成期只需 setId/part）。旧 73 条部位
-    // 变体配方 id 在此一律失配 → 产出失败（与 Kotlin getRecipeById null
-    // 臂一致——B3 迁移后在途旧配方槽位按失败结算）
+    // 四部位化 F3：24 条套装部件配方（Kotlin ForgeRecipeDatabase 同构派生）：
+    // 配方 id 规则 = "forge_{pieceId}"，pieceId ∈ 24 部件表——setId/part 由
+    // 部件表反查（产出品阶 = forgeTier，配方材料/时长按凡品档在启动面取，
+    // C++ 完成期只需 setId/part）。旧 72 条部位变体配方 id 在此一律失配 →
+    // 产出失败（与 Kotlin getRecipeById null 臂一致——迁移后在途旧配方槽位
+    // 按失败结算）
     if (recipeId.rfind("forge_", 0) != 0) return false;
     const std::string pieceId = recipeId.substr(6);
     const int pieceIdx = gamecore::data::setPieceIndexOf(pieceId);
@@ -433,8 +433,11 @@ inline bool completeSlot(GameState& state, ProductionSlot& slot, bool isAlchemy,
             const auto recipe = gamecore::data::pillRecipeById(*slot.recipeId);
             if (recipe.has_value()) recipeTier = recipe->tier;
         } else {
+            // 四部位化 F3：配方不分 tier——存在即按凡品档 1 计晋升（Kotlin
+            // settleForgeCompletionShadow `getRecipeById(it)?.let { 1 } ?: 0` 对偶；
+            // 不存在=0 → 低阶不充数规则下不结算晋升）
             const auto recipe = gamecore::data::forgeRecipeById(*slot.recipeId);
-            if (recipe.has_value()) recipeTier = recipe->tier;
+            if (recipe.has_value()) recipeTier = 1;
         }
     }
     bool discipleAlive = true;
@@ -607,10 +610,14 @@ inline std::map<std::pair<std::string, int32_t>, int32_t> buildMaterialIndex(
     return index;
 }
 
-/// 锻造配方材料充足（Kotlin hasMaterials——模板 id → name+rarity 反查）
+/// 锻造配方材料充足（Kotlin hasMaterials——模板 id → name+rarity 反查；
+/// 四部位化 F3：按品阶档取材料表，默认凡品档 tier=1，与 Kotlin
+/// `hasMaterials(recipe, index, maxTier = 1)` 同口径）
 inline bool forgeRecipeHasMaterials(const gamecore::data::ForgeRecipeTemplate& recipe,
-                                    const std::map<std::pair<std::string, int32_t>, int32_t>& index) {
-    for (const auto& [materialId, requiredQty] : recipe.materials) {
+                                    const std::map<std::pair<std::string, int32_t>, int32_t>& index,
+                                    int32_t tier = 1) {
+    for (const auto& [materialId, requiredQty] :
+         gamecore::data::forgeMaterialsFor(recipe, tier)) {
         const auto* matData = gamecore::data::beastMaterialById(materialId);
         if (matData == nullptr) return false;
         const auto it = index.find({matData->name, matData->rarity});
@@ -765,20 +772,11 @@ inline void processAutoAlchemyStep(GameState& state) {
 }
 
 /// 自动锻造（autoRestart 续炼启动；Kotlin processAutoForge 事务段等价——
-/// 零 RNG。配方序 = rarity 降序（Kotlin getAllRecipes().sortedByDescending
-/// rarity 后 firstOrNull），材料经 BeastMaterialDatabase 反查 name+rarity）
+/// 零 RNG。四部位化 F3：24 条配方恒全量候选（表序 firstOrNull，无排序键
+/// ——配方不分 rarity），材料/时长按凡品档（产出品阶由完成期弟子
+/// forgeLevel 决定），成功率按锻造弟子职业档合成）
 inline void processAutoForgeStep(GameState& state) {
     const auto& all = gamecore::data::forgeRecipes();
-    // 排序与状态无关（静态模板表）→ 进程内缓存（原每步重排）
-    static const std::vector<const gamecore::data::ForgeRecipeTemplate*> kSorted = [] {
-        const auto& recipes = gamecore::data::forgeRecipes();
-        std::vector<const gamecore::data::ForgeRecipeTemplate*> sorted;
-        sorted.reserve(recipes.size());
-        for (const auto& r : recipes) sorted.push_back(&r);
-        std::stable_sort(sorted.begin(), sorted.end(),
-                         [](const auto* a, const auto* b) { return a->rarity > b->rarity; });
-        return sorted;
-    }();
 
     for (auto& slot : state.gameData.productionSlots) {
         if (slot.buildingId != "forge") continue;
@@ -805,37 +803,39 @@ inline void processAutoForgeStep(GameState& state) {
         const int32_t maxTier =
             profession::maxCraftableTier(ds.forgeLevels[workerRow]);
 
-        // 配方选取：续炼原配方（材料充足）else 首个 tier<=maxTier 且材料充足
-        std::optional<gamecore::data::ForgeRecipeTemplate> chosen;
+        // 配方选取（Kotlin findCraftableForgeSlot 同构）：续炼原配方（材料
+        // 充足）else 表序首个材料充足者——候选恒全量（B3 配方不分 tier）
+        const gamecore::data::ForgeRecipeTemplate* chosen = nullptr;
         if (slot.recipeId.has_value() && !slot.recipeId->empty()) {
-            auto prev = gamecore::data::forgeRecipeById(*slot.recipeId);
-            if (prev.has_value() && prev->tier <= maxTier &&
-                forgeRecipeHasMaterials(*prev, materialIndex)) {
-                chosen = std::move(prev);
-            }
-        }
-        if (!chosen.has_value()) {
-            for (const auto* r : kSorted) {
-                if (r->tier > maxTier) continue;
-                if (forgeRecipeHasMaterials(*r, materialIndex)) {
-                    chosen = *r;
+            for (const auto& r : all) {
+                if (r.id == *slot.recipeId) {
+                    if (forgeRecipeHasMaterials(r, materialIndex)) chosen = &r;
                     break;
                 }
             }
         }
-        if (!chosen.has_value()) continue;
+        if (chosen == nullptr) {
+            for (const auto& r : all) {
+                if (forgeRecipeHasMaterials(r, materialIndex)) {
+                    chosen = &r;
+                    break;
+                }
+            }
+        }
+        if (chosen == nullptr) continue;
 
+        // 成功率按锻造弟子职业档合成（Kotlin formulaService recipeTier=maxTier
+        // 同口径——配方不分 tier 后档位即弟子可锻品阶）
         const double rate =
-            formulaSuccessRate(state, workerRow, "forge", chosen->tier, policyBonus);
-        consumeMaterialsForRecipe(state, chosen->materials);
-        // Kotlin processAutoForgeSlot：ForgeRecipeDatabase.getDurationByTier(tier)
-        // = TIER_DURATION[tier] ?: 2
-        const int32_t baseDuration =
-            chosen->tier >= 1 && chosen->tier <= 6
-                ? gamecore::data::detail::kTierDuration[chosen->tier]
-                : 2;
+            formulaSuccessRate(state, workerRow, "forge", maxTier, policyBonus);
+        // 材料/时长恒凡品档（Kotlin startForgingAtomic materialsFor(1) /
+        // getDurationByTier(1) 同口径）
+        const auto& startMaterials =
+            gamecore::data::forgeMaterialsFor(*chosen, 1);
+        consumeMaterialsForRecipe(state, startMaterials);
+        const int32_t baseDuration = gamecore::data::detail::forgeDurationByTier(1);
         startSlotWorking(state, slot, chosen->id, chosen->name, baseDuration, rate,
-                         chosen->id, chosen->name, chosen->rarity);
+                         chosen->id, chosen->name, 0);
     }
 }
 
@@ -925,11 +925,14 @@ inline ProductionStartOutcome startProductionTransaction(
             out.message = "配方不存在: " + recipeId;
             return out;
         }
+        // 四部位化 F3（Kotlin startForgingAtomic 同口径）：配方不分 tier——
+        // 时长/材料恒凡品档（baseDuration=getDurationByTier(1)、
+        // materials=materialsFor(1)）、outputItemRarity=0（B3 配方不分品阶）
         recipeName = recipe->name;
-        baseDuration = recipe->duration;
-        recipeRarity = recipe->rarity;
-        recipeTier = recipe->tier;
-        recipeMaterials = recipe->materials;
+        baseDuration = gamecore::data::detail::forgeDurationByTier(1);
+        recipeRarity = 0;
+        recipeTier = 1;
+        recipeMaterials = gamecore::data::forgeMaterialsFor(*recipe, 1);
     }
 
     // 2. 槽位 ensure（缺槽创建 IDLE——ProductionSlot{} 默认值即 createIdle 语义：
@@ -965,8 +968,16 @@ inline ProductionStartOutcome startProductionTransaction(
             const auto& ds = state.disciples;
             const auto rowOpt = ds.rowOf(*slotPtr->assignedDiscipleId);
             if (rowOpt.has_value()) {
+                // 四部位化 F3：锻造配方不分 tier——成功率档 = 锻造弟子职业等级
+                //（Kotlin buildForgingSuccessRate recipeTier=forgeLevel
+                // coerceIn(1,6) ?: 1 对偶）；炼丹保持配方 tier（Kotlin
+                // buildAlchemySuccessRate recipeTier=recipe.tier 不变）
+                const int32_t formulaTier =
+                    isAlchemy
+                        ? recipeTier
+                        : std::min(std::max(ds.forgeLevels[*rowOpt], 1), 6);
                 successRate = formulaSuccessRate(state, *rowOpt, buildingId,
-                                                 recipeTier, policyBonus);
+                                                 formulaTier, policyBonus);
             }
         }
     }

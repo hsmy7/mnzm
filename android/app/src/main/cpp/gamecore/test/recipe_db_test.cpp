@@ -12,40 +12,92 @@ namespace {
 // 锻造/炼丹配方静态表守卫测试
 //
 // 守护目标：C++ 表（recipe_db.h）与 Kotlin ForgeRecipeDatabase /
-// PillRecipeDatabase 的生成结果一致（72 锻造 + 624 丹药配方；
-// 660→624 = R11 孕养类加成丹药退役移除 36 条）。
-// 数量断言对照 Kotlin 源码计数；代表性条目断言名称/品阶/时长/成功率/
-// 材料/描述/效果字段。Kotlin 侧守卫见 TemplateRegistryGuardTest 模式
+// PillRecipeDatabase 的生成结果一致（24 锻造 + 624 丹药配方；
+// 660→624 = R11 孕养类加成丹药退役移除 36 条；锻造 72→24 =
+// 四部位化 F3 收缩 6 套 × 4 部位）。
+// 数量断言对照 Kotlin 源码计数；代表性条目断言 id/pieceId/setId/part/
+// 名称/描述/六档材料。Kotlin 侧守卫见 RecipeRegistryGuardTest
 // （快照 recipe_db_sample.json ↔ Kotlin Registry，快照由
 // scripts/gen-recipe-db.mjs 生成）。
 // ============================================================
 
 TEST(RecipeDbTest, ForgeRecipeCount) {
-    // Kotlin ForgeRecipeDatabase：6 tier × 12 = 72
+    // Kotlin ForgeRecipeDatabase：6 套 × 4 部位 = 24（四部位化 F3）
     const auto& recipes = forgeRecipes();
-    EXPECT_EQ(72u, recipes.size());
+    EXPECT_EQ(24u, recipes.size());
 
-    // 每 tier 12 条
-    for (int tier = 1; tier <= 6; ++tier) {
+    // 每套恰 4 条（HEAD/BODY/HANDS/FEET 各一）
+    const char* const kSetIds[6] = {"lietian", "gengjin", "qingmu",
+                                    "xuanshui", "lihuo", "houtu"};
+    const char* const kParts[4] = {"HEAD", "BODY", "HANDS", "FEET"};
+    for (const char* setId : kSetIds) {
         int count = 0;
         for (const auto& r : recipes) {
-            if (r.tier == tier) ++count;
+            if (r.setId == setId) ++count;
         }
-        EXPECT_EQ(12, count) << "tier " << tier;
+        EXPECT_EQ(4, count) << "setId " << setId;
+    }
+    // 每部位恰 6 条（6 套各一）
+    for (const char* part : kParts) {
+        int count = 0;
+        for (const auto& r : recipes) {
+            if (r.part == part) ++count;
+        }
+        EXPECT_EQ(6, count) << "part " << part;
     }
 
-    // 装备槽位覆盖
-    int weapons = 0, armors = 0, boots = 0, accessories = 0;
+    // 退役部位（四部位化 F3：WEAPON/LEGS 编号退役禁复用；旧配方体系
+    // WEAPON/ARMOR/BOOTS/ACCESSORY 形状条目零残留）
     for (const auto& r : recipes) {
-        if (r.type == "WEAPON") ++weapons;
-        if (r.type == "ARMOR") ++armors;
-        if (r.type == "BOOTS") ++boots;
-        if (r.type == "ACCESSORY") ++accessories;
+        const bool partValid = r.part == "HEAD" || r.part == "BODY" ||
+                               r.part == "HANDS" || r.part == "FEET";
+        EXPECT_TRUE(partValid) << "非法部位: " << r.id << " part=" << r.part;
     }
-    EXPECT_EQ(24, weapons);
-    EXPECT_EQ(24, armors);
-    EXPECT_EQ(12, boots);
-    EXPECT_EQ(12, accessories);
+    // id 规则 = "forge_{pieceId}"，setId = pieceId 首段
+    for (const auto& r : recipes) {
+        EXPECT_EQ("forge_" + r.pieceId, r.id) << r.id;
+        EXPECT_EQ(r.setId, r.pieceId.substr(0, r.pieceId.find('_'))) << r.id;
+        EXPECT_EQ(6u, r.tierMaterials.size()) << r.id << " 应有 6 档材料表";
+    }
+}
+
+TEST(RecipeDbTest, ForgeRecipeSample) {
+    // 首条（lietian 头冠；tier1 两味兽材）
+    const auto f1 = forgeRecipeById("forge_lietian_HEAD");
+    ASSERT_TRUE(f1.has_value());
+    EXPECT_EQ("lietian_HEAD", f1->pieceId);
+    EXPECT_EQ("lietian", f1->setId);
+    EXPECT_EQ("HEAD", f1->part);
+    EXPECT_EQ("裂天罡煞·头冠", f1->name);
+    EXPECT_EQ("裂天罡煞套装头冠，罡煞之气护持识海", f1->description);
+    ASSERT_EQ(6u, f1->tierMaterials.size());
+    EXPECT_EQ(2u, forgeMaterialsFor(*f1, 1).size());
+    EXPECT_EQ(3, forgeMaterialsFor(*f1, 1).at("bearHide0"));
+    EXPECT_EQ(2, forgeMaterialsFor(*f1, 1).at("bearBone0"));
+
+    // tier6 档（4 材料，含龙材）
+    const auto& t6 = forgeMaterialsFor(*f1, 6);
+    EXPECT_EQ(4u, t6.size());
+    EXPECT_EQ(8, t6.at("bearHide5"));
+    EXPECT_EQ(3, t6.at("dragonClaw5"));
+
+    // 末条（houtu 云履；.setName 派生自部件模板）
+    const auto f2 = forgeRecipeById("forge_houtu_FEET");
+    ASSERT_TRUE(f2.has_value());
+    EXPECT_EQ("houtu_FEET", f2->pieceId);
+    EXPECT_EQ("FEET", f2->part);
+    EXPECT_EQ("厚土镇岳·云履", f2->name);
+    EXPECT_EQ(5, forgeMaterialsFor(*f2, 4).at("wolfHide3"));
+
+    // 派生时长（kTierDuration 同源：1→3、6→120；越界回退 2）
+    EXPECT_EQ(3, detail::forgeDurationByTier(1));
+    EXPECT_EQ(120, detail::forgeDurationByTier(6));
+    EXPECT_EQ(2, detail::forgeDurationByTier(0));
+    EXPECT_EQ(2, detail::forgeDurationByTier(7));
+
+    // 旧 72 条形状条目零残留（退役 id 一律失配）
+    EXPECT_FALSE(forgeRecipeById("ironSword").has_value());
+    EXPECT_FALSE(forgeRecipeById("immortalBoots").has_value());
 }
 
 TEST(RecipeDbTest, PillRecipeCount) {
@@ -74,47 +126,6 @@ TEST(RecipeDbTest, PillRecipeCount) {
         }
         EXPECT_EQ(expectedPerTier[tier], count) << "tier " << tier;
     }
-}
-
-TEST(RecipeDbTest, ForgeRecipeSample) {
-    // tier 1 首条
-    const auto f1 = forgeRecipeById("ironSword");
-    ASSERT_TRUE(f1.has_value());
-    EXPECT_EQ("精铁剑", f1->name);
-    EXPECT_EQ("WEAPON", f1->type);
-    EXPECT_EQ(1, f1->tier);
-    EXPECT_EQ(1, f1->rarity);
-    EXPECT_EQ("普通铁匠打造的精铁剑", f1->description);
-    EXPECT_EQ(3, f1->duration);
-    EXPECT_DOUBLE_EQ(0.70, f1->successRate);
-    ASSERT_EQ(2u, f1->materials.size());
-    EXPECT_EQ(3, f1->materials.at("tigerBlood0"));
-    EXPECT_EQ(2, f1->materials.at("tigerTooth0"));
-
-    // tier 5（4 材料）
-    const auto f2 = forgeRecipeById("godSlayer");
-    ASSERT_TRUE(f2.has_value());
-    EXPECT_EQ("青莲剑", f2->name);
-    EXPECT_EQ(5, f2->tier);
-    EXPECT_EQ(72, f2->duration);
-    EXPECT_DOUBLE_EQ(0.30, f2->successRate);
-    ASSERT_EQ(4u, f2->materials.size());
-    EXPECT_EQ(5, f2->materials.at("tigerBlood4"));
-    EXPECT_EQ(4, f2->materials.at("tigerTooth4"));
-    EXPECT_EQ(3, f2->materials.at("eagleClaw4"));
-    EXPECT_EQ(2, f2->materials.at("tigerCore4"));
-
-    // tier 6 顶级
-    const auto f3 = forgeRecipeById("immortalSword");
-    ASSERT_TRUE(f3.has_value());
-    EXPECT_EQ("诛仙剑", f3->name);
-    EXPECT_EQ(6, f3->tier);
-    EXPECT_EQ(6, f3->rarity);
-    EXPECT_EQ("上古仙人遗留的仙器", f3->description);
-    EXPECT_EQ(120, f3->duration);
-    EXPECT_DOUBLE_EQ(0.25, f3->successRate);
-    EXPECT_EQ(8, f3->materials.at("tigerBlood5"));
-    EXPECT_EQ(3, f3->materials.at("dragonHorn5"));
 }
 
 TEST(RecipeDbTest, PillRecipeCultivationSample) {
@@ -278,7 +289,7 @@ TEST(RecipeDbTest, IdsUnique) {
 
 TEST(RecipeDbTest, LookupHelpers) {
     // 存在查询
-    EXPECT_TRUE(forgeRecipeById("immortalBoots").has_value());
+    EXPECT_TRUE(forgeRecipeById("forge_qingmu_HANDS").has_value());
     EXPECT_TRUE(pillRecipeById("breakthrough_3_medium").has_value());
 
     // R11 孕养丹退役：两类配方零产出（派发件验收判据 ④）
