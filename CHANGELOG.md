@@ -1,23 +1,76 @@
 ## [4.2.00] - 2026-10-01
 
-### 版本号格式变更 + 游戏内更新日志清空 + 测试期删档重置（SS 线起点）
+### 版本号格式变更 + 测试期删档重置 + 单存档改造全线落地（SS0–SS10 十一批收官）
 
 > 需求拍板（用户 2026-10-01）：版本号定为 **`4.2.00` / `4200`**；**版本号格式规则由 `X.XX.XX` 改为 `X.X.XX`**
 > （主版本 1 位 + 次版本 1 位 + 构建 2 位），`versionCode` = 主版本 × 1000 + 次版本 × 100 + 构建；
 > **游戏内更新日志历史清空**（仅保留本版本条目），**本文件保留完整历史**。
-> 游戏处于测试版，将进行一次**删档重置**并开启新测试期——方案
+> 测试期**删档重置 + 单存档改造**（去槽位维度 / 账号分库 / 增量落盘 / 事件触发存档 / 云灾备 / 玉符账本 / 登录门槛）
+> 十一批（SS0–SS10）全部并网收官——方案
 > [docs/design/single-save-and-persistence-consolidation-plan-2026-10-01.md](docs/design/single-save-and-persistence-consolidation-plan-2026-10-01.md)、
-> 派工册 [docs/design/single-save-batches/DISPATCH-ledger.md](docs/design/single-save-batches/DISPATCH-ledger.md)。
+> 派工册与各批验收报告 [docs/design/single-save-batches/](docs/design/single-save-batches/DISPATCH-ledger.md)
+>（终验收报告 [report-SS-final.md](docs/design/single-save-batches/report-SS-final.md)）。
 
 - **版本号格式变更**：`rules/version-release.md` §1 与根 `AGENTS.md` §8 由 `X.XX.XX` 改为 **`X.X.XX`**；
   `versionCode` 明确为 `主版本 × 1000 + 次版本 × 100 + 构建` 并**强制单调递增**。
   本次 `4.01.16`/`4116` → **`4.2.00`/`4200`**（严格递增，避免商店拒收；若沿旧公式按"次版本 1"会得到 `4100`，低于 `4116` 而不可用）。
-- **游戏内更新日志清空**：`android/app/src/main/assets/changelog_entries.json` 由 62 条历史条目清为
-  **唯一 `4.2.00` 条目**——测试期重置，避免向新测试期玩家展示已不存在的历史功能；外部本文件不回改历史。
-- **删档重置（进行中，SS0 批）**：老库由 destructive fallback 重建；两条存档兼容链
-  （Room 迁移链 / 存档格式链）与存量迁移族清零；云端存档改命名并删除旧档；设备与云端残留全清；
-  邮件侧删除 QQ 群邮件与白名单福利邮件（保留节日邮件与系统功能邮件）。
+- **游戏内更新日志清空 + 收口**：`android/app/src/main/assets/changelog_entries.json` 由 62 条历史条目清为
+  **唯一 `4.2.00` 条目**（V3）；SS0–SS9 全部玩家可见变更经 SS10 收口并入该条目（V4，同版本禁新建第二条目），
+  删档重置居条目首位显著告知；外部本文件不回改历史。
 - **版本号三方归一**：`version.properties`（`4.2.00`/`4200`）、本文件段头 `[4.2.00]`、游戏内 json 唯一条目 `4.2.00`。
+
+### 单存档改造批次终态（SS0–SS9，2026-10-01~02 依次并网 main）
+
+- **SS0 删档重置 + 旧存档兼容代码清零**（`f79afcd84` + 邮件清理 `c5903948a`，并网 `3a89a9e7a`）：
+  211 文件 +1326/−323317。首次启动 `SaveWipeCoordinator` 全量清理（本地 Room/文件层/MMKV 台账/合规缓存）；
+  旧档兼容双链清零（`OldSaveFormatDeserializer`/`OldSerializableSaveData` 整包、`SaveDataVersionMigrator` 旧版本分支、
+  迁移链注册全删走 `fallbackToDestructiveMigrationFrom(1)`，Room 版本 65→66）；云端旧档改命名并主动删除；
+  迁移前快照 checkpoint 降级修复（`PRAGMA wal_checkpoint` 裸 execSQL 部分设备被拒的预存缺陷）；
+  邮件清理 M1–M4（删 QQ 群邮件与白名单福利邮件全链，保留节日邮件 28 封与系统功能邮件）。
+  可恢复链保留三条以上（文件层 .sav/.bak/tombstone + 启动前快照 + 云端）——D-9「提供冗余的实现一律不删」。
+- **SS1 去槽位维度（Kotlin + C++ 同批）**（`c92e70133`，并网 `580fab8fb`）：207 文件 +7955/−8863。
+  `slot_id` 物理列 26 表删净（game_data 主键收敛单 `id`）、189 个 DAO slot 参数、C++ `currentSlot` + 物品 7 类 `slotId`
+  一起删（协议链同 commit）；Room 66→67；伪同形名九处零误伤（SpiritMineViewModel.slotId 等非存档槽语义保留）。
+- **SS9 玉符账本（C++ 真源）**（`01f3ec931`，并网 `7efe2fce0`）：25 文件 +1618/−871。
+  `jade_tx.h` 六事务改 append-only 账本条目 + 派生缓存同事务双写；`GameData.jadeLedger`（proto 240）+
+  `jadeSymbols` 降级派生缓存（proto 220，独立赋值即 `JadeSymbolConsumptionGuardTest` 违规）；老档写
+  `OPENING_BALANCE` 期初条目（`withStartupLedger` 三臂单点）；**对拍基线全局唯一重录窗口以最优结果关闭**
+  （digest `0x8877d164f6bfe1fc` 无平移，基线冻结禁再重录）；ctest 1532→1538。
+- **SS2 账号数据空间分库 + 登出五件套**（`6eff39677`，并网 `a4c17acc2`）：19 文件 +1044/−223。
+  数据空间 `filesDir/accounts/<accountKey>/`（SHA-256 截断，不落明文）；登出五件套收敛
+  `login/FullLogout.kt` 三入口逐字一致；未登录冷启动不建库（fail-fast 实测拦下 40 个隐性建库用例）；
+  Room 68→69。
+- **SS3 持久化面收口四组件**（`773f26f81` + 文档补笔 `b874b24e5`，并网 `d1d5940d1`）：35 文件 +1580/−1660。
+  `change_log` 生产读者（`SaveDataChangeSummarizer`）、`FunctionalWAL` 整族摘除（启动/保存/读档三条链对拍）、
+  归档读面 `ArchiveReader`、`StorageMetrics` getter + TapDB `#storage_metrics_report` 上报（SS9 drift 计数接入）。
+- **SS4 单档 UI 终态 + 元数据表清除**（`6b1c928b2`，并网 `8b2e5c035`）：40 文件 +1305/−1832。
+  `save_slot_metadata` 整表删（Room 69→70）、`SaveSlot` 类整删 / `SaveInfo` 单档投影（消费 11 处零残留）、
+  UI 零槽号、AutoEntry 云伪槽误判行为修复（本地无档时云端兜底此前永不触发）。
+- **SS5 增量落盘（真增量写）**（`a4a3ce2a8`，并网 `f13b14ad6`）：34 文件 +2231/−337。
+  `SaveDirtySet` 契约 + `DirtySetTracker` 代序号结算；增量默认 + 全量兜底 + 越界回退计数；
+  双路径对拍铁门（三形状 × 逐字段全等）；`.sav`/云载荷字节面逐位一致；Metrics +4 字段三处同步；
+  途中代 SS3 抓出 WallClockReflowGuardTest 66→59 在册漂移（验收复跑自此扩至三模块）。
+- **SS6 事件触发自动存档**（`a9637891e`，并网 `4c9d98ec5`）：24 文件 +687/−43。
+  `CriticalSaveEventBus`（core:domain 总线）+ 八事件点接入 `SaveOrchestrator` 合并窗（十连 10 事件 → 1 次落盘）；
+  涉钱事件 `flushNow` 同步落盘（返回前 game_data 行已含该笔流水，真 Room 时序断言）；
+  落盘耗时实测增量路径 p50=14.7ms（JVM/Robolectric）。
+- **SS7 云：灾备 + 换设备续玩**（`b0c76b42e`，并网 `405e06449`）：25 文件 +652/−910。
+  云侧槽位残留坍缩单键（复用 `mnzm_v2_save`，`slot_N` 族退役识别面保留）、`UploadLedger`/`UploadQueue` 单键、
+  `SaveBackend.list()/delete()` 接口面退役、`SlotLockManager`→`SaveLockManager`；
+  途中发现并修复换设备续玩缺陷（云分支内存加载不落盘 → 改走落盘链 + `adoptCloudState(W)` 收敛）；
+  `W > C` 只读降级护栏白名单化（绝不静默覆盖）。
+- **SS8 登录门槛状态机化 + B1 离线宽限 + 隐私政策双入口**（`2ff65a537`，并网 `e7ab3d4e5`）：10 文件 +413/−105。
+  `LoginFlowStateMachine` 增 `RequireLogin` 显式门槛态（唯一出口 `LoginRequested`，禁一次性布尔）；
+  ColdStart 判定面收编 `loggedIn`；B1 两分支（登录过离线照常 / 从未登录联网首登）；
+  隐私政策双入口同步（`PrivacyConsentScreen` + `docs/index.html`，删档告知/账号隔离/云灾备条款）；
+  途中发现并修复两个真根因缺陷（`enterGameAuto` 兜底绕状态机致真死锁、`initTapTapLoginSdk` 超时直调双启动窗口）。
+- **SS10 文档与发布收口（本批）**：双 changelog 收口、活文档同步（CODE_WIKI / architecture / ui-read-surface §2
+  / knowledge-base / AGENTS 规范面过期点清零）、册面回填、终验收报告
+  [report-SS-final.md](docs/design/single-save-batches/report-SS-final.md)。
+- **门禁基线演进（全案）**：Room 版本 65→**70**（SS0/SS1/SS9/SS2/SS4 五次递增，迁移注册随 SS0 清零，
+  走 destructive 重建 + `DeadCompatRemovalGuardTest` 防孤儿 schema 回流）；桌面 ctest 1606→**1538**
+  （SS1 去槽 −83、SS9 账本 +7−1，基线冻结）；JVM 五模块 SS0 时点 7297/0 → SS9 时点 7271/0
+  （SS5 起验收复跑收敛为三/四模块定向）；对拍 digest `0x8877d164f6bfe1fc` 冻结。
 
 ## [4.01.16] - 2026-09-22
 

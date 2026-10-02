@@ -26,10 +26,18 @@
 
 ## 存档
 
-- **存档入口** —— 手动存档（5 槽位）+ 云存档 + 现实墙钟节拍自动存档（每 10 现实秒至多一次、`SaveTriggerFlag.realtimeTick` 门控；2026-09-27 §2.6 裁决，命名统一 `realtimeAutoSave*`）；禁止复活旧月变触发式 `AutoSaveTrigger` 体系
-- 槽位隔离：`(id, slot_id)` 复合主键 + `resetForSlot` + 强制 slotId 赋值
+- **存档入口** —— 单存档终态（SS0–SS9）：手动存档（单档）+ 云存档（灾备+换设备续玩）+ 现实墙钟节拍自动存档
+  （每 10 现实秒至多一次、`SaveTriggerFlag.realtimeTick` 门控，命名统一 `realtimeAutoSave*`）+ 事件触发关键落盘
+  （五类关键事件经 `CriticalSaveEventBus` → `SaveOrchestrator` 合并窗，涉钱 `flushNow` 同步落盘）+ 增量落盘
+  （`DirtySetTracker` 脏集驱动，全量兜底 + 越界回退计数）；禁止复活旧月变触发式 `AutoSaveTrigger` 体系，
+  禁止绕过 `SaveOrchestrator` 另起落盘路径
+- 账号数据空间：`filesDir/accounts/<accountKey>/` 分库（`AccountSpaceManager`，`accounts/.current` 标记活跃空间）；
+  登出统一走 `login/FullLogout.kt` 五件套（登出 = 进程重启）；未登录冷启动不建库
+- 删档重置：`SaveWipeCoordinator` 首启全量清理（本地库/文件层/MMKV 台账/合规缓存）；旧档兼容链与迁移注册
+  已清零，schema 变更走 destructive 重建（版本递增 + `MigrationRequiredGuardTest`/`DeadCompatRemovalGuardTest` 守卫）
 - 新增 `SaveValidator` 规则：`registerDefaults()` 加一行即注册（规则按 `order` 排序）
-- 云存档读档管线两步：完整性校验（可修复继续/损坏拒绝）→ 堆叠重建；saveVersion 为版本戳仅作识别
+- 云存档读档管线两步：完整性校验（可修复继续/损坏拒绝）→ 堆叠重建；saveVersion 为版本戳仅作识别；
+  云端单键 `mnzm_v2_save`，`W > C` 只读降级绝不静默覆盖
 
 ## 物品与经济的持久化入口
 

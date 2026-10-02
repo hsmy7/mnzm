@@ -10,7 +10,7 @@
 - [技术栈](#tech-stack)
 - [关键类说明](#key-classes)
 - [弟子分配门卫系统](#弟子分配门卫系统)
-- [存档槽位隔离](#存档槽位隔离)
+- [增量落盘（真增量写）](#增量落盘真增量写)
 - [探索系统](#探索系统)
 - [装备系统（六部位套装体系）](#装备系统六部位套装体系)
 - [确定性 RNG 系统](#确定性-rng-系统)
@@ -87,11 +87,11 @@
 
 - **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
 - **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
-- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（详见 [architecture.md](architecture.md#lifecycle-architecture-bootphase--runstate-双层状态机)）。新增 `resetForSlot(slotId)` 方法，在创建新游戏/重启时同步 `GameStateRepository` 的 `currentSlotId` 和 `dirty` 集
+- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（详见 [architecture.md](architecture.md#lifecycle-architecture-bootphase--runstate-双层状态机)）。提供 `resetForSlot()` 方法，在创建新游戏/重启时重置镜像态与增量落盘基线
 - **`BootSequenceController`** — 启动序列控制器：统一编排新游戏/读档/重启的 BootPhase 推进、RunState 切换、资源预加载(回调)、游戏循环启停、地图生成、错误恢复。`boot()` 为统一入口
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
-- **`GameData`** — Room @Entity，主键 (id, slot_id)
+- **`GameData`** — Room @Entity，主键 `id`（单存档；`slot_id` 维度已随单存档改造退役）
 - **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()`（v4.0.82+ 列直读，无 Disciple 组装）/ `checkpointAllProduction()`
 - **`CultivationRateCalculator`** — 修炼速率计算器（乘区法）。列直读入口 `calculateCultivationPerPhaseById`（每旬热点用），`calculatePreachingBonusesColumn` 返回「讲道长老 + 导师」两项传道（`teaching`）加成（对齐 `getEffectiveTeaching` 语义，计入社交乘区）
 - **`GameStateStoreImpl`** — v4.0.82+：`discipleAggregates` + `sectCombatPower` 合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器）；锁外弟子组装走 `assembleDispatcher` 单线程（防并发交错丢弟子）；`lastAssembledMutationVersion` 已删除
@@ -706,7 +706,7 @@ fun watchAdForNewFeature() {
 | 手段 | 现状 | 代码位置 |
 |------|------|---------|
 | 每日签到 | **已移除（2026-08-07）**——活动界面与每日签到整体移除；存档字段 `sign_in_state_json` 保留兼容旧档，禁止新代码读写 | — |
-| 存档 | 手动存档（5 槽位）+ TapTap 云存档（slot 0 入口）+ 退出保存 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控；2026-09-27 §2.6 裁决，旧月变触发体系已删） | `SaveLoadViewModelAutoSaveOps.kt`、`TapCloudSaveManager.kt`、`SaveLoadSaveDelegate` |
+| 存档 | 手动存档（单档）+ TapTap 云存档（灾备+换设备续玩，单键 `mnzm_v2_save`）+ 退出保存 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次，`SaveTriggerFlag.realtimeTick` 门控）+ **事件触发关键落盘**（`CriticalSaveEventBus` → `SaveOrchestrator`，涉钱 `flushNow` 同步落盘）+ **增量落盘**（`DirtySetTracker` 脏集驱动，全量兜底）；数据空间按账号分库，登出走 `FullLogout` 五件套 | `SaveOrchestrator.kt`、`SaveLoadViewModelAutoSaveOps.kt`、`TapCloudSaveManager.kt`、`SaveLoadSaveDelegate`、`StorageEngineIncrementalWriteOps.kt` |
 | 活动入口 | "历战"卡片轮转（`LizhanDialog`：天道试炼/远古秘境已迁入）；活动界面已移除（2026-08-07） | `dialogs/LizhanDialog.kt` |
 | 新手引导 | `GuideTask` 25 任务（12 种条件类型），计数器 12 处接入点 | `model/guide/`、`GameEngineGuideOps.kt` |
 | 推送通知 | **无** | 无代码 |

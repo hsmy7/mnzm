@@ -549,16 +549,55 @@ SaveValidator.validate(SaveData)
 - `SaveValidationRuleRegistry.registerDefaults()` 注册全部内置规则（惰性初始化，首次 `validate()` 时调用）
 - 测试中 `SaveValidationRuleRegistry.clear()` 后只注册目标规则，实现细粒度单规则测试
 
-### 存档入口（手动 + 云存档 + 现实节拍自动存档；2026-09-27 §2.6 裁决修订）
+### 持久化与存档体系（单存档终态；SS0–SS9 并网，SS10 收口）
 
-**存档三入口**：① 设置页手动存档（5 槽位）；② TapTap 云存档（slot 0）；③ **现实墙钟节拍自动存档**——
-每 10 现实秒至多一次（`REALTIME_AUTO_SAVE_INTERVAL_MS = 10_000`，轮询步长 1 秒、不补足错过周期），
-与游戏速度/暂停/日历完全解耦（时间基 = 现实墙钟，非游戏月）。③ 是对 2026-09-04"存档为纯手动"
-产品决策的**显式修订**（实时结算改造方案 §2.6：时间基现实化后游戏月仅 6 游戏秒，月变节拍失去意义，
-改现实节拍兜底防丢进度），**不是旧自动存档体系的复活**：旧 `AutoSaveTrigger.MONTHLY`（月变触发）
-已删除，三前置门控（`SaveTriggerFlag.realtimeTick` 旗标 / 有效槽位 / 引擎已加载）+ 合并窗（500ms）
-+ 失败走消息栏持久一行的口径全部沿用；关闭旗标 = 回到"仅手动保存"。命名统一 `realtimeAutoSave*` 前缀
-（历史禁用名 `autoSave*` 指旧月变体系残留，`autoSaveIntervalMonths` 等已随 v50 迁移删列）。
+**总纲**：单存档 + 账号分库 + 删档重置语义。存档维度（`slot_id` 物理列 / `currentSlot` / `save_slot_metadata`
+/ UI 槽号）已全部退役；旧存档兼容链（Room 迁移注册 / 旧格式反序列化 / 存量迁移族）已随 SS0 清零。
+批次全景与验收见 [`docs/design/single-save-batches/DISPATCH-ledger.md`](design/single-save-batches/DISPATCH-ledger.md)
+与 [report-SS-final.md](design/single-save-batches/report-SS-final.md)。
+
+**存档入口（现行五路）**：
+① 设置页手动存档（单档，保存/读取直动作，无选槽）；
+② TapTap 云存档（灾备 + 换设备续玩，云端单键 `mnzm_v2_save`）；
+③ **现实墙钟节拍自动存档**——每 10 现实秒至多一次（`REALTIME_AUTO_SAVE_INTERVAL_MS = 10_000`，
+轮询步长 1 秒、不补足错过周期），与游戏速度/暂停/日历完全解耦（2026-09-27 §2.6 裁决，非旧月变
+`AutoSaveTrigger` 体系复活，该体系已删除；门控 `SaveTriggerFlag.realtimeTick` 旗标 / 引擎已加载；
+命名统一 `realtimeAutoSave*` 前缀）；
+④ **事件触发关键落盘**（SS6）——`CriticalSaveEventBus`（core:domain 总线）接入五类关键事件
+（玉符流水 / 碎片入账 / 高品阶物品 / 里程碑 / 删档重置）共八事件点，经 `SaveOrchestrator.submit`
+合并窗（500ms，十连 10 事件 → 1 次落盘），涉钱事件 `flushNow` 同步落盘（返回前已入 game_data 行）；
+⑤ 退出保存与 boot 失败逃生口（删档重开）沿用。
+
+**写入路径（SS5 增量落盘）**：默认增量路径——`DirtySetTracker` 消费既有 `applyDirty` 变更集，
+只写变化行 + 删除集，未变 heavy key 跳过；全量路径保留为兜底（`NO_BASELINE` / `NO_DIRTY_SET` /
+脏集越界 / 溢出四类自动回退并计数进 `StorageMetrics`）；增量 ↔ 全量双路径读回逐字段全等由
+`IncrementalSaveDualPathRoundTripTest` 铁门锁定；`.sav`/`.bak` 文件层与云载荷仍为全量 blob。
+
+**账号数据空间（SS2 分库）**：`filesDir/accounts/<accountKey>/`（accountKey = SHA-256 截断，
+不落明文），Room 库 / 归档 / MMKV 分空间落位，`accounts/.current` 标记当前活跃空间；
+未登录冷启动不建库（fail-fast）。**登出五件套**收敛 `login/FullLogout.kt`（`performFullLogout`），
+三入口逐字一致；登出 = 进程重启（数据空间绑定进程级单例图，防串档）。
+
+**云存档（SS7 终态）**：云端槽位族坍缩单键（`slot_N` 族仅留 `RETIRED_V2_SLOT_PREFIX` 退役识别面）；
+`UploadLedger`/`UploadQueue` 单键；换设备续玩走落盘链（云档下载 → `adoptCloudState(W)` 收敛 → 落盘 boot）；
+**不支持同时多设备**：保存前比对云端 `currentCloudSaveId()`，`W > 本地 C` ⇒ 只读降级 + 提示，
+绝不静默覆盖（护栏白名单由守卫测试锁定）。
+
+**登录门槛（SS8）**：`LoginFlowStateMachine` 显式 `RequireLogin` 门槛态（唯一出口 `LoginRequested`）；
+B1 离线宽限——登录过的账号离线可继续游玩，从未登录必须联网完成首次登录。
+
+**玉符账本（SS9，C++ 真源）**：`jade_tx.h` 六事务 append-only 流水 + 派生缓存同事务双写；
+`GameData.jadeLedger`（proto 240）为余额真源，`jadeSymbols`（proto 220）为派生缓存（独立赋值即
+`JadeSymbolConsumptionGuardTest` 违规）；新档首条 `OPENING_BALANCE` 期初条目。
+
+**诊断与可观测（SS3）**：设置页「存档诊断」入口（`StorageDiagnosticsFacade`）；
+`change_log` 经 `SaveDataChangeSummarizer` 有生产读者；`ArchiveReader` 提供归档读面；
+`StorageMetricsReporter` 经 TapDB `#storage_metrics_report` 上报（增量/全量计数、drift 计数等）。
+
+**Schema 演进纪律（SS0 起）**：迁移注册已清零，schema 变更 = 递增 `DATABASE_VERSION`（现行 **70**）
++ `fallbackToDestructiveMigrationFrom(1)` 重建；启动前快照 `snapshotDatabaseBeforeUpgrade` 为唯一抢救副本；
+`MigrationRequiredGuardTest` 实体基线 + `DeadCompatRemovalGuardTest` 防低于当期版本的孤儿 schema 回流。
+**禁止复活月变触发式 `AutoSaveTrigger` 体系；禁止绕过 `SaveOrchestrator` 另起落盘路径。**
 如需改造存档入口，走 rules/database-migration.md 规则并同步更新此处。
 - 新规则只需：新建 Rule 文件 + 在 `registerDefaults()` 加一行
 

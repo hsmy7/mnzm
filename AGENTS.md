@@ -110,7 +110,7 @@ cd android && ./gradlew.bat lintRelease detekt
 - **C++ 是 AUTHORITATIVE 真相源** — `game-core` 承载模拟逻辑，Kotlin `GameStateStore` 是**只读镜像**；稳态下 Kotlin 对 C++ 只读，唯一合法写入是 `StateSyncService.importToNative` 全量导入。防复发守卫：`MirrorReadOnlyGuardTest`（符号面）+ `DiffAuthoritativeTickTest`（行为面）。总方案 `docs/adr/cpp-engine-migration.md`；进度与镜像合法面见 `docs/cpp-engine.md` / `docs/ui-read-surface.md` §2
 - **实时结算四层** — L0 时间推进 / L1 连续积分 + 判定窗口 / L2 惰性差分 / L3+L4 月年边界事件派发；**新逻辑必须落既有层级，禁另起结算循环或新线程 tick**；现实时长换算一律走 `GameConfig.Time` 常量栈
 - **线程契约** — 唯一合法状态写入口是 GameEngine-Thread；白名单与禁止区见 [`docs/threading-contract.md`](docs/threading-contract.md)（新增跨线程交互须先登记再实现）
-- **存档入口纪律** — 手动存档（5 槽位）+ 云存档 + **现实墙钟节拍自动存档**（每 10 现实秒至多一次、三前置门控：旗标/有效槽位/引擎已加载；命名统一 `realtimeAutoSave*`）；**禁止复活旧月变触发式 `AutoSaveTrigger`**；`SaveValidator` 规则按 `order` 排序，`registerDefaults()` 加一行即注册
+- **存档入口纪律** — 单存档终态（SS0–SS9）：手动存档（单档）+ 云存档（灾备+换设备续玩）+ **现实墙钟节拍自动存档**（每 10 现实秒至多一次、门控：旗标/引擎已加载；命名统一 `realtimeAutoSave*`）+ **事件触发关键落盘**（五类关键事件经 `CriticalSaveEventBus` → `SaveOrchestrator`，涉钱 `flushNow` 同步落盘）+ 增量落盘（`DirtySetTracker` 脏集驱动，全量兜底）；数据空间按账号分库（`filesDir/accounts/`，登出走 `FullLogout` 五件套）；**禁止复活旧月变触发式 `AutoSaveTrigger`、禁止绕过 `SaveOrchestrator` 另起落盘路径、禁止槽位维度复活**；`SaveValidator` 规则按 `order` 排序，`registerDefaults()` 加一行即注册
 - **扩展性预留与 R 系列债** — 见 `docs/architecture.md`；离线收益口径见 `rules/economy-design.md` §4
 
 模块源码路径：`:app`（应用壳 + JNI 桥）、`:core:domain`（数据类/接口/sealed/Registry）、`:core:data`（Room/序列化/Repository）、
