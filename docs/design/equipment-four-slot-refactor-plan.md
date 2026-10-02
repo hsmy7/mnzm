@@ -109,12 +109,21 @@ enum class EquipmentSlot {
 
 ```
 kEquipPowerScale = 1.5      // 6 件 → 4 件的等效补偿（初值，由数值校准批定标）
-effective = floor(raw × kEquipPowerScale)
+
+// 落点 = EquipStatResolver.resolve()：只放大"单件自身"的主词条 + 副词条累加结果，
+// 套装效果另走、不乘系数（满套口径已在 §3.2 守恒）
+var bonus = EquipBonus()
+for (inst in equippedInstances) { for (sv in inst.stats) bonus = plusStat(bonus, sv) }
+bonus = scale(bonus, kEquipPowerScale)      // ← 只作用于单件部分
+bonus += resolveSetBonus(equippedInstances) // ← 套装效果不乘系数
 ```
+
+> **依据（现行代码结构）**：`EquipStatResolver.resolve()` 先在循环里累加单件词条，随后 `bonus += resolveSetBonus(...)`（`EquipStatResolver.kt:66-83`）。系数必须插在**两者之间**——若加在 `resolve()` 末尾，会把套装效果一起放大，破坏 §3.2 的满套守恒。
 
 | 项 | 说明 |
 |---|---|
-| 落点 | `EquipStatResolver`（Kotlin）与 `disciple_stats.h`（C++）**同一语义**，均引用该常量的镜像值（Kotlin `const val` / C++ `constexpr`，双侧同值由守卫断言） |
+| 落点 | `EquipStatResolver`（Kotlin）与 `disciple_stats.h`（C++）**同一语义**：仅作用于单件主/副词条累加结果，均引用该常量的镜像值（Kotlin `const val` / C++ `constexpr`，双侧同值由守卫断言） |
+| **套装效果** | **不乘系数**（满套口径已守恒）；对抗点 FA7 守住 |
 | 为什么不用改两张数值表 | 主词条基数表 + 副词条档位表分别 ×1.5 需改两处且易漂移；单系数**单点可调**、可回归（F-12） |
 | 副词条池 | **11 项不变**（权重不变；仅档位效果经系数放大） |
 | 主词条池 | 部位池 6 → **4**（删武器池/腿部池）；部位系数表 6 → 4（§3.4） |
@@ -256,6 +265,8 @@ effective = floor(raw × kEquipPowerScale)
 | FA4 | 单件系数 ×1.5 只改了一侧（Kotlin 或 C++） | 双侧常量同值守卫 + `Diff*` 逐位 |
 | FA5 | 精灵图删了但注册项未删（死引用） | `SpriteResRegistry` 注册面与图集清单一致性守卫 |
 | FA6 | 4 件套档两条效果只生效一条 | 用例断言两条效果**同时**存在 |
+| FA7 | 强度系数把**套装效果**一起放大（满套守恒被破坏） | 断言：系数仅作用于单件主/副词条；套装前后差值不受系数影响（EquipmentSetBonusTest 内 4 件套差值 = 未乘系数口径） |
+| FA8 | 系数只在 Kotlin 侧生效（C++ 未跟上） | 双端常数同值守卫 + Diff* 逐位一致 |
 
 ---
 
