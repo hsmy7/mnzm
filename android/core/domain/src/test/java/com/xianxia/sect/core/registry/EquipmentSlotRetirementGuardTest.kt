@@ -30,16 +30,13 @@ class EquipmentSlotRetirementGuardTest {
 
     /**
      * 故意排除项（守卫三要素②——明确声明为什么不覆盖）：
-     * - `gamecore/test/`（C++ 测试树在 src/main 下）：退役条目**零命中断言**合法引用退役名；
-     * - `data/recipe_db.h`：旧 72 条通用配方族（codegen 产物 `recipe_db_sample.json`），
-     *   **F3 外围清理批**的写入面（F1 报告 §四 交接）——F2 边界外禁越界手改；
-     *   F3 收口后本排除项随条目删除一并移除。
+     * - `gamecore/test/`（C++ 测试树在 src/main 下）：退役条目**零命中断言**合法引用退役名。
+     *   （F2 曾排除 `data/recipe_db.h` 旧 72 条通用配方族——F3 已重写为 24 条
+     *   套装部件配方，排除项按交接随条目删除一并移除。）
      */
     private val excludedPathMarkers = listOf(
         "cpp${File.separator}gamecore${File.separator}test",
-        "cpp/gamecore/test",
-        "data${File.separator}recipe_db.h",
-        "data/recipe_db.h"
+        "cpp/gamecore/test"
     )
 
     /** 行级豁免：注释行或含退役说明关键词 */

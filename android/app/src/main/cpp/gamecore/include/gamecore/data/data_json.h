@@ -252,27 +252,38 @@ inline void to_json(nlohmann::json& j, const ManualTemplate& v) {
 }
 
 // ── ForgeRecipeTemplate ──────────────────────────────────────
+// tierMaterials 在数据文件中为 object 形状（"tier1".."tier6" 键 → 材料表），
+// 与中性源快照/RecipeRegistryGuardTest 同一形状；C++ 结构为 vector（下标
+// tier-1），解析按 tierN 键升序展开。
 inline void from_json(const nlohmann::json& j, ForgeRecipeTemplate& v) {
     jread(j, "id", v.id);
+    jread(j, "pieceId", v.pieceId);
+    jread(j, "setId", v.setId);
+    jread(j, "part", v.part);
     jread(j, "name", v.name);
-    jread(j, "type", v.type);
-    jread(j, "tier", v.tier);
-    jread(j, "rarity", v.rarity);
     jread(j, "description", v.description);
-    jread(j, "materials", v.materials);
-    jread(j, "duration", v.duration);
-    jread(j, "successRate", v.successRate);
+    v.tierMaterials.clear();
+    if (j.contains("tierMaterials") && j["tierMaterials"].is_object()) {
+        for (int32_t tier = 1; tier <= 6; ++tier) {
+            const auto it = j["tierMaterials"].find("tier" + std::to_string(tier));
+            if (it != j["tierMaterials"].end()) {
+                v.tierMaterials.push_back(it->get<std::map<std::string, int32_t>>());
+            }
+        }
+    }
 }
 inline void to_json(nlohmann::json& j, const ForgeRecipeTemplate& v) {
+    nlohmann::json tiers = nlohmann::json::object();
+    for (std::size_t i = 0; i < v.tierMaterials.size(); ++i) {
+        tiers["tier" + std::to_string(i + 1)] = v.tierMaterials[i];
+    }
     j = nlohmann::json{{"id", v.id},
+                       {"pieceId", v.pieceId},
+                       {"setId", v.setId},
+                       {"part", v.part},
                        {"name", v.name},
-                       {"type", v.type},
-                       {"tier", v.tier},
-                       {"rarity", v.rarity},
                        {"description", v.description},
-                       {"materials", v.materials},
-                       {"duration", v.duration},
-                       {"successRate", v.successRate}};
+                       {"tierMaterials", tiers}};
 }
 
 // ── PillRecipeTemplate ───────────────────────────────────────

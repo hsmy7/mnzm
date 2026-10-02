@@ -95,7 +95,7 @@ internal fun HeavenlyTrialService.selectTrialManuals(
     else selectManuals(eligible, def.realm)
 }
 
-/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则全部 12 条部件配方。
+/** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则全部 24 条部件配方。
  * 六部位口径（装备重构 B3）；部件配方不再携带品阶/tier，实例化品阶由
  * [getMaxTierForRealm] 按敌人境界上定（见 [sumEquipStatBonuses]）。
  */

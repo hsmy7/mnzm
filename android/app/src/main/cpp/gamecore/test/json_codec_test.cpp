@@ -71,9 +71,9 @@ TEST(JsonCodecTest, ItemsRoundTrip) {
     // B3 实例轨：EquipmentInstance 全字段往返（含 growth 词条面 + meta 横切面）
     EquipmentInstance ei;
     ei.id = "eq-i1";
-    ei.name = "裂天罡煞·战刃";
+    ei.name = "裂天罡煞·战手";
     ei.setId = "lietian";
-    ei.part = "WEAPON";
+    ei.part = "HANDS";
     ei.growth.level = 5;
     ei.growth.exp = 120;
     ei.growth.affix.mainStat = EquipStatValue{"ATTACK", 27.0};
@@ -82,7 +82,7 @@ TEST(JsonCodecTest, ItemsRoundTrip) {
     ei.growth.affix.subRolls = {1, 3};
     ei.meta.rarity = 3;
     ei.meta.minRealm = 6;
-    ei.meta.description = "套装战刃";
+    ei.meta.description = "套装战手";
     ei.meta.isLocked = true;
     ei.ownerId = "d-1";
     ei.isEquipped = true;

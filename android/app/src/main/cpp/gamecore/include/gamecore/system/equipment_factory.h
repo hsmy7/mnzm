@@ -222,7 +222,7 @@ inline int32_t pickRarity(int32_t minRarity, int32_t discipleRealm,
     return std::min(min + offset, realmMax);
 }
 
-/// 随机部件（同套装内六部位等权；产出链无部位偏好场景用）
+/// 随机部件（同套装内四部位等权；产出链无部位偏好场景用）
 inline std::string pickPart(const std::string& setId,
                             rng::DeterministicRng& rng) {
     std::vector<const gamecore::data::SetPieceTemplate*> parts;

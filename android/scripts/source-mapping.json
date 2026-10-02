@@ -54,8 +54,8 @@
       "category": "EQUIPMENT",
       "entries": [
         {
-          "drawable": "jing_tie_jian",
-          "source": "装备/精铁剑.png",
+          "drawable": "lie_tian_gang_sha_tou_guan",
+          "source": "装备/裂天罡煞/裂天罡煞（头部）.png",
           "modules": [
             "feature/game",
             "app"
@@ -65,8 +65,8 @@
           }
         },
         {
-          "drawable": "jing_tie_dao",
-          "source": "装备/精铁刀.png",
+          "drawable": "lie_tian_gang_sha_zhong_kai",
+          "source": "装备/裂天罡煞/裂天罡煞（上身）.png",
           "modules": [
             "feature/game",
             "app"
@@ -76,8 +76,8 @@
           }
         },
         {
-          "drawable": "lie_yan_jian",
-          "source": "装备/烈焰剑.png",
+          "drawable": "lie_tian_gang_sha_zhan_shou",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -87,8 +87,8 @@
           }
         },
         {
-          "drawable": "ling_feng_jian",
-          "source": "装备/灵锋剑.png",
+          "drawable": "lie_tian_gang_sha_zhan_xue",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -98,8 +98,8 @@
           }
         },
         {
-          "drawable": "ling_hua_dao",
-          "source": "装备/凌华刀.png",
+          "drawable": "geng_jin_bai_hu_ling_guan",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -109,8 +109,8 @@
           }
         },
         {
-          "drawable": "lei_ting_jian",
-          "source": "装备/雷霆剑.png",
+          "drawable": "geng_jin_bai_hu_fa_pao",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -120,8 +120,8 @@
           }
         },
         {
-          "drawable": "qing_lian_jian",
-          "source": "装备/青莲剑.png",
+          "drawable": "geng_jin_bai_hu_ling_hu",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -131,8 +131,8 @@
           }
         },
         {
-          "drawable": "zhu_xian_jian",
-          "source": "装备/诛仙剑.png",
+          "drawable": "geng_jin_bai_hu_yun_lv",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -142,8 +142,8 @@
           }
         },
         {
-          "drawable": "feng_yan_ren",
-          "source": "装备/凤炎刃.png",
+          "drawable": "qing_mu_chang_sheng_ling_guan",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -153,8 +153,8 @@
           }
         },
         {
-          "drawable": "qing_bi_ren",
-          "source": "装备/青碧刃.png",
+          "drawable": "qing_mu_chang_sheng_fa_pao",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -164,8 +164,8 @@
           }
         },
         {
-          "drawable": "an_ying_ren",
-          "source": "装备/暗影刃.png",
+          "drawable": "qing_mu_chang_sheng_ling_hu",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -175,8 +175,8 @@
           }
         },
         {
-          "drawable": "xuan_yu_ren",
-          "source": "装备/玄玉刃.png",
+          "drawable": "qing_mu_chang_sheng_yun_lv",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -186,8 +186,8 @@
           }
         },
         {
-          "drawable": "tao_mu_zhang",
-          "source": "装备/桃木杖.png",
+          "drawable": "xuan_shui_han_yuan_ling_guan",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -197,8 +197,8 @@
           }
         },
         {
-          "drawable": "bi_yu_zhang",
-          "source": "装备/碧玉杖.png",
+          "drawable": "xuan_shui_han_yuan_fa_pao",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -208,8 +208,8 @@
           }
         },
         {
-          "drawable": "xuan_lei_zhang",
-          "source": "装备/玄雷杖.png",
+          "drawable": "xuan_shui_han_yuan_ling_hu",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -219,8 +219,8 @@
           }
         },
         {
-          "drawable": "xu_hua_zhang",
-          "source": "装备/虚华杖.png",
+          "drawable": "xuan_shui_han_yuan_yun_lv",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -230,8 +230,8 @@
           }
         },
         {
-          "drawable": "tian_xuan_zhang",
-          "source": "装备/天玄杖.png",
+          "drawable": "li_huo_fen_tian_ling_guan",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -241,8 +241,8 @@
           }
         },
         {
-          "drawable": "tian_xing_zhang",
-          "source": "装备/天星杖.png",
+          "drawable": "li_huo_fen_tian_fa_pao",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -252,8 +252,8 @@
           }
         },
         {
-          "drawable": "bi_mu_shan",
-          "source": "装备/碧木扇.png",
+          "drawable": "li_huo_fen_tian_ling_hu",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -263,8 +263,8 @@
           }
         },
         {
-          "drawable": "ling_feng_shan",
-          "source": "装备/灵风扇.png",
+          "drawable": "li_huo_fen_tian_yun_lv",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -274,8 +274,8 @@
           }
         },
         {
-          "drawable": "xuan_bing_shan",
-          "source": "装备/玄冰扇.png",
+          "drawable": "hou_tu_zhen_yue_ling_guan",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -285,8 +285,8 @@
           }
         },
         {
-          "drawable": "huang_yan_shan",
-          "source": "装备/凰焰扇.png",
+          "drawable": "hou_tu_zhen_yue_fa_pao",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -296,8 +296,8 @@
           }
         },
         {
-          "drawable": "yin_yang_shan",
-          "source": "装备/阴阳扇.png",
+          "drawable": "hou_tu_zhen_yue_ling_hu",
+          "source": null,
           "modules": [
             "feature/game",
             "app"
@@ -307,536 +307,8 @@
           }
         },
         {
-          "drawable": "tian_xuan_shan",
-          "source": "装备/天玄扇.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "suo_zi_jia",
-          "source": "装备/锁子甲.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "pi_jia",
-          "source": "装备/皮甲.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ling_zhu_yi",
-          "source": "装备/灵竹衣.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "jing_tie_jia",
-          "source": "装备/精铁甲.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "bi_ye_jia",
-          "source": "装备/碧叶甲.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "dan_yu_yi",
-          "source": "装备/丹羽衣.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "qing_lin_kai",
-          "source": "装备/青鳞铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yin_ban_kai",
-          "source": "装备/银板铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "xi_liu_yi",
-          "source": "装备/汐流衣.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ling_si_pao",
-          "source": "装备/灵丝袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yun_wen_pao",
-          "source": "装备/云纹袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "long_lin_kai",
-          "source": "装备/龙鳞铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yuan_yan_kai",
-          "source": "装备/渊岩铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yao_guang_pao",
-          "source": "装备/瑶光袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yue_hua_pao",
-          "source": "装备/月华袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "xing_chen_pao",
-          "source": "装备/星辰袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "xuan_you_pao",
-          "source": "装备/玄幽袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "mo_you_kai",
-          "source": "装备/墨幽铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ling_xing_pao",
-          "source": "装备/凌星袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ding_hai_kai",
-          "source": "装备/定海铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "bu_xiu_kai",
-          "source": "装备/不朽铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "cang_gang_kai",
-          "source": "装备/苍罡铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "xi_guang_kai",
-          "source": "装备/曦光铠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yun_ying_pao",
-          "source": "装备/云影袍.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ben_lei_xue",
-          "source": "装备/奔雷靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "chang_ming_zhui",
-          "source": "装备/长明坠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "chi_sha_xue",
-          "source": "装备/赤煞靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "du_e_pei",
-          "source": "装备/渡厄佩.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "feng_yu_zhui",
-          "source": "装备/凤羽坠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "he_lan_xue",
-          "source": "装备/鹤岚靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ji_feng_xue",
-          "source": "装备/疾风靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ling_quan_jie",
-          "source": "装备/灵泉戒.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ling_yu_pei",
-          "source": "装备/灵玉佩.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "long_ling_zhu",
-          "source": "材料/龙灵珠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "luan_yu_lv",
-          "source": "装备/鸾羽靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "qing_yu_xue",
-          "source": "装备/轻羽靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "qing_lan_xue",
-          "source": "装备/青澜靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "shou_pi_xue",
-          "source": "装备/兽皮靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "su_guang_xue",
-          "source": "装备/溯光靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "ta_yun_lv",
-          "source": "装备/踏云履.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "tong_xiang_lian",
-          "source": "装备/铜项链.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "xun_jie_zhu",
-          "source": "装备/迅捷珠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yin_yun_pei",
-          "source": "装备/隐云佩.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "you_shuo_zhu",
-          "source": "装备/幽朔珠.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yu_jie_zhi",
-          "source": "装备/玉戒指.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yun_qi_xue",
-          "source": "装备/云栖靴.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "yun_ling_jie",
-          "source": "装备/蕴灵戒.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "maxDim": 1024
-          }
-        },
-        {
-          "drawable": "zhui_feng_xue",
-          "source": "装备/追风靴.png",
+          "drawable": "hou_tu_zhen_yue_yun_lv",
+          "source": null,
           "modules": [
             "feature/game",
             "app"

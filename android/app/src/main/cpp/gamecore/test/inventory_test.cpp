@@ -168,7 +168,7 @@ TEST(InventorySystemTest, AddEquipmentInstanceAppendsAndValidates) {
     state::EquipmentInstance item;
     item.id = "eq-1";
     item.name = "木剑";
-    item.part = "WEAPON";
+    item.part = "HANDS";
     item.meta.rarity = 1;
 
     const auto result = addEquipmentInstance(state, item);
@@ -276,7 +276,7 @@ TEST(InventorySystemTest, RemoveEquipmentInstanceTrack) {
     state::EquipmentInstance s;
     s.id = "eq-1";
     s.name = "木剑";
-    s.part = "WEAPON";
+    s.part = "HANDS";
     s.meta.rarity = 1;
     state.equipmentInstances.push_back(s);
 
@@ -292,7 +292,7 @@ TEST(InventorySystemTest, RemoveEquipmentLockedFails) {
     state::EquipmentInstance s;
     s.id = "eq-1";
     s.name = "木剑";
-    s.part = "WEAPON";
+    s.part = "HANDS";
     s.meta.rarity = 1;
     s.meta.isLocked = true;
     state.equipmentInstances.push_back(s);

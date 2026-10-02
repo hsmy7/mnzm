@@ -64,7 +64,7 @@ using gamecore::state::ManualStack;
 using gamecore::state::WorldLevel;
 using gamecore::state::WorldSect;
 
-// ai_sect_recruit.h 的 detail 域助手（装备链，B3 六部位条目版）
+// ai_sect_recruit.h 的 detail 域助手（装备链，B3 套装部件条目版）
 using gamecore::system::detail::aiGenerateManuals;
 using gamecore::system::detail::aiPickEquipmentTemplate;
 using gamecore::system::detail::aiRealmMaxRarity;
@@ -288,7 +288,7 @@ inline Disciple aiEnsureDiscipleGear(Disciple d, int32_t sectLevel,
     const int32_t expectedManuals = aiManualCountByLevel(sectLevel);
 
     // 装备：空槽洗牌（java.util.Random 种子 1×nextInt）补至等级数量
-    //（B3 六部位 displayOrder 槽序）
+    //（四部位 displayOrder 槽序——HEAD/BODY/HANDS/FEET）
     static constexpr int kAllSlots[6] = {0, 1, 2, 3, 4, 5};
     const int32_t currentEquip = static_cast<int32_t>(std::count_if(
         std::begin(kAllSlots), std::end(kAllSlots),

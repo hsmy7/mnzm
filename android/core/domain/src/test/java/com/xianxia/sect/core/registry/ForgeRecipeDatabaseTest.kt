@@ -165,7 +165,7 @@ class ForgeRecipeDatabaseTest {
     fun getCraftableRecipes_alwaysReturnsAll() {
         for (maxTier in 0..7) {
             assertEquals(
-                "getCraftableRecipes($maxTier) 应恒返回全部 36 条",
+                "getCraftableRecipes($maxTier) 应恒返回全部 24 条",
                 ForgeRecipeDatabase.getAllRecipes().size,
                 ForgeRecipeDatabase.getCraftableRecipes(maxTier).size
             )

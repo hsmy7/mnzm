@@ -102,9 +102,10 @@ const GRADE_SRC = { fan: '凡品', ling: '灵品', bao: '宝品', xuan: '玄品'
  * 用于：源文件名与 display name 不一致、无法用分类规则可靠推导、或经 read_image 人工确认的条目。
  */
 const MANUAL_OVERRIDES = {
-  // EQUIPMENT：源文件名与注册名不一致（龙灵珠在 材料/；鸾羽履 官方文件用「靴」）
-  long_ling_zhu: '材料/龙灵珠.png',
-  luan_yu_lv: '装备/鸾羽靴.png',
+  // EQUIPMENT（四部位化 F3）：源文件名与注册名不一致——裂天罡煞两件
+  //（官方文件在 装备/裂天罡煞/ 子目录，用「头部/上身」而非「头冠/重铠」）
+  lie_tian_gang_sha_tou_guan: '装备/裂天罡煞/裂天罡煞（头部）.png',
+  lie_tian_gang_sha_zhong_kai: '装备/裂天罡煞/裂天罡煞（上身）.png',
   // ITEM：玄灵莓核 的种子文件用「种」而非「核」
   seed_spiritfruit8: '种子/玄灵莓种.png',
   // CAVE：洞府素材 + 远古秘境（无分类名可推）

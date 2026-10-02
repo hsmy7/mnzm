@@ -178,7 +178,7 @@ class BuildingServiceLoadPathTest {
     fun `autoHarvestForgeSlot - 读档锻造成功产装备并晋升`() = runTest {
         val store = newStoreWithDisciple(forgeLevel = 0)
         val inv = realInventory(store)
-        // B3：12 条套装部件配方（无 tier 字段），产出品阶 = 锻造弟子职业等级（此处 1）
+        // B3 套装部件制、四部位化后 24 条配方（无 tier 字段），产出品阶 = 锻造弟子职业等级（此处 1）
         val tier1 = ForgeRecipeDatabase.getAllRecipes().first()
         val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         repo.loadSlots(listOf(forgeCompletedSlot(tier1.id, successRate = 1.0)))

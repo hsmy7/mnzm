@@ -48,7 +48,7 @@ fun EquipmentSection(
             color = Color.Black
         )
 
-        // 六部位宫格（显示序单一真源 = EquipmentSlot.displayOrder）
+        // 四部位宫格（显示序单一真源 = EquipmentSlot.displayOrder）
         EquipmentSlot.displayOrder.chunked(EQUIP_GRID_ROW_SIZE).forEach { rowParts ->
             Row(
                 modifier = Modifier.fillMaxWidth(),

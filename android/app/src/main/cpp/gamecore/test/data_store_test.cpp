@@ -154,7 +154,8 @@ TEST_F(DataStoreGuardTest, 注入后与数据文件逐行逐字段相等) {
     EXPECT_EQ(54u, seedTemplates().size());
     EXPECT_EQ(540u, manualTemplates().size());
     EXPECT_EQ(192u, beastMaterialTemplates().size());
-    EXPECT_EQ(72u, forgeRecipes().size());
+    // 四部位化 F3：锻造配方 = 6 套 × 4 部位 = 24
+    EXPECT_EQ(24u, forgeRecipes().size());
     // R11 孕养丹退役：660 − 36 = 624
     EXPECT_EQ(624u, pillRecipes().size());
 

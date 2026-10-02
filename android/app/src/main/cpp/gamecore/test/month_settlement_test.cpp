@@ -1022,7 +1022,7 @@ TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
     // B3 实例轨：仓库装备 = 实例（name+rarity 匹配首条未锁定）
     state::EquipmentInstance whEquip;
     whEquip.id = "wh-e1"; whEquip.name = "精铁剑"; whEquip.meta.rarity = 1;
-    whEquip.part = "WEAPON";
+    whEquip.part = "HANDS";
     st.equipmentInstances.push_back(whEquip);
     state::Pill whPill;
     whPill.id = "wh-p1"; whPill.name = "聚气丹"; whPill.rarity = 1;
@@ -1045,7 +1045,7 @@ TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
     EXPECT_EQ("pill", bag[2].itemType);
     ASSERT_TRUE(bag[1].equipmentInstance.has_value());
     EXPECT_EQ("wh-e1", bag[1].equipmentInstance->id);
-    EXPECT_EQ("WEAPON", bag[1].equipmentInstance->part);
+    EXPECT_EQ("HANDS", bag[1].equipmentInstance->part);
     EXPECT_EQ("MIND", bag[0].stackedData->manualType);
     EXPECT_EQ("中品", *bag[2].grade);
     EXPECT_TRUE(bag[2].effect.has_value());

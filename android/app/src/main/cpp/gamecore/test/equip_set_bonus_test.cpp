@@ -151,7 +151,7 @@ TEST(EquipSetBonusTest, ResolveEquipBonusAppendsSetAfterInstanceBonus) {
     // resolveEquipBonus：实例词条 totalBonus + 套装档位（加法汇合）；
     // 主词条等级成长 mult = 1 + 0.10×(level-1)
     std::vector<EquipmentInstance> worn;
-    auto inst = piece("lietian", "WEAPON", 1);
+    auto inst = piece("lietian", "HANDS", 1);
     inst.growth.level = 11;   // mult = 1 + 0.10×10 = 2.0
     inst.growth.affix.mainStat = gamecore::state::EquipStatValue{"ATTACK", 50.0};
     inst.growth.affix.subStats = {gamecore::state::EquipStatValue{"HP", 10.0}};

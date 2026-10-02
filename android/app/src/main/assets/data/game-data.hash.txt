@@ -1,2 +1,2 @@
-a449b26ea5d593bb69d38ac92e4aec0fc879f3754d3b8db1cfaebd92fc85b648  game-data.json
+648cbc1c577f75d95041cc2e9169a75579e8d6acbd9126fc5e0a6d949e408ab5  game-data.json
 # 由 scripts/gen-game-data.mjs 生成（B16/R6.2 codegen hash 门锚点）

@@ -572,7 +572,7 @@ inline std::vector<gamecore::battle::Combatant> generateHumanEnemies(
         const int32_t minRarity = realmMaxRarity(realm);
         const int32_t maxRarity = std::min(minRarity + 1, 6);
 
-        // 装备生成（B3：六部位随机排列、敌随机穿其中若干件；实例经
+        // 装备生成（B3 套装部件制、四部位随机排列、敌随机穿其中若干件；实例经
         // EquipmentFactory.create 唯一产出（套装随机二选一）；属性按逐件
         // totalBonus 累加——孕养随机等级逻辑已随孕养系统删除）
         JavaRandom javaRnd(static_cast<int64_t>(enemyRng.nextInt()));

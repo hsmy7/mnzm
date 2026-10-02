@@ -31,7 +31,7 @@ internal fun ProductionProcessor.findForgeRecipe(
     materialIndex: Map<Pair<String, Int>, Int>,
     maxTier: Int = 1
 ): ForgeRecipeDatabase.ForgeRecipe? {
-    // B3：配方不分 tier（12 条全候选取材料足额的第一条）；产出品阶由 maxTier
+    // B3：配方不分 tier（24 条全候选取材料足额的第一条）；产出品阶由 maxTier
     // 在产出事务内决定，此处只做材料可行性筛选
     return recipes.firstOrNull { recipe ->
         recipe.materialsFor(maxTier).all { (materialId, requiredQty) ->

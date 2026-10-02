@@ -32,7 +32,7 @@ namespace gamecore::state {
 // ── 物品（字段扁平，对应 Kotlin data class 顶层字段；可空 String? 用
 // std::optional 保留 null 语义；嵌套如 Pill.effects(PillEffect) 留待后续子步） ─
 
-// ── 装备（B3 六部位：一行一实例、无堆叠、等级/词条随实例单点；旧
+// ── 装备（B3 套装部件制、四部位化后 4 部位：一行一实例、无堆叠、等级/词条随实例单点；旧
 // EquipmentStack 与 7 项面板属性模型整体退役） ─────────────
 
 /// 单条装备加成值（词条/套装共用；stat = EquipStat.name）

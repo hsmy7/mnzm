@@ -14,7 +14,7 @@
 //   → 悟性 1×nextInt → 7×nextGaussian（14×nextDouble）
 //   → 肖像 1×nextInt → 年龄 1×nextInt → 技能
 //   9×nextGaussian（18×nextDouble）→ 基础属性/寿命（纯计算）
-// 装备/功法（applyGearToAiDisciple，B3：六部位直写条目 id——堆叠/孕养面
+// 装备/功法（applyGearToAiDisciple，B3：四部位直写条目 id——堆叠/孕养面
 // 已退役）：槽位洗牌与攻防池洗牌用
 // java.util.Random 种子（1×nextInt 播种，48 位 LCG 序列由
 // JavaRandomCompat 复刻——redeem_code.h），模板选取 1×nextInt/零消费。
@@ -164,7 +164,7 @@ inline state::Disciple generateRandomAiDisciple(rng::DeterministicRng& rng,
     return d;
 }
 
-// ── 装备/功法（Kotlin applyGearToDisciple 链，B3 六部位条目版）──────
+// ── 装备/功法（Kotlin applyGearToDisciple 链，四部位条目版——HEAD/BODY/HANDS/FEET）──────
 
 /// 按部位选条目（Kotlin pickEquipmentTemplate，B3 = 72 条展开条目池）：
 /// 品阶精确池 1×nextInt；精确池空 → 同槽最高品阶兜底（maxByOrNull 首最大
@@ -189,7 +189,7 @@ inline std::optional<gamecore::data::EquipPieceEntry> aiPickEquipmentTemplate(
 }
 
 /// 随机选 count 个部位生成装备条目 id（Kotlin generateEquipmentIds，B3）：
-/// 六部位 java.util.Random 洗牌（1×nextInt 播种）→ take(count) → 逐部位选条目。
+/// 四部位 java.util.Random 洗牌（1×nextInt 播种）→ take(count) → 逐部位选条目。
 /// 返回 部位 → 条目 的有序对列表（部位序 = 洗牌后 take 序）。
 inline std::vector<std::pair<std::string, gamecore::data::EquipPieceEntry>>
 aiGenerateEquipmentIds(rng::DeterministicRng& rng, int32_t maxRarity, int32_t count) {
@@ -245,9 +245,9 @@ inline std::vector<std::pair<std::string, int32_t>> aiGenerateManuals(
     return selected;
 }
 
-/// 装备/功法装配（Kotlin applyGearToDisciple，B3 六部位版：数量按宗门等级；
+/// 装备/功法装配（Kotlin applyGearToDisciple，四部位版：数量按宗门等级；
 /// 品阶恒为境界上限 aiRealmMaxRarity(realm)——AI 新弟子炼气 → 凡品 1；
-/// 六部位单 id 直写（条目 id = {pieceId}_r{rarity}），孕养面已随 B3 退役）
+/// 四部位单 id 直写（条目 id = {pieceId}_r{rarity}），孕养面已随 B3 退役）
 inline void applyGearToAiDisciple(rng::DeterministicRng& rng, state::Disciple& d,
                                   int32_t sectLevel) {
     const int32_t levelIdx = std::clamp(sectLevel, 0, 3);

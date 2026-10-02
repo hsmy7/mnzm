@@ -105,7 +105,7 @@ object EquipmentFactory {
 
     private fun requirePiece(setId: String, part: EquipmentSlot): EquipmentDatabase.SetPieceTemplate =
         EquipmentDatabase.setPieces.find { it.setId == setId && it.part == part }
-            ?: error("无 [$setId/$part] 部件定义（EquipmentDatabase.setPieces 12 条之外）")
+            ?: error("无 [$setId/$part] 部件定义（EquipmentDatabase.setPieces 24 部件之外）")
 
     /** 品阶境界钳制：rarity 高于可穿上限时收敛到可穿最高档 */
     private fun clampRarity(rarity: Int, discipleRealm: Int): Int {

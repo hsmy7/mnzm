@@ -2,10 +2,9 @@
 // recipe_db.h — 锻造/炼丹配方静态表（与 Kotlin 数据库同源）
 //
 // 数据来源：
-//   1. 锻造配方（forgeRecipes，72 条）——**静态字面量**，逐字复刻
-//      Kotlin ForgeRecipeDatabase.kt 的 tier1~tier6 六个列表
-//      （ForgeRecipe("id", "name", EquipmentSlot.X, tier, rarity, "desc",
-//        mapOf(...), duration, successRate)）。
+//   1. 锻造配方（forgeRecipes，24 条套装部件配方 = 6 套 × 4 部位，
+//      四部位化 F3 口径）——**静态字面量**，与 Kotlin ForgeRecipeDatabase
+//      同构派生（id = "forge_{pieceId}"，材料表按部位族 6 档）。
 //   2. 丹药配方（pillRecipes，660 条）——**程序化生成**，C++ 侧等价复刻
 //      Kotlin PillRecipeDatabase.kt 的生成循环（TIER_DURATION /
 //      TIER_SUCCESS_RATE / TIER_HERB_IDS / herbMat / PillGrade 循环）。
@@ -52,24 +51,35 @@ namespace gamecore::data {
 // 结构体（字段与 Kotlin data class 对应）
 // ============================================================
 
-/// 锻造配方模板（对应 Kotlin `ForgeRecipeDatabase.ForgeRecipe`）
+/// 锻造配方模板（对应 Kotlin `ForgeRecipeDatabase.ForgeRecipe`，四部位化 F3 口径）
 struct ForgeRecipeTemplate {
+    /// 配方 id = "forge_{pieceId}"（pieceId ∈ EquipmentDatabase 24 部件表）
     std::string id;
+    std::string pieceId;
+    std::string setId;
+    /// EquipmentSlot.name（HEAD/BODY/HANDS/FEET；WEAPON/LEGS 已退役禁复用）
+    std::string part;
     std::string name;
-    /// EquipmentSlot.name（WEAPON/ARMOR/BOOTS/ACCESSORY）
-    std::string type;
-    int32_t tier = 0;
-    int32_t rarity = 0;
     std::string description;
-    /// 材料 id → 数量（std::map 有序，禁止 unordered_map）
-    std::map<std::string, int32_t> materials;
-    int32_t duration = 0;
-    double successRate = 0.0;
+    /// 品阶 1..6 材料表（下标 tier-1；产出品阶 r 消耗 tierMaterials[r-1]——
+    /// Kotlin `tierMaterials: List<Map<String, Int>>` 对偶；std::map 有序，
+    /// 禁止 unordered_map）
+    std::vector<std::map<std::string, int32_t>> tierMaterials;
 
     /// B16/R6.2 数值等价守卫用。C++20 默认派生 ==：逐成员比较由编译器生成，
     /// 覆盖**全部字段**（比手写字段清单更严——不存在漏比某字段的可能）。
     friend bool operator==(const ForgeRecipeTemplate&, const ForgeRecipeTemplate&) = default;
 };
+
+/// 锻造配方派生档（Kotlin `ForgeRecipe.materialsFor` 同式：tier-1 下标取档，
+/// 越界回退末档——tier<=0 时 getOrElse(-1) 落 last 分支，与 Kotlin 一致）
+inline const std::map<std::string, int32_t>& forgeMaterialsFor(
+        const ForgeRecipeTemplate& recipe, int32_t tier) {
+    if (tier >= 1 && tier <= static_cast<int32_t>(recipe.tierMaterials.size())) {
+        return recipe.tierMaterials[static_cast<std::size_t>(tier - 1)];
+    }
+    return recipe.tierMaterials.back();
+}
 
 /// 丹药配方模板（对应 Kotlin `PillRecipeDatabase.PillRecipe`）
 struct PillRecipeTemplate {
@@ -785,164 +795,127 @@ inline std::vector<const PillTemplateSpec*> pillTemplatesByRarityRange(int32_t m
 }
 
 // ============================================================
-// ForgeRecipe 静态表（逐字复刻 Kotlin ForgeRecipeDatabase 字面量）
+// ForgeRecipe 静态表（四部位化 F3：24 条套装部件配方 = 6 套 × 4 部位）
+//
+// 与 Kotlin ForgeRecipeDatabase 同构派生：配方 id = "forge_{pieceId}"
+//（pieceId ∈ EquipmentDatabase 24 部件表）；name/description = 部件模板
+// 同源（Kotlin recipe() 经 EquipmentDatabase.getPieceById 派生，此处逐字
+// 复刻派生结果）；材料表按部位族在 6 套间同构复用（Kotlin 字面量即同构
+// 复制，注释原话「材料表逐部位同构复用」）。产出品阶由锻造槽位 tier 决定
+//（完成期 equipment_factory::create 消费），配方不再携带 tier/rarity/
+// duration/successRate 静态档（时长走 kTierDuration 派生，成功率由 S4
+// 公式合成——Kotlin formulaService 同口径）。
 // ============================================================
 
-inline std::vector<ForgeRecipeTemplate> buildForgeRecipes() {
-    // 字段顺序与 ForgeRecipe(id, name, type, tier, rarity, description,
-    // materials, duration, successRate) 一致
+/// 部位材料族：品阶 1..6 材料表（与 Kotlin allRecipes 逐条一致；
+/// HEAD/BODY/HANDS/FEET 四族在 6 套间同构复用）
+inline std::vector<std::map<std::string, int32_t>> forgeHeadMaterials() {
     return {
-        // ── tier 1 ──
-        {"ironSword", "精铁剑", "WEAPON", 1, 1, "普通铁匠打造的精铁剑",
-         {{"tigerBlood0", 3}, {"tigerTooth0", 2}}, 3, 0.70},
-        {"bronzeDagger", "精铁刀", "WEAPON", 1, 1, "精铁锻造的宝刀",
-         {{"tigerTooth0", 4}, {"eagleClaw0", 2}}, 3, 0.70},
-        {"woodenStaff", "桃木杖", "WEAPON", 1, 1, "百年桃木制成的法杖",
-         {{"snakeBlood0", 3}, {"snakeCore0", 2}}, 3, 0.70},
-        {"crystalOrb", "碧木扇", "WEAPON", 1, 1, "蕴含微量灵气的碧木扇",
-         {{"snakeCore0", 3}, {"foxCore0", 2}}, 3, 0.70},
-        {"leatherArmor", "皮甲", "ARMOR", 1, 1, "野兽皮革制成的护甲",
-         {{"bearHide0", 4}, {"bearBone0", 2}}, 3, 0.70},
-        {"chainMail", "锁子甲", "ARMOR", 1, 1, "铁环相扣的护甲",
-         {{"bearBone0", 5}, {"bearHide0", 2}}, 3, 0.70},
-        {"bronzePlate", "精铁甲", "ARMOR", 1, 1, "精铁铸造的铠甲",
-         {{"turtleShell0", 4}, {"turtleBone0", 2}}, 3, 0.70},
-        {"clothRobe", "灵竹衣", "ARMOR", 1, 1, "灵竹纤维制成的衣物",
-         {{"turtleShell0", 3}, {"snakeScale0", 2}}, 3, 0.70},
-        {"clothBoots", "青澜靴", "BOOTS", 1, 1, "青澜丝线织就的轻靴",
-         {{"wolfHide0", 3}, {"wolfBone0", 2}}, 3, 0.70},
-        {"leatherBoots", "兽皮靴", "BOOTS", 1, 1, "兽皮鞣制的厚靴",
-         {{"wolfHide0", 4}, {"wolfTooth0", 1}}, 3, 0.70},
-        {"jadeRing", "玉戒指", "ACCESSORY", 1, 1, "蕴含微量灵气的玉戒指",
-         {{"foxCore0", 2}, {"foxBone0", 3}}, 3, 0.70},
-        {"copperNecklace", "铜项链", "ACCESSORY", 1, 1, "铜制项链",
-         {{"foxBone0", 3}, {"foxTail0", 2}}, 3, 0.70},
-        // ── tier 2 ──
-        {"spiritSword", "灵锋剑", "WEAPON", 2, 2, "注入灵气的锋利长剑",
-         {{"tigerBlood1", 4}, {"tigerTooth1", 3}}, 6, 0.65},
-        {"battleAxe", "凌华刀", "WEAPON", 2, 2, "刀光凌厉如华",
-         {{"tigerBlood1", 5}, {"eagleClaw1", 2}}, 6, 0.65},
-        {"jadeStaff", "碧玉杖", "WEAPON", 2, 2, "碧玉雕刻的法杖",
-         {{"snakeBlood1", 4}, {"snakeCore1", 2}}, 6, 0.65},
-        {"spiritFan", "灵风扇", "WEAPON", 2, 2, "可扇出灵风的法器",
-         {{"eagleFeather1", 4}, {"snakeCore1", 2}}, 6, 0.65},
-        {"ironPlate", "碧叶甲", "ARMOR", 2, 2, "碧玉叶片打造的护甲",
-         {{"bearHide1", 5}, {"bearBone1", 2}}, 6, 0.65},
-        {"steelArmor", "丹羽衣", "ARMOR", 2, 2, "丹砂羽线织成的法衣",
-         {{"bearBone1", 4}, {"bearCore1", 2}}, 6, 0.65},
-        {"spiritRobe", "灵丝袍", "ARMOR", 2, 2, "灵蚕丝织成的法袍",
-         {{"turtleShell1", 4}, {"snakeScale1", 2}}, 6, 0.65},
-        {"cloudRobe", "云纹袍", "ARMOR", 2, 2, "绣有云纹的法袍",
-         {{"turtleShell1", 3}, {"turtleBone1", 3}}, 6, 0.65},
-        {"swiftBoots", "疾风靴", "BOOTS", 2, 2, "穿上可大幅提升移动速度",
-         {{"wolfHide1", 4}, {"wolfBone1", 2}}, 6, 0.65},
-        {"lightBoots", "轻羽靴", "BOOTS", 2, 2, "如羽毛般轻盈",
-         {{"wolfHide1", 3}, {"eagleFeather1", 3}}, 6, 0.65},
-        {"spiritPendant", "灵玉佩", "ACCESSORY", 2, 2, "蕴含灵气的玉佩",
-         {{"foxCore1", 3}, {"foxBone1", 3}}, 6, 0.65},
-        {"healthRing", "蕴灵戒", "ACCESSORY", 2, 2, "可蕴养灵力的戒指",
-         {{"wolfTooth1", 3}, {"foxTail1", 2}}, 6, 0.65},
-        // ── tier 3 ──
-        {"frostBlade", "青碧刃", "WEAPON", 3, 3, "蕴含青碧灵力的宝刀",
-         {{"tigerBlood2", 5}, {"snakeScale2", 3}, {"tigerTooth2", 2}}, 12, 0.60},
-        {"flameSword", "烈焰剑", "WEAPON", 3, 3, "燃烧着火焰的灵剑",
-         {{"tigerBlood2", 4}, {"tigerCore2", 2}, {"tigerTooth2", 3}}, 12, 0.60},
-        {"thunderStaff", "玄雷杖", "WEAPON", 3, 3, "可召唤雷电的法杖",
-         {{"snakeBlood2", 4}, {"snakeCore2", 3}, {"eagleFeather2", 2}}, 12, 0.60},
-        {"frostOrb", "玄冰扇", "WEAPON", 3, 3, "蕴含玄冰之力的宝扇",
-         {{"snakeCore2", 4}, {"foxCore2", 2}, {"snakeBlood2", 2}}, 12, 0.60},
-        {"scaleArmor", "青鳞铠", "ARMOR", 3, 3, "妖兽青鳞打造的铠甲",
-         {{"snakeScale2", 5}, {"snakeBlood2", 3}, {"snakeCore2", 2}}, 12, 0.60},
-        {"plateArmor", "银板铠", "ARMOR", 3, 3, "厚重的银板护甲",
-         {{"bearHide2", 4}, {"bearBone2", 3}, {"bearCore2", 2}}, 12, 0.60},
-        {"mysticRobe", "汐流衣", "ARMOR", 3, 3, "蕴含汐流之力的法衣",
-         {{"turtleShell2", 5}, {"turtleBone2", 3}, {"turtleCore2", 2}}, 12, 0.60},
-        {"starRobe", "星辰袍", "ARMOR", 3, 3, "绣有星辰图案的法袍",
-         {{"bearHide2", 3}, {"snakeScale2", 3}, {"bearCore2", 2}}, 12, 0.60},
-        {"windBoots", "追风靴", "BOOTS", 3, 3, "追逐风的速度",
-         {{"wolfHide2", 4}, {"wolfBone2", 3}, {"wolfCore2", 2}}, 12, 0.60},
-        {"mistBoots", "云栖靴", "BOOTS", 3, 3, "云栖之处步履轻盈",
-         {{"wolfHide2", 4}, {"eagleFeather2", 2}, {"wolfTooth2", 2}}, 12, 0.60},
-        {"storageRing", "灵泉戒", "ACCESSORY", 3, 3, "蕴含灵泉之力的戒指",
-         {{"foxCore2", 4}, {"foxBone2", 3}, {"foxTail2", 2}}, 12, 0.60},
-        {"wisdomOrb", "迅捷珠", "ACCESSORY", 3, 3, "可提升身法速度的宝珠",
-         {{"wolfTooth2", 4}, {"eagleClaw2", 2}, {"foxCore2", 2}}, 12, 0.60},
-        // ── tier 4 ──
-        {"thunderSword", "雷霆剑", "WEAPON", 4, 4, "引动天雷的玄妙飞剑",
-         {{"tigerBlood3", 6}, {"tigerHide3", 4}, {"tigerCore3", 2}}, 36, 0.35},
-        {"shadowBlade", "暗影刃", "WEAPON", 4, 4, "融入暗影的短刃",
-         {{"tigerBlood3", 5}, {"eagleClaw3", 4}, {"foxCore3", 2}}, 36, 0.35},
-        {"voidStaff", "虚华杖", "WEAPON", 4, 4, "虚华流转的玄妙法杖",
-         {{"snakeBlood3", 5}, {"snakeCore3", 4}, {"foxCore3", 2}}, 36, 0.35},
-        {"phoenixFan", "凰焰扇", "WEAPON", 4, 4, "凰焰淬炼的神扇",
-         {{"eagleFeather3", 6}, {"eagleClaw3", 3}, {"eagleCore3", 2}}, 36, 0.35},
-        {"dragonScale", "龙鳞铠", "ARMOR", 4, 4, "真龙鳞片锻造的铠甲",
-         {{"snakeScale3", 6}, {"snakeBlood3", 4}, {"snakeCore3", 2}}, 36, 0.35},
-        {"titanArmor", "渊岩铠", "ARMOR", 4, 4, "深渊岩铁铸造的铠甲",
-         {{"bearHide3", 5}, {"bearBone3", 4}, {"bearCore3", 3}}, 36, 0.35},
-        {"voidRobe", "瑶光袍", "ARMOR", 4, 4, "蕴含瑶光之力的法袍",
-         {{"turtleShell3", 6}, {"turtleBone3", 4}, {"turtleCore3", 2}}, 36, 0.35},
-        {"moonRobe", "月华袍", "ARMOR", 4, 4, "吸收月华之力织成的法袍",
-         {{"bearHide3", 5}, {"snakeScale3", 3}, {"bearCore3", 3}}, 36, 0.35},
-        {"cloudBoots", "踏云履", "BOOTS", 4, 4, "踏云而行的仙家法宝",
-         {{"wolfHide3", 5}, {"eagleFeather3", 4}, {"wolfCore3", 2}}, 36, 0.35},
-        {"thunderBoots", "奔雷靴", "BOOTS", 4, 4, "如雷电般迅捷的靴子",
-         {{"wolfHide3", 5}, {"wolfBone3", 3}, {"wolfCore3", 3}}, 36, 0.35},
-        {"dragonEye", "龙灵珠", "ACCESSORY", 4, 4, "真龙之灵凝聚的宝珠",
-         {{"foxCore3", 5}, {"foxBone3", 4}, {"foxHide3", 2}}, 36, 0.35},
-        {"phoenixHeart", "凤羽坠", "ACCESSORY", 4, 4, "凤凰羽翼炼制的坠饰",
-         {{"wolfTooth3", 5}, {"eagleClaw3", 3}, {"foxTail3", 3}}, 36, 0.35},
-        // ── tier 5 ──
-        {"dragonSlayer", "凤炎刃", "WEAPON", 5, 5, "蕴含凤炎之力的绝世神兵",
-         {{"tigerBlood4", 6}, {"tigerTooth4", 4}, {"tigerCore4", 2}, {"dragonHorn4", 2}}, 72, 0.30},
-        {"godSlayer", "青莲剑", "WEAPON", 5, 5, "自青莲中诞生的神剑",
-         {{"tigerBlood4", 5}, {"tigerTooth4", 4}, {"eagleClaw4", 3}, {"tigerCore4", 2}}, 72, 0.30},
-        {"phoenixWing", "阴阳扇", "WEAPON", 5, 5, "蕴含阴阳之力的神扇",
-         {{"eagleFeather4", 6}, {"eagleClaw4", 4}, {"eagleCore4", 2}, {"snakeCore4", 2}}, 72, 0.30},
-        {"celestialOrb", "天玄杖", "WEAPON", 5, 5, "蕴含天玄之力的神杖",
-         {{"snakeBlood4", 5}, {"snakeCore4", 4}, {"foxCore4", 2}, {"dragonCore4", 2}}, 72, 0.30},
-        {"earthArmor", "玄幽袍", "ARMOR", 5, 5, "承载玄幽之力的法袍",
-         {{"snakeScale4", 6}, {"snakeBlood4", 4}, {"snakeCore4", 2}, {"dragonScale4", 2}}, 72, 0.30},
-        {"divinePlate", "墨幽铠", "ARMOR", 5, 5, "墨幽玄铁铸造的铠甲",
-         {{"bearHide4", 6}, {"bearBone4", 4}, {"bearClaw4", 2}, {"bearCore4", 2}}, 72, 0.30},
-        {"celestialRobe", "凌星袍", "ARMOR", 5, 5, "凌驾星辰之力的法袍",
-         {{"turtleShell4", 6}, {"turtleBone4", 4}, {"turtleCore4", 2}, {"dragonScale4", 2}}, 72, 0.30},
-        {"voidShadowRobe", "定海铠", "ARMOR", 5, 5, "定海之力凝聚的铠甲",
-         {{"bearHide4", 5}, {"snakeScale4", 3}, {"bearCore4", 3}, {"foxCore4", 2}}, 72, 0.30},
-        {"voidBoots", "溯光靴", "BOOTS", 5, 5, "溯光逐影穿梭虚空",
-         {{"wolfHide4", 5}, {"wolfTooth4", 4}, {"wolfCore4", 2}, {"dragonScale4", 2}}, 72, 0.30},
-        {"shadowStepBoots", "赤煞靴", "BOOTS", 5, 5, "赤煞之气凝聚的战靴",
-         {{"wolfHide4", 5}, {"eagleClaw4", 3}, {"wolfCore4", 2}, {"foxTail4", 2}}, 72, 0.30},
-        {"earthCore", "渡厄佩", "ACCESSORY", 5, 5, "可渡厄解难的灵佩",
-         {{"foxCore4", 6}, {"foxBone4", 4}, {"foxHide4", 2}, {"dragonCore4", 2}}, 72, 0.30},
-        {"dragonEyePendant", "隐云佩", "ACCESSORY", 5, 5, "隐于云端的灵佩",
-         {{"wolfTooth4", 5}, {"eagleClaw4", 4}, {"foxTail4", 2}, {"wolfCore4", 2}}, 72, 0.30},
-        // ── tier 6 ──
-        {"immortalSword", "诛仙剑", "WEAPON", 6, 6, "上古仙人遗留的仙器",
-         {{"tigerBlood5", 8}, {"tigerTooth5", 5}, {"tigerCore5", 3}, {"dragonHorn5", 3}}, 120, 0.25},
-        {"chaosBlade", "玄玉刃", "WEAPON", 6, 6, "玄玉淬炼的神刃",
-         {{"tigerBlood5", 6}, {"tigerTooth5", 5}, {"eagleClaw5", 4}, {"tigerCore5", 3}}, 120, 0.25},
-        {"primordialStaff", "天星杖", "WEAPON", 6, 6, "凝聚天星之力的法杖",
-         {{"snakeBlood5", 7}, {"snakeCore5", 5}, {"eagleFeather5", 3}, {"dragonCore5", 3}}, 120, 0.25},
-        {"yinYangOrb", "天玄扇", "WEAPON", 6, 6, "蕴含天玄道韵的至宝",
-         {{"snakeBlood5", 6}, {"snakeCore5", 5}, {"foxCore5", 3}, {"dragonCore5", 3}}, 120, 0.25},
-        {"immortalArmor", "不朽铠", "ARMOR", 6, 6, "仙界神甲",
-         {{"snakeScale5", 8}, {"snakeBlood5", 5}, {"snakeCore5", 3}, {"dragonScale5", 3}}, 120, 0.25},
-        {"primordialArmor", "苍罡铠", "ARMOR", 6, 6, "苍罡之力凝聚的神甲",
-         {{"bearHide5", 8}, {"bearBone5", 5}, {"bearCore5", 3}, {"dragonClaw5", 3}}, 120, 0.25},
-        {"immortalRobe", "曦光铠", "ARMOR", 6, 6, "蕴含曦光之力的铠甲",
-         {{"turtleShell5", 8}, {"turtleBone5", 5}, {"turtleCore5", 3}, {"dragonScale5", 3}}, 120, 0.25},
-        {"chaosRobe", "云影袍", "ARMOR", 6, 6, "云影交织的法袍",
-         {{"bearHide5", 6}, {"snakeScale5", 4}, {"bearCore5", 4}, {"dragonClaw5", 3}}, 120, 0.25},
-        {"immortalBoots", "鸾羽履", "BOOTS", 6, 6, "鸾鸟仙羽织就的灵履",
-         {{"wolfHide5", 7}, {"wolfTooth5", 5}, {"wolfCore5", 3}, {"dragonScale5", 3}}, 120, 0.25},
-        {"chaosStepBoots", "鹤岚靴", "BOOTS", 6, 6, "鹤翔岚雾而行",
-         {{"wolfHide5", 6}, {"eagleClaw5", 4}, {"wolfCore5", 4}, {"dragonClaw5", 3}}, 120, 0.25},
-        {"chaosBead", "幽朔珠", "ACCESSORY", 6, 6, "蕴含幽朔之力的灵珠",
-         {{"foxCore5", 8}, {"foxBone5", 5}, {"foxHide5", 3}, {"dragonCore5", 3}}, 120, 0.25},
-        {"heavenRing", "长明坠", "ACCESSORY", 6, 6, "长明不灭的灵坠",
-         {{"wolfTooth5", 7}, {"eagleClaw5", 5}, {"foxTail5", 3}, {"dragonScale5", 3}}, 120, 0.25},
+        {{"bearHide0", 3}, {"bearBone0", 2}},
+        {{"bearHide1", 4}, {"bearBone1", 3}},
+        {{"bearHide2", 5}, {"bearBone2", 3}, {"bearCore2", 2}},
+        {{"bearHide3", 5}, {"bearBone3", 4}, {"bearCore3", 3}},
+        {{"bearHide4", 6}, {"bearBone4", 4}, {"bearCore4", 2}, {"dragonScale4", 2}},
+        {{"bearHide5", 8}, {"bearBone5", 5}, {"bearCore5", 3}, {"dragonClaw5", 3}},
     };
+}
+
+inline std::vector<std::map<std::string, int32_t>> forgeBodyMaterials() {
+    return {
+        {{"bearHide0", 4}, {"bearBone0", 2}},
+        {{"bearHide1", 5}, {"bearBone1", 2}},
+        {{"snakeScale2", 5}, {"snakeBlood2", 3}, {"snakeCore2", 2}},
+        {{"snakeScale3", 6}, {"snakeBlood3", 4}, {"snakeCore3", 2}},
+        {{"snakeScale4", 6}, {"snakeBlood4", 4}, {"snakeCore4", 2}, {"dragonScale4", 2}},
+        {{"snakeScale5", 8}, {"snakeBlood5", 5}, {"snakeCore5", 3}, {"dragonScale5", 3}},
+    };
+}
+
+inline std::vector<std::map<std::string, int32_t>> forgeHandsMaterials() {
+    return {
+        {{"eagleClaw0", 3}, {"eagleFeather0", 2}},
+        {{"eagleClaw1", 4}, {"eagleFeather1", 3}},
+        {{"eagleFeather2", 5}, {"eagleClaw2", 3}, {"eagleCore2", 2}},
+        {{"eagleFeather3", 6}, {"eagleClaw3", 4}, {"eagleCore3", 2}},
+        {{"eagleFeather4", 6}, {"eagleClaw4", 4}, {"eagleCore4", 2}, {"snakeCore4", 2}},
+        {{"eagleFeather5", 7}, {"eagleClaw5", 5}, {"eagleCore5", 3}, {"dragonCore5", 3}},
+    };
+}
+
+inline std::vector<std::map<std::string, int32_t>> forgeFeetMaterials() {
+    return {
+        {{"wolfHide0", 3}, {"wolfBone0", 2}},
+        {{"wolfHide1", 4}, {"wolfBone1", 2}},
+        {{"wolfHide2", 4}, {"wolfBone2", 3}, {"wolfCore2", 2}},
+        {{"wolfHide3", 5}, {"wolfBone3", 3}, {"wolfCore3", 2}},
+        {{"wolfHide4", 5}, {"wolfTooth4", 4}, {"wolfCore4", 2}, {"dragonScale4", 2}},
+        {{"wolfHide5", 7}, {"wolfTooth5", 5}, {"wolfCore5", 3}, {"dragonScale5", 3}},
+    };
+}
+
+/// 单条配方（Kotlin recipe(pieceId, part, materials) 同式——id = "forge_{pieceId}"，
+/// setId 取 pieceId 首段）
+inline ForgeRecipeTemplate forgeRecipe(const std::string& pieceId,
+                                       const std::string& part,
+                                       const std::string& name,
+                                       const std::string& description,
+                                       std::vector<std::map<std::string, int32_t>> materials) {
+    ForgeRecipeTemplate r;
+    r.id = "forge_" + pieceId;
+    r.pieceId = pieceId;
+    r.setId = pieceId.substr(0, pieceId.find('_'));
+    r.part = part;
+    r.name = name;
+    r.description = description;
+    r.tierMaterials = std::move(materials);
+    return r;
+}
+
+inline std::vector<ForgeRecipeTemplate> buildForgeRecipes() {
+    // 24 条 = 6 套 × 4 部位；套间序 = lietian/gengjin/qingmu/xuanshui/lihuo/houtu，
+    // 套内序 = HEAD/BODY/HANDS/FEET（均与 Kotlin allRecipes 声明序一致）
+    const char* const kSetIds[6] = {"lietian", "gengjin", "qingmu",
+                                    "xuanshui", "lihuo", "houtu"};
+    const char* const kPartNames[4] = {"HEAD", "BODY", "HANDS", "FEET"};
+    // 部件模板名（EquipmentDatabase.SetPieceTemplate.name 派生结果，逐字）
+    const char* const kPieceNames[6][4] = {
+        {"裂天罡煞·头冠", "裂天罡煞·重铠", "裂天罡煞·战手", "裂天罡煞·战靴"},
+        {"庚金白虎·灵冠", "庚金白虎·法袍", "庚金白虎·灵护", "庚金白虎·云履"},
+        {"青木长生·灵冠", "青木长生·法袍", "青木长生·灵护", "青木长生·云履"},
+        {"玄水寒渊·灵冠", "玄水寒渊·法袍", "玄水寒渊·灵护", "玄水寒渊·云履"},
+        {"离火焚天·灵冠", "离火焚天·法袍", "离火焚天·灵护", "离火焚天·云履"},
+        {"厚土镇岳·灵冠", "厚土镇岳·法袍", "厚土镇岳·灵护", "厚土镇岳·云履"},
+    };
+    // 部件模板描述（EquipmentDatabase.SetPieceTemplate.description 派生结果，逐字）
+    const char* const kPieceDescs[6][4] = {
+        {"裂天罡煞套装头冠，罡煞之气护持识海", "裂天罡煞套装重铠，煞气凝甲坚不可摧",
+         "裂天罡煞套装护手，罡风附刃裂石开碑", "裂天罡煞套装战靴，踏罡步斗势如奔雷"},
+        {"庚金白虎套装灵冠，白虎金睛洞察秋毫", "庚金白虎套装法袍，金气织体刀兵不侵",
+         "庚金白虎套装灵护，锐金凝爪裂金断玉", "庚金白虎套装云履，虎啸风生金戈疾行"},
+        {"青木长生套装灵冠，青木灵韵清心明神", "青木长生套装法袍，生生不息缠枝为衣",
+         "青木长生套装灵护，藤蔓缠腕生机盎然", "青木长生套装云履，踏叶而行轻若春风"},
+        {"玄水寒渊套装灵冠，寒渊之息凝神静念", "玄水寒渊套装法袍，玄水环身百法不沾",
+         "玄水寒渊套装灵护，寒潮覆掌冻结万机", "玄水寒渊套装云履，凌波微步踏水无痕"},
+        {"离火焚天套装灵冠，离火真焰炼神涤魄", "离火焚天套装法袍，炎纹织体烈焰随身",
+         "离火焚天套装灵护，火灵附掌焚尽八荒", "离火焚天套装云履，踏火而行燎原疾影"},
+        {"厚土镇岳套装灵冠，厚土之德沉稳心神", "厚土镇岳套装法袍，山岳之甲岿然不动",
+         "厚土镇岳套装灵护，镇岳之力撼地崩山", "厚土镇岳套装云履，踏地生根移山填谷"},
+    };
+
+    std::vector<ForgeRecipeTemplate> out;
+    out.reserve(24);
+    for (int s = 0; s < 6; ++s) {
+        const std::string sid = kSetIds[s];
+        out.push_back(forgeRecipe(sid + "_HEAD", kPartNames[0], kPieceNames[s][0],
+                                  kPieceDescs[s][0], forgeHeadMaterials()));
+        out.push_back(forgeRecipe(sid + "_BODY", kPartNames[1], kPieceNames[s][1],
+                                  kPieceDescs[s][1], forgeBodyMaterials()));
+        out.push_back(forgeRecipe(sid + "_HANDS", kPartNames[2], kPieceNames[s][2],
+                                  kPieceDescs[s][2], forgeHandsMaterials()));
+        out.push_back(forgeRecipe(sid + "_FEET", kPartNames[3], kPieceNames[s][3],
+                                  kPieceDescs[s][3], forgeFeetMaterials()));
+    }
+    return out;
 }
 
 // ============================================================
@@ -953,6 +926,12 @@ inline std::vector<ForgeRecipeTemplate> buildForgeRecipes() {
 static constexpr int32_t kTierDuration[7] = {0, 3, 6, 12, 36, 72, 120};
 /// TIER_SUCCESS_RATE
 static constexpr double kTierSuccessRate[7] = {0.0, 0.75, 0.65, 0.60, 0.45, 0.35, 0.20};
+
+/// 锻造时长按品阶档（Kotlin `ForgeRecipeDatabase.getDurationByTier` 同式：
+/// `TIER_DURATION[tier] ?: 2`——越界不 coerce，直接回退 2 旬）
+inline int32_t forgeDurationByTier(int32_t tier) {
+    return tier >= 1 && tier <= 6 ? kTierDuration[tier] : 2;
+}
 
 /// TIER_HERB_IDS（每 tier 9 种灵草：3 草 + 3 花 + 3 果）
 static constexpr const char* kTierHerbs[7][9] = {
@@ -1240,7 +1219,7 @@ inline std::vector<PillRecipeTemplate> buildPillRecipes() {
 // 公开访问接口（静态表 + 按 id 查询）
 // ============================================================
 
-/// 全部锻造配方（6 tier × 12 = 72 条，顺序与 Kotlin tier1~tier6 一致）
+/// 全部锻造配方（24 条 = 6 套 × 4 部位，顺序与 Kotlin allRecipes 一致）
 ///
 /// B16/R6.2 数值外置：本表为**内联默认值兜底**（= detail::buildForgeRecipes()
 /// 产出），与数据文件 `assets/data/game-data.json` 的 `db.forgeRecipes` 段同源

@@ -17,7 +17,7 @@ struct EquipPieceEntry {
     std::string id;        // "{pieceId}_r{rarity}"
     std::string pieceId;   // 所属部件 id
     std::string setId;
-    std::string part;      // 六部位 EquipmentSlot.name
+    std::string part;      // 四部位 EquipmentSlot.name
     int32_t rarity = 1;
     std::string name;
     std::string description;

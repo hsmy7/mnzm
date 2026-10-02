@@ -114,7 +114,7 @@ inline void bagIncreaseItemQuantity(std::vector<StorageBagItem>& bag,
     bag.push_back(std::move(entry));
 }
 
-// ── 装备槽位列读写（B3 六部位；auto_gear.h detail::equipSlotId/setEquipSlot
+// ── 装备槽位列读写（B3 套装部件制、四部位化后 4 列；auto_gear.h detail::equipSlotId/setEquipSlot
 //    同源，本头文件独立提供避免 ECS 依赖引入）──────────────────────────────
 
 inline const std::string& equipSlotId(const DiscipleStore& ds, std::size_t row,
@@ -351,7 +351,7 @@ struct UnassignSlotResult {
 //
 // 校验链（逐字对齐 Kotlin 判定序）：弟子存在 → 装备实例存在（NotFound）→
 // 已穿戴 AlreadyEquipped → 境界 RealmTooLow → 槽位合法 → 旧装备卸下失败
-// SlotInvalid。写段：实例置位（isEquipped=true + ownerId）+ 六部位槽位列写。
+// SlotInvalid。写段：实例置位（isEquipped=true + ownerId）+ 四部位槽位列写。
 inline EquipResult equipTransaction(GameState& state, const std::string& discipleId,
                                     const std::string& equipmentId) {
     EquipResult out;

@@ -79,8 +79,8 @@ class SpriteCodegenSyncTest {
     fun `SpriteRegistryData 数据 - 装备映射与期望一致`() {
         val src = registrySource()
         assertTrue(
-            "精铁剑必须映射 R.drawable.jing_tie_jian（app 模块有副本 → 用 app R）",
-            src.contains("\"精铁剑\" to R.drawable.jing_tie_jian")
+            "裂天罡煞·头冠必须映射 R.drawable.lie_tian_gang_sha_tou_guan（四部位化 F3 24 部件锚点；app 模块有副本 → 用 app R）",
+            src.contains("\"裂天罡煞·头冠\" to R.drawable.lie_tian_gang_sha_tou_guan")
         )
         assertTrue(
             "功法必须映射 manual_ 前缀键（manualSpriteRes(rarity) 查询协议；1=凡阶→manual_fan_ling，凡/灵品共用单图）",

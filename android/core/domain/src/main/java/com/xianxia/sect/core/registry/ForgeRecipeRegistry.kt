@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.registry
 
 /**
- * 锻造配方注册表（装备重构 B3：12 条套装部件配方，按品阶产出）
+ * 锻造配方注册表（B3 套装部件制、四部位化 F3：24 条配方 = 6 套 × 4 部位，按品阶产出）
  */
 class ForgeRecipeRegistry : BaseTemplateRegistry<ForgeRecipeDatabase.ForgeRecipe>() {
 

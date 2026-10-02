@@ -242,7 +242,7 @@ object ForgeRecipeDatabase {
     fun getAllRecipes(): List<ForgeRecipe> = allRecipes
 
     /**
-     * 可锻造配方（全部 36 条恒全量，按 tier 面向产出）。
+     * 可锻造配方（全部 24 条恒全量，四部位化 F3：6 套 × 4 部位）。
      */
     @Suppress("UnusedParameter") // B3 退役占位：配方不再按品阶上限过滤，产出品阶由槽位 tier 决定；
     // 保留形参维持签名契约，恒全量行为由 ForgeRecipeDatabaseTest.getCraftableRecipes_alwaysReturnsAll 多值守卫
