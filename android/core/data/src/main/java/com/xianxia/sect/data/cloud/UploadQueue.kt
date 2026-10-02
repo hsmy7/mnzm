@@ -16,21 +16,23 @@ import kotlinx.coroutines.sync.withLock
 /**
  * 异步上传队列（方案 D3 双步保存的第二步，SR-2 落地）。
  *
- * 状态机对齐 SR-0 §4.3 B 清单（Q1-Q10 单测逐例锚定）：
+ * 云端单档语义下队列状态为单条目（键坍缩后不再有槽位维度），状态机对齐
+ * SR-0 §4.3 B 清单（Q1-Q10 单测逐例锚定）：
  * - **单飞 worker + 惰性启动**：首次 enqueue 才拉起协程；LEGACY 模式全链零入队 ⇒
  *   零协程活动（硬红线的机制面保障）。单飞同时天然满足 TapTap"同一存档不允许并发更新"
  *   与 400007 串行化（Q4）；
- * - **窗口合并**（Q7/Q8）：worker 出队前先等 [Config.debounceMs]，窗口内同 slot 的
- *   多次入队只剩最新一条（最新 saveId/最新快照）；
+ * - **窗口合并**（Q7/Q8）：worker 出队前先等 [Config.debounceMs]，窗口内多次
+ *   入队只剩最新一条（最新 saveId/最新快照）；
  * - **限频适配**（Q2）：上传成功后强制 [Config.sharedUploadCooldownMs] 全局冷却
- *   （TapTap 创建/更新共享 1 次/分钟冷却，按用户计多档共用——SR-0 §2.3 保守口径，
- *   参数化可放宽）；400001 退避也按冷却间隔；
+ *   （TapTap 创建/更新共享 1 次/分钟冷却，SR-0 §2.3 保守口径，参数化可放宽）；
+ *   400001 退避也按冷却间隔；
  * - **指数退避**（Q3/Q4）：TOKEN_EXPIRED/CONCURRENT/网络族按
  *   baseRetryDelayMs × 2^(n-1)，封顶 maxRetryDelayMs；
  * - **熔断**（Q9）：连续 [Config.maxConsecutiveFailures] 次失败 → CircuitOpened 事件
  *   （告警通道如实提示，不静默），静默 [Config.circuitOpenMs] 后半开重试；
- * - **冲突挂起**（Q10/S10）：上传前经 [SaveArbiter] 仲裁，CONFLICT ⇒ 不自动上传，
- *   移入挂起区并发出事件，由 [resolveConflict] 按玩家选择收口（SR-3 冲突弹窗接线）；
+ * - **冲突/云端领先挂起**（Q10/S10）：上传前经 [SaveArbiter] 仲裁，CONFLICT 与
+ *   LOCAL_BEHIND（W>C，云端有本机之外的新进度）⇒ 不自动上传，移入挂起区并发出
+ *   事件，由 [resolveConflict] 按玩家选择收口（SR-3 冲突弹窗接线）——绝不静默覆盖；
  * - **幂等重传**（Q6）：入队 saveId ≤ 已确认序号直接跳过；进程被杀后按"同 saveId
  *   重入队"配方恢复（账本待传指针持久化），覆盖上传收敛。
  *
@@ -46,7 +48,7 @@ class UploadQueue(
 
     data class Config(
         /**
-         * 窗口合并窗宽：worker 出队后先等此时长，窗内同 slot 多次入队合并为最新一条。
+         * 窗口合并窗宽：worker 出队后先等此时长，窗内多次入队合并为最新一条。
          *
          * SR-4 §8 曾建议在本批（打开生产上传）把它提到与 [sharedUploadCooldownMs] 同量级，
          * 实测**不需要**：单飞循环是"窗 → 上传 → 成功后 delay(冷却)"，两次成功上传的间隔
@@ -54,7 +56,7 @@ class UploadQueue(
          * 放宽窗只会让快照更旧、上传更少，不减少请求。节奏性质由 `UploadQueueTest` Q13 钉住。
          */
         val debounceMs: Long = 2_000,
-        /** 上传成功后的全局强制冷却（TapTap 创建/更新共享 1 次/分钟，多档共用） */
+        /** 上传成功后的全局强制冷却（TapTap 创建/更新共享 1 次/分钟） */
         val sharedUploadCooldownMs: Long = 60_000,
         /** 指数退避基值（TOKEN_EXPIRED/CONCURRENT/网络族） */
         val baseRetryDelayMs: Long = 30_000,
@@ -68,21 +70,19 @@ class UploadQueue(
 
     /** 队列事件——UI 告警通道数据源（postSaveWarning 同纪律：失败必须如实，不静默） */
     sealed class Event {
-        data class UploadConfirmed(val slot: Int, val saveId: Long) : Event()
+        data class UploadConfirmed(val saveId: Long) : Event()
         data class UploadFailed(
-            val slot: Int,
             val saveId: Long,
             val error: SaveBackendError,
             val message: String,
             val willRetry: Boolean
         ) : Event()
 
-        data class CircuitOpened(val slot: Int, val consecutiveFailures: Int) : Event()
-        data class ConflictHeld(val slot: Int, val conflict: SaveConflictEvent) : Event()
+        data class CircuitOpened(val consecutiveFailures: Int) : Event()
+        data class ConflictHeld(val conflict: SaveConflictEvent) : Event()
     }
 
     private data class PendingEntry(
-        val slot: Int,
         val saveData: SaveData,
         val saveId: Long
     )
@@ -90,10 +90,11 @@ class UploadQueue(
     private data class HeldEntry(val entry: PendingEntry, val conflict: SaveConflictEvent)
 
     private val mutex = Mutex()
-    private val pending = HashMap<Int, PendingEntry>()
-    private val heldConflicts = HashMap<Int, HeldEntry>()
-    /** 玩家已裁决"保留本地"的槽位：下一次上传授权越过冲突闸（显式选择 ≠ 静默覆盖） */
-    private val conflictAuthorized = HashSet<Int>()
+    /** 待传条目（同档留最新：窗口内多次入队覆盖为最新快照） */
+    private var pending: PendingEntry? = null
+    private var heldConflict: HeldEntry? = null
+    /** 玩家已裁决"保留本地"：下一次上传授权越过冲突闸（显式选择 ≠ 静默覆盖） */
+    private var conflictAuthorized = false
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var workerJob: Job? = null
     private var consecutiveFailures = 0
@@ -111,14 +112,14 @@ class UploadQueue(
      * IN1：本地事务已提交，本队列失败只降级）。
      * 幂等：saveId ≤ 已确认序号（Q6 已确认重放）直接跳过。
      */
-    suspend fun enqueue(slot: Int, saveData: SaveData, saveId: Long? = null) {
-        val id = saveId ?: ledger.recordLocalSave(slot)
-        if (id <= ledger.lastConfirmedCloudId(slot)) {
-            DomainLog.d(TAG, "enqueue skipped: saveId=$id already confirmed (slot=$slot)")
+    suspend fun enqueue(saveData: SaveData, saveId: Long? = null) {
+        val id = saveId ?: ledger.recordLocalSave()
+        if (id <= ledger.lastConfirmedCloudId()) {
+            DomainLog.d(TAG, "enqueue skipped: saveId=$id already confirmed")
             return
         }
         mutex.withLock {
-            pending[slot] = PendingEntry(slot, saveData, id) // 同 slot 最新覆盖 = 窗口合并数据面
+            pending = PendingEntry(saveData, id) // 最新覆盖 = 窗口合并数据面
         }
         ensureWorker()
         wake.trySend(Unit)
@@ -129,23 +130,23 @@ class UploadQueue(
      * keepLocal=true ⇒ 恢复上传本地档；false ⇒ 玩家选云档，本地待传条目丢弃，
      * 账本基线收敛到云端序号（[UploadLedger.adoptCloudState]——保存序号语义，IN2 合规）。
      */
-    suspend fun resolveConflict(slot: Int, keepLocal: Boolean) {
-        val held = mutex.withLock { heldConflicts.remove(slot) } ?: return
+    suspend fun resolveConflict(keepLocal: Boolean) {
+        val held = mutex.withLock { heldConflict.also { heldConflict = null } } ?: return
         if (keepLocal) {
             mutex.withLock {
-                pending[slot] = held.entry
-                conflictAuthorized.add(slot)
+                pending = held.entry
+                conflictAuthorized = true
             }
             wake.trySend(Unit)
         } else {
-            mutex.withLock { pending.remove(slot) }
-            ledger.adoptCloudState(slot, held.conflict.cloudSaveId ?: ledger.lastConfirmedCloudId(slot))
-            DomainLog.i(TAG, "conflict resolved: slot=$slot 玩家选云档，本地待传丢弃，基线收敛")
+            mutex.withLock { pending = null }
+            ledger.adoptCloudState(held.conflict.cloudSaveId ?: ledger.lastConfirmedCloudId())
+            DomainLog.i(TAG, "conflict resolved: 玩家选云档，本地待传丢弃，基线收敛")
         }
     }
 
-    /** 测试/运维观测面：挂起中的冲突条目槽位 */
-    suspend fun heldConflictSlots(): Set<Int> = mutex.withLock { heldConflicts.keys.toSet() }
+    /** 测试/运维观测面：是否存在挂起中的冲突条目 */
+    suspend fun hasHeldConflict(): Boolean = mutex.withLock { heldConflict != null }
 
     /**
      * 排空尝试（SR-4 `onStop`：本地事务已提交，进程可能随时被杀 ⇒ 尽力把待传推出去）。
@@ -172,19 +173,19 @@ class UploadQueue(
     @Suppress("TooGenericExceptionCaught")
     private suspend fun runLoop() {
         while (true) {
-            val entry = mutex.withLock { pending.values.minByOrNull { it.saveId } }
-            if (entry == null) {
+            if (mutex.withLock { pending } == null) {
                 wake.receive() // 空闲挂起（惰性启动语义：不入队即零活动）
                 continue
             }
             try {
-                process(entry)
+                process()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e // 取消穿透：scope 取消时 worker 退出，不吞取消
             } catch (e: Exception) {
                 DomainLog.e(TAG, "upload pipeline unexpected error, entry kept for retry: ${e.message}", e)
+                val failedId = mutex.withLock { pending?.saveId } ?: 0L // 0 = 无待传可归因
                 _events.tryEmit(
-                    Event.UploadFailed(entry.slot, entry.saveId, SaveBackendError.UNKNOWN, e.message ?: "", true)
+                    Event.UploadFailed(failedId, SaveBackendError.UNKNOWN, e.message ?: "", true)
                 )
                 delay(config.baseRetryDelayMs)
             }
@@ -192,16 +193,20 @@ class UploadQueue(
     }
 
     /** 单条处理：合并窗 → 冲突仲裁 → 上传 → 结果分类（确认/退避/熔断/挂起） */
-    private suspend fun process(entry: PendingEntry) {
-        // Q7/Q8：窗口内合并——多次入队只剩本 slot 最新条目；SR-4 排空请求跳窗立即试传
+    private suspend fun process() {
+        // Q7/Q8：窗口内合并——多次入队只剩最新条目；SR-4 排空请求跳窗立即试传
         if (!consumeDrainRequest()) delay(config.debounceMs)
-        val current = mutex.withLock { pending[entry.slot] } ?: return
+        val current = mutex.withLock { pending } ?: return
         if (conflictGate(current)) return
         executeUpload(current)
     }
 
     /**
-     * 冲突仲裁闸（Q10）：上传前查云端 W，CONFLICT ⇒ 移入挂起区 + 发事件 + 中止本次处理。
+     * 冲突仲裁闸（Q10）：上传前查云端 W，**verdict 非放行族即挂起**——
+     * - CONFLICT（L>C 且 W>C 且 W≠L）：双端各有新进度，自动上传 = 覆盖另一端进度；
+     * - LOCAL_BEHIND（L==C 且 W>C）：云端有本机之外的新进度，自动上传 = 静默覆盖云端。
+     * 两者都移入挂起区 + 发事件等玩家显式裁决（D-5：绝不静默覆盖）。
+     * 放行族 = IN_SYNC（两端一致）/ UPLOAD_PENDING（仅本地新/确认回填竞态）。
      * W 查询失败 = null ⇒ U11 保守退化，不阻断 UPLOAD_PENDING 的重试。
      *
      * @return true = 已挂起（调用方结束本条处理）
@@ -209,39 +214,44 @@ class UploadQueue(
     private suspend fun conflictGate(entry: PendingEntry): Boolean {
         // 玩家已显式选择保留本地 ⇒ 本次上传已获授权，越过冲突闸（否则闸会再次
         // 判 CONFLICT 形成死锁——"谁新"已由玩家裁决，不再由仲裁器否决）
-        val authorized = mutex.withLock { conflictAuthorized.remove(entry.slot) }
+        val authorized = mutex.withLock {
+            val a = conflictAuthorized
+            if (a) conflictAuthorized = false
+            a
+        }
         if (authorized) return false
-        val cloudId = when (val r = backend.currentCloudSaveId(entry.slot)) {
+        val cloudId = when (val r = backend.currentCloudSaveId()) {
             is SaveBackendResult.Success -> r.data
             is SaveBackendResult.Failure -> null
         }
-        ledger.normalizeIfNeeded(entry.slot) // U10 自愈（中断窗防御）
+        ledger.normalizeIfNeeded() // U10 自愈（中断窗防御）
         val verdict = SaveArbiter.arbitrate(
-            lastLocalSaveId = ledger.lastLocalSaveId(entry.slot),
-            lastConfirmedCloudId = ledger.lastConfirmedCloudId(entry.slot),
+            lastLocalSaveId = ledger.lastLocalSaveId(),
+            lastConfirmedCloudId = ledger.lastConfirmedCloudId(),
             cloudSaveId = cloudId
         )
-        if (verdict != ArbitrationVerdict.CONFLICT) return false
+        if (verdict == ArbitrationVerdict.IN_SYNC || verdict == ArbitrationVerdict.UPLOAD_PENDING) {
+            return false
+        }
 
         val conflict = SaveConflictEvent(
-            slot = entry.slot,
-            lastLocalSaveId = ledger.lastLocalSaveId(entry.slot),
-            lastConfirmedCloudId = ledger.lastConfirmedCloudId(entry.slot),
+            lastLocalSaveId = ledger.lastLocalSaveId(),
+            lastConfirmedCloudId = ledger.lastConfirmedCloudId(),
             cloudSaveId = cloudId,
             source = "upload"
         )
         mutex.withLock {
-            pending.remove(entry.slot)
-            heldConflicts[entry.slot] = HeldEntry(entry, conflict)
+            pending = null
+            heldConflict = HeldEntry(entry, conflict)
         }
-        DomainLog.w(TAG, "conflict held: slot=${entry.slot} L=${conflict.lastLocalSaveId} " +
+        DomainLog.w(TAG, "conflict held: verdict=$verdict L=${conflict.lastLocalSaveId} " +
             "C=${conflict.lastConfirmedCloudId} W=$cloudId — 禁止自动上传覆盖，等待玩家选择")
-        _events.tryEmit(Event.ConflictHeld(entry.slot, conflict))
+        _events.tryEmit(Event.ConflictHeld(conflict))
         return true
     }
 
     private suspend fun executeUpload(entry: PendingEntry) {
-        val result = backend.upload(entry.slot, entry.saveData, entry.saveId)
+        val result = backend.upload(entry.saveData, entry.saveId)
         when (result) {
             is SaveBackendResult.Success -> onUploadSuccess(entry)
             is SaveBackendResult.Failure -> onUploadFailure(entry, result)
@@ -251,12 +261,12 @@ class UploadQueue(
     private suspend fun onUploadSuccess(entry: PendingEntry) {
         val failuresBefore = consecutiveFailures
         consecutiveFailures = 0
-        ledger.recordCloudConfirmed(entry.slot, entry.saveId)
-        mutex.withLock { pending.remove(entry.slot) }
-        DomainLog.i(TAG, "upload confirmed: slot=${entry.slot} saveId=${entry.saveId}")
-        _events.tryEmit(Event.UploadConfirmed(entry.slot, entry.saveId))
+        ledger.recordCloudConfirmed(entry.saveId)
+        mutex.withLock { pending = null }
+        DomainLog.i(TAG, "upload confirmed: saveId=${entry.saveId}")
+        _events.tryEmit(Event.UploadConfirmed(entry.saveId))
         if (failuresBefore > 0) DomainLog.i(TAG, "upload recovered after $failuresBefore consecutive failures")
-        delay(config.sharedUploadCooldownMs) // 共享冷却（多档共用，Q2 保守口径）
+        delay(config.sharedUploadCooldownMs) // 共享冷却（Q2 保守口径）
     }
 
     private suspend fun onUploadFailure(entry: PendingEntry, failure: SaveBackendResult.Failure) {
@@ -264,30 +274,30 @@ class UploadQueue(
         val retryable = failure.error in RETRYABLE_ERRORS
         if (retryable && consecutiveFailures < config.maxConsecutiveFailures) {
             val backoff = retryBackoffMs(consecutiveFailures, failure.error)
-            DomainLog.w(TAG, "upload failed (will retry in ${backoff}ms): slot=${entry.slot} " +
+            DomainLog.w(TAG, "upload failed (will retry in ${backoff}ms): " +
                 "error=${failure.error} message=${failure.message}")
             _events.tryEmit(
-                Event.UploadFailed(entry.slot, entry.saveId, failure.error, failure.message, willRetry = true)
+                Event.UploadFailed(entry.saveId, failure.error, failure.message, willRetry = true)
             )
             delay(backoff)
             return
         }
         if (retryable) {
             // Q9：连续失败达上限 → 熔断（如实告警不静默），静默后半开重试
-            DomainLog.e(TAG, "upload circuit OPEN: slot=${entry.slot} consecutiveFailures=$consecutiveFailures")
-            _events.tryEmit(Event.CircuitOpened(entry.slot, consecutiveFailures))
+            DomainLog.e(TAG, "upload circuit OPEN: consecutiveFailures=$consecutiveFailures")
+            _events.tryEmit(Event.CircuitOpened(consecutiveFailures))
             delay(config.circuitOpenMs)
             consecutiveFailures = 0 // 半开：给下一次尝试重置计数
             return
         }
         // 非重试族（尺寸/配额/鉴权/序列化/SDK 缺失）：如实告警，条目移除；
         // 账本 L>C 保持脏标志为真，下次本地保存重新入队
-        DomainLog.e(TAG, "upload failed permanent: slot=${entry.slot} error=${failure.error} " +
+        DomainLog.e(TAG, "upload failed permanent: error=${failure.error} " +
             "message=${failure.message}")
         _events.tryEmit(
-            Event.UploadFailed(entry.slot, entry.saveId, failure.error, failure.message, willRetry = false)
+            Event.UploadFailed(entry.saveId, failure.error, failure.message, willRetry = false)
         )
-        mutex.withLock { pending.remove(entry.slot) }
+        mutex.withLock { pending = null }
     }
 
     /** 退避节奏：限频族按共享冷却（服务器真实约束），其余指数 ×2 封顶 */

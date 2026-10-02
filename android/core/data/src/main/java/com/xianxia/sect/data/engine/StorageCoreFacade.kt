@@ -1,7 +1,7 @@
 package com.xianxia.sect.data.engine
 
 import com.xianxia.sect.data.cache.CacheLayer
-import com.xianxia.sect.data.concurrent.SlotLockManager
+import com.xianxia.sect.data.concurrent.SaveLockManager
 import com.xianxia.sect.data.local.GameDatabase
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,5 +16,5 @@ import javax.inject.Singleton
 class StorageCoreFacade @Inject constructor(
     val database: GameDatabase,
     val cache: CacheLayer,
-    val lockManager: SlotLockManager
+    val lockManager: SaveLockManager
 )

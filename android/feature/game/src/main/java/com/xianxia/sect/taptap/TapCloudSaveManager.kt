@@ -3,7 +3,6 @@ package com.xianxia.sect.taptap
 import android.content.Context
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -409,12 +408,12 @@ class TapCloudSaveManager @Inject constructor(
             // 防止 TapTap metadata 最终一致性延迟——上传后
             // 立刻查询可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段
             // 清零（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地
-            // 数据降级。合并策略见 [resolveCloudSaveInfo]；脏标志取存量单档（slot 0）
-            // 账本——SR-2 起云上传队列确认写入同一账本。
+            // 数据降级。合并策略见 [resolveCloudSaveInfo]；脏标志取云端单档账本——
+            // 云上传队列确认写入同一账本。
             val result = resolveCloudSaveInfo(
                 cached = cached,
                 api = apiResult,
-                localDirty = uploadLedger.isLocalDirty(StorageConstants.CLOUD_SAVE_SLOT)
+                localDirty = uploadLedger.isLocalDirty()
             )
             // 仅持久化含真实摘要的结果，避免把陈旧空摘要写死进本地缓存
             if (result.hasSaveData && result.hasMeaningfulSummary()) {
@@ -597,16 +596,17 @@ class TapCloudSaveManager @Inject constructor(
         }
     }
 
-    // ── 云端旧协议存档清理（SS0 删档重置第二保险）──
+    // ── 云端退役命名存档清理（删档重置第二保险）──
 
     /**
-     * 一次性云端旧档清理：删除当前登录账号下全部旧协议命名档
-     * （[TapTapSaveBackend.isLegacyArchiveName]——`mnzm_cloud_save` / `slot_N`）。
+     * 一次性云端退役命名档清理：删除当前登录账号下全部退役命名档
+     * （[TapTapSaveBackend.isLegacyArchiveName]——旧协议 `mnzm_cloud_save` / `slot_N`，
+     * 以及 v2 时代槽位命名 `mnzm_v2_slot_N`）。
      *
-     * 双保险中的辅助手段（D-5）：旧命名在新版本零读取路径（命名失联）才是
+     * 双保险中的辅助手段（D-5）：退役命名在新版本零读取路径（命名失联）才是
      * 主保险；本删除尽力而为——单档删除失败仅记日志不阻断，也不因失败拒绝
      * 写完成标记（标记表达"清理动作已执行过"，失联语义不依赖删除成功）。
-     * 新协议命名（v2）与非本游戏命名的存档一律不动。
+     * 现役命名（`mnzm_v2_save`）与非本游戏命名的存档一律不动。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
     suspend fun oneTimeCleanup() {
@@ -620,15 +620,15 @@ class TapCloudSaveManager @Inject constructor(
             legacyTargets.forEach { target ->
                 try {
                     api.deleteArchive(target.uuid)
-                    DomainLog.i(TAG, "oneTimeCleanup: 旧协议云档已删除 ${target.name}(${target.uuid.take(8)})")
+                    DomainLog.i(TAG, "oneTimeCleanup: 退役命名云档已删除 ${target.name}(${target.uuid.take(8)})")
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    DomainLog.w(TAG, "oneTimeCleanup: 旧协议云档删除失败（不阻断）${target.name}: ${e.message}")
+                    DomainLog.w(TAG, "oneTimeCleanup: 退役命名云档删除失败（不阻断）${target.name}: ${e.message}")
                 }
             }
             if (legacyTargets.isEmpty()) {
-                DomainLog.i(TAG, "oneTimeCleanup: 无旧协议云档")
+                DomainLog.i(TAG, "oneTimeCleanup: 无退役命名云档")
             }
             clearCachedArchiveUuid()
             keyValueStore.putBoolean(KEY_CLEANUP_DONE, true)

@@ -3,7 +3,7 @@ package com.xianxia.sect.data.facade
 import android.util.Log
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.data.backup.SaveFileManager
-import com.xianxia.sect.data.concurrent.SlotLockManager
+import com.xianxia.sect.data.concurrent.SaveLockManager
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.getMails
 import com.xianxia.sect.data.engine.replaceMails
@@ -57,7 +57,7 @@ fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveRes
 @Singleton
 class StorageFacade @Inject constructor(
     private val engine: StorageEngine,
-    private val lockManager: SlotLockManager,
+    private val lockManager: SaveLockManager,
     private val saveFileManager: SaveFileManager,
     private val accountSpace: com.xianxia.sect.data.account.AccountSpaceManager
 ) {

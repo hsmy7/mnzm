@@ -12,8 +12,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * TapTapSaveBackend 纯映射单测（槽位命名 / extra saveId / 错误码分类）——
- * 不触 SDK（反射桥在 JVM 沙箱无 SDK 可探测，传输面归 SR-3 真机硬门）。
+ * TapTapSaveBackend 纯映射单测（云端命名退役判定 / extra saveId / 错误码分类）——
+ * 不触 SDK（反射桥在 JVM 沙箱无 SDK 可探测，传输面归真机硬门）。
  * Robolectric：extra JSON 走 org.json（本地 JVM 单测无 Robolectric 时是 android.jar 桩）。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -29,39 +29,30 @@ class TapTapSaveBackendTest {
         seeds = emptyList()
     )
 
-    // ── 槽位 ↔ 云端命名（v2 命名基线；旧协议命名零识别）──
+    // ── 云端命名（单档基线；退役命名零识别）──
 
     @Test
-    fun `archiveNameFor - slot0 映射云会话单档 1至6 映射 v2 槽位命名`() {
-        assertEquals("mnzm_v2_save", TapTapSaveBackend.archiveNameFor(0))
-        assertEquals("mnzm_v2_slot_1", TapTapSaveBackend.archiveNameFor(1))
-        assertEquals("mnzm_v2_slot_6", TapTapSaveBackend.archiveNameFor(6))
+    fun `ARCHIVE_NAME - 单档唯一云档名`() {
+        assertEquals("mnzm_v2_save", TapTapSaveBackend.ARCHIVE_NAME)
     }
 
     @Test
-    fun `slotFromArchiveName - v2 命名可逆且旧协议命名一律失联`() {
-        assertEquals(0, TapTapSaveBackend.slotFromArchiveName("mnzm_v2_save"))
-        assertEquals(3, TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_3"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_0"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_7"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_v2_slot_abc"))
-        // 旧协议命名（SS0 删档重置前）：零读取路径，旧云档失联
-        assertNull(TapTapSaveBackend.slotFromArchiveName("mnzm_cloud_save"))
-        assertNull(TapTapSaveBackend.slotFromArchiveName("slot_3"))
-        // 其他设备/非本游戏命名：不参与槽位映射
-        assertNull(TapTapSaveBackend.slotFromArchiveName("some_other_device_save"))
-    }
-
-    @Test
-    fun `isLegacyArchiveName - 仅旧协议命名命中`() {
+    fun `isLegacyArchiveName - 旧协议与 v2 槽位命名全命中，现役命名不命中`() {
+        // 旧协议命名（删档重置前）
         assertTrue(TapTapSaveBackend.isLegacyArchiveName("mnzm_cloud_save"))
         assertTrue(TapTapSaveBackend.isLegacyArchiveName("slot_1"))
         assertTrue(TapTapSaveBackend.isLegacyArchiveName("slot_6"))
+        // v2 时代槽位命名（单档坍缩后退役，旧云档清理双保险覆盖）
+        assertTrue(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_1"))
+        assertTrue(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_6"))
+        // 现役唯一云档与其他命名
         assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_save"))
-        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_1"))
         assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_0"))
         assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_7"))
         assertFalse(TapTapSaveBackend.isLegacyArchiveName("slot_abc"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_0"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_7"))
+        assertFalse(TapTapSaveBackend.isLegacyArchiveName("mnzm_v2_slot_abc"))
         assertFalse(TapTapSaveBackend.isLegacyArchiveName("some_other_device_save"))
     }
 
@@ -126,29 +117,6 @@ class TapTapSaveBackendTest {
         assertNull(TapTapSaveBackend.parseSignature("""{"sig":""}""")) // 空串视为无
         assertNull(TapTapSaveBackend.parseSignature("not json"))
         assertNull(TapTapSaveBackend.parseSignature(null))
-    }
-
-    // ── extra JSON 摘要解析（SR-3 槽位列表选档 UI；缺字段降级 null 非错误）──
-
-    @Test
-    fun `parseSummary - 现役协议字段直映射`() {
-        val summary = TapTapSaveBackend.parseSummary(
-            """{"year":12,"month":7,"sect":"青云宗","disciples":35,"stones":999,"version":"1.2.3","saveId":4}"""
-        )
-        assertEquals(12, summary?.gameYear)
-        assertEquals(7, summary?.gameMonth)
-        assertEquals("青云宗", summary?.sectName)
-        assertEquals(35, summary?.discipleCount)
-        assertEquals(999L, summary?.spiritStones)
-        assertEquals("1.2.3", summary?.appVersion)
-    }
-
-    @Test
-    fun `parseSummary - 缺失空与全空摘要均降级 null`() {
-        assertNull(TapTapSaveBackend.parseSummary(null))
-        assertNull(TapTapSaveBackend.parseSummary(""))
-        assertNull(TapTapSaveBackend.parseSummary("{}")) // 全空 = 无真实摘要（最终一致性延迟常态）
-        assertNull(TapTapSaveBackend.parseSummary("not json"))
     }
 
     // ── 错误码分类（SR-0 §2.4 归组 → 队列退避/熔断决策面）──

@@ -16,9 +16,6 @@ object StorageConstants {
     
     // ==================== 槽位与存档 ====================
 
-    /** 云存档槽位 */
-    const val CLOUD_SAVE_SLOT = 0
-
     /** 备份文件目录名 */
     const val BACKUP_DIR_NAME = "saves"
     

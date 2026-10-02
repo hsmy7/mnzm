@@ -5,15 +5,15 @@ import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
- * 云存档后端接口（方案 D4，SR-2 落地）。
+ * 云存档后端接口（方案 D4，SR-2 落地；单存档 v2 后云侧坍缩为单键）。
  *
- * 业务层（feature / 后续 SaveOrchestrator）只依赖本接口，**零 TapTap SDK 类型引用**
+ * 业务层（feature / 上传队列）只依赖本接口，**零 TapTap SDK 类型引用**
  * （IN3，静态守卫：`StorageLayerSdkIsolationGuardTest` + core:data 测试 classpath 负向断言）。
  * 现实现 = `TapTapSaveBackend`（feature/game，包装既有 CloudSaveApi 反射桥，探测逻辑复用不重写）；
  * 未来换自家游戏服务器时新增实现即可切换（D4 预埋点）。
  *
- * 槽位语义：`slot` 1..6 映射云端 `mnzm_v2_slot_N` 命名；slot [com.xianxia.sect.data.
- * StorageConstants.CLOUD_SAVE_SLOT]（=0）映射云会话单档 `mnzm_v2_save`。
+ * 云端命名：单存档语义下全部操作定位到**唯一云档**（`mnzm_v2_save`），
+ * 接口不再携带槽位参数。
  *
  * 仲裁（IN2 无时钟）：本接口不提供"谁新"判定；进度新旧判定唯一入口是
  * [SaveArbiter.arbitrate]（脏标志/保存序号）。云端的实际保存序号 W 经
@@ -26,28 +26,22 @@ interface SaveBackend {
     val conflicts: SharedFlow<SaveConflictEvent>
 
     /**
-     * 上传 [saveData] 到云端 [slot]，携带保存序号 [saveId]（进 extra JSON，作为云端 W 的回带源）。
+     * 上传 [saveData] 到唯一云档，携带保存序号 [saveId]（进 extra JSON，作为云端 W 的回带源）。
      * 幂等性：同 saveId 重复上传覆盖同一云档（确认丢失重传场景，SR-0 S6）。
      */
-    suspend fun upload(slot: Int, saveData: SaveData, saveId: Long): SaveBackendResult<UploadReceipt>
+    suspend fun upload(saveData: SaveData, saveId: Long): SaveBackendResult<UploadReceipt>
 
     /**
-     * 下载云端 [slot] 存档。返回载荷携带云端实际保存序号与本端脏标志仲裁 verdict；
+     * 下载云端存档。返回载荷携带云端实际保存序号与本端脏标志仲裁 verdict；
      * verdict = CONFLICT 时**调用方不得直接应用载荷**（必须走冲突 UI）。
      */
-    suspend fun download(slot: Int): SaveBackendResult<CloudSavePayload>
-
-    /** 列出云端全部槽位存档（SR-3 槽位列表数据源） */
-    suspend fun list(): SaveBackendResult<List<CloudSaveEntry>>
-
-    /** 删除云端 [slot] 存档 */
-    suspend fun delete(slot: Int): SaveBackendResult<Unit>
+    suspend fun download(): SaveBackendResult<CloudSavePayload>
 
     /**
-     * 查询云端 [slot] 当前实际保存序号（W）。null = 云无档或存量为旧格式（extra 无 saveId）。
+     * 查询云端当前实际保存序号（W）。null = 云无档或存量为旧格式（extra 无 saveId）。
      * 上传队列上传前仲裁（Q10）与本端"净"判定的数据源。
      */
-    suspend fun currentCloudSaveId(slot: Int): SaveBackendResult<Long?>
+    suspend fun currentCloudSaveId(): SaveBackendResult<Long?>
 }
 
 /** 后端操作结果（类型化错误，队列按错误分类决定退避/重试/熔断） */
@@ -99,32 +93,11 @@ data class CloudSavePayload(
     val integrity: SavePayloadIntegrity = SavePayloadIntegrity.UNSIGNED
 )
 
-/** 云端存档条目（槽位列表/删除定位；摘要供 SR-3 选档 UI 渲染） */
-data class CloudSaveEntry(
-    val slot: Int,
-    val archiveName: String,
-    val saveId: Long?,
-    val sizeBytes: Long,
-    val modifiedTimeMs: Long,
-    val summary: CloudSaveSummary?
-)
-
-/** 云端摘要（extra JSON 协议 year/month/sect/disciples/stones/version 直映射） */
-data class CloudSaveSummary(
-    val gameYear: Int,
-    val gameMonth: Int,
-    val sectName: String,
-    val discipleCount: Int,
-    val spiritStones: Long,
-    val appVersion: String
-)
-
 /**
  * 真冲突事件（仲裁 CONFLICT 时由后端发出）：本地有未确认上传（L>C）且云端有
  * 另一端的新进度（W>C 且 W≠L）——双方各有新进度，必须玩家二选一（SR-0 §4.2 S3/S4）。
  */
 data class SaveConflictEvent(
-    val slot: Int,
     val lastLocalSaveId: Long,
     val lastConfirmedCloudId: Long,
     val cloudSaveId: Long?,

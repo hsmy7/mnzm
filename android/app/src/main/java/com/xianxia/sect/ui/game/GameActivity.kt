@@ -775,7 +775,7 @@ class GameActivity : ComponentActivity() {
                 when {
                     isCloudSaveLoad -> {
                         Log.d(TAG, "Loading cloud save from MainActivity")
-                        saveLoadViewModel.loadFromCloudSave()
+                        saveLoadViewModel.loadCloudSave()
                     }
                     isNewGame -> {
                         Log.d(TAG, "Starting new game: sectName=$sectName")

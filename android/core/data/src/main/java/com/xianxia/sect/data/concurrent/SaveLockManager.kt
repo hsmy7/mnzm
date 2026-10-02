@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.withLock
  *   存读档操作之间互相串行。StorageEngine.load 依赖此排他语义才可在
  *   "读锁"内执行 performFullTransactionSave 写库
  */
-class SlotLockManager {
+class SaveLockManager {
 
     /** 存档互斥锁：save/load/delete 全部串行 */
     private val mutex = Mutex()

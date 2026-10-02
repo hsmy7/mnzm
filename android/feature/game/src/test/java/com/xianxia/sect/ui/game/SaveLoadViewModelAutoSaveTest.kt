@@ -242,7 +242,7 @@ class SaveLoadViewModelAutoSaveTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { storageFacade.save(any()) }
-        coVerify(exactly = 0) { uploadQueue.enqueue(any(), any(), any()) }
+        coVerify(exactly = 0) { uploadQueue.enqueue(any(), any()) }
     }
 
     @Test
@@ -267,7 +267,7 @@ class SaveLoadViewModelAutoSaveTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { storageFacade.save(any()) }
-            coVerify(exactly = 1) { uploadQueue.enqueue(any(), any(), any()) }
+            coVerify(exactly = 1) { uploadQueue.enqueue(any(), any()) }
             verify(exactly = 1) { uploadQueue.requestDrain() }
         }
 
