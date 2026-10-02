@@ -8,13 +8,15 @@
 
 铁律速记：
 
-- 任何 Entity 变更 → 递增 `@Database(version)` + 编写 `MIGRATION_(N-1)_N` + 更新 `MigrationRequiredGuardTest` 实体基线（同 commit 三处）；
-  版本号唯一来源是 `GameDatabaseConfig.DATABASE_VERSION`，**禁止硬编码**；缺迁移 = 老库被
-  `fallbackToDestructiveMigration(dropAllTables = true)` 静默重建
-- **禁止 `ALTER TABLE DROP COLUMN`**（SQLite 3.35.0 才支持）→ 保留旧列 + `@Ignore`，或自写 create-copy-drop-rename 重建
-- 拿不准时保留旧字段 + 新字段，**永远不要删列**
-- 新写 Migration 必须有行为面验证（旧版本库文件 → `GameDatabase.create` → 断言，参照 `DestructiveRebuildBaselineTest`）
-- 数据库自恢复三层：启动前快照（`snapshotDatabaseBeforeUpgrade`）/ 启动验证恢复（`restoreFromBackupIfNeeded`）/ 迁移纪律守卫（`MigrationRequiredGuardTest` + `DestructiveRebuildBaselineTest`）
+- 任何 Entity 变更 → 递增 `@Database(version)` + 更新 `MigrationRequiredGuardTest.BASELINE_ENTITIES`（**同 commit 两处**）；
+  版本号唯一来源是 `GameDatabaseConfig.DATABASE_VERSION`，**禁止硬编码**
+- **测试期（当前）不写迁移**：老库由 `fallbackToDestructiveMigration(dropAllTables = true)` 全量重建；
+  `DeadCompatRemovalGuardTest` 禁 `MIGRATION_N_M` 回流。🔴 **上线前必须切回迁移纪律**（写 `MIGRATION_(N-1)_N` + 禁删列）
+- **列变更分时态**：测试期可直接删字段（老库整体重建）；上线后禁 `ALTER TABLE DROP COLUMN`（SQLite 3.35.0 才支持），
+  须保留旧列 + `@Ignore` 或 create-copy-drop-rename 重建；行为面见根 §7.4
+- 数据库自恢复三层：启动前快照（`snapshotDatabaseBeforeUpgrade`）/ 启动验证恢复（`restoreFromBackupIfNeeded`，
+  行为面 `DatabaseRecoveryTest`）/ 纪律守卫（`MigrationRequiredGuardTest` + `DeadCompatRemovalGuardTest` +
+  `DestructiveRebuildBaselineTest`）
 
 ## ProtoBuf 序列化
 
@@ -47,4 +49,5 @@
   发放类（自动入库）不包（溢出转邮件）。详见 `rules/economy-design.md`
 
 新增持久化玩法系统（建新表）的完整规范 —— 存储选型（每旬高频更新走 EntityStore 列式，禁默认堆 Row 表）、
-schema JSON 必须提交、新列一律带 DEFAULT 零值、多新表评估合并迁移 —— 见 `rules/database-migration.md`。
+schema 导出目录由 `.gitignore` 管理**不入库**（`DeadCompatRemovalGuardTest` 防低于当期版本的孤儿回流）、
+新列一律带 DEFAULT 零值 —— 见 `rules/database-migration.md`。

@@ -220,7 +220,7 @@ class SaveFileManagerTest {
 
         assertTrue("重复初始化后备份目录仍存在", File(tempFolder.root, "saves").exists())
 
-        // 重复初始化后文件操作仍正常（slot 须在 0..DEFAULT_MAX_SLOTS 内）
+        // 重复初始化后文件操作仍正常（单档：文件层已无槽位维度）
         writeValidSavFile("after-reinit".encodeToByteArray())
         val result = manager.readWithFallback()
         assertEquals("重复初始化后文件操作正常", BackupStatus.SUCCESS, result.status)

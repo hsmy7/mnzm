@@ -5,6 +5,12 @@
 > 权威需求：`docs/character-gacha-redesign-2026-09-23.md`（产品方案 v1.5）。
 > 落点清单：`recon-G02-G03.md` / `recon-G04.md` / `recon-G05-G06-G08-G09.md` / `report-G01.md` / `report-G07.md`。
 
+> ⚠️ **口径变更提示（2026-10-01，SS0 删档重置并网后）**：本文件铁律 4 / 5 的**迁移与旧格式兼容表述已过期**——
+> 迁移注册链、`ALL_MIGRATIONS`、`OldSerializableSaveData` 均已清零，schema 变更走
+> `fallbackToDestructiveMigration(dropAllTables = true)` 全量重建，`DeadCompatRemovalGuardTest` 禁 `MIGRATION_N_M` 常量回流。
+> **现行口径一律以 `rules/database-migration.md` 为准**（§1 版本与基线同步、§5 destructive 语义、上线前切回迁移纪律）。
+> 本文件其余铁律（C++ AUTHORITATIVE / ActionId 只增不复用 / JNI 计数 / 确定性 RNG 等）继续有效。
+
 ## 1. 铁律（违反即任务未完成）
 
 | # | 规则 |

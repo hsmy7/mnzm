@@ -233,8 +233,8 @@ abstract class GameDatabase : RoomDatabase() {
      * 启动 DB 打开）+ DataPruningScheduler 周期任务（双保险）。
      */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun pruneMigrationBackups(keep: Int = MIGRATION_BACKUP_RETENTION) {
-        pruneMigrationBackups(openHelper.writableDatabase.path, keep)
+    fun pruneDatabaseSnapshots(keep: Int = SNAPSHOT_RETENTION) {
+        pruneDatabaseSnapshots(openHelper.writableDatabase.path, keep)
     }
 
 
@@ -344,10 +344,10 @@ abstract class GameDatabase : RoomDatabase() {
         private const val TAG = "GameDatabase"
 
         /** 快照保留份数：最近 2 个版本供降级恢复 */
-        const val MIGRATION_BACKUP_RETENTION = 2
+        const val SNAPSHOT_RETENTION = 2
     /** 静态实现（companion 可达——verifyAndRecoverDatabase 为 companion 域） */
     @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
-    fun pruneMigrationBackups(dbPath: String?, keep: Int = MIGRATION_BACKUP_RETENTION) {
+    fun pruneDatabaseSnapshots(dbPath: String?, keep: Int = SNAPSHOT_RETENTION) {
         try {
             if (dbPath.isNullOrEmpty()) return
             val dir = File(dbPath).parentFile ?: return
@@ -364,7 +364,7 @@ abstract class GameDatabase : RoomDatabase() {
                     if (f.delete()) Log.i(TAG, "Pruned old startup snapshot: ${f.name}")
                 }
         } catch (e: Exception) {
-            Log.w(TAG, "pruneMigrationBackups failed (non-fatal)", e)
+            Log.w(TAG, "pruneDatabaseSnapshots failed (non-fatal)", e)
         }
     }
 
@@ -618,11 +618,11 @@ abstract class GameDatabase : RoomDatabase() {
 
             // Step 4: 版本达标后清理恢复 marker + 裁剪启动前快照
             //（注释承诺的维护任务接线——版本达标即旧版快照
-            // 价值衰减，按保留窗口留最近 MIGRATION_BACKUP_RETENTION 份）
+            // 价值衰减，按保留窗口留最近 SNAPSHOT_RETENTION 份）
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
                     File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
-                    pruneMigrationBackups(dbFile.absolutePath)
+                    pruneDatabaseSnapshots(dbFile.absolutePath)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "清理恢复 marker/启动前快照失败", e)

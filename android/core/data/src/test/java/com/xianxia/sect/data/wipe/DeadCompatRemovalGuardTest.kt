@@ -66,9 +66,9 @@ class DeadCompatRemovalGuardTest {
          */
         val WHITELIST: Set<String> = setOf(
             // D-9（可恢复性保留）：启动前快照的裁剪实现（GameDatabase/DataPruningScheduler 两处）
-            "pruneMigrationBackups",
+            "pruneDatabaseSnapshots",
             // D-9（可恢复性保留）：快照保留窗口常量
-            "MIGRATION_BACKUP_RETENTION",
+            "SNAPSHOT_RETENTION",
             // D-5（云端旧档删除识别器）：主动删除旧协议档必须能识别旧命名本体
             "isLegacyArchiveName",
             "mnzm_cloud_save",

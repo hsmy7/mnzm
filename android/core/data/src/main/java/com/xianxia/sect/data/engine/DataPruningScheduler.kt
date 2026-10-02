@@ -230,14 +230,14 @@ class DataPruningScheduler @Inject constructor(
             Log.d(TAG, "Change log pruning skipped: ${e.message}")
         }
 
-        // 审计 P1-5 双保险：迁移备份保留窗口裁剪（主接线在 GameDatabase
+        // 审计 P1-5 双保险：启动前快照保留窗口裁剪（主接线在 GameDatabase
         // verifyAndRecoverDatabase 版本达标分支）
         try {
-            database.pruneMigrationBackups()
+            database.pruneDatabaseSnapshots()
         } catch (e: CancellationException) {
             throw e // 取消穿透: 备份窗口裁剪取消时上抛, 不误标"跳过"
         } catch (e: Exception) {
-            Log.d(TAG, "Migration backup pruning skipped: ${e.message}")
+            Log.d(TAG, "Snapshot pruning skipped: ${e.message}")
         }
 
         // 审计 P3-9：legacy snapshots/ 目录一次性删除

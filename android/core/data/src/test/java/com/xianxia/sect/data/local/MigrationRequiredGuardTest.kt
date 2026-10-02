@@ -7,15 +7,15 @@ import java.io.File
 /**
  * 迁移纪律守卫（SS0 验收⑩ / 增量铁律 17）。
  *
- * 迁移链退役后，destructive fallback 意味着**忘写迁移 = 玩家档被静默重建**。
- * 本守卫把"`@Database` 实体清单变更必须同批注册 `MIGRATION_(N-1)_N`"变成 CI 红线：
- * 实体清单基线漂移即失败，并给出操作指引。
+ * 迁移链退役后，destructive fallback 意味着**实体清单漂移而未同步版本与基线 = 老库被静默重建**。
+ * 本守卫把"`@Database` 实体清单变更必须同批完成同步义务"变成 CI 红线：基线漂移即失败。
  *
  * 同步义务：新增/删除 @Entity 或变更实体结构时——
  * ① 递增 `GameDatabaseConfig.DATABASE_VERSION`；
- * ② 编写 `MIGRATION_(N-1)_N`（迁移注册链已随 SS0 退役，现行纪律见
- *    `rules/database-migration.md`）；
- * ③ 更新本测试 [BASELINE_ENTITIES] 清单（三处同一 commit）。
+ * ② 更新本测试 [BASELINE_ENTITIES] 清单（**同 commit 两处**）；
+ * ③ **测试期不写迁移**（老库由 `fallbackToDestructiveMigration(dropAllTables = true)` 全量重建）。
+ * 🔴 **正式上线前必须切回**：写 `MIGRATION_(N-1)_N` + 迁移链完整性守卫 + 禁删列，
+ * 否则一次 schema 变更会静默清空真实玩家档。详见 `rules/database-migration.md`。
  */
 class MigrationRequiredGuardTest {
 
@@ -24,7 +24,7 @@ class MigrationRequiredGuardTest {
 
         /**
          * 实体清单基线（SS4 时刻，v70；`save_slot_metadata` 整表退役）。实体清单与基线不一致 = 有实体变更：
-         * 必须同批写迁移并更新本清单，否则老库将被静默重建。
+         * 必须同批递增版本并更新本清单（测试期不写迁移，老库由 destructive 重建）。
          */
         val BASELINE_ENTITIES = setOf(
             "GameData::class",
@@ -72,7 +72,7 @@ class MigrationRequiredGuardTest {
                 append("@Database 实体清单与基线不一致（新增: $added / 删除: $removed）。")
                 append("实体变更必须同一 commit 完成：")
                 append("① 递增 GameDatabaseConfig.DATABASE_VERSION；")
-                append("② 注册 MIGRATION_(N-1)_N（缺迁移 = 老库被 fallbackToDestructiveMigration 静默重建）；")
+                append("② 测试期不写迁移（老库由 fallbackToDestructiveMigration 全量重建）；正式上线前须切回写 MIGRATION_(N-1)_N；")
                 append("③ 更新 MigrationRequiredGuardTest.BASELINE_ENTITIES。")
                 append("详见 rules/database-migration.md。")
             },

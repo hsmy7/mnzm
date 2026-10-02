@@ -221,11 +221,13 @@ ViewModel → UseCase → Facade (interface) → Service (impl) → GameStateSto
 
 ### 7. 数据库规范
 
-**7.1 🔴 任何 Entity 变更必须有 Migration** — 每次变更：递增 `@Database(version)` + 编写 `MIGRATION_(N-1)_N` + 更新 `MigrationRequiredGuardTest` 基线（同 commit 三处）。**修改 `@Entity` 前必须先读 `rules/database-migration.md`**——缺迁移 = 老库被 `fallbackToDestructiveMigration` 静默重建。拿不准时保留旧字段 + 新字段（`@Ignore`），永远不要删列。
+**7.1 🔴 Entity 变更必须同批同步版本与基线** — 递增 `@Database(version)` + 更新 `MigrationRequiredGuardTest.BASELINE_ENTITIES`（**同 commit 两处**）。**改 `@Entity` 前先读 `rules/database-migration.md`**。
+**测试期（当前）不写迁移**：老库由 `fallbackToDestructiveMigration(dropAllTables = true)` 全量重建；`DeadCompatRemovalGuardTest` 禁 `MIGRATION_N_M` 回流。
+🔴 **上线前必须切回**：写 `MIGRATION_(N-1)_N` + 迁移链完整性守卫 + 禁删列——否则一次 schema 变更静默清空真实玩家档。
 
-**7.2 🔴 禁止 `ALTER TABLE DROP COLUMN`** — SQLite 3.35.0 才支持。保留旧列 + `@Ignore`，或自写 create-copy-drop-rename 重建。
+**7.2 🔴 列变更分时态** — 测试期可直接删字段（老库整体重建）；上线后禁 `ALTER TABLE DROP COLUMN`（SQLite 3.35.0 才支持），须保留旧列 + `@Ignore` 或 create-copy-drop-rename 重建。
 
-**7.4 🔴 Migration 必须有测试** — 旧版本插入种子数据 → 运行迁移 → 验证数据完整性。
+**7.4 🔴 迁移纪律必须有测试** — 测试期 `DestructiveRebuildBaselineTest`；上线后每条 `MIGRATION` 必测旧数据完整迁移。
 
 ### 8. 错误处理规范
 
